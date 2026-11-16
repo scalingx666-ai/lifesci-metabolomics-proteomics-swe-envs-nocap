@@ -32,6 +32,7 @@ diff_format = "unified"
 context_files = [
     "matchms/importing/load_from_msp.py",
 ]
+bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -50,10 +51,15 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "local_only"
+mode = "inline_dockerfile"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "private"
+image_visibility = "public"
+pushed_at = "2026-11-16T15:51:53.129233+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:ab80947e085498801ad139fcd8bc36d54b1392815ea2a8f96d6e905519fcc9d6"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
 
 [agent]
 timeout_sec = 1800.0

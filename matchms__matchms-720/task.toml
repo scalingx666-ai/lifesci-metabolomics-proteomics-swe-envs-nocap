@@ -33,6 +33,7 @@ context_files = [
     ".github/workflows/test_ecosystem.yml",
     "README.rst",
 ]
+bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -51,10 +52,15 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "local_only"
+mode = "inline_dockerfile"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "private"
+image_visibility = "public"
+pushed_at = "2026-11-16T15:51:53.122632+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:0378651240bf25f0cb9fd6d5ce80026cd590cfe39b315b38e97b046ac943cfe4"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
 
 [agent]
 timeout_sec = 1800.0

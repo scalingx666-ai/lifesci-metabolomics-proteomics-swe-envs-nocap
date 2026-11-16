@@ -33,6 +33,7 @@ context_files = [
     "mzmine-community/src/main/java/io/github/mzmine/datamodel/data_access/FeatureDataAccess.java",
     "mzmine-community/src/test/java/io/github/mzmine/datamodel/data_access/FeatureDataAccessAlignedTest.java",
 ]
+bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -51,10 +52,15 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "local_only"
+mode = "inline_dockerfile"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "private"
+image_visibility = "public"
+pushed_at = "2026-11-16T15:51:53.172162+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:3494097114c1e1bcf461b3886903c0128d3bb2be1e1d8f4c5f3e6266a8da00d1"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
 
 [agent]
 timeout_sec = 1800.0

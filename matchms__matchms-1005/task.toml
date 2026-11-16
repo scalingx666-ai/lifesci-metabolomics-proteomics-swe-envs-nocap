@@ -37,6 +37,7 @@ context_files = [
     "matchms/filtering/spectra_processor.py",
     "tests/filtering/test_spectra_processor.py",
 ]
+bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -55,10 +56,15 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "local_only"
+mode = "inline_dockerfile"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "private"
+image_visibility = "public"
+pushed_at = "2026-11-16T15:51:53.106617+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:ec0e2a6d7242eb7852d344084bdfc93d0a26028010d9bc4ec9fb1127bd5be216"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
 
 [agent]
 timeout_sec = 1800.0

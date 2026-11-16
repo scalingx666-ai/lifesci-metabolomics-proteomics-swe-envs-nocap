@@ -37,6 +37,7 @@ context_files = [
     "utils/src/test/java/io/github/mzmine/util/date/DateTimeUtilsTest.java",
     "utils/src/test/java/io/github/mzmine/util/date/LocalDateTimeParserTest.java",
 ]
+bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -55,10 +56,15 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "local_only"
+mode = "inline_dockerfile"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "private"
+image_visibility = "public"
+pushed_at = "2026-11-16T15:51:53.170946+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:f8397c634ae5039bcbbc52e836171e86d2ee3cb72149d2bb22c597e0e6cdfd27"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
 
 [agent]
 timeout_sec = 1800.0

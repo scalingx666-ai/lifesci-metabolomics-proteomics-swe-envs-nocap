@@ -40,6 +40,7 @@ context_files = [
     "tests/similarity/test_flash_utils.py",
     "tests/similarity/test_flash_utils_spectrum_list.py",
 ]
+bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -58,10 +59,15 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "local_only"
+mode = "inline_dockerfile"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "private"
+image_visibility = "public"
+pushed_at = "2026-11-16T15:51:53.146518+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:8fbf2a494345c5bf14fc787ca6d18017a091ab553a1897a9d6c1f20ded838778"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
 
 [agent]
 timeout_sec = 1800.0

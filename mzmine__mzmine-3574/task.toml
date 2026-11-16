@@ -39,6 +39,7 @@ context_files = [
     "mzmine-community/src/test/resources/rawdatafiles/integration_tests/workshop_dataset/project_keep_processing.mzmine",
     "mzmine-community/src/test/resources/rawdatafiles/integration_tests/workshop_dataset/workshop_dataset_integration_test_project_keep_processing.mzbatch",
 ]
+bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -57,10 +58,15 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "local_only"
+mode = "inline_dockerfile"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "private"
+image_visibility = "public"
+pushed_at = "2026-11-16T15:51:53.189310+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:06cf1c60a187df51488dbfbd843c55e13b171bedd4ae72ebff595e7c3fd2e454"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
 
 [agent]
 timeout_sec = 1800.0

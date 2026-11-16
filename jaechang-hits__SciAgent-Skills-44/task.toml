@@ -39,6 +39,7 @@ context_files = [
     "skills/scientific-computing/neb-irc-activation-energy/scripts/plot_irc.py",
     "skills/scientific-computing/neb-irc-activation-energy/scripts/setup_env.sh",
 ]
+bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -57,10 +58,15 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "local_only"
+mode = "inline_dockerfile"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "private"
+image_visibility = "public"
+pushed_at = "2026-11-16T15:51:53.098532+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:dc5d7e36c815697fd458c4cfd57aee1fc5a93e8ac5dff14d3b6ec1fb44c3c992"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
 
 [agent]
 timeout_sec = 1800.0

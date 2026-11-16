@@ -33,6 +33,7 @@ context_files = [
     "mzmine-community/src/main/java/io/github/mzmine/gui/mainwindow/MainWindow.fxml",
     "mzmine-community/src/main/java/io/github/mzmine/gui/mainwindow/MainWindowController.java",
 ]
+bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -51,10 +52,15 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "local_only"
+mode = "inline_dockerfile"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "private"
+image_visibility = "public"
+pushed_at = "2026-11-16T15:51:53.195339+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:0d1222457b6727f6ac93736a13b21efc297bde33680cf462df4bfac663c7f233"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
 
 [agent]
 timeout_sec = 1800.0

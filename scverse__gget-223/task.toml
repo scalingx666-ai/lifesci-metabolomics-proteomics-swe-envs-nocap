@@ -45,6 +45,7 @@ context_files = [
     "tests/pytest_results.txt",
     "tests/test_g2p.py",
 ]
+bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -63,10 +64,15 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "local_only"
+mode = "inline_dockerfile"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "private"
+image_visibility = "public"
+pushed_at = "2026-11-16T15:51:53.211108+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:0cbbc6a95f324ccd4a6e17950e33310af6e4befa2ffab559adab615920175546"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
 
 [agent]
 timeout_sec = 1800.0

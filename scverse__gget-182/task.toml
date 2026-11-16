@@ -45,6 +45,7 @@ context_files = [
     "tests/test_cellxgene.py",
     "tests/test_cosmic.py",
 ]
+bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -63,10 +64,15 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "local_only"
+mode = "inline_dockerfile"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "private"
+image_visibility = "public"
+pushed_at = "2026-11-16T15:51:53.205952+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:8353804213849c6c5d119d8b8c20c1eaf1c2476f21fd31707f44f1d0b6d3d8c8"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
 
 [agent]
 timeout_sec = 1800.0

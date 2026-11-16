@@ -37,6 +37,7 @@ context_files = [
     "matchms/exporting/save_as_msp.py",
     "matchms/exporting/save_spectra.py",
 ]
+bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -55,10 +56,15 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "local_only"
+mode = "inline_dockerfile"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "private"
+image_visibility = "public"
+pushed_at = "2026-11-16T15:51:53.122979+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:81d97114a1df90710d7f77a5b2d9260aec24cc23d6d6b27d429f4cd4c548a1f2"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
 
 [agent]
 timeout_sec = 1800.0

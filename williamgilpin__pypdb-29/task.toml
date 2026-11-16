@@ -38,6 +38,7 @@ context_files = [
     "pypdb/clients/search/operators/sequence_operators_test.py",
     "pypdb/pypdb.py",
 ]
+bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -56,10 +57,15 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "local_only"
+mode = "inline_dockerfile"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "private"
+image_visibility = "public"
+pushed_at = "2026-11-16T15:51:53.226733+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:b321c5e72cea9e801807bfdba236cb3b8016c195273711be32a553606ad5db40"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
 
 [agent]
 timeout_sec = 1800.0

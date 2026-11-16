@@ -45,6 +45,7 @@ context_files = [
     "mzmine-community/src/main/resources/dependency/dependency-licenses.json",
     "mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/featdet_smoothing/savitzkygolay/SavitzkyGolayFilterTest.java",
 ]
+bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -63,10 +64,15 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "local_only"
+mode = "inline_dockerfile"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "private"
+image_visibility = "public"
+pushed_at = "2026-11-16T15:51:53.155589+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:b8e4ff16b9046557c0f34dff00885eafd6d1cd9a829b2eb6d05fed3bb5bdbab9"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
 
 [agent]
 timeout_sec = 1800.0

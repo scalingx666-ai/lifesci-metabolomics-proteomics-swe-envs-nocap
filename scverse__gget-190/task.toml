@@ -40,6 +40,7 @@ context_files = [
     "tests/fixtures/test_opentargets.json",
     "tests/test_cosmic.py",
 ]
+bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -58,10 +59,15 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "local_only"
+mode = "inline_dockerfile"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "private"
+image_visibility = "public"
+pushed_at = "2026-11-16T15:51:53.206822+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:b3a8a98c14d6d50cd5b1affb6163c5b4dc0795cd5f242f5115a0b9ef0635fa06"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
 
 [agent]
 timeout_sec = 1800.0

@@ -33,6 +33,7 @@ context_files = [
     "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_rowsfilter/RowsFilterTask.java",
     "mzmine-community/src/test/resources/rawdatafiles/integration_tests/gc_tof_ms/expected_results.csv",
 ]
+bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -51,10 +52,15 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "local_only"
+mode = "inline_dockerfile"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "private"
+image_visibility = "public"
+pushed_at = "2026-11-16T15:51:53.164880+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:4c545aa369ee0ce37811ab9d34b336db183ca39b7f0fbe28f0937b88e81036a9"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
 
 [agent]
 timeout_sec = 1800.0
