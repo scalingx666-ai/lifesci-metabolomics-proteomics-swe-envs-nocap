@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/lightdock__lightdock-112"
+description = "cast PyObject to PyArrayObject for python 3.13 support"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "lightdock",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "lightdock/lightdock"
+ref = "56f273a1e0ee5f0373dfb3f2ce31a638789d9841"
+reference = "https://github.com/lightdock/lightdock/pull/112"
+source_access = "auto"
+built_at = "2026-11-15T22:44:40.300394+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e2e5e0ee8ad2d5ee970c735a9a8f0e220e49afe76d5d8c6cc17ab09851a53a6c"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-07-08T06:12:35Z"
+diff_format = "unified"
+context_files = [
+    "lightdock/scoring/dfire2/c/cdfire2.c",
+    "setup.sh",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 7
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

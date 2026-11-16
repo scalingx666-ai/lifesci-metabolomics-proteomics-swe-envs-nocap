@@ -1,0 +1,67 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-664"
+description = "Add require number of peaks below maximum"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "b72d7f2dd439c4b8501771dc8f32f198e6177047"
+reference = "https://github.com/matchms/matchms/pull/664"
+source_access = "auto"
+built_at = "2026-11-16T12:57:16.911279+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:90874bffacba6de768db608b119451882df9817e742f9117eb8910f77c3cc246"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2024-06-14T13:01:22Z"
+diff_format = "unified"
+context_files = [
+    "matchms/filtering/__init__.py",
+    "matchms/filtering/default_pipelines.py",
+    "matchms/filtering/filter_order.py",
+    "matchms/filtering/peak_processing/require_maximum_number_of_peaks.py",
+    "tests/filtering/test_all_filter_order.py",
+    "tests/filtering/test_require_maximum_number_of_peaks.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 54
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

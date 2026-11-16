@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/williamgilpin__pypdb-62"
+description = "Data module"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "pypdb",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "williamgilpin/pypdb"
+ref = "3ef016c7c95f0897cba2182f383cb4e4179fc89c"
+reference = "https://github.com/williamgilpin/pypdb/pull/62"
+source_access = "auto"
+built_at = "2026-11-16T00:16:30.100818+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:a89d56e7849c949737047a3c40e4529e2529df57aba434675d6152fdb83e2d63"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2023-07-24T02:11:47Z"
+diff_format = "unified"
+context_files = [
+    "demos/demos.ipynb",
+    "pypdb/clients/data/EXAMPLES.md",
+    "pypdb/clients/data/data_types.py",
+    "pypdb/clients/data/graphql/graphql.py",
+    "pypdb/clients/data/test_data_types.py",
+    "pypdb/pypdb.py",
+    "setup.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 921
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

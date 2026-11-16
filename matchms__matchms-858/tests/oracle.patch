@@ -1,0 +1,38 @@
+diff --git a/.readthedocs.yml b/.readthedocs.yml
+index c73f37dfd..d3f6d1728 100644
+--- a/.readthedocs.yml
++++ b/.readthedocs.yml
+@@ -10,7 +10,7 @@ version: 2
+ build:
+   os: ubuntu-22.04
+   tools:
+-    python: '3.8'
++    python: '3.12'
+   jobs:
+     post_install:
+       - pip install poetry
+diff --git a/readthedocs/index.rst b/readthedocs/index.rst
+index bd155e05d..091065f8d 100644
+--- a/readthedocs/index.rst
++++ b/readthedocs/index.rst
+@@ -28,7 +28,7 @@ Installation
+ 
+ Prerequisites:
+ 
+-- Python 3.8 - 3.11
++- Python 3.9 - 3.12
+ - Anaconda
+ 
+ Install matchms from Anaconda Cloud with
+@@ -36,9 +36,9 @@ Install matchms from Anaconda Cloud with
+ .. code-block:: console
+ 
+   # install matchms in a new virtual environment to avoid dependency clashes
+-  conda create --name matchms python=3.9
++  conda create --name matchms python=3.12
+   conda activate matchms
+-  conda install --channel nlesc --channel bioconda --channel conda-forge matchms
++  conda install --channel bioconda --channel conda-forge matchms
+ 
+ Example
+ =======

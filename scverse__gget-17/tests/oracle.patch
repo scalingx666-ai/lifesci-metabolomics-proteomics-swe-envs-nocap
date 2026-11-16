@@ -1,0 +1,148 @@
+diff --git a/gget/__init__.py b/gget/__init__.py
+index 09cb40247..af5b954a2 100644
+--- a/gget/__init__.py
++++ b/gget/__init__.py
+@@ -18,6 +18,6 @@
+ # Mute numexpr threads info
+ logging.getLogger("numexpr").setLevel(logging.WARNING)
+ 
+-__version__ = "0.2.0"
++__version__ = "0.2.1"
+ __author__ = "Laura Luebbert"
+ __email__ = "lauraluebbert@caltech.edu"
+diff --git a/gget/gget_archs4.py b/gget/gget_archs4.py
+index 45fcd4f1f..422eb079c 100644
+--- a/gget/gget_archs4.py
++++ b/gget/gget_archs4.py
+@@ -69,6 +69,9 @@ def archs4(
+ 
+     ## Transform Ensembl IDs to gene symbols
+     if ensembl:
++        # Remove version number if passed
++        gene = gene.split(".")[0]
++        
+         info_df = info(gene, verbose=False)
+ 
+         # Check if Ensembl ID was found
+diff --git a/gget/gget_enrichr.py b/gget/gget_enrichr.py
+index 01a9678ec..065b382d2 100644
+--- a/gget/gget_enrichr.py
++++ b/gget/gget_enrichr.py
+@@ -98,6 +98,9 @@ def enrichr(genes, database, ensembl=False, plot=False, json=False, save=False):
+     if ensembl:
+         genes_v2 = []
+         for gene_id in genes:
++            # Remove version number if passed
++            gene_id = gene_id.split(".")[0]
++
+             info_df = info(gene_id, verbose=False)
+ 
+             # Check if Ensembl ID was found
+@@ -166,7 +169,7 @@ def enrichr(genes, database, ensembl=False, plot=False, json=False, save=False):
+     if len(enrichr_results) > 1:
+         logging.error(
+             f"No Enrichr results were found for genes {genes_clean} and database {database}. \n"
+-            "If the genes are Ensembl IDs, please set argument 'ensembl=True' (for terminal, add flag: [--ensembl])."
++            "If the genes are Ensembl IDs, please set argument 'ensembl=True'. (For command-line, add flag [-e][--ensembl].)"
+         )
+         return
+ 
+diff --git a/gget/main.py b/gget/main.py
+index 90e7b7096..1fdb9acac 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -787,6 +787,28 @@ def main():
+     )
+ 
+     ### Define return values
++    args = parent_parser.parse_args()
++
++    # Help return
++    if args.help:
++        # Retrieve all subparsers from the parent parser
++        subparsers_actions = [
++            action
++            for action in parent_parser._actions
++            if isinstance(action, argparse._SubParsersAction)
++        ]
++        for subparsers_action in subparsers_actions:
++            # Get all subparsers and print help
++            for choice, subparser in subparsers_action.choices.items():
++                print("Subparser '{}'".format(choice))
++                print(subparser.format_help())
++        sys.exit(1)
++
++    # Version return
++    if args.version:
++        print(f"gget version: {__version__}")
++        sys.exit(1)
++
+     # Show help when no arguments are given
+     if len(sys.argv) == 1:
+         parent_parser.print_help(sys.stderr)
+@@ -812,26 +834,6 @@ def main():
+             parent_parser.print_help(sys.stderr)
+         sys.exit(1)
+ 
+-    args = parent_parser.parse_args()
+-
+-    # Help return
+-    if args.help:
+-        # Retrieve all subparsers from the parent parser
+-        subparsers_actions = [
+-            action
+-            for action in parent_parser._actions
+-            if isinstance(action, argparse._SubParsersAction)
+-        ]
+-        for subparsers_action in subparsers_actions:
+-            # Get all subparsers and print help
+-            for choice, subparser in subparsers_action.choices.items():
+-                print("Subparser '{}'".format(choice))
+-                print(subparser.format_help())
+-
+-    ## Version return
+-    if args.version:
+-        print(f"gget version: {__version__}")
+-
+     ## blat return
+     if args.command == "blat":
+         # Handle deprecated flags for backwards compatibility
+@@ -1026,7 +1028,8 @@ def main():
+ 
+         # Raise error if neither species nor list flag passed
+         if args.species is None and args.list_species is False:
+-            parser_ref.error("the following arguments are required: species \n"
++            parser_ref.error(
++                "the following arguments are required: species \n"
+                 "'gget ref --list_species' -> lists out all available species. \n"
+                 "Combine with '-r [int]' to define a specific Ensembl release (default: latest release). "
+             )
+diff --git a/tests/test_gget_archs4.py b/tests/test_gget_archs4.py
+index 2907e5a82..bf7161488 100644
+--- a/tests/test_gget_archs4.py
++++ b/tests/test_gget_archs4.py
+@@ -39,7 +39,7 @@ def test_archs4_mouse_json(self):
+ 
+     def test_archs4_mouse_json_ensembl(self):
+         result_to_test = archs4(
+-            "ENSG00000106443", ensembl=True, gene_count=5, species="mouse", json=True
++            "ENSG00000106443.4", ensembl=True, gene_count=5, species="mouse", json=True
+         )
+         expected_result = [
+             {"gene_symbol": "MATR3", "pearson_correlation": 0.6124228239},
+diff --git a/tests/test_gget_enrichr.py b/tests/test_gget_enrichr.py
+index 5a51a1d7c..ba3d3b08e 100644
+--- a/tests/test_gget_enrichr.py
++++ b/tests/test_gget_enrichr.py
+@@ -203,9 +203,9 @@ def test_enrichr_transcription(self):
+     def test_enrichr_ensembl_ids(self):
+         df = enrichr(
+             [
+-                "ENSG00000106443",
++                "ENSG00000106443.2",
+                 "ENSG00000102317",
+-                "ENSG00000188895",
++                "ENSG00000188895.4",
+                 "ENSG00000135365",
+             ],
+             database="ontology",

@@ -1,0 +1,596 @@
+diff --git a/docs/basic-usage.md b/docs/basic-usage.md
+index 7e3775f92..4f733a7e4 100644
+--- a/docs/basic-usage.md
++++ b/docs/basic-usage.md
+@@ -76,6 +76,23 @@ The cost pill in the header shows the active tab's session spend (`sess`) and th
+ - OpenAI Codex, GitHub Copilot, and xAI subscription runs track tokens and a list-price reference, but do not treat that reference as project spend. Their quotas and overages are managed by the provider, so this does not mean the usage is free or unlimited. NVIDIA NIM gets the same treatment: it bills NVIDIA-managed API credits rather than per-token dollars, so Kady records tokens without counting USD spend.
+ - Local Ollama usage does not add model spend. Modal compute remains separately estimated and counted.
+ 
++## Host resource monitor
++
++The pill next to the cost pill shows live machine-wide CPU, RAM and GPU usage, with a hover card breaking out the Kady backend's own share plus free disk space on the projects volume.
++
++GPU readings come from whichever vendor tool is on `PATH`, tried in this order:
++
++| Tool | Covers |
++|---|---|
++| `nvidia-smi` | NVIDIA, all platforms |
++| `amd-smi` | AMD, ROCm 6 and newer |
++| `rocm-smi` | AMD, older ROCm |
++| `ioreg` | Apple Silicon (utilization only — unified memory has no separate VRAM pool) |
++
++The first tool that answers wins, so a dual-vendor machine reports the NVIDIA card. If none is installed the GPU segment is simply hidden. Some AMD drivers — ROCm on Windows in particular — report VRAM but no utilization counter; the hover card then meters VRAM and says so, while the collapsed pill stays utilization-only.
++
++This monitor is **display-only**. Nothing in Kady routes work based on it: local tools always run locally, and Modal compute is used only when you pick a remote instance in the compute selector or the agent calls a `modal_*` tool.
++
+ ## Settings
+ 
+ Click the gear icon in the top-right to:
+diff --git a/server/src/system-stats.ts b/server/src/system-stats.ts
+index 71c1301e2..b6648b448 100644
+--- a/server/src/system-stats.ts
++++ b/server/src/system-stats.ts
+@@ -3,10 +3,10 @@
+  *
+  * One cheap snapshot per call: CPU from `os.cpus()` tick deltas between calls,
+  * memory with platform-aware "used" (macOS `vm_stat`, Linux `MemAvailable`,
+- * else total-free), disk from `statfs` on the projects volume, and GPU from
+- * `nvidia-smi` when present or `ioreg` on Apple Silicon. External probes are
+- * throttled and fall back to the last good reading, so a 2-3s UI poll stays
+- * negligible.
++ * else total-free), disk from `statfs` on the projects volume, and GPU from the
++ * first vendor tool that answers (`nvidia-smi`, `amd-smi`, `rocm-smi`, or
++ * `ioreg` on Apple Silicon). External probes are throttled and fall back to the
++ * last good reading, so a 2-3s UI poll stays negligible.
+  */
+ import { execFile } from "node:child_process";
+ import fs from "node:fs";
+@@ -17,7 +17,7 @@ import { PROJECTS_ROOT } from "./config.ts";
+ 
+ const execFileP = promisify(execFile);
+ const EXEC_OPTS = { timeout: 2000, windowsHide: true } as const;
+-/** Minimum spacing between external probe runs (vm_stat / ioreg / nvidia-smi). */
++/** Minimum spacing between external probe runs (vm_stat / ioreg / *-smi). */
+ const PROBE_INTERVAL_MS = 2000;
+ 
+ export interface SystemStats {
+@@ -132,12 +132,236 @@ async function usedMemoryBytes(totalBytes: number): Promise<number> {
+ }
+ 
+ // ---------------------------------------------------------------------------
+-// GPU: NVIDIA everywhere via nvidia-smi; Apple Silicon via the IOAccelerator
+-// performance statistics (no sudo needed, unlike powermetrics). Anything else
+-// reports no GPU and the UI hides the segment.
++// GPU: vendor tools are tried in a fixed order -- nvidia-smi, AMD's amd-smi,
++// the older rocm-smi, then Apple Silicon's IOAccelerator performance
++// statistics (no sudo needed, unlike powermetrics). The first tool that
++// answers wins, so a machine with both vendors installed keeps reporting
++// NVIDIA exactly as it did before AMD support existed. Anything else reports
++// no GPU and the UI hides the segment.
++//
++// The AMD parsers look keys up by substring rather than exact name and treat
++// every field as independently optional. Both tools rename fields between ROCm
++// releases ("Card Series" -> "Market Name", bare numbers -> {value, unit}), and
++// on Windows several counters come back "N/A" -- a rename or an unsupported
++// counter should cost one field, not the whole GPU.
++
++const NVIDIA_SMI_ARGS = [
++  "--query-gpu=name,utilization.gpu,memory.used,memory.total",
++  "--format=csv,noheader,nounits",
++];
++/** rocm-smi wants each field named, and exits 1 on a flag it doesn't know.
++ *  Utilization is requested before memory because ambiguous key matches below
++ *  are settled by document order. */
++const ROCM_SMI_ARGS = [
++  "--showuse",
++  "--showmeminfo",
++  "vram",
++  "--showproductname",
++  "--json",
++];
++/** amd-smi is asked for whole groups instead of named fields: the field flags
++ *  have churned across releases where the JSON keys mostly haven't, and one
++ *  2s-cached call can afford the extra output. */
++const AMD_SMI_METRIC_ARGS = ["metric", "--json"];
++const AMD_SMI_STATIC_ARGS = ["static", "--json"];
++
++type GpuFields = Omit<NonNullable<SystemStats["gpu"]>, "name">;
++
++/** First JSON value in a tool's stdout. ROCm builds sometimes print a warning
++ *  line ahead of the JSON, so a bare JSON.parse is not enough. */
++export function firstJsonValue(stdout: string): unknown {
++  const text = stdout.trim();
++  try {
++    return JSON.parse(text);
++  } catch {
++    // fall through to the brace/bracket slice
++  }
++  const start = text.search(/[[{]/);
++  if (start < 0) return null;
++  const end = text.lastIndexOf(text[start] === "{" ? "}" : "]");
++  if (end <= start) return null;
++  try {
++    return JSON.parse(text.slice(start, end + 1));
++  } catch {
++    return null;
++  }
++}
++
++/** Flatten probe JSON to leaf [key, value] pairs in document order. An object
++ *  carrying a "value" key is a leaf, not a branch: amd-smi wraps every number
++ *  as {value, unit}. */
++function leafEntries(node: unknown, out: [string, unknown][] = []): [string, unknown][] {
++  if (!node || typeof node !== "object") return out;
++  for (const [key, v] of Object.entries(node as Record<string, unknown>)) {
++    if (v && typeof v === "object" && !("value" in (v as object))) leafEntries(v, out);
++    else out.push([key, v]);
++  }
++  return out;
++}
++
++/** First entry whose key contains all of `include` and none of `exclude`,
++ *  case-insensitively. */
++function pickEntry(
++  entries: [string, unknown][],
++  include: string[],
++  exclude: string[] = [],
++): [string, unknown] | undefined {
++  return entries.find(([key]) => {
++    const k = key.toLowerCase();
++    return include.every((n) => k.includes(n)) && !exclude.some((n) => k.includes(n));
++  });
++}
++
++/** A metric's numeric part: bare number, decimal string, or {value, unit}.
++ *  Anything non-numeric ("N/A" on unsupported counters) reads as absent. */
++function metricNumber(raw: unknown): number | null {
++  if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
++  if (typeof raw === "string") {
++    const t = raw.trim();
++    return t !== "" && Number.isFinite(Number(t)) ? Number(t) : null;
++  }
++  if (raw && typeof raw === "object" && "value" in (raw as object)) {
++    return metricNumber((raw as { value: unknown }).value);
++  }
++  return null;
++}
++
++const UNIT_BYTES: Record<string, number> = {
++  b: 1,
++  byte: 1,
++  bytes: 1,
++  kb: 1024,
++  kib: 1024,
++  mb: 1024 ** 2,
++  mib: 1024 ** 2,
++  gb: 1024 ** 3,
++  gib: 1024 ** 3,
++};
++
++/** Bytes from a memory entry. amd-smi states the unit in the value object
++ *  ({value: 16368, unit: "MB"}); rocm-smi states it in the key ("VRAM Total
++ *  Memory (B)"). With neither, assume bytes -- both tools' historical default. */
++function metricBytes(entry: [string, unknown] | undefined): number | null {
++  if (!entry) return null;
++  const n = metricNumber(entry[1]);
++  if (n === null) return null;
++  const [key, raw] = entry;
++  const stated =
++    raw && typeof raw === "object" && typeof (raw as { unit?: unknown }).unit === "string"
++      ? (raw as { unit: string }).unit
++      : /\(([A-Za-z]+)\)\s*$/.exec(key)?.[1];
++  return n * (UNIT_BYTES[(stated ?? "b").toLowerCase()] ?? 1);
++}
++
++/** True for a name worth showing in the UI over the generic vendor label. */
++function usableName(v: unknown): v is string {
++  return typeof v === "string" && v.trim() !== "" && !/^(n\/?a|unknown|null)$/i.test(v.trim());
++}
++
++/** Utilization + VRAM out of flattened AMD probe output. Both tools' spellings
++ *  are tried in turn: rocm-smi says "GPU use (%)" and "VRAM Total Used Memory
++ *  (B)", amd-smi says "gfx_activity" and "used_vram". */
++function amdGpuFields(entries: [string, unknown][]): GpuFields {
++  return {
++    utilizationPct:
++      metricNumber(pickEntry(entries, ["gpu", "use"], ["mem", "vram"])?.[1]) ??
++      metricNumber(pickEntry(entries, ["gfx", "activity"])?.[1]),
++    memUsedBytes: metricBytes(pickEntry(entries, ["vram", "used"], ["visible"])),
++    memTotalBytes: metricBytes(
++      pickEntry(entries, ["vram", "total"], ["used", "free", "visible"]),
++    ),
++  };
++}
++
++/** Null unless at least one field came back -- a tool that ran but reported
++ *  nothing usable must not claim a GPU the UI would then render blank. */
++function gpuFieldsOrNull(fields: GpuFields): GpuFields | null {
++  return fields.utilizationPct === null && fields.memTotalBytes === null ? null : fields;
++}
++
++export function parseNvidiaSmi(stdout: string): SystemStats["gpu"] {
++  const first = stdout.trim().split("\n")[0];
++  if (!first) return null;
++  const [name, util, memUsed, memTotal] = first.split(",").map((s) => s.trim());
++  return {
++    name: name || "NVIDIA GPU",
++    utilizationPct: Number.isFinite(Number(util)) ? Number(util) : null,
++    memUsedBytes: Number.isFinite(Number(memUsed)) ? Number(memUsed) * 1024 * 1024 : null,
++    memTotalBytes: Number.isFinite(Number(memTotal)) ? Number(memTotal) * 1024 * 1024 : null,
++  };
++}
++
++/** amd-smi (ROCm >= 6) prints a JSON array, one object per GPU. Report the
++ *  first, as the nvidia-smi branch reports the first CSV row. */
++export function parseAmdSmiMetric(stdout: string): GpuFields | null {
++  const root = firstJsonValue(stdout);
++  const first = Array.isArray(root) ? root[0] : root;
++  if (!first || typeof first !== "object") return null;
++  return gpuFieldsOrNull(amdGpuFields(leafEntries(first)));
++}
++
++export function parseAmdSmiName(stdout: string): string | null {
++  const root = firstJsonValue(stdout);
++  const first = Array.isArray(root) ? root[0] : root;
++  if (!first || typeof first !== "object") return null;
++  const entries = leafEntries(first);
++  for (const include of [["market", "name"], ["product", "name"], ["asic", "name"]]) {
++    const v = pickEntry(entries, include)?.[1];
++    if (usableName(v)) return v.trim();
++  }
++  return null;
++}
++
++/** rocm-smi --json prints one object per card, keyed "card0", "card1", ... */
++export function parseRocmSmi(stdout: string): SystemStats["gpu"] {
++  const root = firstJsonValue(stdout);
++  if (!root || typeof root !== "object" || Array.isArray(root)) return null;
++  const card = Object.entries(root as Record<string, unknown>)
++    .filter(([key, v]) => /^card\d+$/i.test(key) && !!v && typeof v === "object")
++    .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))[0]?.[1];
++  if (!card) return null;
++  const entries = leafEntries(card);
++  const fields = gpuFieldsOrNull(amdGpuFields(entries));
++  if (!fields) return null;
++  // "Card Model" is deliberately not a candidate: it is a PCI device id
++  // ("0x744c"), which reads worse in the UI than the generic label.
++  const name = [["market", "name"], ["device", "name"], ["card", "series"]]
++    .map((include) => pickEntry(entries, include)?.[1])
++    .find(usableName);
++  return { name: name?.trim() ?? "AMD GPU", ...fields };
++}
+ 
+ let gpuCache: { at: number; value: SystemStats["gpu"] } | null = null;
+ 
++async function probeAmdSmi(): Promise<SystemStats["gpu"]> {
++  const { stdout } = await execFileP("amd-smi", AMD_SMI_METRIC_ARGS, EXEC_OPTS);
++  const fields = parseAmdSmiMetric(stdout);
++  if (!fields) return null;
++  // The model name sits behind a second subcommand. Losing it costs the label
++  // only, so it must never fail the probe.
++  let name: string | null = null;
++  try {
++    const asic = await execFileP("amd-smi", AMD_SMI_STATIC_ARGS, EXEC_OPTS);
++    name = parseAmdSmiName(asic.stdout);
++  } catch {
++    // keep the generic label
++  }
++  return { name: name ?? "AMD GPU", ...fields };
++}
++
++async function probeAppleGpu(): Promise<SystemStats["gpu"]> {
++  const { stdout } = await execFileP("ioreg", ["-r", "-d", "1", "-c", "IOAccelerator"], EXEC_OPTS);
++  const util = /"Device Utilization %"=(\d+)/.exec(stdout)?.[1];
++  if (util === undefined) return null;
++  return {
++    name: "Apple GPU",
++    utilizationPct: Number(util),
++    // Unified memory -- no separate VRAM pool to report.
++    memUsedBytes: null,
++    memTotalBytes: null,
++  };
++}
++
+ async function sampleGpu(): Promise<SystemStats["gpu"]> {
+   const now = Date.now();
+   if (gpuCache && now - gpuCache.at < PROBE_INTERVAL_MS) return gpuCache.value;
+@@ -145,33 +369,15 @@ async function sampleGpu(): Promise<SystemStats["gpu"]> {
+   let value: SystemStats["gpu"] = null;
+   try {
+     if (hasBinary("nvidia-smi")) {
+-      const { stdout } = await execFileP(
+-        "nvidia-smi",
+-        ["--query-gpu=name,utilization.gpu,memory.used,memory.total", "--format=csv,noheader,nounits"],
+-        EXEC_OPTS,
+-      );
+-      const first = stdout.trim().split("\n")[0];
+-      if (first) {
+-        const [name, util, memUsed, memTotal] = first.split(",").map((s) => s.trim());
+-        value = {
+-          name: name || "NVIDIA GPU",
+-          utilizationPct: Number.isFinite(Number(util)) ? Number(util) : null,
+-          memUsedBytes: Number.isFinite(Number(memUsed)) ? Number(memUsed) * 1024 * 1024 : null,
+-          memTotalBytes: Number.isFinite(Number(memTotal)) ? Number(memTotal) * 1024 * 1024 : null,
+-        };
+-      }
++      const { stdout } = await execFileP("nvidia-smi", NVIDIA_SMI_ARGS, EXEC_OPTS);
++      value = parseNvidiaSmi(stdout);
++    } else if (hasBinary("amd-smi")) {
++      value = await probeAmdSmi();
++    } else if (hasBinary("rocm-smi")) {
++      const { stdout } = await execFileP("rocm-smi", ROCM_SMI_ARGS, EXEC_OPTS);
++      value = parseRocmSmi(stdout);
+     } else if (process.platform === "darwin") {
+-      const { stdout } = await execFileP("ioreg", ["-r", "-d", "1", "-c", "IOAccelerator"], EXEC_OPTS);
+-      const util = /"Device Utilization %"=(\d+)/.exec(stdout)?.[1];
+-      if (util !== undefined) {
+-        value = {
+-          name: "Apple GPU",
+-          utilizationPct: Number(util),
+-          // Unified memory -- no separate VRAM pool to report.
+-          memUsedBytes: null,
+-          memTotalBytes: null,
+-        };
+-      }
++      value = await probeAppleGpu();
+     }
+   } catch {
+     // keep whatever we last saw rather than flapping to null on a slow probe
+diff --git a/server/test/system-stats-gpu.test.ts b/server/test/system-stats-gpu.test.ts
+new file mode 100644
+index 000000000..2eccab51c
+--- /dev/null
++++ b/server/test/system-stats-gpu.test.ts
+@@ -0,0 +1,210 @@
++/**
++ * GPU probe parsers. The point of these is the AMD pair: rocm-smi and amd-smi
++ * rename fields between ROCm releases and report "N/A" for counters a platform
++ * doesn't support (notably utilization under ROCm on Windows), so the parsers
++ * match keys by substring and every field is independently optional. Fixtures
++ * below are real output shapes, including the renamed-key variants.
++ */
++import { describe, expect, it } from "vitest";
++import {
++  firstJsonValue,
++  parseAmdSmiMetric,
++  parseAmdSmiName,
++  parseNvidiaSmi,
++  parseRocmSmi,
++} from "../src/system-stats.ts";
++
++const MB = 1024 * 1024;
++
++describe("parseNvidiaSmi", () => {
++  it("reads the first CSV row", () => {
++    expect(parseNvidiaSmi("NVIDIA GeForce RTX 4090, 37, 2048, 24564\n")).toEqual({
++      name: "NVIDIA GeForce RTX 4090",
++      utilizationPct: 37,
++      memUsedBytes: 2048 * MB,
++      memTotalBytes: 24564 * MB,
++    });
++  });
++
++  it("ignores all but the first GPU", () => {
++    const out = "GPU A, 10, 1, 2\nGPU B, 90, 3, 4\n";
++    expect(parseNvidiaSmi(out)?.name).toBe("GPU A");
++  });
++
++  it("returns null on empty output", () => {
++    expect(parseNvidiaSmi("   \n")).toBeNull();
++  });
++});
++
++describe("parseRocmSmi", () => {
++  const rocm6 = JSON.stringify({
++    card0: {
++      "GPU use (%)": "42",
++      "VRAM Total Memory (B)": "17163091968",
++      "VRAM Total Used Memory (B)": "1073741824",
++      "Card Series": "Navi 48 [Radeon RX 9070/9070 XT]",
++      "Card Model": "0x7550",
++      "Card Vendor": "Advanced Micro Devices, Inc. [AMD/ATI]",
++    },
++  });
++
++  it("reads utilization, VRAM and product name", () => {
++    expect(parseRocmSmi(rocm6)).toEqual({
++      name: "Navi 48 [Radeon RX 9070/9070 XT]",
++      utilizationPct: 42,
++      memUsedBytes: 1073741824,
++      memTotalBytes: 17163091968,
++    });
++  });
++
++  it("does not mistake used VRAM for total", () => {
++    const gpu = parseRocmSmi(rocm6);
++    expect(gpu?.memTotalBytes).toBeGreaterThan(gpu!.memUsedBytes!);
++  });
++
++  it("keeps VRAM when the utilization counter is unsupported", () => {
++    const out = JSON.stringify({
++      card0: {
++        "GPU use (%)": "N/A",
++        "VRAM Total Memory (B)": "17163091968",
++        "VRAM Total Used Memory (B)": "524288000",
++      },
++    });
++    expect(parseRocmSmi(out)).toEqual({
++      name: "AMD GPU",
++      utilizationPct: null,
++      memUsedBytes: 524288000,
++      memTotalBytes: 17163091968,
++    });
++  });
++
++  it("accepts a renamed product-name key", () => {
++    const out = JSON.stringify({
++      card0: { "GPU use (%)": "0", "Market Name": "Radeon RX 9070 XT" },
++    });
++    expect(parseRocmSmi(out)?.name).toBe("Radeon RX 9070 XT");
++  });
++
++  it("prefers a real name over the PCI device id", () => {
++    const out = JSON.stringify({ card0: { "GPU use (%)": "5", "Card Model": "0x7550" } });
++    expect(parseRocmSmi(out)?.name).toBe("AMD GPU");
++  });
++
++  it("reports card0 when several cards are present", () => {
++    const out = JSON.stringify({
++      card10: { "GPU use (%)": "90", "Market Name": "Second" },
++      card0: { "GPU use (%)": "1", "Market Name": "First" },
++      card2: { "GPU use (%)": "50", "Market Name": "Third" },
++    });
++    expect(parseRocmSmi(out)?.name).toBe("First");
++  });
++
++  it("converts a stated non-byte VRAM unit", () => {
++    const out = JSON.stringify({
++      card0: { "GPU use (%)": "1", "VRAM Total Memory (MB)": "16368" },
++    });
++    expect(parseRocmSmi(out)?.memTotalBytes).toBe(16368 * MB);
++  });
++
++  it("survives a warning banner ahead of the JSON", () => {
++    const out = `WARNING: rsmi_dev_gpu_metrics_info_get failed\n${rocm6}\n`;
++    expect(parseRocmSmi(out)?.utilizationPct).toBe(42);
++  });
++
++  it("returns null when nothing usable came back", () => {
++    expect(parseRocmSmi(JSON.stringify({ card0: { "GPU use (%)": "N/A" } }))).toBeNull();
++    expect(parseRocmSmi(JSON.stringify({}))).toBeNull();
++    expect(parseRocmSmi("not json at all")).toBeNull();
++  });
++});
++
++describe("parseAmdSmiMetric", () => {
++  const amdSmi = JSON.stringify([
++    {
++      gpu: 0,
++      usage: {
++        gfx_activity: { value: 63, unit: "%" },
++        umc_activity: { value: 12, unit: "%" },
++      },
++      mem_usage: {
++        total_vram: { value: 16368, unit: "MB" },
++        used_vram: { value: 4096, unit: "MB" },
++        free_vram: { value: 12272, unit: "MB" },
++        total_visible_vram: { value: 16368, unit: "MB" },
++      },
++    },
++    { gpu: 1, usage: { gfx_activity: { value: 99, unit: "%" } } },
++  ]);
++
++  it("reads the first GPU's activity and VRAM, unit-converted", () => {
++    expect(parseAmdSmiMetric(amdSmi)).toEqual({
++      utilizationPct: 63,
++      memUsedBytes: 4096 * MB,
++      memTotalBytes: 16368 * MB,
++    });
++  });
++
++  it("ignores visible/free VRAM when reading the total", () => {
++    expect(parseAmdSmiMetric(amdSmi)?.memTotalBytes).toBe(16368 * MB);
++  });
++
++  it("keeps activity when the memory group is absent", () => {
++    const out = JSON.stringify([{ gpu: 0, usage: { gfx_activity: { value: 7, unit: "%" } } }]);
++    expect(parseAmdSmiMetric(out)).toEqual({
++      utilizationPct: 7,
++      memUsedBytes: null,
++      memTotalBytes: null,
++    });
++  });
++
++  it("accepts bare numbers instead of {value, unit} wrappers", () => {
++    const out = JSON.stringify([{ gpu: 0, gfx_activity: 21, used_vram: 100, total_vram: 200 }]);
++    // No unit anywhere -- bytes is the documented fallback.
++    expect(parseAmdSmiMetric(out)).toEqual({
++      utilizationPct: 21,
++      memUsedBytes: 100,
++      memTotalBytes: 200,
++    });
++  });
++
++  it("returns null when every field is N/A", () => {
++    const out = JSON.stringify([{ gpu: 0, usage: { gfx_activity: { value: "N/A" } } }]);
++    expect(parseAmdSmiMetric(out)).toBeNull();
++  });
++});
++
++describe("parseAmdSmiName", () => {
++  it("reads the ASIC market name", () => {
++    const out = JSON.stringify([
++      { gpu: 0, asic: { market_name: "Radeon RX 9070 XT", vendor_id: "0x1002" } },
++    ]);
++    expect(parseAmdSmiName(out)).toBe("Radeon RX 9070 XT");
++  });
++
++  it("falls back to a board product name", () => {
++    const out = JSON.stringify([
++      { gpu: 0, asic: { market_name: "N/A" }, board: { product_name: "Instinct MI300X" } },
++    ]);
++    expect(parseAmdSmiName(out)).toBe("Instinct MI300X");
++  });
++
++  it("returns null when no name is present", () => {
++    expect(parseAmdSmiName(JSON.stringify([{ gpu: 0 }]))).toBeNull();
++    expect(parseAmdSmiName("")).toBeNull();
++  });
++});
++
++describe("firstJsonValue", () => {
++  it("parses clean JSON", () => {
++    expect(firstJsonValue('{"a":1}')).toEqual({ a: 1 });
++  });
++
++  it("skips leading non-JSON noise", () => {
++    expect(firstJsonValue('WARNING: something\n[{"a":1}]')).toEqual([{ a: 1 }]);
++  });
++
++  it("returns null when there is no JSON", () => {
++    expect(firstJsonValue("nope")).toBeNull();
++    expect(firstJsonValue("")).toBeNull();
++  });
++});
+diff --git a/web/src/components/resource-monitor.tsx b/web/src/components/resource-monitor.tsx
+index 24dc8489a..b3642050a 100644
+--- a/web/src/components/resource-monitor.tsx
++++ b/web/src/components/resource-monitor.tsx
+@@ -57,6 +57,17 @@ export function ResourceMonitor({ className }: { className?: string }) {
+     stats.gpu?.utilizationPct !== null && stats.gpu?.utilizationPct !== undefined
+       ? Math.round(stats.gpu.utilizationPct)
+       : null;
++  // ROCm on Windows commonly answers "N/A" for the busy counter while still
++  // reporting VRAM, so the expanded card falls back to a VRAM meter rather than
++  // hiding a GPU we did detect. The collapsed pill stays utilization-only --
++  // there is no room there to say which quantity it is showing.
++  const gpuVramPct =
++    stats.gpu &&
++    stats.gpu.memUsedBytes !== null &&
++    stats.gpu.memTotalBytes !== null &&
++    stats.gpu.memTotalBytes > 0
++      ? Math.round((stats.gpu.memUsedBytes / stats.gpu.memTotalBytes) * 100)
++      : null;
+   const diskPct =
+     stats.disk && stats.disk.totalBytes > 0
+       ? Math.round((stats.disk.usedBytes / stats.disk.totalBytes) * 100)
+@@ -100,16 +111,16 @@ export function ResourceMonitor({ className }: { className?: string }) {
+               stats.memory.totalBytes,
+             )} · app ${formatBytes(stats.memory.processRssBytes)}`}
+           />
+-          {stats.gpu && gpuPct !== null && (
++          {stats.gpu && (gpuPct !== null || gpuVramPct !== null) && (
+             <MeterRow
+               icon={GpuIcon}
+               label={stats.gpu.name}
+-              pct={gpuPct}
++              pct={gpuPct ?? gpuVramPct ?? 0}
+               detail={
+                 stats.gpu.memUsedBytes !== null && stats.gpu.memTotalBytes !== null
+                   ? `${formatBytes(stats.gpu.memUsedBytes)} / ${formatBytes(
+                       stats.gpu.memTotalBytes,
+-                    )} VRAM`
++                    )} VRAM${gpuPct === null ? " · no utilization counter" : ""}`
+                   : "utilization"
+               }
+             />

@@ -1,0 +1,64 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3398"
+description = "update formula text field to support bidirectional bindings"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "644a28e697ae46d15b51a2d19abc590ac3e2d725"
+reference = "https://github.com/mzmine/mzmine/pull/3398"
+source_access = "auto"
+built_at = "2026-11-16T08:46:06.304837+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:5f4801efe76858f64e57329f3815fdc18e0f3b0245fd08c897a7e404f399979b"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-07-10T13:23:09Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/tools/fraggraphdashboard/FragDashboardBuilder.java",
+    "mzmine-community/src/main/java/io/github/mzmine/util/components/FormulaTextField.java",
+    "mzmine-community/src/test/java/io/github/mzmine/util/components/FormulaTextFieldTest.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 355
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

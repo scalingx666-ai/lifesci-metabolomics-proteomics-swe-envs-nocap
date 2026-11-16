@@ -1,0 +1,647 @@
+diff --git a/gget/gget_search.py b/gget/gget_search.py
+index 8480f29d5..54599fdfd 100644
+--- a/gget/gget_search.py
++++ b/gget/gget_search.py
+@@ -228,7 +228,7 @@ def search(
+     for i, searchword in enumerate(searchwords):
+         if id_type == "gene":
+             query = f"""
+-            SELECT gene.stable_id AS 'ensembl_id', gene.description AS 'ensembl_description', xref.description AS 'ext_ref_description', gene.biotype AS 'biotype', external_synonym.synonym AS 'synonym'
++            SELECT gene.stable_id AS 'ensembl_id', xref.display_label AS 'gene_name', gene.description AS 'ensembl_description', xref.description AS 'ext_ref_description', gene.biotype AS 'biotype', external_synonym.synonym AS 'synonym'
+             FROM gene 
+             LEFT JOIN xref ON gene.display_xref_id = xref.xref_id 
+             LEFT JOIN external_synonym ON gene.display_xref_id = external_synonym.xref_id 
+@@ -263,12 +263,12 @@ def search(
+ 
+         if id_type == "transcript":
+             query = f"""
+-            SELECT transcript.stable_id AS 'ensembl_id', transcript.description AS 'ensembl_description', xref.description AS 'ext_ref_description', transcript.biotype AS 'biotype', external_synonym.synonym AS 'synonym'
++            SELECT transcript.stable_id AS 'ensembl_id', xref.display_label AS 'gene_name', transcript.description AS 'ensembl_description', xref.description AS 'ext_ref_description', transcript.biotype AS 'biotype', external_synonym.synonym AS 'synonym'
+             FROM transcript 
+             LEFT JOIN xref ON transcript.display_xref_id = xref.xref_id 
+             LEFT JOIN external_synonym ON transcript.display_xref_id = external_synonym.xref_id 
+-            LEFT JOIN gene_attrib ON transcript.gene_id = gene_attrib.gene_id 
+-            WHERE (transcript.description LIKE '%{searchword}%' OR xref.description LIKE '%{searchword}%' OR xref.display_label LIKE '%{searchword}%' OR external_synonym.synonym LIKE '%{searchword}%' OR gene_attrib.value LIKE '%{searchword}%')
++            LEFT JOIN transcript_attrib ON transcript.transcript_id = transcript_attrib.transcript_id 
++            WHERE (transcript.description LIKE '%{searchword}%' OR xref.description LIKE '%{searchword}%' OR xref.display_label LIKE '%{searchword}%' OR external_synonym.synonym LIKE '%{searchword}%' OR transcript_attrib.value LIKE '%{searchword}%')
+             """
+ 
+             # Fetch the search results from the host using the specified query
+@@ -281,7 +281,7 @@ def search(
+                 # In the first iteration, make the search results equal to the master data frame
+                 if i == 0:
+                     df = df_temp.copy()
+-                # Add new search results to master data frame
++                # Add new search results to mastser data frame
+                 else:
+                     df = pd.concat([df, df_temp])
+ 
+@@ -305,7 +305,8 @@ def search(
+ 
+     # Keep synonyms always of type list for consistency
+     df["synonym"] = [
+-        np.sort(syn).tolist() if  isinstance(syn, list) else np.sort([syn]).tolist() for syn in df["synonym"].values
++        np.sort(syn).tolist() if isinstance(syn, list) else np.sort([syn]).tolist()
++        for syn in df["synonym"].values
+     ]
+ 
+     # If limit is not None, keep only the first {limit} rows
+@@ -354,4 +355,4 @@ def search(
+             df.to_csv("gget_search_results.csv", index=False)
+ 
+         # Return data frame
+-        return df
+\ No newline at end of file
++        return df
+diff --git a/tests/fixtures/test_info.json b/tests/fixtures/test_info.json
+index dc1f9e8f1..d695d62a3 100644
+--- a/tests/fixtures/test_info.json
++++ b/tests/fixtures/test_info.json
+@@ -851,7 +851,9 @@
+                     "8h5c",
+                     "8if2",
+                     "8iou",
+-                    "8iov"
++                    "8iov",
++                    "8sph",
++                    "8spi"
+                 ],
+                 "59272",
+                 "homo_sapiens",
+diff --git a/tests/fixtures/test_pdb.json b/tests/fixtures/test_pdb.json
+index 62c7e0549..8c845372f 100644
+--- a/tests/fixtures/test_pdb.json
++++ b/tests/fixtures/test_pdb.json
+@@ -366,43 +366,305 @@
+                         "annotation_id": "GO:0047172",
+                         "name": "shikimate O-hydroxycinnamoyltransferase activity",
+                         "provenance_source": "UNIPROT",
+-                        "type": "GO"
++                        "type": "GO",
++                        "annotation_lineage": [
++                            {
++                                "id": "GO:0050734",
++                                "name": "hydroxycinnamoyltransferase activity"
++                            },
++                            {
++                                "id": "GO:0050737",
++                                "name": "O-hydroxycinnamoyltransferase activity"
++                            },
++                            {
++                                "id": "GO:0008374",
++                                "name": "O-acyltransferase activity"
++                            },
++                            {
++                                "id": "GO:0016746",
++                                "name": "acyltransferase activity"
++                            },
++                            {
++                                "id": "GO:0016747",
++                                "name": "acyltransferase activity, transferring groups other than amino-acyl groups"
++                            },
++                            {
++                                "id": "GO:0016740",
++                                "name": "transferase activity"
++                            },
++                            {
++                                "id": "GO:0003824",
++                                "name": "catalytic activity"
++                            },
++                            {
++                                "id": "GO:0003674",
++                                "name": "molecular_function"
++                            },
++                            {
++                                "id": "GO:0047172",
++                                "name": "shikimate O-hydroxycinnamoyltransferase activity"
++                            }
++                        ]
+                     },
+                     {
+                         "annotation_id": "GO:0009963",
+                         "name": "positive regulation of flavonoid biosynthetic process",
+                         "provenance_source": "UNIPROT",
+-                        "type": "GO"
++                        "type": "GO",
++                        "annotation_lineage": [
++                            {
++                                "id": "GO:0009889",
++                                "name": "regulation of biosynthetic process"
++                            },
++                            {
++                                "id": "GO:0050789",
++                                "name": "regulation of biological process"
++                            },
++                            {
++                                "id": "GO:0009812",
++                                "name": "flavonoid metabolic process"
++                            },
++                            {
++                                "id": "GO:0065007",
++                                "name": "biological regulation"
++                            },
++                            {
++                                "id": "GO:0048518",
++                                "name": "positive regulation of biological process"
++                            },
++                            {
++                                "id": "GO:0044238",
++                                "name": "primary metabolic process"
++                            },
++                            {
++                                "id": "GO:0080090",
++                                "name": "regulation of primary metabolic process"
++                            },
++                            {
++                                "id": "GO:0009893",
++                                "name": "positive regulation of metabolic process"
++                            },
++                            {
++                                "id": "GO:0009962",
++                                "name": "regulation of flavonoid biosynthetic process"
++                            },
++                            {
++                                "id": "GO:0071704",
++                                "name": "organic substance metabolic process"
++                            },
++                            {
++                                "id": "GO:0009058",
++                                "name": "biosynthetic process"
++                            },
++                            {
++                                "id": "GO:0009813",
++                                "name": "flavonoid biosynthetic process"
++                            },
++                            {
++                                "id": "GO:0009891",
++                                "name": "positive regulation of biosynthetic process"
++                            },
++                            {
++                                "id": "GO:0009963",
++                                "name": "positive regulation of flavonoid biosynthetic process"
++                            },
++                            {
++                                "id": "GO:1901576",
++                                "name": "organic substance biosynthetic process"
++                            },
++                            {
++                                "id": "GO:0008150",
++                                "name": "biological_process"
++                            },
++                            {
++                                "id": "GO:0008152",
++                                "name": "metabolic process"
++                            },
++                            {
++                                "id": "GO:0019222",
++                                "name": "regulation of metabolic process"
++                            }
++                        ]
+                     },
+                     {
+                         "annotation_id": "GO:0016020",
+                         "name": "membrane",
+                         "provenance_source": "UNIPROT",
+-                        "type": "GO"
++                        "type": "GO",
++                        "annotation_lineage": [
++                            {
++                                "id": "GO:0005575",
++                                "name": "cellular_component"
++                            },
++                            {
++                                "id": "GO:0016020",
++                                "name": "membrane"
++                            },
++                            {
++                                "id": "GO:0110165",
++                                "name": "cellular anatomical entity"
++                            }
++                        ]
+                     },
+                     {
+                         "annotation_id": "GO:0009809",
+                         "name": "lignin biosynthetic process",
+                         "provenance_source": "UNIPROT",
+-                        "type": "GO"
++                        "type": "GO",
++                        "annotation_lineage": [
++                            {
++                                "id": "GO:0009698",
++                                "name": "phenylpropanoid metabolic process"
++                            },
++                            {
++                                "id": "GO:0044249",
++                                "name": "cellular biosynthetic process"
++                            },
++                            {
++                                "id": "GO:0044237",
++                                "name": "cellular metabolic process"
++                            },
++                            {
++                                "id": "GO:0009699",
++                                "name": "phenylpropanoid biosynthetic process"
++                            },
++                            {
++                                "id": "GO:0009808",
++                                "name": "lignin metabolic process"
++                            },
++                            {
++                                "id": "GO:0019748",
++                                "name": "secondary metabolic process"
++                            },
++                            {
++                                "id": "GO:1901360",
++                                "name": "organic cyclic compound metabolic process"
++                            },
++                            {
++                                "id": "GO:0071704",
++                                "name": "organic substance metabolic process"
++                            },
++                            {
++                                "id": "GO:0009058",
++                                "name": "biosynthetic process"
++                            },
++                            {
++                                "id": "GO:0044550",
++                                "name": "secondary metabolite biosynthetic process"
++                            },
++                            {
++                                "id": "GO:0019438",
++                                "name": "aromatic compound biosynthetic process"
++                            },
++                            {
++                                "id": "GO:1901362",
++                                "name": "organic cyclic compound biosynthetic process"
++                            },
++                            {
++                                "id": "GO:1901576",
++                                "name": "organic substance biosynthetic process"
++                            },
++                            {
++                                "id": "GO:0008150",
++                                "name": "biological_process"
++                            },
++                            {
++                                "id": "GO:0008152",
++                                "name": "metabolic process"
++                            },
++                            {
++                                "id": "GO:0009987",
++                                "name": "cellular process"
++                            },
++                            {
++                                "id": "GO:0009809",
++                                "name": "lignin biosynthetic process"
++                            },
++                            {
++                                "id": "GO:0006725",
++                                "name": "cellular aromatic compound metabolic process"
++                            }
++                        ]
+                     },
+                     {
+                         "annotation_id": "GO:0047205",
+                         "name": "quinate O-hydroxycinnamoyltransferase activity",
+                         "provenance_source": "UNIPROT",
+-                        "type": "GO"
++                        "type": "GO",
++                        "annotation_lineage": [
++                            {
++                                "id": "GO:0050734",
++                                "name": "hydroxycinnamoyltransferase activity"
++                            },
++                            {
++                                "id": "GO:0050737",
++                                "name": "O-hydroxycinnamoyltransferase activity"
++                            },
++                            {
++                                "id": "GO:0047205",
++                                "name": "quinate O-hydroxycinnamoyltransferase activity"
++                            },
++                            {
++                                "id": "GO:0008374",
++                                "name": "O-acyltransferase activity"
++                            },
++                            {
++                                "id": "GO:0016746",
++                                "name": "acyltransferase activity"
++                            },
++                            {
++                                "id": "GO:0016747",
++                                "name": "acyltransferase activity, transferring groups other than amino-acyl groups"
++                            },
++                            {
++                                "id": "GO:0016740",
++                                "name": "transferase activity"
++                            },
++                            {
++                                "id": "GO:0003824",
++                                "name": "catalytic activity"
++                            },
++                            {
++                                "id": "GO:0003674",
++                                "name": "molecular_function"
++                            }
++                        ]
+                     },
+                     {
+                         "annotation_id": "GO:0005737",
+                         "name": "cytoplasm",
+                         "provenance_source": "UNIPROT",
+-                        "type": "GO"
++                        "type": "GO",
++                        "annotation_lineage": [
++                            {
++                                "id": "GO:0005575",
++                                "name": "cellular_component"
++                            },
++                            {
++                                "id": "GO:0005622",
++                                "name": "intracellular anatomical structure"
++                            },
++                            {
++                                "id": "GO:0005737",
++                                "name": "cytoplasm"
++                            },
++                            {
++                                "id": "GO:0110165",
++                                "name": "cellular anatomical entity"
++                            }
++                        ]
+                     },
+                     {
+                         "annotation_id": "IPR023213",
+                         "name": "Chloramphenicol acetyltransferase-like domain superfamily",
+                         "provenance_source": "UNIPROT",
+-                        "type": "InterPro"
++                        "type": "InterPro",
++                        "annotation_lineage": [
++                            {
++                                "id": "IPR023213",
++                                "name": "Chloramphenicol acetyltransferase-like domain superfamily"
++                            }
++                        ]
+                     }
+                 ]
+             }
+diff --git a/tests/fixtures/test_search.json b/tests/fixtures/test_search.json
+index 6d7926af5..074b39171 100644
+--- a/tests/fixtures/test_search.json
++++ b/tests/fixtures/test_search.json
+@@ -10,6 +10,7 @@
+         "expected_result": [
+             [
+                 "FBgn0003656",
++                "sws",
+                 "swiss cheese",
+                 null,
+                 "protein_coding",
+@@ -33,6 +34,7 @@
+                 "ensembl_id": "FBgn0003656",
+                 "ensembl_description": "swiss cheese",
+                 "ext_ref_description": null,
++                "gene_name": "sws",
+                 "biotype": "protein_coding",
+                 "synonym": [
+                     "sws"
+@@ -56,6 +58,7 @@
+         "expected_result": [
+             [
+                 "FBgn0003656",
++                "sws",
+                 "swiss cheese",
+                 null,
+                 "protein_coding",
+@@ -66,6 +69,7 @@
+             ],
+             [
+                 "FBgn0043362",
++                "bchs",
+                 "blue cheese",
+                 null,
+                 "protein_coding",
+@@ -87,6 +91,7 @@
+         "expected_result": [
+             [
+                 "ENSG00000069509",
++                "FUNDC1",
+                 "FUN14 domain containing 1 [Source:HGNC Symbol;Acc:HGNC:28746]",
+                 "FUN14 domain containing 1",
+                 "protein_coding",
+@@ -97,6 +102,7 @@
+             ],
+             [
+                 "ENSG00000084754",
++                "HADHA",
+                 "hydroxyacyl-CoA dehydrogenase trifunctional multienzyme complex subunit alpha [Source:HGNC Symbol;Acc:HGNC:4801]",
+                 "hydroxyacyl-CoA dehydrogenase trifunctional multienzyme complex subunit alpha",
+                 "protein_coding",
+@@ -110,6 +116,7 @@
+             ],
+             [
+                 "ENSG00000100603",
++                "SNW1",
+                 "SNW domain containing 1 [Source:HGNC Symbol;Acc:HGNC:16696]",
+                 "SNW domain containing 1",
+                 "protein_coding",
+@@ -131,6 +138,7 @@
+         "expected_result": [
+             [
+                 "FBtr0070000",
++                "Nep3-RA",
+                 null,
+                 null,
+                 "protein_coding",
+@@ -141,6 +149,7 @@
+             ],
+             [
+                 "FBtr0307554",
++                "Nep3-RB",
+                 null,
+                 null,
+                 "protein_coding",
+@@ -151,6 +160,7 @@
+             ],
+             [
+                 "FBtr0307555",
++                "Nep3-RC",
+                 null,
+                 null,
+                 "protein_coding",
+@@ -176,6 +186,7 @@
+         "expected_result": [
+             [
+                 "ENSANIT00000000884",
++                "RNaseP_nuc-201",
+                 null,
+                 "Nuclear RNase P",
+                 "ribozyme",
+@@ -186,6 +197,7 @@
+             ],
+             [
+                 "ENSANIT00000001698",
++                "SNORA71-201",
+                 null,
+                 "Small nucleolar RNA SNORA71",
+                 "snoRNA",
+@@ -196,6 +208,7 @@
+             ],
+             [
+                 "ENSANIT00000001705",
++                "SNORA71-201",
+                 null,
+                 "Small nucleolar RNA SNORA71",
+                 "snoRNA",
+@@ -206,6 +219,7 @@
+             ],
+             [
+                 "ENSANIT00000001802",
++                "5_8S_rRNA-201",
+                 null,
+                 "5.8S ribosomal RNA",
+                 "rRNA",
+@@ -216,6 +230,7 @@
+             ],
+             [
+                 "ENSANIT00000001839",
++                "U2-201",
+                 null,
+                 "U2 spliceosomal RNA",
+                 "snRNA",
+@@ -241,6 +256,7 @@
+         "expected_result": [
+             [
+                 "ENSANIT00000001698",
++                "SNORA71-201",
+                 null,
+                 "Small nucleolar RNA SNORA71",
+                 "snoRNA",
+@@ -251,6 +267,7 @@
+             ],
+             [
+                 "ENSANIT00000001705",
++                "SNORA71-201",
+                 null,
+                 "Small nucleolar RNA SNORA71",
+                 "snoRNA",
+@@ -276,6 +293,7 @@
+         "expected_result": [
+             [
+                 "ENST00000362582",
++                "SNORA71.3-201",
+                 null,
+                 null,
+                 "snoRNA",
+@@ -286,6 +304,7 @@
+             ],
+             [
+                 "ENST00000363484",
++                "SNORA71D-201",
+                 null,
+                 "small nucleolar RNA, H/ACA box 71D",
+                 "snoRNA",
+@@ -296,6 +315,7 @@
+             ],
+             [
+                 "ENST00000364523",
++                "SNORA71.1-201",
+                 null,
+                 null,
+                 "snoRNA",
+@@ -321,6 +341,7 @@
+         "expected_result": [
+             [
+                 "FBgn0003656",
++                "sws",
+                 "swiss cheese",
+                 null,
+                 "protein_coding",
+@@ -343,6 +364,7 @@
+         "expected_result": [
+             [
+                 "ENSG00000130234",
++                "ACE2",
+                 "angiotensin I converting enzyme 2 [Source:HGNC Symbol;Acc:HGNC:13557]",
+                 "angiotensin I converting enzyme 2",
+                 "protein_coding",
+@@ -353,6 +375,7 @@
+             ],
+             [
+                 "ENSG00000173653",
++                "RCE1",
+                 "Ras converting CAAX endopeptidase 1 [Source:HGNC Symbol;Acc:HGNC:13721]",
+                 "Ras converting CAAX endopeptidase 1",
+                 "protein_coding",
+@@ -363,6 +386,7 @@
+             ],
+             [
+                 "ENSG00000182240",
++                "BACE2",
+                 "beta-secretase 2 [Source:HGNC Symbol;Acc:HGNC:934]",
+                 "beta-secretase 2",
+                 "protein_coding",
+@@ -376,6 +400,7 @@
+             ],
+             [
+                 "ENSG00000224388",
++                "BACE2-IT1",
+                 "BACE2 intronic transcript 1 [Source:HGNC Symbol;Acc:HGNC:16024]",
+                 "BACE2 intronic transcript 1",
+                 "antisense",
+@@ -400,6 +425,7 @@
+         "expected_result": [
+             [
+                 "MGP_DBA2J_G0002730",
++                "H3f3aos",
+                 "H3 histone, family 3A, opposite strand [Source:MGI Symbol;Acc:MGI:3802006]",
+                 "H3 histone, family 3A, opposite strand",
+                 "antisense",
+@@ -410,6 +436,7 @@
+             ],
+             [
+                 "MGP_DBA2J_G0002983",
++                "Dhx58os",
+                 "DEAH (Asp-Glu-Ala-His) box polypeptide 58, opposite strand [Source:MGI Symbol;Acc:MGI:3705104]",
+                 "DEAH (Asp-Glu-Ala-His) box polypeptide 58, opposite strand",
+                 "antisense",
+@@ -420,6 +447,7 @@
+             ],
+             [
+                 "MGP_DBA2J_G0003041",
++                "Notumos",
+                 "notum pectinacetylesterase homolog (Drosophila), opposite strand [Source:MGI Symbol;Acc:MGI:3698431]",
+                 "notum pectinacetylesterase homolog (Drosophila), opposite strand",
+                 "antisense",
+@@ -441,6 +469,7 @@
+         },
+         "expected_result": [
+             [
++                "AT1G01180",
+                 "AT1G01180",
+                 "S-adenosyl-L-methionine-dependent methyltransferases superfamily protein [Source:NCBI gene (formerly Entrezgene);Acc:839239]",
+                 "S-adenosyl-L-methionine-dependent methyltransferases superfamily protein",
+@@ -452,6 +481,7 @@
+             ],
+             [
+                 "AT1G01290",
++                "CNX3",
+                 "cofactor of nitrate reductase and xanthine dehydrogenase 3 [Source:NCBI gene (formerly Entrezgene);Acc:839445]",
+                 "cofactor of nitrate reductase and xanthine dehydrogenase 3",
+                 "protein_coding",
+@@ -464,6 +494,7 @@
+             ],
+             [
+                 "AT1G01370",
++                "HTR12",
+                 "Histone superfamily protein [Source:NCBI gene (formerly Entrezgene);Acc:839104]",
+                 "Histone superfamily protein",
+                 "protein_coding",
+@@ -488,6 +519,7 @@
+         "expected_result": [
+             [
+                 "AT2G23380",
++                "CLF",
+                 "Histone-lysine N-methyltransferase CLF [Source:UniProtKB/Swiss-Prot;Acc:P93831]",
+                 "",
+                 "protein_coding",

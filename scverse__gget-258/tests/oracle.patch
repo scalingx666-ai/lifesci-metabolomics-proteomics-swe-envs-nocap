@@ -1,0 +1,845 @@
+diff --git a/docs/src/SUMMARY.md b/docs/src/SUMMARY.md
+index ca34b5f9c..b112fd0f2 100644
+--- a/docs/src/SUMMARY.md
++++ b/docs/src/SUMMARY.md
+@@ -21,6 +21,7 @@
+ * [gget diamond](en/diamond.md)  
+ * [gget elm](en/elm.md)  
+ * [gget enrichr](en/enrichr.md)  
++* [gget g2p](en/g2p.md)
+ * [gget gpt](en/gpt.md)  
+ * [gget info](en/info.md)  
+ * [gget muscle](en/muscle.md)
+@@ -63,6 +64,7 @@
+ * [gget diamond](es/diamond.md)  
+ * [gget elm](es/elm.md)  
+ * [gget enrichr](es/enrichr.md)  
++* [gget g2p](es/g2p.md)
+ * [gget gpt](es/gpt.md)  
+ * [gget info](es/info.md)  
+ * [gget muscle](es/muscle.md)
+diff --git a/docs/src/en/g2p.md b/docs/src/en/g2p.md
+index d2896e4e0..e3466b0fb 100644
+--- a/docs/src/en/g2p.md
++++ b/docs/src/en/g2p.md
+@@ -2,34 +2,43 @@
+ 
+ > Python arguments are equivalent to long-option arguments (`--arg`), unless otherwise specified. Flags are True/False arguments in Python.  The manual for any gget tool can be called from the command-line using the `-h` `--help` flag.  
+ # gget g2p 🧬➜🧪
+-Query the [Genomics 2 Proteins (G2P) portal](https://g2p.broadinstitute.org/) to link genes/proteins to residue-level structural and functional annotations (e.g. AlphaFold pLDDT, UniProt sites, predicted pockets, PTMs), the gene–transcript–protein–isoform–structure map, and isoform alignments.  
++Query the [Genomics 2 Proteins (G2P) portal](https://g2p.broadinstitute.org/) to link genes/proteins to residue-level structural and functional annotations, the gene–transcript–protein–isoform–structure map, and isoform alignments.
+ 
+-Returns: A data frame with the requested G2P information.  
++The per-residue feature table is rich (~140 columns), including AlphaFold pLDDT, DSSP secondary structure, accessible surface area, UniProt sites (active/binding/domain/...), PhosphoSitePlus PTMs, fpocket / af2bind / p2rank pocket predictions, intra- and inter-chain hydrogen bonds, non-bonded interactions, disulfide bonds and salt bridges (from PDB and AlphaFold), the PFES (Protein Feature Enrichment Score) sub-scores used by G2P for missense variant interpretation, and per-residue MaveDB experimental functional scores. See the [`g2p-bis` documentation](https://github.com/broadinstitute/g2p-bis) for column descriptions.
++
++> Note: this module wraps the *public* G2P REST API. The variant overlays shown in the portal's web UI (gnomAD, ClinVar, HGMD) are not exposed by the public API and are therefore not available via `gget g2p` — use the portal directly for those.
++
++Returns: A data frame with the requested G2P information, or `None` if the query failed (network error, invalid arguments, or unknown gene/UniProt pair).
+ 
+ This module was written by [Elarwei](https://github.com/Elarwei001).
+ 
+-**Positional argument**  
+-`gene`  
++At least one of `gene` or `--uniprot_id` is required — the other is resolved automatically via the UniProt REST API and cached.
++
++**Arguments (at least one of `gene` / `--uniprot_id` required)**  
++`gene` (positional)  
+ Gene symbol, e.g. BRCA1.  
++If omitted, resolved from `--uniprot_id`. In this case, note that gene → UniProt accession lookup is approximate (it picks the canonical reviewed human Swiss-Prot entry only); for non-human organisms, unreviewed entries, or a specific isoform, pass `--uniprot_id` explicitly.  
+ 
+-**Other required arguments**  
+ `-u` `--uniprot_id`  
+-UniProt accession, e.g. P38398. For `--resource alignment` this is the canonical isoform (e.g. P01130-1).  
+-Tip: find a gene's UniProt ID with [`gget info`](info.md).  
++UniProt accession, e.g. P38398. If omitted, resolved from `gene`. For `--resource alignment` this is the canonical isoform (e.g. P01130-1) and is **required** (gene→UniProt lookup returns the base accession and cannot disambiguate isoforms).  
++Tip: find a gene's UniProt ID with [`gget search`](search.md) (to get a gene's Ensembl ID) and [`gget info`](info.md).  
+ 
+ **Optional arguments**  
+ `-r` `--resource`  
+ Defines the type of information to return (default: 'features'):  
+-`features`: Per-residue protein feature table (AlphaFold pLDDT, UniProt sites, secondary structure, predicted pockets, PTMs, etc.).  
+-`map`: Gene → transcript → protein isoform → structure map (UniProt/Ensembl/RefSeq/PDB identifiers).  
++`features`: Per-residue protein feature table (~140 columns: AlphaFold pLDDT, UniProt sites, secondary structure, predicted pockets, PTMs, PFES, MaveDB scores, ...).  
++`map`: Gene → transcript → protein isoform → structure map (UniProt/Ensembl/RefSeq/PDB identifiers). The comma-joined `PDB Ids` column is augmented with a parsed `PDB Ids List` column (`list[str]`) for direct consumption (e.g. with [`gget pdb`](pdb.md)).  
+ `alignment`: Residue-level sequence alignment between two isoforms (requires `--isoform`; `--uniprot_id` is the canonical isoform).  
+ 
+ `-i` `--isoform`  
+ Alternative isoform UniProt accession (e.g. P01130-2). Required when `--resource alignment`. Default: None.  
+ 
++`--residues`  
++Restrict the result to specific residue positions (applies to `--resource features` / `alignment` only). Command line: comma-separated list and/or inclusive ranges, e.g. `185,1775,1812` or `100-200` or `1-50,185`. Python: `int`, `list[int]`, `range`, or `set[int]`. Default: None (return all residues).
++
+ `-o` `--out`  
+ Path to the file the results will be saved in, e.g. path/to/directory/results.json. Default: Standard out.  
+-Python: `save=True` will save the output in the current working directory.  
++Python: `save=True` will save the output as a CSV in the current working directory; `out="path/to/file.csv"` writes to an explicit path and takes precedence over `save`.
+ 
+ **Flags**  
+ `-csv` `--csv`  
+@@ -42,24 +51,62 @@ Python: Use `verbose=False` to prevent progress information from being displayed
+ 
+ ### Examples
+ ```bash
+-# Per-residue protein features for BRCA1 (AlphaFold pLDDT, UniProt sites, ...)
++# Per-residue protein features for BRCA1 (AlphaFold pLDDT, UniProt sites, ...).
++# The gene symbol is optional — it can be resolved from the UniProt accession.
++gget g2p -u P38398
++```
++```python
++# Python
++gget.g2p(uniprot_id="P38398", resource="features")
++```
++&rarr; Returns a data frame with one row per residue of the BRCA1 protein (UniProt P38398) and its structural/functional annotations.  
++
++<br/><br/>
++
++```bash
++# Same query, with the gene symbol passed explicitly
+ gget g2p BRCA1 -u P38398
+ ```
+ ```python
+ # Python
+ gget.g2p("BRCA1", uniprot_id="P38398", resource="features")
+ ```
+-&rarr; Returns a data frame with one row per residue of the BRCA1 protein (UniProt P38398) and its structural/functional annotations.  
++
++<br/><br/>
++
++```bash
++# Symmetric: only the gene symbol — UniProt accession is resolved automatically
++# (canonical reviewed human Swiss-Prot entry).
++gget g2p BRCA1
++```
++```python
++# Python
++gget.g2p("BRCA1")
++```
++&rarr; Same as above. The resolved `P38398` is logged and is visible in the leading `uniprot_id` column.
++
++<br/><br/>
++
++```bash
++# Score only specific residue positions
++gget g2p BRCA1 -u P38398 --residues 185,1775,1812
++```
++```python
++# Python
++gget.g2p("BRCA1", uniprot_id="P38398", residues=[185, 1775, 1812])
++gget.g2p("BRCA1", uniprot_id="P38398", residues=range(100, 200))
++```
++&rarr; Returns only the requested residues from the per-residue feature table.
+ 
+ <br/><br/>
+ 
+ ```bash
+ # Gene -> transcript -> isoform -> structure map (CSV)
+-gget g2p BRCA1 -u P38398 -r map --csv
++gget g2p -u P38398 -r map --csv
+ ```
+ ```python
+ # Python
+-gget.g2p("BRCA1", uniprot_id="P38398", resource="map")
++gget.g2p(uniprot_id="P38398", resource="map")
+ ```
+ &rarr; Returns the mapping of BRCA1 to its UniProt isoforms, Ensembl/RefSeq identifiers, and PDB structures.  
+ 
+@@ -67,11 +114,11 @@ gget.g2p("BRCA1", uniprot_id="P38398", resource="map")
+ 
+ ```bash
+ # Residue-level alignment between two LDLR isoforms
+-gget g2p LDLR -u P01130-1 -r alignment -i P01130-2
++gget g2p -u P01130-1 -r alignment -i P01130-2
+ ```
+ ```python
+ # Python
+-gget.g2p("LDLR", uniprot_id="P01130-1", resource="alignment", isoform="P01130-2")
++gget.g2p(uniprot_id="P01130-1", resource="alignment", isoform="P01130-2")
+ ```
+ &rarr; Returns the residue-level alignment between LDLR isoforms P01130-1 and P01130-2.  
+ 
+diff --git a/docs/src/en/updates.md b/docs/src/en/updates.md
+index cf5ac9e45..db284d45a 100644
+--- a/docs/src/en/updates.md
++++ b/docs/src/en/updates.md
+@@ -5,6 +5,14 @@
+ #### *gget* officially became part of [*scverse*](https://scverse.org/) on June 9, 2026. 🥳🥳🥳
+ 
+ **Version ≥ 0.30.8** (XXX XX, 2026):  
++- [`gget g2p`](g2p.md): Either `gene` or `--uniprot_id` is now sufficient — whichever is missing is resolved via UniProt and cached. Gene→UniProt picks the canonical reviewed human Swiss-Prot entry; the resolution and its limitations are logged. The canonical pair is **always** prepended to the result as `gene_name` / `uniprot_id` columns (and stored on `df.attrs`), so the output schema is invariant regardless of input mode. Existing call sites continue to work.
++  - New `residues=` filter (Python: int / list / range / set; CLI `--residues 100,200,300` or `100-200`) restricts `features` / `alignment` to specific positions client-side.
++  - `map` results gain a parsed `PDB Ids List` column (`list[str]`) alongside the comma-joined `PDB Ids` string, for direct chaining into [`gget pdb`](pdb.md).
++  - Fixed silent failure when the gene/UniProt pair was unknown: G2P returns HTTP 200 with a JSON `{"status":"failure",...}` body that was being parsed as a single TSV column. Now logged as an error and returns `None`.
++  - All failure modes now return `None` (was a mix of `None` and empty `DataFrame`).
++  - Added retries with exponential backoff on transient failures (5xx, connection errors, timeouts).
++  - URL-encoded path segments.
++  - New `out=` Python argument writes the result to an explicit CSV path (takes precedence over `save`).
+ - [`gget alphafold`](alphafold.md): Added a new `jackhmmer_savedir` argument (`-jhd`/`--jackhmmer_savedir` on the command line) that lets you choose where the temporary jackhmmer files are stored. By default, `gget alphafold` still creates a `~/tmp/jackhmmer/` folder in your home directory (which can take up to ~2 GB of disk space); the new argument lets you redirect these files elsewhere, e.g. to a disk with more free space. Resolves [issue 49](https://github.com/scverse/gget/issues/49).
+ - [`gget pdb`](pdb.md): Added support for the PDBx/mmCIF structure format (fixes [issue 178](https://github.com/scverse/gget/issues/178) and [issue 177](https://github.com/scverse/gget/issues/177)).
+   - New `resource="mmcif"` option downloads the structure in PDBx/mmCIF format (`.cif`).
+diff --git a/gget/gget_g2p.py b/gget/gget_g2p.py
+index cc7bd77ea..179c51aea 100644
+--- a/gget/gget_g2p.py
++++ b/gget/gget_g2p.py
+@@ -1,6 +1,10 @@
+ from __future__ import annotations
+ 
+ import io
++import json
++import time
++from functools import lru_cache
++from urllib.parse import quote
+ 
+ import pandas as pd
+ import requests
+@@ -10,46 +14,258 @@
+ 
+ logger = set_up_logger()
+ 
++UNIPROT_ENTRY_URL = "https://rest.uniprot.org/uniprotkb/{accession}.json"
++UNIPROT_SEARCH_URL = "https://rest.uniprot.org/uniprotkb/search"
++
++
++@lru_cache(maxsize=256)
++def _resolve_gene_from_uniprot(uniprot_id: str) -> str | None:
++    """Look up the primary gene symbol for a UniProt accession via the UniProt REST entry endpoint.
++
++    Returns the gene symbol, or None if the accession is unknown or has no gene name.
++    Cached so repeated `gget g2p` calls for the same protein don't re-query UniProt.
++    """
++    url = UNIPROT_ENTRY_URL.format(accession=quote(uniprot_id, safe=""))
++    try:
++        r = requests.get(url, timeout=DEFAULT_REQUESTS_TIMEOUT)
++    except requests.exceptions.RequestException as e:
++        logger.error(f"UniProt lookup for '{uniprot_id}' failed: {e}")
++        return None
++    if not r.ok:
++        logger.error(
++            f"UniProt lookup for '{uniprot_id}' returned HTTP {r.status_code}. "
++            "Please check that this is a valid UniProt accession (e.g. 'P38398' or 'P01130-1')."
++        )
++        return None
++    try:
++        payload = r.json()
++        gene = payload["genes"][0]["geneName"]["value"]
++    except (json.JSONDecodeError, KeyError, IndexError, TypeError):
++        logger.error(f"UniProt returned an entry for '{uniprot_id}' but no primary gene symbol could be extracted.")
++        return None
++    return gene if isinstance(gene, str) and gene else None
++
++
++@lru_cache(maxsize=256)
++def _resolve_uniprot_from_gene(gene: str) -> tuple[str, int] | None:
++    """Look up the canonical reviewed human Swiss-Prot accession for a gene symbol.
++
++    Queries the UniProt REST search endpoint with
++    `gene_exact:{gene} AND organism_id:9606 AND reviewed:true` and returns
++    `(primary_accession, n_candidates)`. The candidate count lets the caller warn
++    when more than one reviewed entry matched. Returns None if no reviewed entry
++    was found.
++    """
++    params = {
++        "query": f"gene_exact:{gene} AND organism_id:9606 AND reviewed:true",
++        "format": "json",
++        "fields": "accession",
++        "size": 5,
++    }
++    try:
++        r = requests.get(UNIPROT_SEARCH_URL, params=params, timeout=DEFAULT_REQUESTS_TIMEOUT)
++    except requests.exceptions.RequestException as e:
++        logger.error(f"UniProt lookup for gene '{gene}' failed: {e}")
++        return None
++    if not r.ok:
++        logger.error(f"UniProt lookup for gene '{gene}' returned HTTP {r.status_code}.")
++        return None
++    try:
++        results = r.json().get("results", [])
++    except (json.JSONDecodeError, AttributeError):
++        logger.error(f"UniProt lookup for gene '{gene}' returned invalid JSON.")
++        return None
++    if not results:
++        return None
++    first = results[0] if isinstance(results[0], dict) else {}
++    accession = first.get("primaryAccession")
++    if not isinstance(accession, str) or not accession:
++        return None
++    return accession, len(results)
++
++
++def _normalize_residues(residues: object) -> set[int]:
++    """Coerce a `residues` argument (int / iterable of ints / range) to a set of ints."""
++    if isinstance(residues, bool):
++        raise ValueError("'residues' must be an int or an iterable of ints, not a bool.")
++    if isinstance(residues, int):
++        return {residues}
++    if isinstance(residues, (list, tuple, range, set, frozenset)):
++        try:
++            return {int(r) for r in residues}
++        except (TypeError, ValueError) as e:
++            raise ValueError(
++                "'residues' must be an int or an iterable of ints "
++                f"(e.g. [100, 200, 300] or range(100, 200)). Got: {residues!r}"
++            ) from e
++    raise ValueError(
++        f"'residues' must be an int or an iterable of ints (e.g. [100, 200, 300] or range(100, 200)). Got: {residues!r}"
++    )
++
++
++def _g2p_get_tsv(
++    url: str,
++    label: str,
++    retries: int = 3,
++    backoff: float = 1.0,
++) -> pd.DataFrame | None:
++    """GET a G2P endpoint expected to return TSV. Returns a parsed DataFrame or None on any failure.
++
++    Retries on transient failures (connection errors, timeouts, HTTP 5xx) with exponential
++    backoff. Detects JSON-shaped error bodies that the G2P portal sometimes returns over
++    the TSV channel with HTTP 200 (e.g. {"status":"failure","message":"No data for this gene."})
++    and surfaces them as logged errors instead of letting pandas parse them as a single column.
++    """
++    attempts = retries + 1
++    last_status: int | None = None
++    last_exc: Exception | None = None
++    for attempt in range(attempts):
++        try:
++            r = requests.get(url, timeout=DEFAULT_REQUESTS_TIMEOUT)
++        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
++            last_exc = e
++            last_status = None
++        else:
++            if r.ok:
++                stripped = r.text.lstrip()
++                if not stripped:
++                    logger.warning(f"{label}: the Genomics 2 Proteins portal returned an empty response.")
++                    return None
++                if stripped[:1] in ("{", "["):
++                    # JSON error body delivered over the TSV channel.
++                    msg: str | None = None
++                    try:
++                        body = json.loads(stripped)
++                    except json.JSONDecodeError:
++                        body = None
++                    if isinstance(body, dict):
++                        m = body.get("message")
++                        if isinstance(m, str):
++                            msg = m
++                    logger.error(
++                        f"{label}: the Genomics 2 Proteins portal could not satisfy the request"
++                        + (f": {msg}" if msg else ".")
++                        + " Double-check that the gene symbol and UniProt accession match."
++                    )
++                    return None
++                return pd.read_csv(io.StringIO(r.text), sep="\t")
++            if r.status_code < 500:
++                logger.error(
++                    f"{label}: the Genomics 2 Proteins portal returned HTTP {r.status_code}. "
++                    "Double-check that the gene symbol and UniProt accession match."
++                )
++                return None
++            last_status = r.status_code
++            last_exc = None
++
++        if attempt < attempts - 1:
++            delay = backoff * (2**attempt)
++            reason = str(last_exc) if last_exc is not None else f"HTTP {last_status}"
++            logger.warning(
++                f"{label}: transient failure ({reason}); retrying in {delay:.1f}s (attempt {attempt + 2}/{attempts})."
++            )
++            time.sleep(delay)
++
++    if last_exc is not None:
++        logger.error(f"{label}: request failed after {attempts} attempts: {last_exc}")
++    else:
++        logger.error(f"{label}: returned HTTP {last_status} after {attempts} attempts.")
++    return None
++
+ 
+ def g2p(
+-    gene: str,
+-    uniprot_id: str,
++    gene: str | None = None,
++    uniprot_id: str | None = None,
+     resource: str = "features",
+     isoform: str | None = None,
++    residues: int | list[int] | tuple[int, ...] | range | set[int] | None = None,
+     save: bool = False,
++    out: str | None = None,
+     verbose: bool = True,
+ ) -> pd.DataFrame | None:
+-    """Query the Genomics 2 Proteins (G2P) portal to link genes/proteins to per-residue structural and functional annotations.
++    """Query the Genomics 2 Proteins (G2P) portal to link genes/proteins to per-residue
++    structural and functional annotations.
+ 
+     Portal: https://g2p.broadinstitute.org/
+ 
++    This module wraps the *public* G2P REST API (three endpoints: residue-level features,
++    isoform/structure mapping, and isoform alignment). The variant overlays the portal
++    shows in its web UI (gnomAD, ClinVar, HGMD) are not exposed by the public API and
++    therefore not available here — query the portal directly for those.
++
++    At least one of `gene` or `uniprot_id` is required. The other is resolved
++    automatically via the UniProt REST API and cached; when resolution happens it is
++    logged with the limitations.
++
++    The canonical pair used for the query is always prepended to the returned
++    DataFrame as `gene_name` and `uniprot_id` columns and stored as
++    `df.attrs["gene_name"]` / `df.attrs["uniprot_id"]`, so the output schema is
++    identical regardless of input mode and the chosen identifiers survive in saved
++    files.
++
+     Args:
+-    - gene          Gene symbol, e.g. "BRCA1" (str).
+-    - uniprot_id    UniProt accession, e.g. "P38398" (str). For resource="alignment" this is the
+-                    canonical isoform accession (e.g. "P01130-1").
++    - gene          Optional gene symbol, e.g. "BRCA1". If omitted, resolved from
++                    `uniprot_id`. NOTE: gene-symbol → accession lookup is approximate
++                    (gene symbols have synonyms and paralogues; the lookup picks the
++                    *canonical reviewed human Swiss-Prot* entry — pass `uniprot_id`
++                    explicitly for non-human organisms, unreviewed entries, or a
++                    specific isoform).
++    - uniprot_id    UniProt accession, e.g. "P38398". If omitted, resolved from `gene`.
++                    For resource="alignment" this must be supplied explicitly as the
++                    canonical isoform accession (e.g. "P01130-1"), because the
++                    gene→UniProt path returns the base accession and cannot disambiguate
++                    isoforms.
+                     Tip: find a gene's UniProt ID with 'gget info'.
+     - resource      Type of information to return (default: "features"):
+-                    "features":  per-residue feature table (AlphaFold pLDDT, UniProt sites,
+-                                 secondary structure, predicted pockets, PTMs, etc.).
++                    "features":  per-residue feature table (~140 columns). Includes:
++                                 AlphaFold pLDDT, DSSP secondary structure, accessible
++                                 surface area, UniProt sites (active/binding/domain/...),
++                                 PhosphoSitePlus PTMs, fpocket / af2bind / p2rank pocket
++                                 predictions, intra/inter-chain hydrogen bonds, non-bonded
++                                 interactions, disulfide bonds and salt bridges (from PDB
++                                 and AlphaFold), PFES (Protein Feature Enrichment Score)
++                                 and its sub-scores, and per-residue MaveDB experimental
++                                 functional scores. See https://github.com/broadinstitute/g2p-bis
++                                 for descriptions of each column.
+                     "map":       gene -> transcript -> protein isoform -> structure map
+-                                 (UniProt/Ensembl/RefSeq/PDB identifiers).
+-                    "alignment": residue-level alignment between two isoforms (requires 'isoform';
+-                                 'uniprot_id' is the canonical isoform).
++                                 (UniProt/Ensembl/RefSeq/PDB identifiers). The
++                                 comma-joined `PDB Ids` column is augmented with a
++                                 parsed `PDB Ids List` column (list[str]) for direct
++                                 consumption (e.g. with `gget pdb`).
++                    "alignment": residue-level alignment between two isoforms (requires
++                                 'isoform'; 'uniprot_id' is the canonical isoform).
+     - isoform       Alternative isoform UniProt accession (e.g. "P01130-2"). Required when
+                     resource="alignment" (default: None).
+-    - save          If True, save the result as a CSV in the current working directory (default: False).
++    - residues      Optional filter restricting the result to specific residue positions
++                    (only applies to "features" and "alignment", which carry a
++                    `residueId` column). Accepts an int, a list/tuple/set of ints, or a
++                    range — e.g. `185`, `[185, 1775, 1812]`, `range(100, 200)`. Filtering
++                    is performed client-side after fetching the full table.
++    - save          If True, save the result as a CSV named
++                    'gget_g2p_{gene}_{uniprot_id}_{resource}.csv' in the current working
++                    directory (default: False).
++    - out           Optional explicit path to write the result as CSV. Takes precedence
++                    over `save` (default: None).
+     - verbose       True/False whether to print progress information (default: True).
+ 
+-    Returns a pandas DataFrame with the requested G2P information.
++    Returns a pandas DataFrame with the requested G2P information, or None if the query
++    failed (network error, invalid arguments, unknown gene/UniProt pair, or empty response).
+     """
+     resources = ["features", "map", "alignment"]
+     if resource not in resources:
+-        raise ValueError(f"'resource' argument specified as {resource}. Expected one of: {', '.join(resources)}")
++        raise ValueError(f"'resource' argument specified as '{resource}'. Expected one of: {', '.join(resources)}")
+ 
+-    if not uniprot_id:
++    if not gene and not uniprot_id:
+         raise ValueError(
+-            "Please provide a UniProt accession as 'uniprot_id' (e.g. 'P38398'). "
+-            "You can find the UniProt ID for a gene using 'gget info'."
++            "Please provide at least one of 'gene' (e.g. 'BRCA1') or 'uniprot_id' "
++            "(e.g. 'P38398'). You can find both with 'gget info'."
++        )
++
++    if resource == "alignment" and not uniprot_id:
++        raise ValueError(
++            "resource='alignment' requires 'uniprot_id' to be specified explicitly as the "
++            "canonical isoform accession (e.g. 'P01130-1'). Gene→UniProt resolution returns "
++            "the base accession and cannot disambiguate isoforms."
+         )
+ 
+     if resource == "alignment" and not isoform:
+@@ -58,46 +274,102 @@ def g2p(
+             "(e.g. 'P01130-2'). 'uniprot_id' is the canonical isoform (e.g. 'P01130-1')."
+         )
+ 
+-    # The G2P REST API returns tab-separated values
+-    base = f"{G2P_API}/gene/{gene}/protein/{uniprot_id}"
++    # Validate `residues` up-front (cheap, fails fast).
++    residue_set: set[int] | None = _normalize_residues(residues) if residues is not None else None
++    if residue_set is not None and resource == "map":
++        raise ValueError(
++            "The 'residues' filter does not apply to resource='map' (no per-residue table). "
++            "Use it with 'features' or 'alignment'."
++        )
++
++    if not uniprot_id:
++        if verbose:
++            logger.info(f"Resolving UniProt accession for gene '{gene}' via UniProt...")
++        lookup = _resolve_uniprot_from_gene(gene)  # type: ignore[arg-type]
++        if not lookup:
++            raise ValueError(
++                f"No canonical reviewed human UniProt entry was found for gene '{gene}'. "
++                "Please pass the UniProt accession explicitly via 'uniprot_id' (find it with 'gget info')."
++            )
++        uniprot_id, n_candidates = lookup
++        if verbose:
++            extra = f" ({n_candidates} reviewed candidates matched; the first was chosen)" if n_candidates > 1 else ""
++            logger.info(
++                f"Resolved gene '{gene}' → UniProt '{uniprot_id}' "
++                f"(canonical reviewed human Swiss-Prot entry{extra}). "
++                "Gene-symbol lookup is approximate — it picks the canonical human "
++                "reviewed entry only. For non-human organisms, unreviewed entries, or "
++                "a specific isoform, pass 'uniprot_id' explicitly."
++            )
++
++    if not gene:
++        if verbose:
++            logger.info(f"Resolving gene symbol for UniProt accession '{uniprot_id}' via UniProt...")
++        gene = _resolve_gene_from_uniprot(uniprot_id)
++        if not gene:
++            raise ValueError(
++                f"Could not resolve a gene symbol for UniProt accession '{uniprot_id}'. "
++                "Please pass the gene symbol explicitly via the 'gene' argument."
++            )
++        if verbose:
++            logger.info(f"Resolved UniProt '{uniprot_id}' → gene '{gene}'.")
++
++    # G2P REST API path templates:
++    #   /api/gene/{gene}/protein/{uniprotId}/protein-features
++    #   /api/gene/{gene}/protein/{uniprotId}/gene-transcript-protein-isoform-structure-map
++    #   /api/gene/{gene}/protein/{canonicalIsoform}/{alignmentIsoform}/alignment
++    gene_q = quote(gene, safe="")
++    uniprot_q = quote(uniprot_id, safe="")
++    base = f"{G2P_API}/gene/{gene_q}/protein/{uniprot_q}"
+     if resource == "features":
+         url = f"{base}/protein-features"
+     elif resource == "map":
+         url = f"{base}/gene-transcript-protein-isoform-structure-map"
+     else:  # alignment
+-        url = f"{base}/{isoform}/alignment"
++        assert isoform is not None  # validated above
++        url = f"{base}/{quote(isoform, safe='')}/alignment"
+ 
++    label = f"G2P {resource} ({gene} / {uniprot_id})"
+     if verbose:
+-        logger.info(f"Querying the Genomics 2 Proteins portal ('{resource}') for {gene} / {uniprot_id}...")
++        logger.info(f"Querying the Genomics 2 Proteins portal: {label}...")
+ 
+-    try:
+-        r = requests.get(
+-            url,
+-            timeout=DEFAULT_REQUESTS_TIMEOUT,
+-            headers={"Accept": "text/tab-separated-values"},
+-        )
+-    except requests.exceptions.RequestException as e:
+-        logger.error(f"Request to the Genomics 2 Proteins portal failed: {e}")
+-        return
++    df = _g2p_get_tsv(url, label=label)
++    if df is None:
++        return None
+ 
+-    if not r.ok:
+-        logger.error(
+-            f"G2P query (gene='{gene}', uniprot_id='{uniprot_id}', resource='{resource}') "
+-            f"returned status code {r.status_code}. Please double-check that the gene symbol "
+-            f"and UniProt accession match, then try again."
+-        )
+-        return
++    # Augment the `map` resource with a parsed list of PDB IDs alongside the
++    # comma-joined string column (so callers can pipe straight into `gget pdb`).
++    if resource == "map" and "PDB Ids" in df.columns:
++        pdb_lists = df["PDB Ids"].fillna("").map(lambda s: [p for p in str(s).split(",") if p])
++        df.insert(df.columns.get_loc("PDB Ids") + 1, "PDB Ids List", pdb_lists)
+ 
+-    if not r.text.strip():
+-        logger.warning("The Genomics 2 Proteins portal returned an empty result for this query.")
+-        return pd.DataFrame()
++    # Apply the residues filter (validated above; resource is features or alignment).
++    if residue_set is not None:
++        if "residueId" not in df.columns:
++            logger.warning(
++                f"{label}: 'residues' filter requested but the response has no 'residueId' "
++                "column; returning unfiltered result."
++            )
++        else:
++            df = df[df["residueId"].isin(residue_set)].reset_index(drop=True)
++            missing = sorted(residue_set - set(df["residueId"].tolist()))
++            if missing and verbose:
++                logger.warning(
++                    f"{label}: {len(missing)} requested residue(s) not present in the response: "
++                    f"{missing[:10]}{'...' if len(missing) > 10 else ''}"
++                )
+ 
+-    df = pd.read_csv(io.StringIO(r.text), sep="\t")
++    # Always prepend the canonical pair so the output schema is invariant across
++    # input modes (gene-only / uniprot-only / both) and survives `to_csv` / `to_json`.
++    df.attrs["gene_name"] = gene
++    df.attrs["uniprot_id"] = uniprot_id
++    df.insert(0, "uniprot_id", uniprot_id)
++    df.insert(0, "gene_name", gene)
+ 
+-    if save:
+-        out_name = f"gget_g2p_{gene}_{uniprot_id}_{resource}.csv"
+-        df.to_csv(out_name, index=False)
++    out_path: str | None = out if out else (f"gget_g2p_{gene}_{uniprot_id}_{resource}.csv" if save else None)
++    if out_path:
++        df.to_csv(out_path, index=False)
+         if verbose:
+-            logger.info(f"Results saved as {out_name}.")
++            logger.info(f"Results saved as {out_path}.")
+ 
+     return df
+diff --git a/gget/main.py b/gget/main.py
+index 73a33a422..7a2944b09 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -2355,14 +2355,26 @@ def main() -> None:
+     parser_g2p.add_argument(
+         "gene",
+         type=str,
+-        help="Gene symbol, e.g. BRCA1.",
++        nargs="?",
++        default=None,
++        help=(
++            "Optional gene symbol, e.g. BRCA1. If omitted, the gene is resolved "
++            "automatically from --uniprot_id via the UniProt REST API."
++        ),
+     )
+     parser_g2p.add_argument(
+         "-u",
+         "--uniprot_id",
+         type=str,
+-        required=True,
+-        help="UniProt accession, e.g. P38398. For '--resource alignment' this is the canonical isoform (e.g. P01130-1). Find it with `gget info`.",
++        required=False,
++        default=None,
++        help=(
++            "UniProt accession, e.g. P38398. Optional — if omitted, it is resolved from the "
++            "gene symbol via UniProt (canonical reviewed human Swiss-Prot entry only; pass "
++            "explicitly for non-human, unreviewed, or specific-isoform queries). "
++            "For '--resource alignment' this is the canonical isoform (e.g. P01130-1) and is "
++            "required. Find it with `gget info`."
++        ),
+     )
+     parser_g2p.add_argument(
+         "-r",
+@@ -2386,6 +2398,17 @@ def main() -> None:
+         required=False,
+         help="Alternative isoform UniProt accession (e.g. P01130-2). Required for '--resource alignment'.",
+     )
++    parser_g2p.add_argument(
++        "--residues",
++        type=str,
++        default=None,
++        required=False,
++        help=(
++            "Restrict the result to specific residue positions (only applies to --resource "
++            "features / alignment). Comma-separated list and/or inclusive ranges, "
++            "e.g. '185,1775,1812' or '100-200' or '1-50,185,300-310'."
++        ),
++    )
+     parser_g2p.add_argument(
+         "-o",
+         "--out",
+@@ -3810,11 +3833,36 @@ def main() -> None:
+ 
+     ## g2p return
+     if args.command == "g2p":
++        residues: list[int] | None = None
++        if args.residues:
++            residues = []
++            for part in args.residues.split(","):
++                part = part.strip()
++                if not part:
++                    continue
++                if "-" in part:
++                    try:
++                        start_s, end_s = part.split("-", 1)
++                        start, end = int(start_s), int(end_s)
++                    except ValueError as e:
++                        raise ValueError(
++                            f"Could not parse '{part}' as a residue range. Expected 'start-end' (e.g. '100-200')."
++                        ) from e
++                    residues.extend(range(start, end + 1))
++                else:
++                    try:
++                        residues.append(int(part))
++                    except ValueError as e:
++                        raise ValueError(
++                            f"Could not parse '{part}' as a residue position. Expected an int (e.g. '185')."
++                        ) from e
++
+         g2p_results: pd.DataFrame = g2p(
+             args.gene,
+             uniprot_id=args.uniprot_id,
+             resource=args.resource,
+             isoform=args.isoform,
++            residues=residues,
+             verbose=args.quiet,
+         )
+ 
+diff --git a/tests/test_g2p.py b/tests/test_g2p.py
+index e3ecbc18b..3c20335fd 100644
+--- a/tests/test_g2p.py
++++ b/tests/test_g2p.py
+@@ -1,6 +1,8 @@
++import os
++import tempfile
+ import unittest
+ 
+-from gget.gget_g2p import g2p
++from gget.gget_g2p import _resolve_gene_from_uniprot, _resolve_uniprot_from_gene, g2p
+ 
+ 
+ class TestG2P(unittest.TestCase):
+@@ -17,6 +19,8 @@ def test_g2p_map(self):
+         self.assertListEqual(
+             list(df.columns),
+             [
++                "gene_name",
++                "uniprot_id",
+                 "UniProtKB",
+                 "UniProt Isoform",
+                 "Ensembl Gene Id",
+@@ -24,9 +28,13 @@ def test_g2p_map(self):
+                 "Ensembl Transcript Id",
+                 "RefSeq mRNA Id",
+                 "PDB Ids",
++                "PDB Ids List",
+             ],
+         )
+         self.assertGreater(len(df), 0)
++        # Identifier columns are populated with the query pair on every row.
++        self.assertTrue((df["gene_name"] == "BRCA1").all())
++        self.assertTrue((df["uniprot_id"] == "P38398").all())
+         # BRCA1's stable Ensembl gene ID should be present
+         self.assertTrue((df["Ensembl Gene Id"] == "ENSG00000012048").any())
+ 
+@@ -48,6 +56,92 @@ def test_g2p_alignment(self):
+         self.assertIn("residueId", df.columns)
+         self.assertIn("AA", df.columns)
+ 
++    def test_g2p_gene_auto_resolved(self):
++        """When `gene` is omitted, it must be resolved from `uniprot_id` via UniProt."""
++        _resolve_gene_from_uniprot.cache_clear()
++        df = g2p(uniprot_id="P38398", resource="map", verbose=False)
++        self.assertIsNotNone(df)
++        self.assertGreater(len(df), 0)
++        self.assertTrue((df["Ensembl Gene Id"] == "ENSG00000012048").any())
++
++    def test_g2p_invalid_pair_returns_none(self):
++        """Regression: the G2P portal returns HTTP 200 with a JSON failure body when the
++        gene/UniProt pair is unknown. Previously this leaked through as a 0-row DataFrame
++        whose only column name was the JSON error string; now it must return None.
++        """
++        df = g2p("BRCA1", uniprot_id="P01130", resource="features", verbose=False)
++        self.assertIsNone(df)
++
++    def test_g2p_out_writes_to_explicit_path(self):
++        with tempfile.TemporaryDirectory() as tmp:
++            out_path = os.path.join(tmp, "g2p_map.csv")
++            df = g2p(
++                "BRCA1",
++                uniprot_id="P38398",
++                resource="map",
++                out=out_path,
++                verbose=False,
++            )
++            self.assertIsNotNone(df)
++            self.assertTrue(os.path.exists(out_path))
++            self.assertGreater(os.path.getsize(out_path), 0)
++
++    def test_g2p_uniprot_auto_resolved(self):
++        """When only `gene` is supplied, UniProt accession must be resolved via UniProt."""
++        _resolve_uniprot_from_gene.cache_clear()
++        df = g2p("BRCA1", resource="map", verbose=False)
++        self.assertIsNotNone(df)
++        # The canonical pair travels with the data both as leading columns and df.attrs
++        self.assertIn("gene_name", df.columns)
++        self.assertIn("uniprot_id", df.columns)
++        self.assertTrue((df["gene_name"] == "BRCA1").all())
++        self.assertTrue((df["uniprot_id"] == "P38398").all())
++        self.assertEqual(df.attrs.get("gene_name"), "BRCA1")
++        self.assertEqual(df.attrs.get("uniprot_id"), "P38398")
++
++    def test_g2p_schema_invariant_across_input_modes(self):
++        """Output schema must be identical whether the user passes gene-only,
++        uniprot-only, or both — including the leading gene_name / uniprot_id columns."""
++        df_both = g2p("BRCA1", uniprot_id="P38398", resource="map", verbose=False)
++        df_gene_only = g2p("BRCA1", resource="map", verbose=False)
++        df_uniprot_only = g2p(uniprot_id="P38398", resource="map", verbose=False)
++        self.assertEqual(list(df_both.columns), list(df_gene_only.columns))
++        self.assertEqual(list(df_both.columns), list(df_uniprot_only.columns))
++        self.assertEqual(list(df_both.columns[:2]), ["gene_name", "uniprot_id"])
++
++    def test_g2p_residues_filter(self):
++        """`residues=` restricts the features table to the requested positions."""
++        df = g2p(
++            "BRCA1",
++            uniprot_id="P38398",
++            resource="features",
++            residues=[1, 100, 1000],
++            verbose=False,
++        )
++        self.assertIsNotNone(df)
++        self.assertEqual(sorted(df["residueId"].tolist()), [1, 100, 1000])
++
++    def test_g2p_residues_single_int(self):
++        df = g2p(
++            "BRCA1",
++            uniprot_id="P38398",
++            resource="features",
++            residues=42,
++            verbose=False,
++        )
++        self.assertIsNotNone(df)
++        self.assertEqual(df["residueId"].tolist(), [42])
++
++    def test_g2p_map_has_pdb_list_column(self):
++        """The `map` resource gets a parsed `PDB Ids List` column for direct consumption."""
++        df = g2p("BRCA1", uniprot_id="P38398", resource="map", verbose=False)
++        self.assertIn("PDB Ids List", df.columns)
++        # Each non-null entry should be a list of strings
++        for entry in df["PDB Ids List"].head(3):
++            self.assertIsInstance(entry, list)
++            for item in entry:
++                self.assertIsInstance(item, str)
++
+ 
+ class TestG2PValidation(unittest.TestCase):
+     """Fast, network-free tests for argument validation."""
+@@ -56,10 +150,23 @@ def test_invalid_resource_raises(self):
+         with self.assertRaises(ValueError):
+             g2p("BRCA1", uniprot_id="P38398", resource="not_a_resource")
+ 
+-    def test_missing_uniprot_raises(self):
++    def test_missing_both_raises(self):
+         with self.assertRaises(ValueError):
+-            g2p("BRCA1", uniprot_id=None)
++            g2p()
+ 
+     def test_alignment_requires_isoform(self):
+         with self.assertRaises(ValueError):
+             g2p("LDLR", uniprot_id="P01130-1", resource="alignment")
++
++    def test_alignment_requires_explicit_uniprot(self):
++        """Alignment cannot rely on gene→UniProt resolution (returns base accession, no isoform)."""
++        with self.assertRaises(ValueError):
++            g2p("LDLR", resource="alignment", isoform="P01130-2")
++
++    def test_residues_on_map_raises(self):
++        with self.assertRaises(ValueError):
++            g2p("BRCA1", uniprot_id="P38398", resource="map", residues=[1, 2, 3])
++
++    def test_residues_wrong_type_raises(self):
++        with self.assertRaises(ValueError):
++            g2p("BRCA1", uniprot_id="P38398", residues="not-ints")  # type: ignore[arg-type]

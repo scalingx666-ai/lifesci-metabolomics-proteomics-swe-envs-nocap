@@ -1,0 +1,70 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-952"
+description = "Use `None` for unsuccessfully derived entries"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "7fe81719097309fd5eab536b1ee1829003d826d2"
+reference = "https://github.com/matchms/matchms/pull/952"
+source_access = "auto"
+built_at = "2026-11-16T12:51:52.447201+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:bc5766c4466f0b0646d7e76a80a235aae0307116a69986387d7589649273df41"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-09-03T19:39:35Z"
+diff_format = "unified"
+context_files = [
+    "matchms/filtering/filter_order.py",
+    "matchms/filtering/metadata_processing/derive_adduct_from_name.py",
+    "matchms/filtering/metadata_processing/derive_formula_from_name.py",
+    "matchms/filtering/metadata_processing/repair_inchi_inchikey_smiles.py",
+    "matchms/filtering/metadata_processing/repair_smiles_of_salts.py",
+    "tests/filtering/test_derive_adduct_from_name.py",
+    "tests/filtering/test_derive_formula_from_name.py",
+    "tests/filtering/test_repair_inchi_inchikey_smiles.py",
+    "tests/filtering/test_repair_parent_mass/test_repair_smiles_of_salts.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 171
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

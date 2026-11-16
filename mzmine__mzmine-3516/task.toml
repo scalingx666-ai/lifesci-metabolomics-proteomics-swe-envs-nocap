@@ -1,0 +1,76 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3516"
+description = "Sort compound preferred row by ion type ranking"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "f5aea8e28a43ba538c6d0e91f29d1c4d62cc0c6b"
+reference = "https://github.com/mzmine/mzmine/pull/3516"
+source_access = "auto"
+built_at = "2026-11-16T08:44:06.996623+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:b34a1b746facee8907ccd89eb3cbb0ac72ab376c7b8b3db5794d203b1087c0b9"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-09-21T11:06:19Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundRepresentativeSelector.java",
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/fx/SampleTypeFilterHeaderColumn.java",
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/identities/iontype/IonTypeRanking.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_featurelistpreferences/FeatureListPreferencesModule.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_featurelistpreferences/FeatureListPreferencesParameters.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_featurelistpreferences/FeatureListPreferencesTask.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/group_compoundgrouper/CompoundRepresentativeSelectorOption.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/group_compoundgrouper/PreferredIonTypeRepresentativeSelector.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/impl/MZmineProcessingStepImpl.java",
+    "mzmine-community/src/main/java/io/github/mzmine/parameters/ParameterSet.java",
+    "mzmine-community/src/main/java/io/github/mzmine/parameters/impl/ComposedParameterSet.java",
+    "mzmine-community/src/main/java/io/github/mzmine/parameters/impl/SimpleParameterSet.java",
+    "mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/combowithinput/DefaultOffCustomOption.java",
+    "mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/combowithinput/DefaultOffCustomParameter.java",
+    "mzmine-community/src/test/java/io/github/mzmine/datamodel/features/preferences/FeatureListPreferencesTest.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 613
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

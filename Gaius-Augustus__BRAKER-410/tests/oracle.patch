@@ -1,0 +1,230 @@
+diff --git a/scripts/braker.pl b/scripts/braker.pl
+index 990be20..2e580b1 100755
+--- a/scripts/braker.pl
++++ b/scripts/braker.pl
+@@ -449,6 +449,8 @@
+ --gm_max_intergenic=INT             Adjust maximum allowed size of intergenic
+                                     regions in GeneMark-EX. If not used, the value
+                                     is automatically determined by GeneMark-EX.
++--traingenes=file.gtf               instead of using GeneMark or GTH to generate
++                                    traingenes, provide a gtf file.
+ 
+ 
+ EXAMPLE
+@@ -564,7 +566,7 @@
+ my $soft_mask = 0;          # soft-masked flag
+ my $standard  = 0;          # index for standard malus/ bonus value
+                             # (currently 0.1 and 1e1)
+-my $chunksize = 1252500;          # chunksize for running AUGUSTUS in parallel
++my $chunksize = 2500000;          # chunksize for running AUGUSTUS in parallel
+ my $stdoutfile;    # stores current standard output
+ my $string;        # string for storing script path
+ my $augustus_args; # string that stores command line arguments to be passed to
+@@ -654,6 +656,7 @@
+ my $gc_prob = 0.001;
+ my $gm_max_intergenic;
+ my $skip_fixing_broken_genes; # skip execution of fix_in_frame_stop_codon_genes.py
++my $traingtf;
+ @forbidden_words = (
+     "system",    "exec",  "passthru", "run",    "fork",   "qx",
+     "backticks", "chmod", "chown",    "chroot", "unlink", "do",
+@@ -743,7 +746,8 @@
+     'translation_table=s'          => \$ttable,
+     'skip_fixing_broken_genes!'    => \$skip_fixing_broken_genes,
+     'gc_probability=s'             => \$gc_prob,
+-    'gm_max_intergenic=s'          => \$gm_max_intergenic
++    'gm_max_intergenic=s'          => \$gm_max_intergenic,
++    'traingenes=s'                 => \$traingtf
+ ) or die("Error in command line arguments\n");
+ 
+ if ($help) {
+@@ -1119,6 +1123,11 @@
+     $AUGUSTUS_hints_preds = rel2abs($AUGUSTUS_hints_preds);
+ }
+ 
++# make path to traingenes file absolute it it wasn't already
++if(defined($traingtf)){
++    $traingtf = rel2abs($traingtf);
++}
++
+ # open log file
+ $prtStr = "\# "
+         . (localtime)
+@@ -1394,7 +1403,7 @@
+ }
+ 
+ # train gene predictors
+-if ( $skipAllTraining == 0 && not ( defined($AUGUSTUS_hints_preds) ) ) {
++if ( $skipAllTraining == 0 && not ( defined($AUGUSTUS_hints_preds) ) && not ( defined($traingtf) ) ) {
+     if ( not($trainFromGth) ) {
+         print LOG "\#**********************************************************************************\n"
+                 . "\#                              RUNNING GENEMARK-EX                                 \n"
+@@ -1428,7 +1437,9 @@
+             filter_genemark();
+         }
+     }
++}
+ 
++if ( $skipAllTraining == 0 && not ( defined($AUGUSTUS_hints_preds) ) ) {
+     print LOG "\#**********************************************************************************\n"
+             . "\#                               TRAIN AUGUSTUS                                     \n"
+             . "\#**********************************************************************************\n";
+@@ -7232,7 +7243,7 @@ sub training_augustus {
+                        # stop codon setting and to compute k for cores>8
+ 
+         # set contents of trainGenesGtf file
+-        if ( not ($gth2traingenes) and not ($trainFromGth) ) {
++        if ( not ($gth2traingenes) and not ($trainFromGth) and not defined($traingtf)) {
+             # create softlink from genemark.gtf to traingenes.gtf
+             print LOG "\# "
+                 . (localtime)
+@@ -7262,7 +7273,18 @@ sub training_augustus {
+             combine_gm_and_gth_gtf ( $gmGtf,
+                 "$otherfilesDir/protein_alignment_$prg.gff3", $gthGtf,
+                 $trainGenesGtf);
+-        } else {
++        } elsif ( defined($traingtf) ){
++            print LOG "\# "
++                . (localtime)
++                . ": creating softlink from $traingtf to $trainGenesGtf.\n"
++                if ($v > 3);
++            $cmdString = "ln -s $traingtf $trainGenesGtf";
++            print LOG "$cmdString\n" if ($v > 3);
++            system($cmdString) == 0
++                or clean_abort("$AUGUSTUS_CONFIG_PATH/species/$species",
++                    $useexisting, "ERROR in file " . __FILE__ ." at line "
++                    . __LINE__ ."\nfailed to execute: $cmdString!\n");
++        }else {
+             $prtStr
+                 = "\# "
+                 . (localtime)
+@@ -7304,34 +7326,39 @@ sub training_augustus {
+                     $prtStr);
+         }
+ 
+-        # filter "good" genes from train.gb: all gth genes that are left, plus
+-        # the genemark "good" genes
+-        if ( not ( $trainFromGth ) ) {
+-            if (not($lambda)){
+-                # get good genemark genes
+-                print LOG "\# "
+-                    . (localtime)
+-                    . ": concatenating good GeneMark training genes to "
+-                    . "$goodLstFile.\n" if ($v > 3);
+-                $cmdString = "cat $genemarkDir/genemark.f.good.gtf > $goodLstFile";
+-                print LOG "$cmdString\n" if ($v > 3);
+-                system($cmdString) == 0
+-                    or clean_abort("$AUGUSTUS_CONFIG_PATH/species/$species",
+-                        $useexisting, "ERROR in file " . __FILE__ ." at line "
+-                        . __LINE__ ."\nfailed to execute: $cmdString!\n");
+-            }else{
+-                # get downsampled good genemark genes
+-                print LOG "\#  "
+-                    . (localtime)
+-                    . ": concatenating good and downsampled GeneMark training genes to "
+-                    . "$goodLstFile.\n" if ($v > 3);
+-                $cmdString = "cat $genemarkDir/genemark.d.gtf > $goodLstFile";
+-                print LOG "$cmdString\n" if ($v > 3);
+-                system($cmdString) == 0
+-                    or clean_abort("$AUGUSTUS_CONFIG_PATH/species/$species",
+-                        $useexisting, "ERROR in file " . __FILE__ ." at line "
+-                        . __LINE__ ."\nfailed to execute: $cmdString!\n");
++        if ( not ( $traingtf ) ){
++            # filter "good" genes from train.gb: all gth genes that are left, plus
++            # the genemark "good" genes
++            if ( not ( $trainFromGth ) ) {
++                if (not($lambda)){
++                    # get good genemark genes
++                    print LOG "\# "
++                        . (localtime)
++                        . ": concatenating good GeneMark training genes to "
++                        . "$goodLstFile.\n" if ($v > 3);
++                    $cmdString = "cat $genemarkDir/genemark.f.good.gtf > $goodLstFile";
++                    print LOG "$cmdString\n" if ($v > 3);
++                    system($cmdString) == 0
++                        or clean_abort("$AUGUSTUS_CONFIG_PATH/species/$species",
++                            $useexisting, "ERROR in file " . __FILE__ ." at line "
++                            . __LINE__ ."\nfailed to execute: $cmdString!\n");
++                }else{
++                    # get downsampled good genemark genes
++                    print LOG "\#  "
++                        . (localtime)
++                        . ": concatenating good and downsampled GeneMark training genes to "
++                        . "$goodLstFile.\n" if ($v > 3);
++                    $cmdString = "cat $genemarkDir/genemark.d.gtf > $goodLstFile";
++                    print LOG "$cmdString\n" if ($v > 3);
++                    system($cmdString) == 0
++                        or clean_abort("$AUGUSTUS_CONFIG_PATH/species/$species",
++                            $useexisting, "ERROR in file " . __FILE__ ." at line "
++                            . __LINE__ ."\nfailed to execute: $cmdString!\n");
++                }
+             }
++        } else {
++            # all genes in train.gtf are "good" genes
++            $goodLstFile = $trainGenesGtf;
+         }
+ 
+         if ( $gth2traingenes ) {
+@@ -9010,7 +9037,7 @@ sub make_hints_jobs{
+         if ($nice) {
+             $perlCmdString .= "nice ";
+         }
+-        $perlCmdString .= "perl $string --sequences=$otherfilesDir/aug_$hintId.lst --wrap=\"#!/bin/bash\" --overlap=5000 --chunksize=$chunksize --outputdir=$augustus_dir "
++        $perlCmdString .= "perl $string --sequences=$otherfilesDir/aug_$hintId.lst --wrap=\"#!/bin/bash\" --overlap=500000 --chunksize=$chunksize --outputdir=$augustus_dir "
+                        .  "--joblist=$otherfilesDir/$hintId.job.lst --jobprefix=aug_".$hintId."_ --partitionHints --command \"$augpath --species=$species --AUGUSTUS_CONFIG_PATH=$AUGUSTUS_CONFIG_PATH "
+                        .  "--extrinsicCfgFile=$cfgFile --alternatives-from-evidence=$alternatives_from_evidence --UTR=$localUTR --exonnames=on --codingseq=on "
+                        .  "--allow_hinted_splicesites=gcag,atac ";
+diff --git a/scripts/rename_tsebra_transcripts.pl b/scripts/rename_tsebra_transcripts.pl
+new file mode 100755
+index 0000000..e36d3e4
+--- /dev/null
++++ b/scripts/rename_tsebra_transcripts.pl
+@@ -0,0 +1,48 @@
++#!/usr/bin/env perl
++
++# Katharina J. Hoff
++# July 2nd 2021
++
++# This script renames TSEBRA transcripts & genes with a given prefix.
++#
++# Call:
++# cat tsebra.gtf | rename_tsebra_transcripts.pl prefix > fixed.gtf
++
++my $stem = $ARGV[0]."_g"; # stem of gids
++my %gi = ();
++
++my $g = 0;
++my $t = 0;
++my $printall = 0;
++while(<STDIN>){
++    $_ =~ s/\r//g;
++    $line = $_;
++    if($_ =~ m/transcript_id \"([^"]+)\"; gene_id \"([^"]+)\"/){
++	$ctxid = $1;
++	$cgid = $2;
++	$printall = 1;
++    }elsif($_ =~ m/\ttranscript\t/){
++	chomp;
++	@a = split(/\t/, $_);
++	$ctxid = $a[8];
++	$printall = 0;
++    }else{
++	print("Nothing matches: " + $_ + "\n");
++    }
++    if(not(defined($gi{$cgid}))){
++      	$gi{$cgid} = ();
++	$t = 0;
++      	$g++;
++    }
++    if(not(defined($gi{$cgid}{$ctxid}))){
++	$gi{$cgid}{$ctxid} = 1;
++	$t++;
++    }
++    if($printall == 1){
++	$line =~ s/transcript_id \"[^"]+\"; gene_id \"[^"]+\";/transcript_id \"$stem$g\.t$t\"; gene_id \"$stem$g\";/;
++    }else{
++	@b = split(/\t/, $line);
++	$line = "$b[0]\t$b[1]\t$b[2]\t$b[3]\t$b[4]\t$b[5]\t$b[6]\t$b[7]\ttranscript_id \"$stem$g\.t$t\";\n";
++    }
++    print $line;
++}

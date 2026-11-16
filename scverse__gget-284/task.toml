@@ -1,0 +1,70 @@
+version = "1.0"
+
+[task]
+name = "default/scverse__gget-284"
+description = "build(deps): bump the pre-commit group across 1 directory with 3 updates"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "gget",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "scverse/gget"
+ref = "d8ce255a24ab72d58b4af6ca55ae30f445f32a2d"
+reference = "https://github.com/scverse/gget/pull/284"
+source_access = "auto"
+built_at = "2026-11-15T21:04:13.584803+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:bf0731a714d9a8dd2b95042244753ac64563fe2a685ce9f90af41d8456644ab0"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-12T18:31:06Z"
+diff_format = "unified"
+context_files = [
+    ".github/workflows/deploy.yml",
+    ".github/workflows/gdrive_backup.yml",
+    ".github/workflows/plot_traffic.yml",
+    ".github/workflows/traffic.yml",
+    ".github/workflows/translate_docs.yml",
+    ".panache.toml",
+    ".pre-commit-config.yaml",
+    "biome.jsonc",
+    "pyproject.toml",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 119
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

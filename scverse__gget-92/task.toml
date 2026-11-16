@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/scverse__gget-92"
+description = "Update unit tests for new ensembl release"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "gget",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "scverse/gget"
+ref = "01e6035ee113586ff3059323b1862eb5a5ddfc6c"
+reference = "https://github.com/scverse/gget/pull/92"
+source_access = "auto"
+built_at = "2026-11-15T21:06:37.188284+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:bd0b76e6977bd705a7d76a81b97d6751dd275d094e8bf92799e50b9817f0a4c9"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2023-07-20T21:18:49Z"
+diff_format = "unified"
+context_files = [
+    "docs/src/alphafold.md",
+    "tests/fixtures.py",
+    "tests/fixtures/test_info.json",
+    "tests/fixtures/test_pdb.json",
+    "tests/fixtures/test_ref.json",
+    "tests/fixtures/test_search.json",
+    "tests/test_pdb.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 154
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,75 @@
+version = "1.0"
+
+[task]
+name = "default/lightdock__lightdock-7"
+description = "DDNA scoring function"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "lightdock",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "lightdock/lightdock"
+ref = "8e3d14774707da68698eda0bb1e69f15ca62d190"
+reference = "https://github.com/lightdock/lightdock/pull/7"
+source_access = "auto"
+built_at = "2026-11-15T22:45:01.352314+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e7d1fdb8c7d8fec99a8b3df3845e3dd6442eeb0278c496e74f52e74b42b3ba75"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2020-08-26T11:52:34Z"
+diff_format = "unified"
+context_files = [
+    "lightdock/scoring/ddna/__init__.py",
+    "lightdock/scoring/ddna/cython/__init__.py",
+    "lightdock/scoring/ddna/cython/cddna.c",
+    "lightdock/scoring/ddna/cython/cddna.pyx",
+    "lightdock/scoring/ddna/cython/compile.sh",
+    "lightdock/scoring/ddna/cython/setup.py",
+    "lightdock/scoring/ddna/data/fort.21_xscore_noH_Met",
+    "lightdock/scoring/ddna/driver.py",
+    "lightdock/test/scoring/golden_data/1AY7_lig.pdb.amber",
+    "lightdock/test/scoring/golden_data/1AY7_rec.pdb.amber",
+    "lightdock/test/scoring/golden_data/1azp_dna.pdb",
+    "lightdock/test/scoring/golden_data/1azp_prot.pdb",
+    "lightdock/test/scoring/test_ddna_function.py",
+    "setup.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 8604
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

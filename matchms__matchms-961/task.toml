@@ -1,0 +1,75 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-961"
+description = "for consistency rename FlashEntropy to EntropyFlash"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "a8a61795be83e395490611a8c383b48d1cc14cc6"
+reference = "https://github.com/matchms/matchms/pull/961"
+source_access = "auto"
+built_at = "2026-11-16T12:51:43.307320+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:1fc3b2ff9ec0eee01a45be15b21a9b550ba4d1646103d614c2435238ec29ee08"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-09-22T15:18:04Z"
+diff_format = "unified"
+context_files = [
+    "README.rst",
+    "matchms/similarity/__init__.py",
+    "matchms/similarity/entropy.py",
+    "matchms/similarity/entropy_greedy.py",
+    "matchms/similarity/flash_similarity.py",
+    "readthedocs/_static/matchms_modular_design_v1_0.png",
+    "readthedocs/_static/matchms_similarity_implementations.png",
+    "tests/networking/test_networking_functions.py",
+    "tests/similarity/test_default_parameters.py",
+    "tests/similarity/test_entropy.py",
+    "tests/similarity/test_entropy_search.py",
+    "tests/similarity/test_flash_search_integration.py",
+    "tests/similarity/test_flash_similarity.py",
+    "tests/similarity/test_flash_similarity_ms_entropy_parity.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 111
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

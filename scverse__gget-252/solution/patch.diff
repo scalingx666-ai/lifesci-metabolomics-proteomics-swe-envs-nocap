@@ -1,0 +1,411 @@
+diff --git a/docs/src/en/updates.md b/docs/src/en/updates.md
+index f2c52c13b..002baed61 100644
+--- a/docs/src/en/updates.md
++++ b/docs/src/en/updates.md
+@@ -8,6 +8,7 @@
+ - [`gget pdb`](pdb.md): Added support for the PDBx/mmCIF structure format (fixes [issue 178](https://github.com/scverse/gget/issues/178) and [issue 177](https://github.com/scverse/gget/issues/177)).
+   - New `resource="mmcif"` option downloads the structure in PDBx/mmCIF format (`.cif`).
+   - The default `resource="pdb"` now automatically falls back to PDBx/mmCIF when the legacy PDB file is unavailable (e.g. for large structures), since the legacy PDB format is being phased out by RCSB. A warning is logged and saved files use the correct extension (`.cif`).
++- [`gget archs4`](archs4.md) (tissue mode): No longer crashes with `KeyError: ['color'] not found in axis` when ARCHS4 intermittently omits the optional `color` column from its CSV response. The column is now dropped only if present. Output also has a deterministic row order (sorted by `median` descending, with `id` as tiebreaker) so equal-median tissues no longer flip order between requests.
+ 
+ 
+ **Version ≥ 0.30.7** (Jun 21, 2026):  
+diff --git a/gget/gget_archs4.py b/gget/gget_archs4.py
+index e582dfaf5..e49a274bb 100644
+--- a/gget/gget_archs4.py
++++ b/gget/gget_archs4.py
+@@ -200,11 +200,15 @@ def archs4(
+         # Drop NaN rows
+         tissue_exp_df = tissue_exp_df.dropna()
+ 
+-        # Drop color columns
+-        tissue_exp_df = tissue_exp_df.drop(["color"], axis=1)
+-
+-        # Sort data frame by median expression
+-        tissue_exp_df = tissue_exp_df.sort_values("median", ascending=False)
++        # Drop the "color" column if present (only used for plotting upstream, not by gget).
++        # ARCHS4 intermittently omits this column; use errors="ignore" so a missing
++        # "color" column does not raise a KeyError and crash the request.
++        tissue_exp_df = tissue_exp_df.drop(columns=["color"], errors="ignore")
++
++        # Sort data frame by median expression. Use "id" as a stable tiebreaker so the row
++        # order is deterministic when several tissues share the same median (ARCHS4 returns
++        # tied rows in a varying order between requests otherwise).
++        tissue_exp_df = tissue_exp_df.sort_values(["median", "id"], ascending=[False, True])
+         tissue_exp_df = tissue_exp_df.reset_index(drop=True)
+ 
+         if json:
+diff --git a/tests/fixtures/test_archs4.json b/tests/fixtures/test_archs4.json
+index 5b060b564..73b24a471 100644
+--- a/tests/fixtures/test_archs4.json
++++ b/tests/fixtures/test_archs4.json
+@@ -598,14 +598,6 @@
+                 7.62057,
+                 8.60009
+             ],
+-            [
+-                "System.Nervous System.CNS.THALAMUS",
+-                3.29066,
+-                5.995,
+-                7.14836,
+-                7.83426,
+-                8.71165
+-            ],
+             [
+                 "System.Nervous System.CNS.HYPOTHALAMUS",
+                 3.44188,
+@@ -614,6 +606,14 @@
+                 7.99022,
+                 8.81727
+             ],
++            [
++                "System.Nervous System.CNS.THALAMUS",
++                3.29066,
++                5.995,
++                7.14836,
++                7.83426,
++                8.71165
++            ],
+             [
+                 "System.Immune System.Lymphoid.BLYMPHOCYTE",
+                 5.57377,
+@@ -678,14 +678,6 @@
+                 7.42671,
+                 8.89625
+             ],
+-            [
+-                "System.Immune System.Lymphoid.TLYMPHOCYTE",
+-                5.60813,
+-                6.60849,
+-                6.9754,
+-                7.26685,
+-                7.85409
+-            ],
+             [
+                 "System.Connective Tissue.Bone marrow.CHONDROCYTE",
+                 5.93985,
+@@ -694,6 +686,14 @@
+                 7.44552,
+                 8.78176
+             ],
++            [
++                "System.Immune System.Lymphoid.TLYMPHOCYTE",
++                5.60813,
++                6.60849,
++                6.9754,
++                7.26685,
++                7.85409
++            ],
+             [
+                 "System.Immune System.Myeloid.MACROPHAGE",
+                 0.113644,
+@@ -702,14 +702,6 @@
+                 7.38198,
+                 8.46912
+             ],
+-            [
+-                "System.Respiratory System.Lung.LUNG",
+-                0.113644,
+-                5.88569,
+-                6.95675,
+-                7.7752,
+-                9.18212
+-            ],
+             [
+                 "System.Nervous System.CNS.ASTROCYTE",
+                 1.20968,
+@@ -718,6 +710,14 @@
+                 7.42671,
+                 8.33012
+             ],
++            [
++                "System.Respiratory System.Lung.LUNG",
++                0.113644,
++                5.88569,
++                6.95675,
++                7.7752,
++                9.18212
++            ],
+             [
+                 "System.Connective Tissue.Adipose tissue.ADIPOSE",
+                 4.26947,
+@@ -766,14 +766,6 @@
+                 7.98803,
+                 9.42561
+             ],
+-            [
+-                "System.Immune System.Myeloid.DENDRITIC CELL",
+-                4.2942,
+-                6.48802,
+-                6.88087,
+-                7.39734,
+-                8.09957
+-            ],
+             [
+                 "System.Connective Tissue.Adipose tissue.ADIPOCYTE",
+                 4.86561,
+@@ -782,6 +774,14 @@
+                 7.13293,
+                 7.71929
+             ],
++            [
++                "System.Immune System.Myeloid.DENDRITIC CELL",
++                4.2942,
++                6.48802,
++                6.88087,
++                7.39734,
++                8.09957
++            ],
+             [
+                 "System.Immune System.Myeloid.MICROGLIA",
+                 0.113644,
+@@ -798,14 +798,6 @@
+                 7.10033,
+                 7.57266
+             ],
+-            [
+-                "System.Integumentary System.Skin.FIBROBLAST",
+-                0.113644,
+-                6.35023,
+-                6.8453,
+-                7.43403,
+-                9.31767
+-            ],
+             [
+                 "System.Digestive System.Esophagus.ESOPHAGUS",
+                 0.113644,
+@@ -814,6 +806,14 @@
+                 8.1174,
+                 9.13015
+             ],
++            [
++                "System.Integumentary System.Skin.FIBROBLAST",
++                0.113644,
++                6.35023,
++                6.8453,
++                7.43403,
++                9.31767
++            ],
+             [
+                 "System.Immune System.Myeloid.KUPFFER CELL",
+                 6.16327,
+@@ -1184,14 +1184,6 @@
+                 "q3": 7.62057,
+                 "max": 8.60009
+             },
+-            {
+-                "id": "System.Nervous System.CNS.THALAMUS",
+-                "min": 3.29066,
+-                "q1": 5.995,
+-                "median": 7.14836,
+-                "q3": 7.83426,
+-                "max": 8.71165
+-            },
+             {
+                 "id": "System.Nervous System.CNS.HYPOTHALAMUS",
+                 "min": 3.44188,
+@@ -1200,6 +1192,14 @@
+                 "q3": 7.99022,
+                 "max": 8.81727
+             },
++            {
++                "id": "System.Nervous System.CNS.THALAMUS",
++                "min": 3.29066,
++                "q1": 5.995,
++                "median": 7.14836,
++                "q3": 7.83426,
++                "max": 8.71165
++            },
+             {
+                 "id": "System.Immune System.Lymphoid.BLYMPHOCYTE",
+                 "min": 5.57377,
+@@ -1264,14 +1264,6 @@
+                 "q3": 7.42671,
+                 "max": 8.89625
+             },
+-            {
+-                "id": "System.Immune System.Lymphoid.TLYMPHOCYTE",
+-                "min": 5.60813,
+-                "q1": 6.60849,
+-                "median": 6.9754,
+-                "q3": 7.26685,
+-                "max": 7.85409
+-            },
+             {
+                 "id": "System.Connective Tissue.Bone marrow.CHONDROCYTE",
+                 "min": 5.93985,
+@@ -1280,6 +1272,14 @@
+                 "q3": 7.44552,
+                 "max": 8.78176
+             },
++            {
++                "id": "System.Immune System.Lymphoid.TLYMPHOCYTE",
++                "min": 5.60813,
++                "q1": 6.60849,
++                "median": 6.9754,
++                "q3": 7.26685,
++                "max": 7.85409
++            },
+             {
+                 "id": "System.Immune System.Myeloid.MACROPHAGE",
+                 "min": 0.113644,
+@@ -1288,14 +1288,6 @@
+                 "q3": 7.38198,
+                 "max": 8.46912
+             },
+-            {
+-                "id": "System.Respiratory System.Lung.LUNG",
+-                "min": 0.113644,
+-                "q1": 5.88569,
+-                "median": 6.95675,
+-                "q3": 7.7752,
+-                "max": 9.18212
+-            },
+             {
+                 "id": "System.Nervous System.CNS.ASTROCYTE",
+                 "min": 1.20968,
+@@ -1304,6 +1296,14 @@
+                 "q3": 7.42671,
+                 "max": 8.33012
+             },
++            {
++                "id": "System.Respiratory System.Lung.LUNG",
++                "min": 0.113644,
++                "q1": 5.88569,
++                "median": 6.95675,
++                "q3": 7.7752,
++                "max": 9.18212
++            },
+             {
+                 "id": "System.Connective Tissue.Adipose tissue.ADIPOSE",
+                 "min": 4.26947,
+@@ -1352,14 +1352,6 @@
+                 "q3": 7.98803,
+                 "max": 9.42561
+             },
+-            {
+-                "id": "System.Immune System.Myeloid.DENDRITIC CELL",
+-                "min": 4.2942,
+-                "q1": 6.48802,
+-                "median": 6.88087,
+-                "q3": 7.39734,
+-                "max": 8.09957
+-            },
+             {
+                 "id": "System.Connective Tissue.Adipose tissue.ADIPOCYTE",
+                 "min": 4.86561,
+@@ -1368,6 +1360,14 @@
+                 "q3": 7.13293,
+                 "max": 7.71929
+             },
++            {
++                "id": "System.Immune System.Myeloid.DENDRITIC CELL",
++                "min": 4.2942,
++                "q1": 6.48802,
++                "median": 6.88087,
++                "q3": 7.39734,
++                "max": 8.09957
++            },
+             {
+                 "id": "System.Immune System.Myeloid.MICROGLIA",
+                 "min": 0.113644,
+@@ -1384,14 +1384,6 @@
+                 "q3": 7.10033,
+                 "max": 7.57266
+             },
+-            {
+-                "id": "System.Integumentary System.Skin.FIBROBLAST",
+-                "min": 0.113644,
+-                "q1": 6.35023,
+-                "median": 6.8453,
+-                "q3": 7.43403,
+-                "max": 9.31767
+-            },
+             {
+                 "id": "System.Digestive System.Esophagus.ESOPHAGUS",
+                 "min": 0.113644,
+@@ -1400,6 +1392,14 @@
+                 "q3": 8.1174,
+                 "max": 9.13015
+             },
++            {
++                "id": "System.Integumentary System.Skin.FIBROBLAST",
++                "min": 0.113644,
++                "q1": 6.35023,
++                "median": 6.8453,
++                "q3": 7.43403,
++                "max": 9.31767
++            },
+             {
+                 "id": "System.Immune System.Myeloid.KUPFFER CELL",
+                 "min": 6.16327,
+@@ -2614,4 +2614,4 @@
+         },
+         "expected_result": "ValueError"
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/tests/test_archs4.py b/tests/test_archs4.py
+index c6336bc91..99440b054 100644
+--- a/tests/test_archs4.py
++++ b/tests/test_archs4.py
+@@ -1,5 +1,6 @@
+ import json
+ import unittest
++from unittest.mock import patch
+ 
+ from gget.gget_archs4 import archs4
+ 
+@@ -12,3 +13,25 @@
+ 
+ class TestArchs4(unittest.TestCase, metaclass=from_json(archs4_dict, archs4)):
+     pass  # all tests are loaded from json
++
++
++class _FakeResponse:
++    def __init__(self, text):
++        self.ok = True
++        self.content = text.encode("utf-8")
++
++
++class TestArchs4MissingColor(unittest.TestCase):
++    """Network-free regression tests: ARCHS4 intermittently omits the 'color' column from
++    the tissue-expression CSV. gget must not crash with a KeyError when it is absent
++    (the 'color' column is dropped and never used)."""
++
++    _CSV_NO_COLOR = "id,min,q1,median,q3,max\nTissueA,0,1,5,9,10\nTissueB,0,2,8,12,15\n"
++
++    def test_tissue_missing_color_does_not_crash(self):
++        with patch("gget.gget_archs4.requests.post", return_value=_FakeResponse(self._CSV_NO_COLOR)):
++            df = archs4("STAT4", which="tissue", verbose=False)
++        # Returns a valid, sorted data frame without a 'color' column (no KeyError).
++        self.assertEqual(len(df), 2)
++        self.assertNotIn("color", df.columns)
++        self.assertEqual(df.iloc[0]["id"], "TissueB")  # sorted by median descending
+diff --git a/tests/test_elm.py b/tests/test_elm.py
+index de8f67c35..099cd0bec 100644
+--- a/tests/test_elm.py
++++ b/tests/test_elm.py
+@@ -1,4 +1,5 @@
+ import json
++import time
+ import unittest
+ 
+ from gget.gget_elm import elm
+@@ -8,7 +9,14 @@
+ with open("./tests/fixtures/test_elm.json") as json_file:
+     elm_dict = json.load(json_file)
+ 
+-gget_setup(module="elm")
++for attempt in range(3):
++    try:
++        gget_setup(module="elm")
++        break
++    except RuntimeError as exc:
++        if "ELM database files download failed" not in str(exc) or attempt == 2:
++            raise
++        time.sleep(30)
+ 
+ 
+ class TestELM(unittest.TestCase):

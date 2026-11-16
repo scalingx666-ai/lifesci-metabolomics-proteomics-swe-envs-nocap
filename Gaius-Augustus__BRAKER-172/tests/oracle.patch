@@ -1,0 +1,26 @@
+diff --git a/scripts/braker.pl b/scripts/braker.pl
+index 5c6ef92..b2e88d2 100755
+--- a/scripts/braker.pl
++++ b/scripts/braker.pl
+@@ -5239,7 +5239,7 @@ sub make_prot_hints {
+             "startAlign.pl",        $AUGUSTUS_BIN_PATH,
+             $AUGUSTUS_SCRIPTS_PATH, $AUGUSTUS_CONFIG_PATH);
+         $errorfile = "$errorfilesDir/startAlign.stderr";
+-        $logfile   = "$errorfilesDir/startAlign.stdout";
++        $logfile   = "$otherfilesDir/startAlign.stdout";
+         for ( my $i = 0; $i < scalar(@prot_seq_files); $i++ ) {
+             if ( !uptodate( [ $prot_seq_files[$i] ], [$prot_hintsfile] )
+                 || $overwrite )
+diff --git a/scripts/braker_cleanup.pl b/scripts/braker_cleanup.pl
+index 6612b10..5c2ba79 100755
+--- a/scripts/braker_cleanup.pl
++++ b/scripts/braker_cleanup.pl
+@@ -109,7 +109,7 @@
+ 	"genome.fa.cidx", "getAnnoFastaFromJoingenes.augustus.hints_tmp.stdout", "getAnnoFastaFromJoingenes.augustus.ab_initio_tmp.stdout",
+ 	"augustus.ab_initio.tmp.gtf", "augustus.ab_initio.gff", "augustus.hints.gff", "augustus.hints.tmp.gtf",
+ 	"getAnnoFastaFromJoingenes.augustus.hints_hints.stdout", "getAnnoFastaFromJoingenes.augustus.ab_initio_.stdout",
+-	"getAnnoFastaFromJoingenes.augustus.hints_.stdout");
++	"getAnnoFastaFromJoingenes.augustus.hints_.stdout", "startAlign.stdout");
+ 
+ my @dirs = ("GeneMark-ES/data", "GeneMark-ES/info", "GeneMark-ES/output", "GeneMark-ES/run",
+ 	"GeneMark-ET/data", "GeneMark-ET/info", "GeneMark-ET/output", "GeneMark-ET/run",

@@ -1,0 +1,305 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxGaussianModule.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxGaussianModule.java
+new file mode 100644
+index 00000000000..0cd8c40aaee
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxGaussianModule.java
+@@ -0,0 +1,95 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataprocessing.featdet_massdetection.local_max;
++
++import io.github.mzmine.modules.dataprocessing.featdet_massdetection.MassDetectorPreprocessor;
++import io.github.mzmine.modules.dataprocessing.featdet_massdetection.MassDetectorPreprocessorModule;
++import io.github.mzmine.modules.dataprocessing.featdet_smoothing.gaussian.GaussianFilter;
++import io.github.mzmine.modules.dataprocessing.featdet_smoothing.savitzkygolay.SavitzkyGolayFilter;
++import io.github.mzmine.parameters.ParameterSet;
++import io.github.mzmine.util.collections.IndexRange;
++import java.util.List;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++
++/**
++ * Gaussian smoothing option for the {@link LocalMaxMassDetector}. Unlike Savitzky-Golay, the
++ * Gaussian kernel has only non-negative weights, so it does not ring (overshoot/undershoot) next to
++ * sharp, intense peaks and therefore does not create artificial local maxima on their flanks. This
++ * is the recommended option for data whose profile peaks are not separated into disconnected
++ * ranges. Smoothing is applied independently to each consecutive range and writes into a separate
++ * buffer, so the original intensities remain available for the intensity calculation.
++ */
++public class LocalMaxGaussianModule implements MassDetectorPreprocessorModule,
++    MassDetectorPreprocessor {
++
++  /**
++   * Normalized Gaussian weights.
++   */
++  private final double @NotNull [] weights;
++
++  /**
++   * No-arg constructor used to expose the parameter set through the module registry.
++   */
++  public LocalMaxGaussianModule() {
++    this.weights = GaussianFilter.getNormalizedWeights(3);
++  }
++
++  private LocalMaxGaussianModule(final double @NotNull [] weights) {
++    this.weights = weights;
++  }
++
++  @Override
++  public @NotNull MassDetectorPreprocessor createPreprocessor(
++      @Nullable final ParameterSet parameters) {
++    final int width = parameters.getValue(LocalMaxGaussianParameters.width);
++    final double[] normWeights = GaussianFilter.getNormalizedWeights(
++        GaussianFilter.getClosestFilterWidth(width));
++    return new LocalMaxGaussianModule(normWeights);
++  }
++
++  @Override
++  public double @NotNull [] preprocessIntensities(final double @NotNull [] intensities,
++      @NotNull final List<IndexRange> ranges) {
++    final double[] smoothed = new double[intensities.length];
++    for (final IndexRange range : ranges) {
++      // confined to [min, maxExclusive) so consecutive ranges do not bleed into each other
++      SavitzkyGolayFilter.convolve(intensities, range.min(), range.maxExclusive(), weights,
++          smoothed);
++    }
++    return smoothed;
++  }
++
++  @Override
++  public @NotNull String getName() {
++    return "Gaussian";
++  }
++
++  @Override
++  public @Nullable Class<? extends ParameterSet> getParameterSetClass() {
++    return LocalMaxGaussianParameters.class;
++  }
++}
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxGaussianParameters.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxGaussianParameters.java
+new file mode 100644
+index 00000000000..80264932a23
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxGaussianParameters.java
+@@ -0,0 +1,44 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataprocessing.featdet_massdetection.local_max;
++
++import io.github.mzmine.parameters.impl.SimpleParameterSet;
++import io.github.mzmine.parameters.parametertypes.IntegerParameter;
++
++/**
++ * Parameters for the optional Gaussian smoothing applied to consecutive ranges of the
++ * {@link LocalMaxMassDetector}.
++ */
++public class LocalMaxGaussianParameters extends SimpleParameterSet {
++
++  public static final IntegerParameter width = new IntegerParameter("Width (points)",
++      "Full width of the Gaussian filter in data points (sigma = width / 6). Even values are rounded "
++          + "up to the next odd number, the minimum is 3.", 5, 3, null);
++
++  public LocalMaxGaussianParameters() {
++    super(width);
++  }
++}
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxMassDetectorParameters.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxMassDetectorParameters.java
+index 498e775f8c0..a9dd5ff392d 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxMassDetectorParameters.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxMassDetectorParameters.java
+@@ -49,7 +49,10 @@ public class LocalMaxMassDetectorParameters extends SimpleParameterSet {
+       "Smoothing",
+       "Optional smoothing applied to the equidistant points of each consecutive range before maximum "
+           + "and edge detection. The intensity calculation always uses the original (unsmoothed) "
+-          + "intensities.", LocalMaxSmoothingOptions.NONE);
++          + "intensities. Gaussian smoothing is recommended as it does not ring next to intense "
++          + "peaks; Savitzky-Golay can create artificial maxima on the flanks of intense peaks when "
++          + "profile peaks are not separated into disconnected ranges.",
++      LocalMaxSmoothingOptions.GAUSSIAN);
+ 
+   public LocalMaxMassDetectorParameters() {
+     super(noiseLevel, minNumberOfDp, intensityCalculation, smoothing);
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxSmoothingOptions.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxSmoothingOptions.java
+index fae12ca1a9b..91fdb86f7cd 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxSmoothingOptions.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxSmoothingOptions.java
+@@ -41,7 +41,7 @@
+  */
+ public enum LocalMaxSmoothingOptions implements ModuleOptionsEnum<MassDetectorPreprocessorModule> {
+ 
+-  NONE, SAVITZKY_GOLAY;
++  NONE, GAUSSIAN, SAVITZKY_GOLAY;
+ 
+   /**
+    * Create the configured preprocessor for this option.
+@@ -57,6 +57,7 @@ public enum LocalMaxSmoothingOptions implements ModuleOptionsEnum<MassDetectorPr
+   public Class<? extends MassDetectorPreprocessorModule> getModuleClass() {
+     return switch (this) {
+       case NONE -> LocalMaxNoSmoothingModule.class;
++      case GAUSSIAN -> LocalMaxGaussianModule.class;
+       case SAVITZKY_GOLAY -> LocalMaxSavitzkyGolayModule.class;
+     };
+   }
+@@ -65,6 +66,7 @@ public Class<? extends MassDetectorPreprocessorModule> getModuleClass() {
+   public String toString() {
+     return switch (this) {
+       case NONE -> "None";
++      case GAUSSIAN -> "Gaussian";
+       case SAVITZKY_GOLAY -> "Savitzky-Golay";
+     };
+   }
+@@ -74,6 +76,7 @@ public String getStableId() {
+     // do not change these values for load/save
+     return switch (this) {
+       case NONE -> "none";
++      case GAUSSIAN -> "gaussian";
+       case SAVITZKY_GOLAY -> "savitzky_golay";
+     };
+   }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_smoothing/gaussian/GaussianFilter.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_smoothing/gaussian/GaussianFilter.java
+new file mode 100644
+index 00000000000..4fb2d6565b3
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_smoothing/gaussian/GaussianFilter.java
+@@ -0,0 +1,95 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataprocessing.featdet_smoothing.gaussian;
++
++import java.util.Map;
++import java.util.concurrent.ConcurrentHashMap;
++
++/**
++ * Utilities for a discrete Gaussian smoother. In contrast to the Savitzky-Golay filter, the
++ * Gaussian kernel has strictly non-negative weights, so it does not produce overshoot/undershoot
++ * (ringing) next to sharp, intense peaks. This avoids introducing artificial local maxima on the
++ * flanks of such peaks - a property of Gaussian scale-space smoothing (it never creates new local
++ * extrema).
++ */
++public class GaussianFilter {
++
++  // Cache to store weights for widths that have already been calculated.
++  private static final Map<Integer, double[]> WEIGHTS_CACHE = new ConcurrentHashMap<>();
++
++  private GaussianFilter() {
++    // no public access.
++  }
++
++  /**
++   * Gets the normalized Gaussian filter weights. The standard deviation is derived from the width
++   * as {@code sigma = width / 6}, so the full width spans roughly +/- 3 sigma.
++   *
++   * @param width the full width of the filter. Even numbers are converted to next higher odd
++   *              number.
++   * @return the normalized filter weights (sum to 1).
++   */
++  public static double[] getNormalizedWeights(int width) {
++    if (width <= 1) {
++      return new double[]{1d};
++    }
++    if (width % 2 == 0) {
++      width += 1;
++    }
++    return WEIGHTS_CACHE.computeIfAbsent(width, GaussianFilter::calculateWeights);
++  }
++
++  private static double[] calculateWeights(final int width) {
++    final int m = (width - 1) / 2; // half-width
++    final double sigma = width / 6.0; // full width ~ 6 sigma (+/- 3 sigma)
++    final double twoSigmaSq = 2.0 * sigma * sigma;
++
++    final double[] weights = new double[width];
++    double sum = 0.0;
++    for (int i = 0; i < width; i++) {
++      final int k = i - m; // distance from center
++      final double value = Math.exp(-(k * k) / twoSigmaSq);
++      weights[i] = value;
++      sum += value;
++    }
++
++    // normalize so the weights sum to 1
++    for (int i = 0; i < width; i++) {
++      weights[i] /= sum;
++    }
++    return weights;
++  }
++
++  /**
++   * Returns the valid filter width. Ensures the width is odd and at least 3.
++   */
++  public static int getClosestFilterWidth(int width) {
++    if (width < 3) {
++      return 3;
++    }
++    return (width % 2 == 0) ? width + 1 : width;
++  }
++}

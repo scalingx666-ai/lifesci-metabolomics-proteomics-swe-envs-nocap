@@ -1,0 +1,1363 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/AbstractResolverBaselineCorrector.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/AbstractResolverBaselineCorrector.java
+index aea9188e753..db4a9c31ab3 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/AbstractResolverBaselineCorrector.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/AbstractResolverBaselineCorrector.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2024 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -90,7 +90,7 @@ protected void subSampleAndCorrect(final double[] xDataToCorrect, final double[]
+    * @param addPreview add preview datasets
+    */
+   protected void subSampleAndCorrect(final BaselineDataBuffer buffer, final boolean addPreview) {
+-    if (buffer.hasRemovedRanges()) {
++    if (buffer.hasInterpolatedRanges()) {
+       subSampleAndCorrect(buffer.xBuffer(), buffer.yBuffer(), buffer.numValues(),
+           buffer.xBufferRemovedPeaks(), buffer.yBufferRemovedPeaks(), buffer.remaining(),
+           addPreview);
+@@ -123,14 +123,14 @@ public <T extends IntensityTimeSeries> T correctBaseline(T timeSeries) {
+       // inplace baseline correct on copyX and Y
+       subSampleAndCorrect(copyX, copyY, numValues, false);
+ 
+-      // 2. detect peaks and remove the ranges from the original data
++      // 2. detect peaks and bridge the ranges in the original data
+       // resolver sets some data points to 0 if < chromatographic threshold
+       final List<Range<Double>> resolved = resolver.resolve(copyX, copyY);
+-      // 3. remove baseline finally on original data
++      // 3. bridge peak ranges by interpolation so the baseline fit keeps a regular sample spacing
+       // results stored in buffer
+-      buffer.removeRangesFromArrays(resolved);
++      buffer.interpolateRangesInArrays(resolved);
+ 
+-      // use the data with features removed - correct data is automatically chosen from buffer
++      // use the data with peaks bridged - correct data is automatically chosen from buffer
+       subSampleAndCorrect(buffer, isPreview());
+     } else {
+       // use the original data for baseline correction
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/BaselineCorrectionParameters.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/BaselineCorrectionParameters.java
+index 17d15b8f66e..f7e0e5b9a9d 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/BaselineCorrectionParameters.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/BaselineCorrectionParameters.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2024 The MZmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -25,20 +25,33 @@
+ 
+ package io.github.mzmine.modules.dataprocessing.featdet_baselinecorrection;
+ 
++import static io.github.mzmine.javafx.components.factories.FxTexts.boldText;
++import static io.github.mzmine.javafx.components.factories.FxTexts.hyperlinkText;
++import static io.github.mzmine.javafx.components.factories.FxTexts.text;
++
+ import io.github.mzmine.datamodel.features.ModularFeatureList;
++import io.github.mzmine.javafx.components.factories.FxTextFlows;
++import io.github.mzmine.modules.dataprocessing.featdet_baselinecorrection.arpls.ArplsBaselineCorrectorParameters;
++import io.github.mzmine.modules.presets.ModulePreset;
++import io.github.mzmine.parameters.ParameterSet;
+ import io.github.mzmine.parameters.dialogs.ParameterDialogWithPreviewPanes;
+ import io.github.mzmine.parameters.dialogs.ParameterSetupDialog;
+ import io.github.mzmine.parameters.impl.IonMobilitySupport;
+ import io.github.mzmine.parameters.impl.SimpleParameterSet;
+ import io.github.mzmine.parameters.parametertypes.OriginalFeatureListHandlingParameter;
++import io.github.mzmine.parameters.parametertypes.OriginalFeatureListHandlingParameter.OriginalFeatureListOption;
+ import io.github.mzmine.parameters.parametertypes.StringParameter;
+ import io.github.mzmine.parameters.parametertypes.selectors.FeatureListsParameter;
++import io.github.mzmine.parameters.parametertypes.selectors.FeatureListsSelection;
++import io.github.mzmine.parameters.parametertypes.selectors.FeatureListsSelectionType;
+ import io.github.mzmine.parameters.parametertypes.submodules.ModuleOptionsEnumComboParameter;
+ import io.github.mzmine.util.ExitCode;
+ import java.util.Arrays;
+ import java.util.Collection;
++import java.util.List;
+ import java.util.stream.Collectors;
+ import javafx.application.Platform;
++import javafx.scene.layout.Region;
+ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+ 
+@@ -52,13 +65,15 @@ public class BaselineCorrectionParameters extends SimpleParameterSet {
+   public static final ModuleOptionsEnumComboParameter<BaselineCorrectors> correctionAlgorithm = new ModuleOptionsEnumComboParameter<>(
+       "Baseline corrector", "Select the baseline correction algorithm.",
+       new BaselineCorrectors[]{BaselineCorrectors.LOESS, BaselineCorrectors.POLYNOMIAL,
+-          BaselineCorrectors.SPLINE}, BaselineCorrectors.LOESS);
++          BaselineCorrectors.SPLINE, BaselineCorrectors.ARPLS}, BaselineCorrectors.ARPLS);
+ 
+   public static final OriginalFeatureListHandlingParameter handleOriginal = new OriginalFeatureListHandlingParameter(
+       false);
+ 
+   public BaselineCorrectionParameters() {
+-    super(flists, suffix, correctionAlgorithm, handleOriginal);
++    super(
++        "https://mzmine.github.io/mzmine_documentation/module_docs/uv/uv_baseline_correction/uv_baseline_correction.html",
++        flists, suffix, correctionAlgorithm, handleOriginal);
+   }
+ 
+   @Override
+@@ -90,7 +105,7 @@ public ExitCode showSetupDialog(boolean valueCheckRequired) {
+       return ExitCode.OK;
+     }
+     ParameterSetupDialog dialog = new ParameterDialogWithPreviewPanes(valueCheckRequired, this,
+-        BaselineCorrectionPreview::new);
++        getMessage(), BaselineCorrectionPreview::new, true);
+     dialog.showAndWait();
+     return dialog.getExitCode();
+   }
+@@ -113,4 +128,45 @@ public int getVersion() {
+   public @NotNull IonMobilitySupport getIonMobilitySupport() {
+     return IonMobilitySupport.SUPPORTED;
+   }
++
++  @Override
++  public @Nullable Region getMessage() {
++    return FxTextFlows.newTextFlowInAccordion("Citation", text("When using the "),
++        boldText(BaselineCorrectors.ARPLS.toString()), text(" baseline corrector, please cite "),
++        hyperlinkText("Baek et al.", " https://doi.org/10.1039/c4an01061b"));
++  }
++
++  @Override
++  public @NotNull List<ModulePreset> createDefaultPresets() {
++    return List.of(
++        new ModulePreset("arPLS - default (batch)", new BaselineCorrectionModule().getUniqueID(),
++            createDefaultArpls(
++                new FeatureListsSelection(FeatureListsSelectionType.BATCH_LAST_FEATURELISTS),
++                OriginalFeatureListOption.REMOVE, "bl")),
++        new ModulePreset("arPLS - default (selected in GUI)",
++            new BaselineCorrectionModule().getUniqueID(), createDefaultArpls(
++            new FeatureListsSelection(FeatureListsSelectionType.GUI_SELECTED_FEATURELISTS),
++            OriginalFeatureListOption.REMOVE, "bl")));
++  }
++
++  public static ParameterSet create(@NotNull FeatureListsSelection selection,
++      @NotNull OriginalFeatureListOption original, @NotNull String nameSuffix,
++      @NotNull BaselineCorrectors corrector, @NotNull ParameterSet correctorParam) {
++    BaselineCorrectionParameters param = (BaselineCorrectionParameters) new BaselineCorrectionParameters().cloneParameterSet();
++    param.setParameter(BaselineCorrectionParameters.flists, selection);
++    param.setParameter(BaselineCorrectionParameters.handleOriginal, original);
++    param.setParameter(BaselineCorrectionParameters.suffix, nameSuffix);
++    param.setParameter(BaselineCorrectionParameters.correctionAlgorithm, corrector);
++    param.getParameter(BaselineCorrectionParameters.correctionAlgorithm)
++        .setEmbeddedParameters(correctorParam);
++    return param;
++  }
++
++  public static ParameterSet createDefaultArpls(@NotNull FeatureListsSelection selection,
++      @NotNull OriginalFeatureListOption original, @NotNull String nameSuffix) {
++    ArplsBaselineCorrectorParameters arpls = ArplsBaselineCorrectorParameters.create(false,
++        ArplsBaselineCorrectorParameters.DEFAULT_LAMBDA,
++        ArplsBaselineCorrectorParameters.DEFAULT_MAX_ITERATIONS);
++    return create(selection, original, nameSuffix, BaselineCorrectors.ARPLS, arpls);
++  }
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/BaselineCorrectors.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/BaselineCorrectors.java
+index cc062139863..ab09a86c005 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/BaselineCorrectors.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/BaselineCorrectors.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2024 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -26,6 +26,7 @@
+ package io.github.mzmine.modules.dataprocessing.featdet_baselinecorrection;
+ 
+ import io.github.mzmine.modules.dataprocessing.featdet_baselinecorrection.akimaspline.AkimaSplineCorrector;
++import io.github.mzmine.modules.dataprocessing.featdet_baselinecorrection.arpls.ArplsBaselineCorrector;
+ import io.github.mzmine.modules.dataprocessing.featdet_baselinecorrection.chang.ChangBaselineCorrector;
+ import io.github.mzmine.modules.dataprocessing.featdet_baselinecorrection.divideddifference.DividedDifferenceCorrector;
+ import io.github.mzmine.modules.dataprocessing.featdet_baselinecorrection.loess.LoessBaselineCorrector;
+@@ -35,12 +36,13 @@
+ import io.github.mzmine.parameters.parametertypes.submodules.ModuleOptionsEnum;
+ 
+ public enum BaselineCorrectors implements ModuleOptionsEnum<BaselineCorrector> {
+-  LOESS, SPLINE, AKIMA, DIVIDED_DIFFERENCE, NEVILLE, CHANG, POLYNOMIAL;
++  LOESS, ARPLS, SPLINE, AKIMA, DIVIDED_DIFFERENCE, NEVILLE, CHANG, POLYNOMIAL;
+ 
+   @Override
+   public Class<? extends BaselineCorrector> getModuleClass() {
+     return switch (this) {
+       case LOESS -> LoessBaselineCorrector.class;
++      case ARPLS -> ArplsBaselineCorrector.class;
+       case SPLINE -> SplineBaselineCorrector.class;
+       case AKIMA -> AkimaSplineCorrector.class;
+       case DIVIDED_DIFFERENCE -> DividedDifferenceCorrector.class;
+@@ -54,6 +56,7 @@ public Class<? extends BaselineCorrector> getModuleClass() {
+   public String getStableId() {
+     return switch (this) {
+       case LOESS -> "loess_baseline_corrector";
++      case ARPLS -> "arpls_corrector";
+       case SPLINE -> "spline_corrector";
+       case AKIMA -> "akima_corrector";
+       case DIVIDED_DIFFERENCE -> "divided_difference_corrector";
+@@ -62,4 +65,19 @@ public String getStableId() {
+       case POLYNOMIAL -> "polynomial_corrector";
+     };
+   }
++
++
++  @Override
++  public String toString() {
++    return switch (this) {
++      case LOESS -> "Loess";
++      case ARPLS -> "arPLS";
++      case SPLINE -> "Spline";
++      case AKIMA -> "Akima";
++      case DIVIDED_DIFFERENCE -> "Divided Difference";
++      case NEVILLE -> "Neville";
++      case CHANG -> "Chang";
++      case POLYNOMIAL -> "Polynomial";
++    };
++  }
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/BaselineDataBuffer.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/BaselineDataBuffer.java
+index 15b6b1f2de4..3d11e077f42 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/BaselineDataBuffer.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/BaselineDataBuffer.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2024 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -48,6 +48,8 @@ public class BaselineDataBuffer {
+   private double[] xBufferRemovedPeaks = new double[0];
+   private double[] yBufferRemovedPeaks = new double[0];
+   private int remaining;
++  // true if peak ranges were bridged by interpolation into the removed-peaks buffers
++  private boolean rangesInterpolated = false;
+ 
+   public void ensureCapacity(final int capacity) {
+     if (xBuffer.length < capacity) {
+@@ -67,6 +69,7 @@ public void ensureCapacity(final int capacity) {
+   public <T extends IntensityTimeSeries> void extractDataIntoBuffer(final T timeSeries) {
+     numValues = timeSeries.getNumberOfValues();
+     remaining = numValues;
++    rangesInterpolated = false;
+ 
+     boolean yAlreadySet = false;
+     if (timeSeries instanceof FeatureDataAccess access) {
+@@ -143,11 +146,12 @@ public double[] yBufferRemovedPeaks() {
+   }
+ 
+   /**
+-   * @return true if ranges were removed and the xBufferRemovedPeaks and yBufferRemovedPeaks should
+-   * be used
++   * @return true if peak ranges were bridged by interpolation (see
++   * {@link #interpolateRangesInArrays(List)}) and the {@link #xBufferRemovedPeaks()} /
++   * {@link #yBufferRemovedPeaks()} should be used for the baseline fit
+    */
+-  public boolean hasRemovedRanges() {
+-    return numValues != remaining;
++  public boolean hasInterpolatedRanges() {
++    return rangesInterpolated;
+   }
+ 
+   /**
+@@ -159,92 +163,90 @@ public int remaining() {
+     return remaining;
+   }
+ 
+-  public int removeRangesFromArrays(final List<Range<Double>> rtRanges) {
++  /**
++   * Bridges the given retention time ranges (detected peaks) by linear interpolation instead of
++   * removing them. See {@link #interpolateRanges(List)}.
++   *
++   * @param rtRanges detected peak ranges in retention time. May be empty.
++   * @return the number of values written (always the full {@link #numValues()}).
++   */
++  public int interpolateRangesInArrays(final List<Range<Double>> rtRanges) {
+     final List<IndexRange> indices = rtRanges.stream()
+         .map(range -> BinarySearch.indexRange(xBuffer, range, 0, numValues)).toList();
+ 
+-    return removeRangesFromArray(indices);
++    return interpolateRanges(indices);
+   }
+ 
+   /**
+-   * Removes the given list of index ranges from the array, always keeping the first and last value
+-   * even if they are contained in one of the ranges. This may be needed for
+-   * {@link org.apache.commons.math3.analysis.polynomials.PolynomialSplineFunction}, because it will
+-   * not extrapolate beyond the sides.
++   * Bridges the given index ranges (detected peaks) by linear interpolation instead of removing
++   * them. The full resolution, regularly spaced grid is preserved: the original signal is copied
++   * into {@link #xBufferRemovedPeaks()} / {@link #yBufferRemovedPeaks()} and only the intensities
++   * inside each range are overwritten with a straight line between the retained points on both
++   * sides. Keeping the regular spacing gives the downstream LOESS/spline fit a consistent sample
++   * distance and constrains the baseline estimate underneath peaks, which sub sampling across gaps
++   * could not. Only used for the baseline fit - the original signal in {@link #xBuffer()} /
++   * {@link #yBuffer()} stays untouched.
+    *
+-   * @param indices The list of index ranges. May be empty.
+-   * @return The number of values written to the array.
++   * @param indices sorted, non-overlapping index ranges of detected peaks. May be empty.
++   * @return the number of values written (always the full {@link #numValues()}).
+    */
+-  public int removeRangesFromArray(List<IndexRange> indices) {
+-    int startInRemovedArray = 0;
+-    int lastEndPointInOriginalArray = 0;
++  public int interpolateRanges(final List<IndexRange> indices) {
++    // keep the full grid: copy the original signal, then bridge peak interiors in place
++    System.arraycopy(xBuffer, 0, xBufferRemovedPeaks, 0, numValues);
++    System.arraycopy(yBuffer, 0, yBufferRemovedPeaks, 0, numValues);
+ 
+-    // keep track of indices right next to the removed areas + first and last point
++    // spacing stays regular -> only the first and last point are needed as sampling landmarks
+     indicesOfInterest.clear();
+     indicesOfInterest.add(0);
+ 
+-    if (indices.isEmpty()) {
+-      // copy full array, don't change pointers. Otherwise the removal writes into the original arrays.
+-      System.arraycopy(xBuffer, 0, xBufferRemovedPeaks, 0, numValues);
+-      System.arraycopy(yBuffer, 0, yBufferRemovedPeaks, 0, numValues);
+-
+-      // only first and last index
+-      indicesOfInterest.add(numValues - 1);
+-
+-      remaining = numValues;
+-      return numValues;
+-    } else {
+-      if (indices.getFirst().min() == 0) {
+-        xBufferRemovedPeaks[0] = xBuffer[0];
+-        yBufferRemovedPeaks[0] = yBuffer[0];
+-        startInRemovedArray++;
+-        lastEndPointInOriginalArray++;
+-        // add right bound of first range (peak) that was removed
+-        indicesOfInterest.add(1);
+-      }
++    remaining = numValues;
++    rangesInterpolated = !indices.isEmpty();
+ 
+-      for (final IndexRange range : indices) {
+-        final int numPoints = range.min() - lastEndPointInOriginalArray;
+-
+-        // in case the first range starts at 0 and the first point was copied manually, this condition is not met.
+-        if (numPoints > 0) {
+-          System.arraycopy(xBuffer, lastEndPointInOriginalArray, xBufferRemovedPeaks,
+-              startInRemovedArray, numPoints);
+-          System.arraycopy(yBuffer, lastEndPointInOriginalArray, yBufferRemovedPeaks,
+-              startInRemovedArray, numPoints);
+-          startInRemovedArray += numPoints;
+-          // add left bound of removed range (peak)
+-          if (numPoints > 1) {
+-            indicesOfInterest.add(startInRemovedArray - 1);
+-          }
+-          // add right bound of removed range (peak) - which is now just the next point
+-          indicesOfInterest.add(startInRemovedArray); // this might be the last data point
+-        }
+-        lastEndPointInOriginalArray = range.maxExclusive();
+-      }
++    for (final IndexRange range : indices) {
++      interpolateSingleRange(range);
+     }
+ 
+-    // last range removed the last value -> add last value back
+-    if (lastEndPointInOriginalArray >= numValues) {
+-      // indicesOfInterest already include this data point
+-      xBufferRemovedPeaks[startInRemovedArray] = xBuffer[numValues - 1];
+-      yBufferRemovedPeaks[startInRemovedArray] = yBuffer[numValues - 1];
+-      startInRemovedArray++;
+-    } else {
+-      // add values until the end
+-      int numPoints = numValues - lastEndPointInOriginalArray;
+-      System.arraycopy(xBuffer, lastEndPointInOriginalArray, xBufferRemovedPeaks,
+-          startInRemovedArray, numPoints);
+-      System.arraycopy(yBuffer, lastEndPointInOriginalArray, yBufferRemovedPeaks,
+-          startInRemovedArray, numPoints);
+-      startInRemovedArray += numPoints;
+-      // add last data point to index of interest
+-      indicesOfInterest.add(startInRemovedArray - 1);
+-    }
+-    remaining = startInRemovedArray;
+-    return startInRemovedArray;
++    indicesOfInterest.add(numValues - 1);
++    return numValues;
+   }
+ 
++  /**
++   * Linearly interpolates the intensities inside a single peak range in the
++   * {@link #yBufferRemovedPeaks()}, using the retained points just outside the range as anchors.
++   * Ranges touching the array bounds are filled flat from the single available anchor, because
++   * there is no baseline information on the missing side.
++   */
++  private void interpolateSingleRange(final IndexRange range) {
++    // last retained point before the peak and first retained point after the peak
++    final int left = range.min() - 1;
++    final int right = range.maxExclusive(); // first index after the peak, may be == numValues
++
++    final boolean hasLeft = left >= 0;
++    final boolean hasRight = right <= numValues - 1;
++
++    if (hasLeft && hasRight) {
++      // linear bridge between both anchors
++      final double x0 = xBuffer[left];
++      final double y0 = yBuffer[left];
++      final double slope = (yBuffer[right] - y0) / (xBuffer[right] - x0);
++      for (int i = left + 1; i < right; i++) {
++        yBufferRemovedPeaks[i] = y0 + slope * (xBuffer[i] - x0);
++      }
++    } else if (hasRight) {
++      // peak at the start: no left anchor -> flat fill with the right anchor intensity
++      final double y1 = yBuffer[right];
++      for (int i = 0; i < right; i++) {
++        yBufferRemovedPeaks[i] = y1;
++      }
++    } else if (hasLeft) {
++      // peak at the end: no right anchor -> flat fill with the left anchor intensity
++      final double y0 = yBuffer[left];
++      for (int i = left + 1; i < numValues; i++) {
++        yBufferRemovedPeaks[i] = y0;
++      }
++    }
++    // decision: if neither anchor exists (whole trace flagged as one peak) keep the original signal
++  }
+ 
+   /**
+    * Create list of indices from landmark indices of interest. step size is used to fill in
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/arpls/ArplsBaseline.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/arpls/ArplsBaseline.java
+new file mode 100644
+index 00000000000..26696574b6a
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/arpls/ArplsBaseline.java
+@@ -0,0 +1,188 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataprocessing.featdet_baselinecorrection.arpls;
++
++import java.util.Arrays;
++import org.jetbrains.annotations.NotNull;
++
++/**
++ * Asymmetrically reweighted penalized least squares (arPLS) baseline estimation after Baek et al.,
++ * Analyst 2015, 140, 250-257. The baseline {@code z} minimizes
++ * {@code |W^(1/2) (y - z)|^2 + lambda |D2 z|^2}, where {@code D2} is the second-order difference
++ * operator and {@code W} is a diagonal weight matrix. The weights are iteratively updated with a
++ * logistic function of the residual statistics so that points above the baseline (peaks) lose their
++ * influence while points below it keep it, which pulls the estimate onto the lower envelope of the
++ * signal without any explicit peak detection.
++ * <p>
++ * assumption: the samples are (approximately) equally spaced, so the {@code D2} penalty uses the
++ * index distance rather than the retention time - which holds for chromatographic detector traces.
++ * <p>
++ * The instance is a reusable workspace: its buffers grow on demand (see {@link #ensureCapacity})
++ * and are reused across {@link #fitBaseline} calls. The buffers may be longer than the current
++ * number of values {@code n}; only their first {@code n} entries are ever used, so the same
++ * instance can correct traces of varying length without re-allocating.
++ */
++class ArplsBaseline {
++
++  // constant penalty band lambda * D2^T D2 (before scaling by lambda)
++  private double[] penDiag = new double[0];
++  private double[] penOff1 = new double[0];
++  private double[] penOff2 = new double[0];
++  // weights and the linear system A = W + lambda * D2^T D2 with right-hand side W y
++  private double[] w = new double[0];
++  private double[] diag = new double[0];
++  private double[] off1 = new double[0];
++  private double[] off2 = new double[0];
++  private double[] rhs = new double[0];
++  // the estimated baseline (also the solver output buffer)
++  private double[] baseline = new double[0];
++  private final PentadiagonalSolver solver = new PentadiagonalSolver();
++
++  /**
++   * Grows all workspace buffers so they can hold a trace of {@code n} values.
++   *
++   * @param n the required capacity
++   */
++  public void ensureCapacity(final int n) {
++    if (baseline.length < n) {
++      penDiag = new double[n];
++      penOff1 = new double[n];
++      penOff2 = new double[n];
++      w = new double[n];
++      diag = new double[n];
++      off1 = new double[n];
++      off2 = new double[n];
++      rhs = new double[n];
++      baseline = new double[n];
++    }
++    solver.ensureCapacity(n);
++  }
++
++  /**
++   * Estimates the baseline of the given signal into the reused {@link #baseline} buffer.
++   *
++   * @param y             the intensities; only the first {@code n} values are read
++   * @param n             the number of values to use
++   * @param lambda        smoothness penalty. Larger values yield a stiffer, smoother baseline
++   * @param ratio         convergence threshold on the relative change of the weight vector
++   * @param maxIterations maximum number of reweighting iterations
++   * @return the reused baseline buffer. Only its first {@code n} entries are valid; the array may
++   * be longer than {@code n} and is overwritten by the next call.
++   */
++  public double @NotNull [] fitBaseline(final double @NotNull [] y, final int n,
++      final double lambda, final double ratio, final int maxIterations) {
++    ensureCapacity(n);
++    if (n < 3) {
++      // not enough points for a second-order difference penalty
++      Arrays.fill(baseline, 0, n, 0d);
++      return baseline;
++    }
++
++    // rebuild the penalty band by accumulating the outer product of the [1, -2, 1] stencil, so the
++    // array boundaries are handled automatically. The accumulation targets are zeroed first because
++    // the buffers are reused and may still hold values from a previous (longer) trace.
++    Arrays.fill(penDiag, 0, n, 0d);
++    Arrays.fill(penOff1, 0, n - 1, 0d);
++    Arrays.fill(penOff2, 0, n - 2, 0d);
++    for (int k = 0; k <= n - 3; k++) {
++      penDiag[k] += 1d;
++      penDiag[k + 1] += 4d;
++      penDiag[k + 2] += 1d;
++      penOff1[k] += -2d;
++      penOff1[k + 1] += -2d;
++      penOff2[k] += 1d;
++    }
++
++    Arrays.fill(w, 0, n, 1d);
++
++    // off diagonals only depend on the constant penalty band
++    for (int i = 0; i < n - 1; i++) {
++      off1[i] = lambda * penOff1[i];
++    }
++    for (int i = 0; i < n - 2; i++) {
++      off2[i] = lambda * penOff2[i];
++    }
++
++    for (int iter = 0; iter < maxIterations; iter++) {
++      // only the diagonal and right-hand side change between iterations (through the weights)
++      for (int i = 0; i < n; i++) {
++        diag[i] = w[i] + lambda * penDiag[i];
++        rhs[i] = w[i] * y[i];
++      }
++
++      solver.factor(diag, off1, off2, n);
++      solver.solve(rhs, baseline, n);
++
++      // statistics of the residuals that lie below the current baseline (d < 0)
++      double sum = 0d;
++      int count = 0;
++      for (int i = 0; i < n; i++) {
++        final double d = y[i] - baseline[i];
++        if (d < 0d) {
++          sum += d;
++          count++;
++        }
++      }
++      if (count == 0) {
++        // baseline already sits at or below every point
++        return baseline;
++      }
++      final double mean = sum / count;
++      double sq = 0d;
++      for (int i = 0; i < n; i++) {
++        final double d = y[i] - baseline[i];
++        if (d < 0d) {
++          final double e = d - mean;
++          sq += e * e;
++        }
++      }
++      final double std = Math.sqrt(sq / count);
++      if (std == 0d) {
++        return baseline;
++      }
++
++      // logistic reweighting: ~1 well below the baseline, ~0 for strong positive (peak) residuals
++      final double cutoff = 2d * std - mean;
++      double changeNum = 0d;
++      double changeDen = 0d;
++      for (int i = 0; i < n; i++) {
++        final double d = y[i] - baseline[i];
++        final double wt = 1d / (1d + Math.exp(2d * (d - cutoff) / std));
++        final double diff = wt - w[i];
++        changeNum += diff * diff;
++        changeDen += w[i] * w[i];
++        w[i] = wt;
++      }
++
++      // relative change of the weight vector, as in the original arPLS termination criterion
++      final double change = changeDen > 0d ? Math.sqrt(changeNum) / Math.sqrt(changeDen) : 0d;
++      if (change < ratio) {
++        break;
++      }
++    }
++    return baseline;
++  }
++}
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/arpls/ArplsBaselineCorrector.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/arpls/ArplsBaselineCorrector.java
+new file mode 100644
+index 00000000000..1062ff46e4d
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/arpls/ArplsBaselineCorrector.java
+@@ -0,0 +1,126 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataprocessing.featdet_baselinecorrection.arpls;
++
++import io.github.mzmine.datamodel.features.FeatureList;
++import io.github.mzmine.datamodel.features.ModularFeatureList;
++import io.github.mzmine.gui.chartbasics.simplechart.providers.impl.AnyXYProvider;
++import io.github.mzmine.modules.dataprocessing.featdet_baselinecorrection.AbstractBaselineCorrectorParameters;
++import io.github.mzmine.modules.dataprocessing.featdet_baselinecorrection.AbstractResolverBaselineCorrector;
++import io.github.mzmine.modules.dataprocessing.featdet_baselinecorrection.BaselineCorrectionParameters;
++import io.github.mzmine.modules.dataprocessing.featdet_baselinecorrection.BaselineCorrector;
++import io.github.mzmine.modules.dataprocessing.featdet_baselinecorrection.BaselineCorrectors;
++import io.github.mzmine.modules.dataprocessing.featdet_chromatogramdeconvolution.minimumsearch.MinimumSearchFeatureResolver;
++import io.github.mzmine.parameters.ParameterSet;
++import io.github.mzmine.util.MemoryMapStorage;
++import java.awt.Color;
++import java.util.Arrays;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++
++/**
++ * Baseline correction using asymmetrically reweighted penalized least squares (arPLS). In contrast
++ * to the interpolation based correctors, arPLS fits the baseline on the full resolution trace and
++ * rejects peaks through its own asymmetric reweighting (see {@link ArplsBaseline}). The optional
++ * peak exclusion of {@link AbstractResolverBaselineCorrector} may still be enabled to bridge
++ * detected peaks beforehand, which can help on very wide or overlapping signals.
++ */
++public class ArplsBaselineCorrector extends AbstractResolverBaselineCorrector {
++
++  private final double lambda;
++  private final double ratio;
++  private final int maxIterations;
++  // reusable workspace, shared across all traces this corrector processes
++  private final ArplsBaseline arpls = new ArplsBaseline();
++
++  public ArplsBaselineCorrector() {
++    this(null, ArplsBaselineCorrectorParameters.DEFAULT_LAMBDA,
++        ArplsBaselineCorrectorParameters.DEFAULT_RATIO,
++        ArplsBaselineCorrectorParameters.DEFAULT_MAX_ITERATIONS, "baseline", null);
++  }
++
++  public ArplsBaselineCorrector(@Nullable final MemoryMapStorage storage, final double lambda,
++      final double ratio, final int maxIterations, @NotNull final String suffix,
++      @Nullable final MinimumSearchFeatureResolver resolver) {
++    // samplePercentage is unused: arPLS fits the full trace instead of sub sampling
++    super(storage, 0.05, suffix, resolver);
++    this.lambda = lambda;
++    this.ratio = ratio;
++    this.maxIterations = maxIterations;
++  }
++
++  @Override
++  protected void subSampleAndCorrect(final double[] xDataToCorrect, final double[] yDataToCorrect,
++      final int numValues, final double[] xDataFiltered, final double[] yDataFiltered,
++      final int numValuesFiltered, final boolean addPreview) {
++    // arPLS fits the baseline on the full (optionally peak-bridged) trace - no sub sampling.
++    // peaks are bridged, not removed, so the filtered grid keeps the full resolution and filtered
++    // index i aligns with the data point i that is corrected. The returned array is a reused buffer
++    // that may be longer than numValues - bound every access by numValues, never its length.
++    final double[] baseline = arpls.fitBaseline(yDataFiltered, numValuesFiltered, lambda, ratio,
++        maxIterations);
++
++    for (int i = 0; i < numValues; i++) {
++      // corrected value must stay >= 0. The baseline itself may dip below zero, e.g. for signal
++      // drifts due to solvent composition change
++      yDataToCorrect[i] = Math.max(yDataToCorrect[i] - baseline[i], 0d);
++    }
++
++    if (addPreview) {
++      // snapshot: the baseline buffer is reused for the next trace, but the preview provider reads
++      // it lazily, so it needs its own copy of exactly numValues points
++      final double[] previewBaseline = Arrays.copyOf(baseline, numValues);
++      additionalData.add(new AnyXYProvider(Color.RED, "baseline", numValues, j -> xDataToCorrect[j],
++          j -> previewBaseline[j]));
++    }
++  }
++
++  @Override
++  public BaselineCorrector newInstance(final ParameterSet parameters,
++      final MemoryMapStorage storage, final FeatureList flist) {
++    final ParameterSet embedded = parameters.getParameter(
++        BaselineCorrectionParameters.correctionAlgorithm).getEmbeddedParameters();
++    final MinimumSearchFeatureResolver resolver =
++        embedded.getValue(AbstractBaselineCorrectorParameters.applyPeakRemoval)
++            ? initializeLocalMinResolver((ModularFeatureList) flist) : null;
++
++    return new ArplsBaselineCorrector(storage,
++        embedded.getValue(ArplsBaselineCorrectorParameters.lambda),
++        ArplsBaselineCorrectorParameters.DEFAULT_RATIO,
++        embedded.getValue(ArplsBaselineCorrectorParameters.maxIterations),
++        parameters.getValue(BaselineCorrectionParameters.suffix), resolver);
++  }
++
++  @Override
++  public @NotNull String getName() {
++    return BaselineCorrectors.ARPLS.toString();
++  }
++
++  @Override
++  public @Nullable Class<? extends ParameterSet> getParameterSetClass() {
++    return ArplsBaselineCorrectorParameters.class;
++  }
++}
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/arpls/ArplsBaselineCorrectorParameters.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/arpls/ArplsBaselineCorrectorParameters.java
+new file mode 100644
+index 00000000000..b396216e4f2
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/arpls/ArplsBaselineCorrectorParameters.java
+@@ -0,0 +1,67 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataprocessing.featdet_baselinecorrection.arpls;
++
++import io.github.mzmine.modules.dataprocessing.featdet_baselinecorrection.AbstractBaselineCorrectorParameters;
++import io.github.mzmine.modules.presets.ModulePreset;
++import io.github.mzmine.parameters.ParameterSet;
++import io.github.mzmine.parameters.parametertypes.DoubleParameter;
++import io.github.mzmine.parameters.parametertypes.IntegerParameter;
++import java.text.DecimalFormat;
++import java.util.List;
++import org.jetbrains.annotations.NotNull;
++
++public class ArplsBaselineCorrectorParameters extends AbstractBaselineCorrectorParameters {
++
++  public static final double DEFAULT_LAMBDA = 1e5;
++  public static final double DEFAULT_RATIO = 1e-6;
++  public static final int DEFAULT_MAX_ITERATIONS = 50;
++
++  public static final DoubleParameter lambda = new DoubleParameter("Smoothness (lambda)", """
++      Smoothing strength of the baseline.
++      Larger values yield a stiffer, smoother baseline that ignores narrow signals; smaller values
++      let the baseline follow the data more closely, but may start to follow peaks.
++      Typical range 1e3 - 1e7. Default: 1e5.
++      """, new DecimalFormat("0.###E0"), DEFAULT_LAMBDA, 1d, 1e12);
++
++  public static final IntegerParameter maxIterations = new IntegerParameter("Max iterations", """
++      The maximum number of asymmetric reweighting iterations.
++      The fit usually converges well before this limit. Default: 50.
++      """, DEFAULT_MAX_ITERATIONS, 1, 500);
++
++  public ArplsBaselineCorrectorParameters() {
++    super(applyPeakRemoval.cloneParameter(), lambda, maxIterations);
++  }
++
++  public static ArplsBaselineCorrectorParameters create(boolean peakRemoval, double lambda,
++      int maxIterations) {
++    ParameterSet param = new ArplsBaselineCorrectorParameters().cloneParameterSet();
++    param.setParameter(applyPeakRemoval, peakRemoval);
++    param.setParameter(ArplsBaselineCorrectorParameters.lambda, lambda);
++    param.setParameter(ArplsBaselineCorrectorParameters.maxIterations, maxIterations);
++    return (ArplsBaselineCorrectorParameters) param;
++  }
++}
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/arpls/PentadiagonalSolver.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/arpls/PentadiagonalSolver.java
+new file mode 100644
+index 00000000000..2119cf7e776
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/arpls/PentadiagonalSolver.java
+@@ -0,0 +1,139 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataprocessing.featdet_baselinecorrection.arpls;
++
++import org.jetbrains.annotations.NotNull;
++
++/**
++ * Direct solver for a symmetric positive-definite pentadiagonal linear system {@code A x = rhs}.
++ * The matrix is given by its three upper diagonals and factored in place as {@code A = L D L^T}
++ * with a unit lower-triangular {@code L} that carries two sub-diagonals. Both the factorization and
++ * the solve run in O(n), which keeps the arPLS baseline fit linear in the number of data points
++ * instead of the O(n^3) of a dense solve.
++ * <p>
++ * The instance is a reusable workspace whose buffers grow on demand (see {@link #ensureCapacity}).
++ * The actual system size {@code n} is passed to {@link #factor} / {@link #solve}, so the same
++ * workspace can be reused for traces of varying length without re-allocating - the buffers may be
++ * longer than {@code n} and only their first {@code n} entries are used.
++ */
++class PentadiagonalSolver {
++
++  // pivots D
++  private double[] d = new double[0];
++  // L sub-diagonal L[i][i-1]
++  private double[] alpha = new double[0];
++  // L sub-sub-diagonal L[i][i-2]
++  private double[] beta = new double[0];
++
++  /**
++   * Grows the factorization buffers so they can hold a system of size {@code n}. Existing contents
++   * are discarded; they are fully overwritten by the next {@link #factor}.
++   *
++   * @param n the required capacity
++   */
++  public void ensureCapacity(final int n) {
++    if (d.length < n) {
++      d = new double[n];
++      alpha = new double[n];
++      beta = new double[n];
++    }
++  }
++
++  /**
++   * Factors the matrix described by its upper diagonals into the reused buffers. The input arrays
++   * are only read, not modified.
++   *
++   * @param a main diagonal {@code A[i][i]}, first n entries used
++   * @param b first upper diagonal {@code A[i][i+1]}, first n - 1 entries used
++   * @param c second upper diagonal {@code A[i][i+2]}, first n - 2 entries used
++   * @param n the system size
++   */
++  public void factor(final double @NotNull [] a, final double @NotNull [] b,
++      final double @NotNull [] c, final int n) {
++    ensureCapacity(n);
++    for (int i = 0; i < n; i++) {
++      final double dm1 = i >= 1 ? d[i - 1] : 0d;
++      final double dm2 = i >= 2 ? d[i - 2] : 0d;
++
++      beta[i] = i >= 2 ? c[i - 2] / dm2 : 0d;
++      if (i >= 1) {
++        final double correction = i >= 2 ? beta[i] * alpha[i - 1] * dm2 : 0d;
++        alpha[i] = (b[i - 1] - correction) / dm1;
++      } else {
++        alpha[i] = 0d;
++      }
++
++      double di = a[i];
++      if (i >= 1) {
++        di -= alpha[i] * alpha[i] * dm1;
++      }
++      if (i >= 2) {
++        di -= beta[i] * beta[i] * dm2;
++      }
++      d[i] = di;
++    }
++  }
++
++  /**
++   * Solves {@code A x = rhs} for the most recently {@link #factor factored} matrix and writes the
++   * solution into {@code out}. {@code out} must differ from {@code rhs} (it is written while
++   * {@code rhs} is still read).
++   *
++   * @param rhs right-hand side, first n entries used
++   * @param out target for the solution, first n entries written
++   * @param n   the system size
++   */
++  public void solve(final double @NotNull [] rhs, final double @NotNull [] out, final int n) {
++    // forward substitution: L y = rhs (y stored in out)
++    for (int i = 0; i < n; i++) {
++      double v = rhs[i];
++      if (i >= 1) {
++        v -= alpha[i] * out[i - 1];
++      }
++      if (i >= 2) {
++        v -= beta[i] * out[i - 2];
++      }
++      out[i] = v;
++    }
++
++    // diagonal solve: D w = y
++    for (int i = 0; i < n; i++) {
++      out[i] /= d[i];
++    }
++
++    // backward substitution: L^T x = w
++    for (int i = n - 1; i >= 0; i--) {
++      double v = out[i];
++      if (i + 1 < n) {
++        v -= alpha[i + 1] * out[i + 1];
++      }
++      if (i + 2 < n) {
++        v -= beta[i + 2] * out[i + 2];
++      }
++      out[i] = v;
++    }
++  }
++}
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/arpls/ArplsBaselineTest.java b/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/arpls/ArplsBaselineTest.java
+new file mode 100644
+index 00000000000..c24307489fe
+--- /dev/null
++++ b/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/arpls/ArplsBaselineTest.java
+@@ -0,0 +1,178 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataprocessing.featdet_baselinecorrection.arpls;
++
++import java.util.Arrays;
++import java.util.Random;
++import org.junit.jupiter.api.Assertions;
++import org.junit.jupiter.api.Test;
++
++class ArplsBaselineTest {
++
++  /**
++   * Builds a strictly diagonally dominant (hence symmetric positive-definite) pentadiagonal matrix,
++   * multiplies it with a known x to get the right-hand side, and checks that the solver recovers
++   * x.
++   */
++  @Test
++  void pentadiagonalSolverRecoversKnownSolution() {
++    final int n = 50;
++    final Random rnd = new Random(42);
++
++    final double[] diag = new double[n];
++    final double[] off1 = new double[n - 1];
++    final double[] off2 = new double[n - 2];
++    for (int i = 0; i < n - 1; i++) {
++      off1[i] = rnd.nextDouble() - 0.5d;
++    }
++    for (int i = 0; i < n - 2; i++) {
++      off2[i] = rnd.nextDouble() - 0.5d;
++    }
++    // make each row diagonally dominant -> SPD
++    for (int i = 0; i < n; i++) {
++      double rowSum = 0d;
++      if (i >= 1) {
++        rowSum += Math.abs(off1[i - 1]);
++      }
++      if (i < n - 1) {
++        rowSum += Math.abs(off1[i]);
++      }
++      if (i >= 2) {
++        rowSum += Math.abs(off2[i - 2]);
++      }
++      if (i < n - 2) {
++        rowSum += Math.abs(off2[i]);
++      }
++      diag[i] = rowSum + 1d;
++    }
++
++    final double[] x = new double[n];
++    for (int i = 0; i < n; i++) {
++      x[i] = rnd.nextDouble() * 10d;
++    }
++    final double[] rhs = multiply(diag, off1, off2, x);
++
++    final PentadiagonalSolver solver = new PentadiagonalSolver();
++    solver.factor(diag, off1, off2, n);
++    final double[] solved = new double[n];
++    solver.solve(rhs, solved, n);
++
++    Assertions.assertArrayEquals(x, solved, 1e-9);
++  }
++
++  /**
++   * A linear baseline with a single Gaussian peak: arPLS should recover the linear baseline in the
++   * peak-free regions and must not run through the peak.
++   */
++  @Test
++  void fitBaselineRecoversLinearBaselineUnderPeak() {
++    final int n = 200;
++    final double intercept = 10d;
++    final double slope = 0.05d;
++    final double[] trueBaseline = new double[n];
++    final double[] signal = new double[n];
++    for (int i = 0; i < n; i++) {
++      trueBaseline[i] = intercept + slope * i;
++      final double peak = 50d * Math.exp(-Math.pow((i - 100) / 5d, 2) / 2d);
++      signal[i] = trueBaseline[i] + peak;
++    }
++
++    final double[] baseline = new ArplsBaseline().fitBaseline(signal, n, 1e4, 1e-8, 100);
++
++    Assertions.assertTrue(baseline.length >= n);
++    // peak-free regions (well away from index 100) must match the true linear baseline closely
++    for (int i = 0; i < n; i++) {
++      if (Math.abs(i - 100) > 30) {
++        Assertions.assertEquals(trueBaseline[i], baseline[i], 0.5d,
++            "baseline off in peak-free region at " + i);
++      }
++      // the baseline must never rise above the signal by more than a tiny epsilon
++      Assertions.assertTrue(baseline[i] <= signal[i] + 1e-6, "baseline above signal at " + i);
++    }
++    // and it must stay well below the peak apex
++    Assertions.assertTrue(baseline[100] < signal[100] - 30d, "baseline climbed into the peak");
++  }
++
++  @Test
++  void fitBaselineHandlesTooFewPoints() {
++    final double[] baseline = new ArplsBaseline().fitBaseline(new double[]{1d, 2d}, 2, 1e5, 1e-6,
++        50);
++    Assertions.assertArrayEquals(new double[]{0d, 0d}, baseline);
++  }
++
++  /**
++   * A reused instance must give exactly the same result as a fresh one, even after first processing
++   * a longer trace: only the first {@code n} entries may be touched and no stale state may leak.
++   */
++  @Test
++  void reusedInstanceMatchesFreshInstanceOnShorterTrace() {
++    final ArplsBaseline reused = new ArplsBaseline();
++
++    // first process a long trace so the buffers grow and hold values from it
++    final double[] longSignal = new double[300];
++    for (int i = 0; i < longSignal.length; i++) {
++      longSignal[i] = 5d + 0.02d * i + 80d * Math.exp(-Math.pow((i - 150) / 4d, 2) / 2d);
++    }
++    reused.fitBaseline(longSignal, longSignal.length, 1e4, 1e-8, 100);
++
++    // then a shorter, differently shaped trace on the same (reused) instance
++    final int shortN = 80;
++    final double[] shortSignal = new double[shortN];
++    for (int i = 0; i < shortN; i++) {
++      shortSignal[i] = 20d - 0.1d * i + 40d * Math.exp(-Math.pow((i - 40) / 3d, 2) / 2d);
++    }
++    final double[] reusedResult = Arrays.copyOf(
++        reused.fitBaseline(shortSignal, shortN, 1e4, 1e-8, 100), shortN);
++
++    final double[] freshResult = Arrays.copyOf(
++        new ArplsBaseline().fitBaseline(shortSignal, shortN, 1e4, 1e-8, 100), shortN);
++
++    Assertions.assertArrayEquals(freshResult, reusedResult, 1e-12);
++  }
++
++  private static double[] multiply(final double[] diag, final double[] off1, final double[] off2,
++      final double[] x) {
++    final int n = diag.length;
++    final double[] r = new double[n];
++    for (int i = 0; i < n; i++) {
++      double v = diag[i] * x[i];
++      if (i >= 1) {
++        v += off1[i - 1] * x[i - 1];
++      }
++      if (i < n - 1) {
++        v += off1[i] * x[i + 1];
++      }
++      if (i >= 2) {
++        v += off2[i - 2] * x[i - 2];
++      }
++      if (i < n - 2) {
++        v += off2[i] * x[i + 2];
++      }
++      r[i] = v;
++    }
++    return r;
++  }
++}
+diff --git a/mzmine-community/src/test/java/util/SplineBaselineCorrectorTest.java b/mzmine-community/src/test/java/util/SplineBaselineCorrectorTest.java
+index 71a3ce0e653..2f5e040975e 100644
+--- a/mzmine-community/src/test/java/util/SplineBaselineCorrectorTest.java
++++ b/mzmine-community/src/test/java/util/SplineBaselineCorrectorTest.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -57,94 +57,121 @@ void setUp() {
+   }
+ 
+   private BaselineDataBuffer createBaselineDataBuffer(final double[] src) {
+-    float[] floats = ArrayUtils.doubleToFloat(src);
+-    var data = new SimpleOtherTimeSeries(null, floats, src, "test", otherData);
++    return createBaselineDataBuffer(src, src);
++  }
++
++  private BaselineDataBuffer createBaselineDataBuffer(final double[] rt, final double[] intensity) {
++    float[] rtFloats = ArrayUtils.doubleToFloat(rt);
++    var data = new SimpleOtherTimeSeries(null, rtFloats, intensity, "test", otherData);
+     BaselineDataBuffer buffer = new BaselineDataBuffer();
+     buffer.extractDataIntoBuffer(data);
+     return buffer;
+   }
+ 
+-  private void check(final BaselineDataBuffer buffer, final int expectedRemaining,
+-      final double[] expectedX, final int[] expectedIndicesOfInterest) {
+-    Assertions.assertEquals(expectedRemaining, buffer.remaining());
++  private void checkInterpolated(final BaselineDataBuffer buffer,
++      final boolean expectedInterpolated, final double[] expectedX, final double[] expectedY) {
++    Assertions.assertEquals(expectedInterpolated, buffer.hasInterpolatedRanges());
++    // full grid is preserved -> remaining is always the full length
++    Assertions.assertEquals(expectedX.length, buffer.remaining());
+     Assertions.assertArrayEquals(expectedX, buffer.xBufferRemovedPeaks());
+-
+-    // indices of interes
+-    Assertions.assertArrayEquals(expectedIndicesOfInterest,
++    Assertions.assertArrayEquals(expectedY, buffer.yBufferRemovedPeaks());
++    // regular spacing -> only first and last point remain as landmarks
++    Assertions.assertArrayEquals(new int[]{0, expectedX.length - 1},
+         buffer.indicesOfInterest().toIntArray());
+-    // for debugging purposes
+-//    logger.info(
+-//        "Indices of interest: " + buffer.indicesOfInterest().intStream().mapToObj(String::valueOf)
+-//            .collect(Collectors.joining(", ")));
+-//    logger.info(Arrays.stream(buffer.xBufferRemovedPeaks()).mapToObj(String::valueOf)
+-//        .collect(Collectors.joining(", ")));
+   }
+ 
++  // --- interpolation (peak bridging) tests -------------------------------------------------------
+ 
+   @Test
+-  public void testRangeAtStart() {
+-    IndexRange r = IndexRange.ofInclusive(0, 3);
+-    buffer.removeRangesFromArray(List.of(r));
++  public void testInterpolateRangeInMiddle() {
++    // x = 0..9, y has a peak at indices 4,5,6 that should be bridged linearly back onto the ramp
++    final double[] x = IntStream.range(0, 10).mapToDouble(v -> (double) v).toArray();
++    final double[] y = {0, 1, 2, 3, 100, 100, 100, 7, 8, 9};
++    final BaselineDataBuffer buffer = createBaselineDataBuffer(x, y);
++
++    buffer.interpolateRanges(List.of(IndexRange.ofInclusive(4, 6)));
+ 
+-    check(buffer, 7, new double[]{0, 4, 5, 6, 7, 8, 9, 0, 0, 0}, new int[]{0, 1, 6});
++    checkInterpolated(buffer, true, new double[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
++        new double[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9});
+   }
+ 
+   @Test
+-  public void testRangeAtEnd() {
+-    IndexRange r = IndexRange.ofInclusive(7, 9);
+-    buffer.removeRangesFromArray(List.of(r));
++  public void testInterpolateRangeAtStart() {
++    // no left anchor -> flat fill with the first retained point after the peak (y[4] = 4)
++    final double[] x = IntStream.range(0, 10).mapToDouble(v -> (double) v).toArray();
++    final double[] y = {100, 100, 100, 100, 4, 5, 6, 7, 8, 9};
++    final BaselineDataBuffer buffer = createBaselineDataBuffer(x, y);
+ 
+-    check(buffer, 8, new double[]{0, 1, 2, 3, 4, 5, 6, 9, 0, 0}, new int[]{0, 6, 7});
++    buffer.interpolateRanges(List.of(IndexRange.ofInclusive(0, 3)));
++
++    checkInterpolated(buffer, true, new double[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
++        new double[]{4, 4, 4, 4, 4, 5, 6, 7, 8, 9});
+   }
+ 
+   @Test
+-  public void testRangeInMiddle() {
+-    IndexRange r = IndexRange.ofInclusive(4, 6);
+-    buffer.removeRangesFromArray(List.of(r));
++  public void testInterpolateRangeAtEnd() {
++    // no right anchor -> flat fill with the last retained point before the peak (y[6] = 6)
++    final double[] x = IntStream.range(0, 10).mapToDouble(v -> (double) v).toArray();
++    final double[] y = {0, 1, 2, 3, 4, 5, 6, 100, 100, 100};
++    final BaselineDataBuffer buffer = createBaselineDataBuffer(x, y);
++
++    buffer.interpolateRanges(List.of(IndexRange.ofInclusive(7, 9)));
+ 
+-    check(buffer, 7, new double[]{0, 1, 2, 3, 7, 8, 9, 0, 0, 0}, new int[]{0, 3, 4, 6});
++    checkInterpolated(buffer, true, new double[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
++        new double[]{0, 1, 2, 3, 4, 5, 6, 6, 6, 6});
+   }
+ 
+   @Test
+-  public void testTwoRangesStart() {
+-    IndexRange r1 = IndexRange.ofInclusive(0, 1);
+-    IndexRange r2 = IndexRange.ofInclusive(4, 6);
++  public void testInterpolateTwoRanges() {
++    // peak at the start (flat fill) and a peak in the middle (linear bridge)
++    final double[] x = IntStream.range(0, 10).mapToDouble(v -> (double) v).toArray();
++    final double[] y = {100, 100, 2, 3, 100, 100, 100, 7, 8, 9};
++    final BaselineDataBuffer buffer = createBaselineDataBuffer(x, y);
+ 
+-    buffer.removeRangesFromArray(List.of(r1, r2));
++    buffer.interpolateRanges(List.of(IndexRange.ofInclusive(0, 1), IndexRange.ofInclusive(4, 6)));
+ 
+-    check(buffer, 6, new double[]{0, 2, 3, 7, 8, 9, 0, 0, 0, 0}, new int[]{0, 1, 2, 3, 5});
++    checkInterpolated(buffer, true, new double[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
++        new double[]{2, 2, 2, 3, 4, 5, 6, 7, 8, 9});
+   }
+ 
+   @Test
+-  public void testTwoRangesEnd() {
+-    IndexRange r1 = IndexRange.ofInclusive(4, 6);
+-    IndexRange r2 = IndexRange.ofInclusive(8, 9);
++  public void testInterpolateEmptyRanges() {
++    // no ranges -> original signal is copied through untouched, flag stays false
++    final double[] x = IntStream.range(0, 10).mapToDouble(v -> (double) v).toArray();
++    final double[] y = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
++    final BaselineDataBuffer buffer = createBaselineDataBuffer(x, y);
+ 
+-    buffer.removeRangesFromArray(List.of(r1, r2));
++    buffer.interpolateRanges(List.of());
+ 
+-    check(buffer, 6, new double[]{0, 1, 2, 3, 7, 9, 0, 0, 0, 0}, new int[]{0, 3, 4, 5});
++    checkInterpolated(buffer, false, new double[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
++        new double[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9});
+   }
+ 
+   @Test
+-  public void testEmptyRanges() {
+-    buffer.removeRangesFromArray(List.of());
++  public void testInterpolateDoesNotMutateMainBuffers() {
++    // the bridged data must land in the removed-peaks buffers only, the original signal stays intact
++    final double[] x = IntStream.range(0, 10).mapToDouble(v -> (double) v).toArray();
++    final double[] y = {0, 1, 2, 3, 100, 100, 100, 7, 8, 9};
++    final BaselineDataBuffer buffer = createBaselineDataBuffer(x, y);
+ 
+-    check(buffer, 10, new double[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, new int[]{0, 9});
++    buffer.interpolateRanges(List.of(IndexRange.ofInclusive(4, 6)));
++
++    Assertions.assertNotSame(buffer.yBuffer(), buffer.yBufferRemovedPeaks());
++    Assertions.assertArrayEquals(y, Arrays.copyOf(buffer.yBuffer(), 10));
+   }
+ 
+   /**
+    * Regression test: when a single buffer (i.e. a reused baseline corrector) processes a trace with
+-   * no removed ranges and then another trace with removed ranges, the "removed peaks" buffers must
+-   * not alias the main buffers. Previously the empty-ranges branch did
+-   * {@code xBufferRemovedPeaks = xBuffer}, so the subsequent compaction wrote into the main buffers,
+-   * destroying the original signal that {@code subSampleAndCorrect} still needs as the data to
+-   * correct. This only surfaced in the task (one corrector reused across multiple traces with peak
+-   * exclusion enabled), never in the preview (fresh corrector per trace).
++   * no ranges and then another trace with ranges, the "removed peaks" buffers must not alias the
++   * main buffers - otherwise bridging the second trace would overwrite the original signal that
++   * {@code subSampleAndCorrect} still needs as the data to correct. This only surfaces in the task
++   * (one corrector reused across multiple traces with peak exclusion enabled), never in the preview
++   * (fresh corrector per trace).
+    */
+   @Test
+   public void testReusedBufferAfterEmptyRangesDoesNotCorruptMainBuffers() {
+-    // trace A: no ranges removed -> must not alias the removed-peaks buffers to the main buffers
+-    buffer.removeRangesFromArray(List.of());
++    // trace A: no ranges -> must not alias the removed-peaks buffers to the main buffers
++    buffer.interpolateRanges(List.of());
+ 
+     // trace B: re-extract into the SAME buffer. Same length -> capacity is not reallocated, so any
+     // alias established by trace A would still be in place here.
+@@ -153,22 +180,24 @@ public void testReusedBufferAfterEmptyRangesDoesNotCorruptMainBuffers() {
+         otherData);
+     buffer.extractDataIntoBuffer(dataB);
+ 
+-    // snapshot the original (main) buffers before removing ranges
++    // snapshot the original (main) buffers before bridging ranges
+     final double[] xMainBefore = Arrays.copyOf(buffer.xBuffer(), buffer.xBuffer().length);
+     final double[] yMainBefore = Arrays.copyOf(buffer.yBuffer(), buffer.yBuffer().length);
+ 
+-    // trace B: remove a middle range
+-    buffer.removeRangesFromArray(List.of(IndexRange.ofInclusive(4, 6)));
++    // trace B: bridge a middle range
++    buffer.interpolateRanges(List.of(IndexRange.ofInclusive(4, 6)));
+ 
+     // the removed-peaks buffers must be distinct instances from the main buffers ...
+     Assertions.assertNotSame(buffer.xBuffer(), buffer.xBufferRemovedPeaks());
+     Assertions.assertNotSame(buffer.yBuffer(), buffer.yBufferRemovedPeaks());
+ 
+-    // ... so removing ranges must not have mutated the original signal in the main buffers
++    // ... so bridging ranges must not have mutated the original signal in the main buffers
+     Assertions.assertArrayEquals(xMainBefore, buffer.xBuffer());
+     Assertions.assertArrayEquals(yMainBefore, buffer.yBuffer());
+ 
+-    // and the compacted data ends up in the removed-peaks buffer as usual
+-    check(buffer, 7, new double[]{0, 1, 2, 3, 7, 8, 9, 0, 0, 0}, new int[]{0, 3, 4, 6});
++    // and the bridged data ends up in the removed-peaks buffer on the full grid (y[4..6] bridged
++    // linearly between y[3]=3 and y[7]=7 -> the plain 0..9 ramp)
++    checkInterpolated(buffer, true, new double[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
++        new double[]{0, 1, 2, 3, 4, 5, 6, 7, 8, 9});
+   }
+ }

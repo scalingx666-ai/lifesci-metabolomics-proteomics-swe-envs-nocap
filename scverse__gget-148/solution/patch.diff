@@ -1,0 +1,171 @@
+diff --git a/docs/assets/gget_cbio_figure_4.png b/docs/assets/gget_cbio_figure_4.png
+new file mode 100644
+index 000000000..c71c4a5cc
+Binary files /dev/null and b/docs/assets/gget_cbio_figure_4.png differ
+diff --git a/docs/src/en/cbio.md b/docs/src/en/cbio.md
+index 131b9ce81..9e7bf75fb 100644
+--- a/docs/src/en/cbio.md
++++ b/docs/src/en/cbio.md
+@@ -55,6 +55,14 @@ Directory to store data files. Default: `./gget_cbio_cache`.
+ `-fd` `--figure_dir`    
+ Directory to output figures. Default: `./gget_cbio_figures`.
+ 
++`-fn` `--filename`  
++Filename for the output figure, relative to `figure_dir`. Default: auto-generated   
++Python: `figure_filename`
++
++`-t` `--title`  
++Title for the output figure. Default: auto-generated
++Python: `figure_title`
++
+ `-dpi` `--dpi`  
+ DPI of the output figure. Default: 100.
+ 
+@@ -152,5 +160,29 @@ gget.cbio_plot(
+ &rarr; Saves a heatmap of mutation types for the specified genes in the specified study, filtered by tissue, to `./gget_cbio_figures/Heatmap_sample_intestine.png`.
+ 
+ ![Heatmap](https://raw.githubusercontent.com/pachterlab/gget/ef0e8334d87214c17cbac70713028e7b823bba49/docs/assets/gget_cbio_figure_3.png)
++
++<br/><br/>
++
++**Plot a heatmap with a custom title and filename:**
++```bash
++gget cbio plot -s msk_impact_2017 -g AKT1 ALK FLT4 MAP3K1 MLL2 MLL3 NOTCH3 NOTCH4 PDCD1 RNF43 -st sample -vt Consequence -f tissue:intestine -dpi 200 -y -t "Intestinal Mutations" -fn intestinal_mutations.png
++```
++```python
++import gget
++gget.cbio_plot(
++    ['msk_impact_2017'],
++    ['AKT1', 'ALK', 'FLT4', 'MAP3K1', 'MLL2', 'MLL3', 'NOTCH3', 'NOTCH4', 'PDCD1', 'RNF43'],
++    stratification='sample',
++    variation_type='Consequence',
++    filter_=('tissue', 'intestine'),
++    dpi=200,
++    figure_title='Intestinal Mutations',
++    figure_filename='intestinal_mutations.png'
++)
++```
++
++&rarr; Saves a heatmap of mutation types for the specified genes in the specified study, filtered by tissue, with the title "Intestinal Mutations" to `./gget_cbio_figures/intestinal_mutations.png`.
++
++![Heatmap](https://raw.githubusercontent.com/pachterlab/gget/b32c01efefd55d37c19034ce96a86826e30ae3e5/docs/assets/gget_cbio_figure_4.png)
+     
+ #### [More examples](https://github.com/pachterlab/gget_examples)
+diff --git a/gget/gget_cbio.py b/gget/gget_cbio.py
+index d053ba6ff..2d3582619 100644
+--- a/gget/gget_cbio.py
++++ b/gget/gget_cbio.py
+@@ -759,7 +759,9 @@ def plot_heatmap(
+             "Consequence",
+         ] = "mutation_occurrences",
+         dpi: int = 100,
+-        show: bool = False
++        show: bool = False,
++        figure_filename: str | None = None,
++        figure_title: str | None = None
+     ):
+         if variation_type == "cna_nonbinary" or variation_type == "Consequence":
+             assert (
+@@ -1104,6 +1106,9 @@ def plot_heatmap(
+         plt.grid(which="major", color="white", linestyle="-", linewidth=0.5, alpha=0)
+         plt.gca().tick_params(which="minor", size=0)
+ 
++        if figure_title:
++            title = figure_title
++
+         plt.xlabel(stratification)
+         plt.ylabel("Genes")
+         plt.title(title)
+@@ -1114,6 +1119,9 @@ def plot_heatmap(
+ 
+         filepath = os.path.join(self.figure_output_dir, f"{filename}.png")
+ 
++        if figure_filename:
++            filepath = os.path.join(self.figure_output_dir, figure_filename)
++
+         plt.savefig(filepath, bbox_inches="tight", dpi=dpi)
+ 
+         if show:
+@@ -1149,10 +1157,12 @@ def cbio_plot(
+ 
+     data_dir: str = "gget_cbio_cache",
+     figure_dir: str = "gget_cbio_figures",
++    figure_filename: str | None = None,
+     verbose: bool = True,
+     confirm_download: bool = False,
+     dpi: int = 100,
+-    show: bool = False
++    show: bool = False,
++    figure_title: str | None = None,
+ ) -> bool:
+     """
+     Plot a heatmap of given genes in the given studies.
+@@ -1161,7 +1171,6 @@ def cbio_plot(
+ 
+     :param study_ids:                   list of cBioPortal study IDs
+     :param genes:                       list of gene names
+-    :param figure_dir:           directory to save the figure in
+ 
+     :param stratification:              column to group the data by, default 'tissue'
+     :param variation_type:              column to use for the heatmap, default 'mutation_occurrences'
+@@ -1171,11 +1180,15 @@ def cbio_plot(
+     :param remove_non_ensembl_genes:    whether to remove genes without Ensembl IDs, default False
+ 
+     :param data_dir:                    directory to store the downloaded data, default 'gget_cbio_cache'
++    :param figure_dir:                  directory to save the figure in
++    :param figure_filename:             filename to use for the figure, relative to `figure_dir`, default auto-generated
+     :param verbose:                     whether to print out progress, default False
+     :param confirm_download:            whether to confirm the download before proceeding, default False
+     :param dpi:                         resolution of the figure, default 100 dots per inch
+     :param show:                        whether to show the plot, default False
+ 
++    :param figure_title:                title to use for the figure, default auto-generated
++
+     Return:
+ 
+     :return:                            True if the plot was successful, False otherwise
+@@ -1209,7 +1222,9 @@ def cbio_plot(
+         filter_value=filter_[1] if filter_ else None,
+         variation_type=variation_type,
+         dpi=dpi,
+-        show=show
++        show=show,
++        figure_filename=figure_filename,
++        figure_title=figure_title
+     )
+ 
+     del gene_analyzer
+diff --git a/gget/main.py b/gget/main.py
+index eb3bdd7aa..d98f5ca0a 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -2184,6 +2184,22 @@ def main():
+         help="Directory to store generated figures (default: ./gget_cbio_figures)",
+         required=False
+     )
++    parser_cbio_plot.add_argument(
++        "-fn",
++        "--filename",
++        type=str,
++        default=None,
++        help="Filename for the generated figure, relative to `figure_dir` (default: auto-generated)",
++        required=False
++    )
++    parser_cbio_plot.add_argument(
++        "-t",
++        "--title",
++        type=str,
++        default=None,
++        help="Title for the generated figure (default: auto-generated)",
++        required=False
++    )
+     parser_cbio_plot.add_argument(
+         "-dpi",
+         "--dpi",
+@@ -3140,4 +3156,6 @@ def main():
+                 verbose=args.quiet,
+                 confirm_download=not args.no_confirm,
+                 show=args.show,
++                figure_filename=args.filename,
++                figure_title=args.title,
+             )

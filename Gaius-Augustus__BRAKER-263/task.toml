@@ -1,0 +1,76 @@
+version = "1.0"
+
+[task]
+name = "default/Gaius-Augustus__BRAKER-263"
+description = "Gushr"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "BRAKER",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "Gaius-Augustus/BRAKER"
+ref = "cf958ec91f97ada3dec436f970bb43ad32ff8f13"
+reference = "https://github.com/Gaius-Augustus/BRAKER/pull/263"
+source_access = "auto"
+built_at = "2026-11-15T22:38:04.452912+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:1cec41f41ea010d355a3e41eebb74c2291f519b1f1eb1d4ccff175d06bf65318"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2020-09-28T12:38:12Z"
+diff_format = "unified"
+context_files = [
+    "README.md",
+    "example/results/test3_add_utrs/augustus.hints_utr.gtf",
+    "example/results/test3_add_utrs/gushr.gtf",
+    "example/results/test3_add_utrs/hintsfile.gff",
+    "example/results/test9/augustus.hints.aa",
+    "example/results/test9/augustus.hints.codingseq",
+    "example/results/test9/augustus.hints.gtf",
+    "example/results/test9/braker.gtf",
+    "example/results/test9/genemark.gtf",
+    "example/results/test9/genome_header.map",
+    "example/results/test9/hintsfile.gff",
+    "example/tests/test10.sh",
+    "example/tests/test3_add_utrs.sh",
+    "example/tests/test9.sh",
+    "scripts/braker.pl",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 34194
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

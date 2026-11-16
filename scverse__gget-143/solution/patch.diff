@@ -1,0 +1,154 @@
+diff --git a/docs/src/en/opentargets.md b/docs/src/en/opentargets.md
+index a621b31b8..1ae701224 100644
+--- a/docs/src/en/opentargets.md
++++ b/docs/src/en/opentargets.md
+@@ -12,15 +12,15 @@ Ensembl gene ID, e.g ENSG00000169194.
+ Defines the type of information to return in the output. Default: 'diseases'.   
+ Possible resources are:
+ 
+-| Resource           | Return Value                                                      | Valid Filters                                     |
+-|--------------------|-------------------------------------------------------------------|---------------------------------------------------|
+-| `diseases`         | Associated diseases                                               | None                                              |
+-| `drugs`            | Associated drugs                                                  | `disease_id`                                      |
+-| `tractability`     | Tractability data                                                 | None                                              |
+-| `pharmacogenetics` | Pharmacogenetic responses                                         | `drug_id`                                         |
+-| `expression`       | Gene expression data (by tissues, organs, and anatomical systems) | `tissue_id`<br/>`anatomical_system`<br/>`organ`   |
+-| `depmap`           | DepMap gene&rarr;disease-effect data.                             | `tissue_id`                                       |
+-| `interactions`     | Protein&rlarr;protein interactions                                | `protein_a_id`<br/>`protein_b_id`<br/>`gene_b_id` |
++| Resource           | Return Value                                                      | Valid Filters                                     | Sources                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
++|--------------------|-------------------------------------------------------------------|---------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
++| `diseases`         | Associated diseases                                               | None                                              | Various:<ul><li>[Open&nbsp;Targets](https://genetics.opentargets.org/)</li><li>[ChEMBL](https://www.ebi.ac.uk/chembl/)</li><li>[Europe&nbsp;PMC](http://europepmc.org/)</li></ul>etc.                                                                                                                                                                                                                                                                                                              |
++| `drugs`            | Associated drugs                                                  | `disease_id`                                      | [ChEMBL](https://www.ebi.ac.uk/chembl/)                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
++| `tractability`     | Tractability data                                                 | None                                              | [Open&nbsp;Targets](https://platform-docs.opentargets.org/target/tractability)                                                                                                                                                                                                                                                                                                                                                                                                                     |
++| `pharmacogenetics` | Pharmacogenetic responses                                         | `drug_id`                                         | [PharmGKB](https://www.pharmgkb.org/)                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
++| `expression`       | Gene expression data (by tissues, organs, and anatomical systems) | `tissue_id`<br/>`anatomical_system`<br/>`organ`   | <ul><li>[ExpressionAtlas](https://www.ebi.ac.uk/gxa/home)</li><li>[HPA](https://www.proteinatlas.org/)</li><li>[GTEx](https://www.gtexportal.org/home/)</li></ul>                                                                                                                                                                                                                                                                                                                                  |
++| `depmap`           | DepMap gene&rarr;disease-effect data.                             | `tissue_id`                                       | [DepMap&nbsp;Portal](https://depmap.org/portal/)                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
++| `interactions`     | Protein&rlarr;protein interactions                                | `protein_a_id`<br/>`protein_b_id`<br/>`gene_b_id` | <ul><li>[Open&nbsp;Targets](https://platform-docs.opentargets.org/target/molecular-interactions)</li><li>[IntAct](https://platform-docs.opentargets.org/target/molecular-interactions#intact)</li><li>[Signor](https://platform-docs.opentargets.org/target/molecular-interactions#signor)</li><li>[Reactome](https://platform-docs.opentargets.org/target/molecular-interactions#reactome)</li><li>[String](https://platform-docs.opentargets.org/target/molecular-interactions#string)</li></ul> |
+ 
+ `-l` `--limit`  
+ Limit the number of results, e.g 10. Default: No limit.     
+@@ -69,6 +69,7 @@ Python only. `filter_mode='or'` combines filters of different IDs with OR logic.
+ **Flags**   
+ `-csv` `--csv`  
+ Command-line only. Returns the output in CSV format, instead of JSON format.
++Python: Use `json=True` to return output in JSON format.
+ 
+ `-q` `--quiet`   
+ Command-line only. Prevents progress information from being displayed.  
+diff --git a/gget/gget_opentargets.py b/gget/gget_opentargets.py
+index 8d9a53a1e..40a2bfb83 100644
+--- a/gget/gget_opentargets.py
++++ b/gget/gget_opentargets.py
+@@ -1,4 +1,4 @@
+-import time
++import json as json_
+ from typing import Literal, Callable, Any, TypeAlias
+ 
+ import pandas as pd
+@@ -25,7 +25,8 @@ def opentargets(
+     wrap_text: bool = False,
+     filters: dict[str, str | list[str]] | None = None,
+     filter_mode: Literal["and", "or"] = "and",
+-) -> pd.DataFrame:
++    json: bool = False
++) -> pd.DataFrame | list[dict[str, ...]]:
+     """
+     Query OpenTargets for data associated with a given Ensembl gene ID.
+ 
+@@ -53,6 +54,7 @@ def opentargets(
+                     "depmap": tissue_id (e.g. "UBERON_0002245")
+                     "interactions": protein_a_id (e.g. "ENSP00000304915"), protein_b_id (e.g. "ENSP00000379111"), gene_b_id (e.g. "ENSG00000077238")
+     - filter_mode   For resources that support multiple types of filters, this argument specifies how to combine them.
++    - json          If True, returns results in JSON format instead of as a Data Frame. Default: False.
+ 
+ 
+     Returns requested information in DataFrame format.
+@@ -68,14 +70,12 @@ def opentargets(
+     if filters is not None:
+         filters = {k: v if isinstance(v, list) else [v] for k, v in filters.items()}
+ 
+-    return _RESOURCES[resource](
+-        ensembl_id,
+-        limit=limit,
+-        verbose=verbose,
+-        wrap_text=wrap_text,
+-        filters=filters,
+-        filter_mode=filter_mode,
+-    )
++    df: pd.DataFrame = _RESOURCES[resource](ensembl_id, limit=limit, verbose=verbose, wrap_text=wrap_text, filters=filters, filter_mode=filter_mode, )
++
++    if json:
++        return json_.loads(df.to_json(orient="records", force_ascii=False))
++    else:
++        return df
+ 
+ 
+ def _limit_pagination() -> tuple[str, str, callable]:
+diff --git a/tests/fixtures/test_opentargets.json b/tests/fixtures/test_opentargets.json
+index 5d80c05c3..3b87ccaed 100644
+--- a/tests/fixtures/test_opentargets.json
++++ b/tests/fixtures/test_opentargets.json
+@@ -299,6 +299,63 @@
+             }
+         ]
+     },
++    "test_opentargets_pharmacogenetics_json": {
++        "type": "assert_equal",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "pharmacogenetics",
++            "limit": 2,
++            "json": true
++        },
++        "expected_result": [
++            {
++                "direct_target": false,
++                "drugs": [
++                    {
++                        "id": null,
++                        "name": "hepatitis vaccines"
++                    }
++                ],
++                "evidence_level": "3",
++                "genotype": "TT",
++                "genotype_annotation": "Patients with the TT genotype may be at increased risk for non-immune response to the hepatitis B vaccine, as compared to patients with the CC genotype. Other genetic and clinical factors may also influence risk of non-immune response in patients receiving the hepatitis B vaccine.",
++                "genotype_id": "5_132660151_T_T,T",
++                "literature": [
++                    "21111021"
++                ],
++                "phenotype": "increased risk for non-immune response to the hepatitis B vaccine",
++                "response_category": "efficacy",
++                "rs_id": "rs1295686",
++                "source": "pharmgkb",
++                "variant_consequence_id": "SO:0002073",
++                "variant_consequence_label": "no_sequence_alteration"
++            },
++            {
++                "direct_target": false,
++                "drugs": [
++                    {
++                        "id": "CHEMBL535",
++                        "name": "sunitinib"
++                    }
++                ],
++                "evidence_level": "3",
++                "genotype": "TT",
++                "genotype_annotation": "Patients with renal cell carcinoma and the TT genotype may have a decreased severity of drug-induced toxicity when administered sunitinib as compared to patients with the CC or CT genotypes. Other clinical and genetic factors may also influence severity of drug-induced toxicity in patients with renal cell carcinoma who are administered sunitinib.",
++                "genotype_id": "5_132657117_C_T,T",
++                "literature": [
++                    "26387812",
++                    "26387812"
++                ],
++                "phenotype": "decreased severity of drug-induced toxicity",
++                "response_category": "toxicity",
++                "rs_id": "rs1800925",
++                "source": "pharmgkb",
++                "variant_consequence_id": "SO:0001631",
++                "variant_consequence_label": "upstream_gene_variant"
++            }
++        ],
++        "__comment": "Same result as test_opentargets_pharmacogenetics"
++    },
+     "test_opentargets_pharmacogenetics_no_limit": {
+         "type": "assert_equal_json_hash_nested",
+         "args": {

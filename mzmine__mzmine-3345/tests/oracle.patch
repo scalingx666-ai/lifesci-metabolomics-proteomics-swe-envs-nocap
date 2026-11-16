@@ -1,0 +1,634 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/AverageRtBinding.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/AverageRtBinding.java
+index 30d503a2b29..cba0445f404 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/AverageRtBinding.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/AverageRtBinding.java
+@@ -1,3 +1,28 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
+ package io.github.mzmine.datamodel.features.compoundlist;
+ 
+ import io.github.mzmine.datamodel.features.FeatureListRow;
+@@ -12,7 +37,7 @@
+  * {@link ModularCompoundRow}. Member rows with a null RT are skipped. If no member has a non-null
+  * RT, the compound row's RT is cleared (set to null).
+  */
+-public final class AverageRtBinding implements CompoundRowBinding {
++public final class AverageRtBinding implements CompoundRowMemberRowsBinding {
+ 
+   private static final @NotNull RTType RT_TYPE = DataTypes.get(RTType.class);
+ 
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/ComplexCompoundRowBinding.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/ComplexCompoundRowBinding.java
+new file mode 100644
+index 00000000000..ef6d198aa80
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/ComplexCompoundRowBinding.java
+@@ -0,0 +1,78 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.datamodel.features.compoundlist;
++
++import io.github.mzmine.datamodel.features.types.DataType;
++import java.util.List;
++import org.jetbrains.annotations.NotNull;
++
++/**
++ * A {@link CompoundRowBinding} whose output is bound to feature-level {@link DataType}s rather than
++ * a single member-row value. Watches one or more feature types on the source and/or compound
++ * feature schemas — and optionally row types as additional re-aggregation triggers — and may write
++ * several outputs in {@link #apply(ModularCompoundRow)} (e.g. the max intensity across samples, or
++ * summed compound features).
++ * <p>
++ * This is the flexible, multi-listener counterpart to {@link CompoundRowMemberRowsBinding}: it
++ * declares directly which types it watches across the four schemas, each defaulting to empty so an
++ * implementation overrides only the ones it needs.
++ */
++public non-sealed interface ComplexCompoundRowBinding extends CompoundRowBinding {
++
++  /**
++   * Feature {@link DataType}s watched on the source feature list's features. When a member
++   * feature's value of one of these types changes, the owning compound is recomputed.
++   */
++  default @NotNull List<DataType<?>> getMemberFeatureTypes() {
++    return List.of();
++  }
++
++  /**
++   * Feature {@link DataType}s watched on the compound features schema. Covers the nested case: when
++   * an inner compound row's feature changes (after re-aggregation), the outer compound that owns it
++   * is recomputed.
++   */
++  default @NotNull List<DataType<?>> getCompoundFeatureTypes() {
++    return List.of();
++  }
++
++  /**
++   * Optional row {@link DataType}s watched on the source feature list's rows. Use this for triggers
++   * whose change should also re-run the aggregation (e.g. an ion-identity change that affects which
++   * members contribute).
++   */
++  default @NotNull List<DataType<?>> getMemberRowTypes() {
++    return List.of();
++  }
++
++  /**
++   * Optional row {@link DataType}s watched on the compound rows schema (nested compound
++   * propagation).
++   */
++  default @NotNull List<DataType<?>> getCompoundRowTypes() {
++    return List.of();
++  }
++}
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundIntensitySumBinding.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundIntensitySumBinding.java
+index 1ff6c8b8778..c7a89301bc5 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundIntensitySumBinding.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundIntensitySumBinding.java
+@@ -1,3 +1,28 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
+ package io.github.mzmine.datamodel.features.compoundlist;
+ 
+ import io.github.mzmine.datamodel.FeatureStatus;
+@@ -32,7 +57,7 @@
+  * features are cleared and the existing fallback in {@link ModularCompoundRow#getFeature} returns
+  * the preferred row's feature.
+  */
+-public final class CompoundIntensitySumBinding implements CompoundRowBinding {
++public final class CompoundIntensitySumBinding implements ComplexCompoundRowBinding {
+ 
+   private static final @NotNull IonIdentityListType ION_IDENTITY_TYPE = DataTypes.get(
+       IonIdentityListType.class);
+@@ -46,15 +71,17 @@ public final class CompoundIntensitySumBinding implements CompoundRowBinding {
+   private static final List<DataType<?>> MEMBER_FEATURE_TYPES = List.of(AREA_TYPE, HEIGHT_TYPE,
+       NORMALIZED_AREA_TYPE, NORMALIZED_HEIGHT_TYPE);
+ 
++  // re-aggregate when ion identity changes (matters for SUM_ION_IDENTITY_MEMBERS filter)
++  private static final List<DataType<?>> ION_IDENTITY_TYPES = List.of(ION_IDENTITY_TYPE);
++
+   @Override
+-  public @NotNull DataType<?> getMemberRowType() {
+-    // re-aggregate when ion identity changes (matters for SUM_ION_IDENTITY_MEMBERS filter)
+-    return ION_IDENTITY_TYPE;
++  public @NotNull List<DataType<?>> getMemberRowTypes() {
++    return ION_IDENTITY_TYPES;
+   }
+ 
+   @Override
+-  public @NotNull DataType<?> getCompoundRowType() {
+-    return ION_IDENTITY_TYPE;
++  public @NotNull List<DataType<?>> getCompoundRowTypes() {
++    return ION_IDENTITY_TYPES;
+   }
+ 
+   @Override
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundList.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundList.java
+index 8e42011d912..46d3a9a2136 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundList.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundList.java
+@@ -386,27 +386,43 @@ private void wireListeners() {
+         }
+       };
+ 
+-      // primary row-level type — source list and compound row schema
+-      final DataType<?> memberType = binding.getMemberRowType();
+-      final DataType<?> compoundType = binding.getCompoundRowType();
+-      featureList.addRowTypeValueListener(memberType, rowListener);
+-      listenerRemovers.add(() -> featureList.removeRowTypeValueListener(memberType, rowListener));
+-
+-      compoundRowSchema.addDataTypeValueChangeListener(compoundType, rowListener);
+-      listenerRemovers.add(
+-          () -> compoundRowSchema.removeDataTypeValueChangeListener(compoundType, rowListener));
+-
+-      // additional row-level types
+-      for (final DataType<?> additional : binding.getAdditionalMemberRowTypes()) {
+-        featureList.addRowTypeValueListener(additional, rowListener);
+-        listenerRemovers.add(() -> featureList.removeRowTypeValueListener(additional, rowListener));
+-        compoundRowSchema.addDataTypeValueChangeListener(additional, rowListener);
++      // resolve which data types this binding watches per schema, depending on its kind
++      final List<DataType<?>> memberRowTypes;
++      final List<DataType<?>> compoundRowTypes;
++      final List<DataType<?>> memberFeatureTypes;
++      final List<DataType<?>> compoundFeatureTypes;
++      switch (binding) {
++        case CompoundRowMemberRowsBinding mrb -> {
++          memberRowTypes = mrb.getMemberRowTypes();
++          compoundRowTypes = mrb.getCompoundRowTypes();
++          memberFeatureTypes = List.of();
++          compoundFeatureTypes = List.of();
++        }
++        case ComplexCompoundRowBinding cb -> {
++          memberRowTypes = cb.getMemberRowTypes();
++          compoundRowTypes = cb.getCompoundRowTypes();
++          memberFeatureTypes = cb.getMemberFeatureTypes();
++          compoundFeatureTypes = cb.getCompoundFeatureTypes();
++        }
++      }
++
++      // row-level types watched on the source feature list's rows
++      for (final DataType<?> memberRowType : memberRowTypes) {
++        featureList.addRowTypeValueListener(memberRowType, rowListener);
++        listenerRemovers.add(
++            () -> featureList.removeRowTypeValueListener(memberRowType, rowListener));
++      }
++
++      // row-level types watched on the compound rows schema (nested compound propagation)
++      for (final DataType<?> compoundRowType : compoundRowTypes) {
++        compoundRowSchema.addDataTypeValueChangeListener(compoundRowType, rowListener);
+         listenerRemovers.add(
+-            () -> compoundRowSchema.removeDataTypeValueChangeListener(additional, rowListener));
++            () -> compoundRowSchema.removeDataTypeValueChangeListener(compoundRowType,
++                rowListener));
+       }
+ 
+       // member feature-level types — register on source feature list's features schema
+-      for (final DataType<?> memberFeatureType : binding.getMemberFeatureTypes()) {
++      for (final DataType<?> memberFeatureType : memberFeatureTypes) {
+         featureList.addFeatureTypeValueListener(memberFeatureType, featureListener);
+         listenerRemovers.add(
+             () -> featureList.removeFeatureTypeListener(memberFeatureType, featureListener));
+@@ -414,7 +430,7 @@ private void wireListeners() {
+ 
+       // compound feature-level types — register on this compound list's features schema, so a
+       // nested compound's feature change propagates to its outer owner.
+-      for (final DataType<?> compoundFeatureType : binding.getCompoundFeatureTypes()) {
++      for (final DataType<?> compoundFeatureType : compoundFeatureTypes) {
+         compoundFeaturesSchema.addDataTypeValueChangeListener(compoundFeatureType, featureListener);
+         listenerRemovers.add(
+             () -> compoundFeaturesSchema.removeDataTypeValueChangeListener(compoundFeatureType,
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundRowBinding.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundRowBinding.java
+index e6f84368d5b..a83557de8ee 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundRowBinding.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundRowBinding.java
+@@ -1,60 +1,56 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
+ package io.github.mzmine.datamodel.features.compoundlist;
+ 
+ import io.github.mzmine.datamodel.features.types.DataType;
+-import java.util.List;
+ import org.jetbrains.annotations.NotNull;
+ 
+ /**
+- * Aggregates a {@link DataType} value across a {@link ModularCompoundRow}'s member rows and writes
+- * the result to the compound row. Analogous to
+- * {@link io.github.mzmine.datamodel.features.RowBinding} but operating member rows -> compound row
+- * instead of features -> row.
++ * Recomputes derived value(s) on a {@link ModularCompoundRow} from its members. Analogous to
++ * {@link io.github.mzmine.datamodel.features.RowBinding} but operating on a compound row instead of
++ * a feature list row.
++ * <p>
++ * Every binding is exactly one of two kinds; {@link CompoundList} inspects the kind and wires the
++ * appropriate change listeners so the owning compound is recomputed when an input changes:
++ * <ul>
++ *   <li>{@link CompoundRowMemberRowsBinding} — all member rows define the compound row value: a
++ *   single row-level {@link DataType} is aggregated across
++ *   the member rows and written back to the compound row (e.g. average RT).</li>
++ *   <li>{@link ComplexCompoundRowBinding} — the compound row (or its compound features) is bound to
++ *   feature-level data types: watches one or more feature/row types and may write several outputs
++ *   (e.g. max intensity across samples, summed compound features).</li>
++ * </ul>
+  */
+-public interface CompoundRowBinding {
+-
+-  /**
+-   * The {@link DataType} watched on member
+-   * {@link io.github.mzmine.datamodel.features.FeatureListRow}s. When a member row's value of this
+-   * type changes, the compound row is recomputed.
+-   */
+-  @NotNull DataType<?> getMemberRowType();
+-
+-  /**
+-   * The {@link DataType} written to the compound row. Often equal to {@link #getMemberRowType()}.
+-   */
+-  @NotNull DataType<?> getCompoundRowType();
+-
+-  /**
+-   * Additional row-level {@link DataType}s whose changes on member rows should also trigger
+-   * {@link #apply(ModularCompoundRow)}. Use this for bindings whose result depends on multiple
+-   * row-level inputs (e.g. an intensity sum that filters by ion identity).
+-   */
+-  default @NotNull List<DataType<?>> getAdditionalMemberRowTypes() {
+-    return List.of();
+-  }
+-
+-  /**
+-   * Member-feature {@link DataType}s whose changes should trigger
+-   * {@link #apply(ModularCompoundRow)}. Use this for bindings that aggregate feature-level values
+-   * (e.g. {@code AreaType}, {@code HeightType}). Listeners are wired on the source feature list's
+-   * features schema; the listener resolves the changed feature's row to the owning compound.
+-   */
+-  default @NotNull List<DataType<?>> getMemberFeatureTypes() {
+-    return List.of();
+-  }
+-
+-  /**
+-   * Compound-feature {@link DataType}s that this binding writes to the compound feature schema.
+-   * Listeners are wired on the compound features schema so that when an inner compound row's
+-   * feature changes (after re-aggregation), the outer compound that owns it is recomputed.
+-   */
+-  default @NotNull List<DataType<?>> getCompoundFeatureTypes() {
+-    return List.of();
+-  }
++public sealed interface CompoundRowBinding permits CompoundRowMemberRowsBinding,
++    ComplexCompoundRowBinding {
+ 
+   /**
+-   * Recompute the aggregate from {@link ModularCompoundRow#getMemberRows()} and store the result
+-   * on the compound row via {@link ModularCompoundRow#set(DataType, Object)}.
++   * Recompute the derived value(s) for {@code compoundRow} from its members and store the result on
++   * the compound row (and/or its compound features) via
++   * {@link ModularCompoundRow#set(DataType, Object)}.
+    */
+   void apply(@NotNull ModularCompoundRow compoundRow);
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundRowBindings.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundRowBindings.java
+index 422ce73d14a..ba57ec3cd6f 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundRowBindings.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundRowBindings.java
+@@ -1,3 +1,28 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
+ package io.github.mzmine.datamodel.features.compoundlist;
+ 
+ import java.util.List;
+@@ -14,8 +39,13 @@ private CompoundRowBindings() {
+ 
+   /**
+    * The bindings applied by every {@link CompoundList} unless an explicit list is provided.
++   * <p>
++   * Order matters: {@link MaxFeatureIntensityRowBinding} must follow
++   * {@link CompoundIntensitySumBinding} so that the compound row's features have already been
++   * rewritten when the row-level max is computed.
+    */
+   public static @NotNull List<CompoundRowBinding> defaultBindings() {
+-    return List.of(new AverageRtBinding(), new CompoundIntensitySumBinding());
++    return List.of(new AverageRtBinding(), new CompoundIntensitySumBinding(),
++        new MaxFeatureIntensityRowBinding());
+   }
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundRowMemberRowsBinding.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundRowMemberRowsBinding.java
+new file mode 100644
+index 00000000000..347afcf6380
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundRowMemberRowsBinding.java
+@@ -0,0 +1,91 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.datamodel.features.compoundlist;
++
++import io.github.mzmine.datamodel.features.types.DataType;
++import java.util.ArrayList;
++import java.util.List;
++import org.jetbrains.annotations.NotNull;
++
++/**
++ * A {@link CompoundRowBinding} that aggregates a single row-level {@link DataType} across a
++ * {@link ModularCompoundRow}'s member rows and writes the result back to a single compound row type
++ * (e.g. average RT). This is the common, constrained case: one primary input type, one output type,
++ * optionally a few additional row-level inputs that should also re-trigger the binding.
++ * <p>
++ * For bindings that watch feature-level types or write multiple output types, implement
++ * {@link ComplexCompoundRowBinding} instead.
++ */
++public non-sealed interface CompoundRowMemberRowsBinding extends CompoundRowBinding {
++
++  /**
++   * The primary {@link DataType} watched on member
++   * {@link io.github.mzmine.datamodel.features.FeatureListRow}s. When a member row's value of this
++   * type changes, the compound row is recomputed.
++   */
++  @NotNull DataType<?> getMemberRowType();
++
++  /**
++   * The {@link DataType} written to the compound row. Often equal to {@link #getMemberRowType()}.
++   */
++  @NotNull DataType<?> getCompoundRowType();
++
++  /**
++   * Additional row-level {@link DataType}s whose changes on member rows should also trigger
++   * {@link #apply(ModularCompoundRow)}. Use this for bindings whose result depends on multiple
++   * row-level inputs. Watched on both the source rows and compound rows schemas.
++   */
++  default @NotNull List<DataType<?>> getAdditionalMemberRowTypes() {
++    return List.of();
++  }
++
++  /**
++   * Row types watched on the source feature list's rows: the primary {@link #getMemberRowType()}
++   * plus any {@link #getAdditionalMemberRowTypes()}.
++   */
++  default @NotNull List<DataType<?>> getMemberRowTypes() {
++    return combine(getMemberRowType(), getAdditionalMemberRowTypes());
++  }
++
++  /**
++   * Row types watched on the compound rows schema (nested compound propagation): the primary
++   * {@link #getCompoundRowType()} plus any {@link #getAdditionalMemberRowTypes()}.
++   */
++  default @NotNull List<DataType<?>> getCompoundRowTypes() {
++    return combine(getCompoundRowType(), getAdditionalMemberRowTypes());
++  }
++
++  private static @NotNull List<DataType<?>> combine(@NotNull final DataType<?> primary,
++      @NotNull final List<DataType<?>> additional) {
++    if (additional.isEmpty()) {
++      return List.of(primary);
++    }
++    final List<DataType<?>> all = new ArrayList<>(additional.size() + 1);
++    all.add(primary);
++    all.addAll(additional);
++    return all;
++  }
++}
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/MaxFeatureIntensityRowBinding.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/MaxFeatureIntensityRowBinding.java
+new file mode 100644
+index 00000000000..1ea6ee4416d
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/MaxFeatureIntensityRowBinding.java
+@@ -0,0 +1,109 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.datamodel.features.compoundlist;
++
++import io.github.mzmine.datamodel.features.ModularFeature;
++import io.github.mzmine.datamodel.features.types.DataType;
++import io.github.mzmine.datamodel.features.types.DataTypes;
++import io.github.mzmine.datamodel.features.types.numbers.AreaType;
++import io.github.mzmine.datamodel.features.types.numbers.HeightType;
++import io.github.mzmine.datamodel.features.types.numbers.NormalizedAreaType;
++import io.github.mzmine.datamodel.features.types.numbers.NormalizedHeightType;
++import java.util.List;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++
++/**
++ * Writes the per-{@link ModularCompoundRow} row-level {@link AreaType}, {@link HeightType},
++ * {@link NormalizedAreaType} and {@link NormalizedHeightType} as the maximum of the corresponding
++ * values across the compound row's features (one feature per sample). Mirrors the feature -> row
++ * {@code MAX} aggregation that {@link io.github.mzmine.datamodel.features.SimpleRowBinding}
++ * performs for a regular {@link io.github.mzmine.datamodel.features.ModularFeatureListRow}, but for
++ * the compound row's own (compound) features rather than the source feature list's features.
++ * <p>
++ * Reads via {@link ModularCompoundRow#streamFeatures()} which returns the compound row's own
++ * compound features when set
++ * ({@link
++ * io.github.mzmine.modules.dataprocessing.group_compoundgrouper.intensityrepresentation.CompoundIntensityRepresentation}
++ * SUM modes) and falls back to the preferred row's source features otherwise (REPRESENTATIVE
++ * mode).
++ * <p>
++ * Listens to the same feature-level types both on the source feature list (via
++ * {@link #getMemberFeatureTypes()}) and on the compound features schema (via
++ * {@link #getCompoundFeatureTypes()}) so changes propagate through nested compounds. Listener
++ * registration order in {@link CompoundList#wireListeners()} relies on this binding being placed
++ * <em>after</em> {@link CompoundIntensitySumBinding} in
++ * {@link CompoundRowBindings#defaultBindings()} so that compound features have already been
++ * rewritten when this binding reads them.
++ */
++public final class MaxFeatureIntensityRowBinding implements ComplexCompoundRowBinding {
++
++  private static final @NotNull AreaType AREA_TYPE = DataTypes.get(AreaType.class);
++  private static final @NotNull HeightType HEIGHT_TYPE = DataTypes.get(HeightType.class);
++  private static final @NotNull NormalizedAreaType NORMALIZED_AREA_TYPE = DataTypes.get(
++      NormalizedAreaType.class);
++  private static final @NotNull NormalizedHeightType NORMALIZED_HEIGHT_TYPE = DataTypes.get(
++      NormalizedHeightType.class);
++
++  private static final List<DataType<?>> INTENSITY_TYPES = List.of(AREA_TYPE, HEIGHT_TYPE,
++      NORMALIZED_AREA_TYPE, NORMALIZED_HEIGHT_TYPE);
++
++  @Override
++  public @NotNull List<DataType<?>> getMemberFeatureTypes() {
++    // source-feature changes need to refresh the row-level max after CompoundIntensitySumBinding
++    // has rewritten the compound features (listener order is dispatch order = registration order)
++    return INTENSITY_TYPES;
++  }
++
++  @Override
++  public @NotNull List<DataType<?>> getCompoundFeatureTypes() {
++    // nested case: when an inner compound's feature is recomputed, the outer compound that owns it
++    // re-aggregates its compound features (CompoundIntensitySumBinding), and then this binding
++    // refreshes the outer compound's row-level max.
++    return INTENSITY_TYPES;
++  }
++
++  @Override
++  public void apply(@NotNull final ModularCompoundRow compoundRow) {
++    final List<ModularFeature> features = compoundRow.streamFeatures().toList();
++    compoundRow.set(AREA_TYPE, maxOf(features, AREA_TYPE));
++    compoundRow.set(HEIGHT_TYPE, maxOf(features, HEIGHT_TYPE));
++    compoundRow.set(NORMALIZED_AREA_TYPE, maxOf(features, NORMALIZED_AREA_TYPE));
++    compoundRow.set(NORMALIZED_HEIGHT_TYPE, maxOf(features, NORMALIZED_HEIGHT_TYPE));
++  }
++
++  private static @Nullable Float maxOf(@NotNull final List<ModularFeature> features,
++      @NotNull final DataType<Float> type) {
++    Float max = null;
++    for (final ModularFeature f : features) {
++      final Float v = f.get(type);
++      if (v != null && (max == null || v > max)) {
++        max = v;
++      }
++    }
++    return max;
++  }
++}

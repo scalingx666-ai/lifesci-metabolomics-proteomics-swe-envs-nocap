@@ -1,0 +1,74 @@
+version = "1.0"
+
+[task]
+name = "default/jaechang-hits__SciAgent-Skills-26"
+description = "feat: introduce medical-imaging category"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "SciAgent-Skills",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "jaechang-hits/SciAgent-Skills"
+ref = "57d410131d278cfda13949364cb4dbcf038d5890"
+reference = "https://github.com/jaechang-hits/SciAgent-Skills/pull/26"
+source_access = "auto"
+built_at = "2026-11-15T15:24:51.327734+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:f38df69a15a12332db591a4417661c505c8c3be2bf98b82d7588b2fa2797a687"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-05-28T02:44:40Z"
+diff_format = "unified"
+context_files = [
+    "CLAUDE.md",
+    "registry.yaml",
+    "skills/medical-imaging/histolab-wsi-processing/SKILL.md",
+    "skills/medical-imaging/histolab-wsi-processing/references/filters_preprocessing.md",
+    "skills/medical-imaging/histolab-wsi-processing/references/tile_extraction.md",
+    "skills/medical-imaging/histolab-wsi-processing/references/visualization_slides.md",
+    "skills/medical-imaging/imaging-data-commons/SKILL.md",
+    "skills/medical-imaging/nnunet-segmentation/SKILL.md",
+    "skills/medical-imaging/omero-integration/SKILL.md",
+    "skills/medical-imaging/pathml/SKILL.md",
+    "skills/medical-imaging/pydicom-medical-imaging/SKILL.md",
+    "skills/medical-imaging/pydicom-medical-imaging/references/dicom_standards.md",
+    "skills/medical-imaging/simpleitk-image-registration/SKILL.md",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 31
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

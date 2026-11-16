@@ -1,0 +1,61 @@
+diff --git a/matchms/importing/load_from_mgf.py b/matchms/importing/load_from_mgf.py
+index dec6a810b..52a4bf584 100644
+--- a/matchms/importing/load_from_mgf.py
++++ b/matchms/importing/load_from_mgf.py
+@@ -1,3 +1,4 @@
++import os
+ from typing import Generator, TextIO, Union
+ from pyteomics.mgf import MGF
+ from matchms.importing.parsing_utils import parse_spectrum_dict
+@@ -33,8 +34,14 @@ def load_from_mgf(filename: Union[str, TextIO],
+         Set to False if metadata harmonization to default keys is not desired.
+         The default is True.
+     """
+-    with MGF(filename, convert_arrays=1) as reader:
+-        for pyteomics_spectrum in reader:
+-            yield parse_spectrum_dict(
+-                spectrum=pyteomics_spectrum,
+-                metadata_harmonization=metadata_harmonization)
++    if not os.path.isfile(filename):
++        raise FileNotFoundError(f"The specified file: {filename} doesn't exist.") 
++    
++    def parse_file():
++        with MGF(filename, convert_arrays=1) as reader:
++            for pyteomics_spectrum in reader:
++                yield parse_spectrum_dict(
++                    spectrum=pyteomics_spectrum,
++                    metadata_harmonization=metadata_harmonization)
++    
++    return parse_file()
+diff --git a/tests/importing/test_load_from_mgf.py b/tests/importing/test_load_from_mgf.py
+index 1ea22f95e..26596417f 100644
+--- a/tests/importing/test_load_from_mgf.py
++++ b/tests/importing/test_load_from_mgf.py
+@@ -1,4 +1,5 @@
+ import os
++import pytest
+ from matchms import Spectrum
+ from matchms.importing import load_from_mgf
+ 
+@@ -11,3 +12,8 @@ def test_load_from_mgf_using_filepath():
+ 
+     assert len(spectra) > 0
+     assert isinstance(spectra[0], Spectrum)
++
++
++def test_load_missing_mgf_raises():
++    with pytest.raises(FileNotFoundError):
++        load_from_mgf('does-not-exist.mgf')
+diff --git a/tests/similarity/test_metadata_match.py b/tests/similarity/test_metadata_match.py
+index 3bdf7d472..8ea53a39e 100644
+--- a/tests/similarity/test_metadata_match.py
++++ b/tests/similarity/test_metadata_match.py
+@@ -88,7 +88,5 @@ def test_metadata_match_invalid_array_type(spectrums):
+ 
+     similarity_score = MetadataMatch(field="instrument_type")
+ 
+-    try:
++    with pytest.raises(ValueError, match="array_type must be 'numpy' or 'sparse'."):
+         calculate_scores(references, queries, similarity_score, array_type = "scipy")
+-    except ValueError as e:
+-        assert str(e) == "array_type must be 'numpy' or 'sparse'.", "The error message did not match the expected output"

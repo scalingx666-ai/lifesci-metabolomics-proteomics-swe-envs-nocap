@@ -1,0 +1,72 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/ModularFeatureListRow.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/ModularFeatureListRow.java
+index 13daafa58cb..0bd22d58a39 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/ModularFeatureListRow.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/ModularFeatureListRow.java
+@@ -552,6 +552,7 @@ public boolean isUserPreferredAnnotation() {
+    */
+   @Override
+   public boolean isIdentified() {
++    // need to override in ModularCompoundRow because getTypes() returns the compound list types there.
+     for (DataType dt : getTypes()) {
+       if (dt instanceof ListWithSubsType<?> listType && dt instanceof AnnotationType
+           && !(dt instanceof IonIdentityListType)) {
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/ModularCompoundRow.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/ModularCompoundRow.java
+index f30f912e60a..5943717ea92 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/ModularCompoundRow.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/ModularCompoundRow.java
+@@ -116,6 +116,15 @@ public Stream<ModularFeature> streamFeatures() {
+     return pref instanceof ModularFeature mf ? mf : null;
+   }
+ 
++  /**
++   *
++   * @return
++   */
++  @Override
++  public boolean isIdentified() {
++    return getPreferredRow().isIdentified();
++  }
++
+   /**
+    * Schema-direct read of this compound row's own compound feature for {@code raw}, bypassing the
+    * representative-feature fallback in {@link #getFeature(RawDataFile)}. Returns null when the
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/io/spectraldbsubmit/row/SendRowsToSpectralLibraryModule.java b/mzmine-community/src/main/java/io/github/mzmine/modules/io/spectraldbsubmit/row/SendRowsToSpectralLibraryModule.java
+index 6d95d07ed92..7ba73fb1193 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/io/spectraldbsubmit/row/SendRowsToSpectralLibraryModule.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/io/spectraldbsubmit/row/SendRowsToSpectralLibraryModule.java
+@@ -26,6 +26,7 @@
+ package io.github.mzmine.modules.io.spectraldbsubmit.row;
+ 
+ import io.github.mzmine.datamodel.features.ModularFeatureListRow;
++import io.github.mzmine.main.ConfigService;
+ import io.github.mzmine.main.MZmineCore;
+ import io.github.mzmine.modules.MZmineModule;
+ import io.github.mzmine.modules.io.spectraldbsubmit.batch.LibraryBatchGenerationSubParameters;
+@@ -72,8 +73,10 @@ public static void showDialogAndSubmitTask(@NotNull final List<ModularFeatureLis
+     final List<SpectralLibrary> lastLibraries = lastSelectedLib.getMatchingLibraries();
+     // suggest the feature list name as library name
+     final String suggestedName = rows.getFirst().getFeatureList().getName();
+-    final SpectralLibrarySelectionDialog libDialog = new SpectralLibrarySelectionDialog(rows.size(), lastLibraries,
+-        suggestedName);
++    final SpectralLibrarySelectionDialog libDialog = new SpectralLibrarySelectionDialog(rows.size(),
++        lastLibraries, suggestedName);
++    ConfigService.getPreferences().getThemeConfig()
++        .apply(libDialog.getDialogPane().getStylesheets());
+     final Optional<SpectralLibrary> libResult = libDialog.showAndWait();
+ 
+     if (libResult.isEmpty() || libResult.get() == null) {
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/util/annotations/CompoundAnnotationUtils.java b/mzmine-community/src/main/java/io/github/mzmine/util/annotations/CompoundAnnotationUtils.java
+index 37ed8754be2..2bdc316d10d 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/util/annotations/CompoundAnnotationUtils.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/util/annotations/CompoundAnnotationUtils.java
+@@ -96,8 +96,8 @@ public class CompoundAnnotationUtils {
+    * filtered out by default — pass {@code includeAnalog=true} to row accessors to keep them.
+    */
+   public static final List<DataType> annotationTypePriority = DataTypes.getAll(
+-      CompoundDatabaseMatchesType.class, LipidMatchListType.class, SpectralLibraryMatchesType.class,
+-      AnalogSpectralLibraryMatchesType.class);
++      CompoundDatabaseMatchesType.class, AnalogSpectralLibraryMatchesType.class,
++      LipidMatchListType.class, SpectralLibraryMatchesType.class);
+ 
+   private static final Logger logger = Logger.getLogger(CompoundAnnotationUtils.class.getName());
+ 

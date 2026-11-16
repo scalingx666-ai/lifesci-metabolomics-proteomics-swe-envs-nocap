@@ -1,0 +1,601 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/MZmineProcessingStep.java b/mzmine-community/src/main/java/io/github/mzmine/modules/MZmineProcessingStep.java
+index edbd1fe1070..4f0c9352383 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/MZmineProcessingStep.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/MZmineProcessingStep.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2022 The MZmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -25,10 +25,8 @@
+ 
+ package io.github.mzmine.modules;
+ 
+-import org.jetbrains.annotations.NotNull;
+-import org.jetbrains.annotations.Nullable;
+-
+ import io.github.mzmine.parameters.ParameterSet;
++import org.jetbrains.annotations.NotNull;
+ 
+ /**
+  * Interface for a processing step. Processing step means a reference to MZmine module and its
+@@ -39,7 +37,7 @@ public interface MZmineProcessingStep<ModuleType extends MZmineModule> {
+   @NotNull
+   public ModuleType getModule();
+ 
+-  @Nullable
++  @NotNull
+   public ParameterSet getParameterSet();
+ 
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/BatchQueueParameter.java b/mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/BatchQueueParameter.java
+index bcc2dcc91dd..e7dd82549db 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/BatchQueueParameter.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/BatchQueueParameter.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -28,7 +28,9 @@
+ import io.github.mzmine.gui.DesktopService;
+ import io.github.mzmine.javafx.dialogs.DialogLoggerUtil;
+ import io.github.mzmine.modules.MZmineProcessingStep;
++import io.github.mzmine.parameters.Parameter;
+ import io.github.mzmine.parameters.ParameterSet;
++import io.github.mzmine.parameters.ParameterUtils;
+ import io.github.mzmine.parameters.UserParameter;
+ import java.io.IOException;
+ import java.util.ArrayList;
+@@ -39,6 +41,7 @@
+ import javafx.scene.layout.AnchorPane;
+ import javafx.scene.layout.Priority;
+ import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
+ import org.w3c.dom.Element;
+ 
+ /**
+@@ -131,6 +134,28 @@ public BatchQueueParameter cloneParameter() {
+     return copy;
+   }
+ 
++  @Override
++  public boolean valueEquals(@Nullable final Parameter<?> that) {
++    if (!(that instanceof BatchQueueParameter thatParameter)) {
++      return false;
++    }
++
++    final BatchQueue thatValue = thatParameter.getValue();
++    if (value == thatValue) {
++      return true;
++    }
++    if (value == null || thatValue == null || value.size() != thatValue.size()) {
++      return false;
++    }
++
++    for (int i = 0; i < value.size(); i++) {
++      if (!ParameterUtils.equalValues(value.get(i), thatValue.get(i), false, false)) {
++        return false;
++      }
++    }
++    return true;
++  }
++
+   @Override
+   public boolean checkValue(final Collection<String> errorMessages) {
+ 
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/BatchUtils.java b/mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/BatchUtils.java
+index 300263bf220..68ed58c3fd8 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/BatchUtils.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/BatchUtils.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -205,10 +205,7 @@ public static int getNumFiles(final @NotNull BatchQueue batch,
+    */
+   @NotNull
+   public static MZmineProcessingStep<MZmineProcessingModule> cloneStep(
+-      @NotNull MZmineProcessingStep<MZmineProcessingModule> step) {
+-    if (step.getParameterSet() == null) {
+-      return new MZmineProcessingStepImpl<>(step.getModule(), null);
+-    }
++      @NotNull final MZmineProcessingStep<MZmineProcessingModule> step) {
+     final ParameterSet clonedParams = step.getParameterSet().cloneParameterSet();
+     return new MZmineProcessingStepImpl<>(step.getModule(), clonedParams);
+   }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/impl/MZmineProcessingStepImpl.java b/mzmine-community/src/main/java/io/github/mzmine/modules/impl/MZmineProcessingStepImpl.java
+index fcdb307cb8e..50fe43ef11e 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/impl/MZmineProcessingStepImpl.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/impl/MZmineProcessingStepImpl.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2022 The MZmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -28,8 +28,6 @@
+ import io.github.mzmine.modules.MZmineModule;
+ import io.github.mzmine.modules.MZmineProcessingStep;
+ import io.github.mzmine.parameters.ParameterSet;
+-import io.github.mzmine.parameters.ParameterUtils;
+-import java.util.Objects;
+ import org.jetbrains.annotations.NotNull;
+ 
+ /**
+@@ -41,15 +39,18 @@ public class MZmineProcessingStepImpl<ModuleType extends MZmineModule> implement
+   private final ModuleType module;
+   private final ParameterSet parameters;
+ 
+-  public MZmineProcessingStepImpl(ModuleType module, ParameterSet parameters) {
++  public MZmineProcessingStepImpl(@NotNull final ModuleType module,
++      @NotNull final ParameterSet parameters) {
+     this.module = module;
+     this.parameters = parameters;
+   }
+ 
++  @Override
+   public @NotNull ModuleType getModule() {
+     return module;
+   }
+ 
++  @Override
+   public @NotNull ParameterSet getParameterSet() {
+     return parameters;
+   }
+@@ -58,19 +59,4 @@ public MZmineProcessingStepImpl(ModuleType module, ParameterSet parameters) {
+   public String toString() {
+     return module.getName();
+   }
+-
+-  @Override
+-  public int hashCode() {
+-    return Objects.hash(getModule(), parameters.getClass());
+-  }
+-
+-  @Override
+-  public boolean equals(Object obj) {
+-    if (!(obj instanceof MZmineProcessingStep that)) {
+-      return false;
+-    }
+-
+-    return getModule().equals(that.getModule()) && ParameterUtils.equalValues(parameters,
+-        that.getParameterSet(), false, false);
+-  }
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/io/projectsave/RawDataSavingUtils.java b/mzmine-community/src/main/java/io/github/mzmine/modules/io/projectsave/RawDataSavingUtils.java
+index 8a7cba863b2..9453377cae1 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/io/projectsave/RawDataSavingUtils.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/io/projectsave/RawDataSavingUtils.java
+@@ -30,7 +30,6 @@
+ import io.github.mzmine.modules.MZmineModule;
+ import io.github.mzmine.modules.MZmineModuleCategory;
+ import io.github.mzmine.modules.MZmineProcessingModule;
+-import io.github.mzmine.modules.MZmineProcessingStep;
+ import io.github.mzmine.modules.batchmode.BatchQueue;
+ import io.github.mzmine.modules.impl.MZmineProcessingStepImpl;
+ import io.github.mzmine.modules.io.import_spectral_library.SpectralLibraryImportParameters;
+@@ -282,14 +281,15 @@ private static List<RawDataFile> getRemainingProjectFiles(RawDataFilePlaceholder
+    *                                  longer queue only appends additional steps.
+    * @return true or false.
+    */
+-  public static boolean queuesEqual(BatchQueue q1, BatchQueue q2, boolean skipFileParameters,
+-      boolean skipRawDataFileParameters, boolean allowSubsets) {
++  public static boolean queuesEqual(@NotNull final BatchQueue q1, @NotNull final BatchQueue q2,
++      final boolean skipFileParameters, final boolean skipRawDataFileParameters,
++      final boolean allowSubsets) {
+     if (q1.size() != q2.size() && !allowSubsets) {
+       return false;
+     }
+ 
+     for (int i = 0; i < q1.size() && i < q2.size(); i++) {
+-      if (!processingStepEquals(q1.get(i), q2.get(i), skipFileParameters,
++      if (!ParameterUtils.equalValues(q1.get(i), q2.get(i), skipFileParameters,
+           skipRawDataFileParameters)) {
+         return false;
+       }
+@@ -298,26 +298,4 @@ public static boolean queuesEqual(BatchQueue q1, BatchQueue q2, boolean skipFile
+     return true;
+   }
+ 
+-  private static boolean processingStepEquals(MZmineProcessingStep<?> step1,
+-      MZmineProcessingStep<?> step2, boolean skipFileParameters,
+-      boolean skipRawDataFileParameters) {
+-
+-    if (!step1.getModule().equals(step2.getModule())) {
+-      logger.finest("Modules " + step1.getModule().getClass().getName() + " is not equal to "
+-          + step2.getModule().getClass().getName());
+-      return false;
+-    }
+-
+-    final var parameterSet1 = step1.getParameterSet();
+-    final var parameterSet2 = step2.getParameterSet();
+-
+-    if (!ParameterUtils.equalValues(parameterSet1, parameterSet2, skipFileParameters,
+-        skipRawDataFileParameters)) {
+-      logger.finest(
+-          "Queues are not equal. Parameter sets of step " + step1.getModule() + " are not equal.");
+-      return false;
+-    }
+-    return true;
+-  }
+-
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/parameters/ParameterUtils.java b/mzmine-community/src/main/java/io/github/mzmine/parameters/ParameterUtils.java
+index 0e18f71fe94..ffab04a15f0 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/parameters/ParameterUtils.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/parameters/ParameterUtils.java
+@@ -214,6 +214,19 @@ public static boolean equalValues(final ParameterSet a, final ParameterSet b) {
+     return equalValues(a, b, true, true);
+   }
+ 
++  /**
++   * Compares two processing steps by their module and parameter values.
++   *
++   * @param skipFileParameters        whether values of file-name parameters are ignored
++   * @param skipRawDataFileParameters whether raw-data-file and file-name parameters are ignored
++   */
++  public static boolean equalValues(@NotNull final MZmineProcessingStep<?> a,
++      @NotNull final MZmineProcessingStep<?> b, final boolean skipFileParameters,
++      final boolean skipRawDataFileParameters) {
++    return a == b || (a.getModule().equals(b.getModule()) && equalValues(a.getParameterSet(),
++        b.getParameterSet(), skipFileParameters, skipRawDataFileParameters));
++  }
++
+ 
+   /**
+    * Checks if all parameters in a equal in value to b and vice versa. So the parameters need to
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/modules/MZmineProcessingStepEqualityTest.java b/mzmine-community/src/test/java/io/github/mzmine/modules/MZmineProcessingStepEqualityTest.java
+new file mode 100644
+index 00000000000..a1953a419be
+--- /dev/null
++++ b/mzmine-community/src/test/java/io/github/mzmine/modules/MZmineProcessingStepEqualityTest.java
+@@ -0,0 +1,133 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules;
++
++import io.github.mzmine.main.MZmineCore;
++import io.github.mzmine.modules.batchmode.BatchQueue;
++import io.github.mzmine.modules.batchmode.BatchQueueParameter;
++import io.github.mzmine.modules.dataprocessing.featdet_massdetection.MassDetectionModule;
++import io.github.mzmine.modules.dataprocessing.featdet_massdetection.MassDetectionParameters;
++import io.github.mzmine.modules.impl.MZmineProcessingStepImpl;
++import io.github.mzmine.parameters.ParameterSet;
++import io.github.mzmine.parameters.ParameterUtils;
++import io.github.mzmine.parameters.parametertypes.selectors.ScanSelection;
++import java.util.List;
++import org.junit.jupiter.api.Assertions;
++import org.junit.jupiter.api.BeforeAll;
++import org.junit.jupiter.api.Test;
++import testutils.MZmineTestUtil;
++
++class MZmineProcessingStepEqualityTest {
++
++  @BeforeAll
++  static void initMzmine() {
++    MZmineTestUtil.startMzmineCore();
++  }
++
++  @Test
++  void duplicateConfigurationsRetainObjectIdentity() {
++    final MZmineProcessingModule module = massDetectionModule();
++    final MZmineProcessingStep<MZmineProcessingModule> first = new MZmineProcessingStepImpl<>(
++        module, massDetectionParameters(1));
++    final MZmineProcessingStep<MZmineProcessingModule> second = new MZmineProcessingStepImpl<>(
++        module, massDetectionParameters(1));
++
++    Assertions.assertNotEquals(first, second);
++    Assertions.assertTrue(ParameterUtils.equalValues(first, second, false, false));
++
++    final BatchQueue queue = new BatchQueue();
++    queue.addAll(first, second);
++    queue.removeAll(List.of(first));
++
++    Assertions.assertEquals(1, queue.size());
++    Assertions.assertSame(second, queue.getFirst());
++  }
++
++  @Test
++  void batchQueueParametersCompareStepValues() {
++    final MZmineProcessingModule module = massDetectionModule();
++    final BatchQueue firstQueue = new BatchQueue();
++    firstQueue.add(new MZmineProcessingStepImpl<>(module, massDetectionParameters(1)));
++    final BatchQueue secondQueue = new BatchQueue();
++    secondQueue.add(new MZmineProcessingStepImpl<>(module, massDetectionParameters(1)));
++
++    final BatchQueueParameter first = new BatchQueueParameter();
++    first.setValue(firstQueue);
++    final BatchQueueParameter second = new BatchQueueParameter();
++    second.setValue(secondQueue);
++
++    Assertions.assertTrue(first.valueEquals(second));
++  }
++
++  @Test
++  void differentParameterValuesDoNotCompareEqual() {
++    final MZmineProcessingModule module = massDetectionModule();
++    final MZmineProcessingStep<MZmineProcessingModule> ms1 = new MZmineProcessingStepImpl<>(module,
++        massDetectionParameters(1));
++    final MZmineProcessingStep<MZmineProcessingModule> ms2 = new MZmineProcessingStepImpl<>(module,
++        massDetectionParameters(2));
++
++    Assertions.assertFalse(ParameterUtils.equalValues(ms1, ms2, false, false));
++  }
++
++  @Test
++  void differentModulesDoNotCompareEqual() {
++    final ParameterSet parameters = massDetectionParameters(1);
++    final MZmineProcessingStep<MZmineProcessingModule> massDetection = new MZmineProcessingStepImpl<>(
++        massDetectionModule(), parameters);
++    final MZmineProcessingStep<MZmineProcessingModule> importStep = new MZmineProcessingStepImpl<>(
++        massDetectionModule(), massDetectionParameters(2));
++
++    Assertions.assertFalse(ParameterUtils.equalValues(massDetection, importStep, false, false));
++  }
++
++  @Test
++  void batchQueueParametersWithDifferentStepValuesDoNotCompareEqual() {
++    final MZmineProcessingModule module = massDetectionModule();
++    final BatchQueue firstQueue = new BatchQueue();
++    firstQueue.add(new MZmineProcessingStepImpl<>(module, massDetectionParameters(1)));
++    final BatchQueue secondQueue = new BatchQueue();
++    secondQueue.add(new MZmineProcessingStepImpl<>(module, massDetectionParameters(2)));
++
++    final BatchQueueParameter first = new BatchQueueParameter();
++    first.setValue(firstQueue);
++    final BatchQueueParameter second = new BatchQueueParameter();
++    second.setValue(secondQueue);
++
++    Assertions.assertFalse(first.valueEquals(second));
++  }
++
++  private static ParameterSet massDetectionParameters(final int msLevel) {
++    final ParameterSet parameters = new MassDetectionParameters().cloneParameterSet();
++    parameters.setParameter(MassDetectionParameters.scanSelection, new ScanSelection(msLevel));
++    return parameters;
++  }
++
++  private static MZmineProcessingModule massDetectionModule() {
++    return MZmineCore.getModuleInstance(MassDetectionModule.class);
++  }
++
++}
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/modules/io/projectsave/RawDataSavingUtilsTest.java b/mzmine-community/src/test/java/io/github/mzmine/modules/io/projectsave/RawDataSavingUtilsTest.java
+new file mode 100644
+index 00000000000..cfa132ab3e6
+--- /dev/null
++++ b/mzmine-community/src/test/java/io/github/mzmine/modules/io/projectsave/RawDataSavingUtilsTest.java
+@@ -0,0 +1,201 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.io.projectsave;
++
++import io.github.mzmine.datamodel.RawDataFile;
++import io.github.mzmine.datamodel.features.FeatureList.FeatureListAppliedMethod;
++import io.github.mzmine.datamodel.features.SimpleFeatureListAppliedMethod;
++import io.github.mzmine.main.MZmineCore;
++import io.github.mzmine.modules.MZmineProcessingModule;
++import io.github.mzmine.modules.batchmode.BatchQueue;
++import io.github.mzmine.modules.dataprocessing.featdet_massdetection.MassDetectionModule;
++import io.github.mzmine.modules.dataprocessing.featdet_massdetection.MassDetectionParameters;
++import io.github.mzmine.modules.dataprocessing.featdet_massdetection.MassDetectors;
++import io.github.mzmine.modules.dataprocessing.featdet_massdetection.exactmass.ExactMassDetectorParameters;
++import io.github.mzmine.modules.io.import_rawdata_all.AllSpectralDataImportModule;
++import io.github.mzmine.modules.io.import_rawdata_all.AllSpectralDataImportParameters;
++import io.github.mzmine.parameters.ParameterSet;
++import io.github.mzmine.parameters.parametertypes.selectors.RawDataFilesSelection;
++import io.github.mzmine.parameters.parametertypes.selectors.ScanSelection;
++import io.github.mzmine.project.ProjectService;
++import io.github.mzmine.project.impl.MZmineProjectImpl;
++import java.io.File;
++import java.time.Instant;
++import java.util.Arrays;
++import java.util.List;
++import java.util.Set;
++import java.util.stream.Collectors;
++import javafx.collections.FXCollections;
++import javafx.collections.ObservableList;
++import org.junit.jupiter.api.Assertions;
++import org.junit.jupiter.api.BeforeAll;
++import org.junit.jupiter.api.BeforeEach;
++import org.junit.jupiter.api.Test;
++import org.mockito.Mockito;
++import testutils.MZmineTestUtil;
++
++class RawDataSavingUtilsTest {
++
++  private static final double MS1_NOISE = 100d;
++  private static final double MS2_NOISE = 10d;
++
++  private RawDataFile raw1;
++  private RawDataFile raw2;
++  private RawDataFile raw3;
++  private File file1;
++  private File file2;
++  private File file3;
++
++  @BeforeAll
++  static void initMzmine() {
++    MZmineTestUtil.startMzmineCore();
++  }
++
++  @BeforeEach
++  void setUp() {
++    ProjectService.getProjectManager().setCurrentProject(new MZmineProjectImpl());
++    file1 = new File("raw-saving-test-1.mzML").getAbsoluteFile();
++    file2 = new File("raw-saving-test-2.mzML").getAbsoluteFile();
++    file3 = new File("raw-saving-test-3.mzML").getAbsoluteFile();
++    raw1 = createRawDataFile(file1);
++    raw2 = createRawDataFile(file2);
++    raw3 = createRawDataFile(file3);
++    ProjectService.getProject().addFile(raw1);
++    ProjectService.getProject().addFile(raw2);
++    ProjectService.getProject().addFile(raw3);
++  }
++
++  @Test
++  void mergesEquivalentAppliedMethodBatches() {
++    final List<BatchQueue> batches = createAppliedMethodBatches(MS1_NOISE);
++
++    // decision: file selections differ between imports and must be combined during the merge.
++    final BatchQueue merged = RawDataSavingUtils.mergeQueues(batches.getFirst(), batches.getLast(),
++        true);
++
++    Assertions.assertNotNull(merged);
++    Assertions.assertEquals(3, merged.size());
++    Assertions.assertInstanceOf(AllSpectralDataImportModule.class, merged.get(0).getModule());
++    Assertions.assertInstanceOf(MassDetectionModule.class, merged.get(1).getModule());
++    Assertions.assertInstanceOf(MassDetectionModule.class, merged.get(2).getModule());
++    Assertions.assertEquals(Set.of(file1, file2, file3), Set.of(
++        merged.get(0).getParameterSet().getValue(AllSpectralDataImportParameters.fileNames)));
++    // steps are ordered by module call date, so the MS1 detection must precede the MS2 detection.
++    assertSelectedRawFiles(merged.get(1).getParameterSet());
++    assertMsLevel(merged.get(1).getParameterSet(), 1);
++    assertSelectedRawFiles(merged.get(2).getParameterSet());
++    assertMsLevel(merged.get(2).getParameterSet(), 2);
++  }
++
++  @Test
++  void doesNotMergeAppliedMethodBatchesWithDifferentMs1Noise() {
++    final List<BatchQueue> batches = createAppliedMethodBatches(MS1_NOISE + 1d);
++
++    final BatchQueue merged = RawDataSavingUtils.mergeQueues(batches.getFirst(), batches.getLast(),
++        true);
++
++    Assertions.assertNull(merged);
++  }
++
++  private List<BatchQueue> createAppliedMethodBatches(final double secondMs1Noise) {
++    final Instant firstImport = Instant.parse("2026-01-01T10:00:00Z");
++    final Instant firstMs1 = Instant.parse("2026-01-01T10:01:00Z");
++    final Instant firstMs2 = Instant.parse("2026-01-01T10:02:00Z");
++    final File[] firstFiles = {file1, file2};
++    final RawDataFile[] firstRaws = {raw1, raw2};
++    addAppliedMethods(raw1, firstFiles, firstRaws, firstImport, firstMs1, firstMs2, MS1_NOISE);
++    addAppliedMethods(raw2, firstFiles, firstRaws, firstImport, firstMs1, firstMs2, MS1_NOISE);
++
++    addAppliedMethods(raw3, new File[]{file3}, new RawDataFile[]{raw3},
++        Instant.parse("2026-01-01T11:00:00Z"), Instant.parse("2026-01-01T11:01:00Z"),
++        Instant.parse("2026-01-01T11:02:00Z"), secondMs1Noise);
++
++    return List.of(RawDataSavingUtils.makeBatchQueue(List.of(raw1, raw2)),
++        RawDataSavingUtils.makeBatchQueue(List.of(raw3)));
++  }
++
++  private void addAppliedMethods(final RawDataFile raw, final File[] importFiles,
++      final RawDataFile[] massDetectionFiles, final Instant importTime, final Instant ms1Time,
++      final Instant ms2Time, final double ms1Noise) {
++    final ObservableList<FeatureListAppliedMethod> methods = raw.getAppliedMethods();
++    methods.add(new SimpleFeatureListAppliedMethod(importModule(), importParameters(importFiles),
++        importTime));
++    methods.add(new SimpleFeatureListAppliedMethod(massDetectionModule(),
++        massDetectionParameters(massDetectionFiles, 1, ms1Noise), ms1Time));
++    methods.add(new SimpleFeatureListAppliedMethod(massDetectionModule(),
++        massDetectionParameters(massDetectionFiles, 2, MS2_NOISE), ms2Time));
++  }
++
++  private static ParameterSet importParameters(final File[] files) {
++    final ParameterSet parameters = new AllSpectralDataImportParameters().cloneParameterSet();
++    parameters.setParameter(AllSpectralDataImportParameters.fileNames, files);
++    return parameters;
++  }
++
++  private static ParameterSet massDetectionParameters(final RawDataFile[] files, final int msLevel,
++      final double noiseLevel) {
++    final ParameterSet detectorParameters = new ExactMassDetectorParameters().cloneParameterSet();
++    detectorParameters.setParameter(ExactMassDetectorParameters.noiseLevel, noiseLevel);
++
++    final ParameterSet parameters = new MassDetectionParameters().cloneParameterSet();
++    parameters.setParameter(MassDetectionParameters.dataFiles, new RawDataFilesSelection(files));
++    parameters.setParameter(MassDetectionParameters.scanSelection, new ScanSelection(msLevel));
++    parameters.getParameter(MassDetectionParameters.massDetector)
++        .setValue(MassDetectors.EXACT, detectorParameters);
++    return parameters;
++  }
++
++  private void assertSelectedRawFiles(final ParameterSet parameters) {
++    final Set<RawDataFile> expected = Set.of(raw1, raw2, raw3);
++    final Set<RawDataFile> actual = Arrays.stream(
++            parameters.getValue(MassDetectionParameters.dataFiles).getMatchingRawDataFiles())
++        .collect(Collectors.toSet());
++    Assertions.assertEquals(expected, actual);
++  }
++
++  private void assertMsLevel(final ParameterSet parameters, final Integer expectedMsLevel) {
++    final Integer actualMsLevel = parameters.getValue(MassDetectionParameters.scanSelection)
++        .getMsLevelFilter().getSingleMsLevelOrNull();
++    Assertions.assertEquals(expectedMsLevel, actualMsLevel);
++  }
++
++  private static RawDataFile createRawDataFile(final File file) {
++    final RawDataFile raw = Mockito.mock(RawDataFile.class);
++    Mockito.when(raw.getName()).thenReturn(file.getName());
++    Mockito.when(raw.getAbsolutePath()).thenReturn(file.getAbsolutePath());
++    Mockito.when(raw.getAbsoluteFilePath()).thenReturn(file);
++    Mockito.when(raw.getAppliedMethods()).thenReturn(FXCollections.observableArrayList());
++    return raw;
++  }
++
++  private static MZmineProcessingModule importModule() {
++    return MZmineCore.getModuleInstance(AllSpectralDataImportModule.class);
++  }
++
++  private static MZmineProcessingModule massDetectionModule() {
++    return MZmineCore.getModuleInstance(MassDetectionModule.class);
++  }
++}

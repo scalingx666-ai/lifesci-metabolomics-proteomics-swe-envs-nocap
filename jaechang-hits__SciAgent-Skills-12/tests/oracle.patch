@@ -1,0 +1,24 @@
+diff --git a/registry.yaml b/registry.yaml
+index c134226..313f028 100644
+--- a/registry.yaml
++++ b/registry.yaml
+@@ -1051,7 +1051,7 @@ entries:
+     description: "Statistical visualization library built on matplotlib with native pandas DataFrame support. Automatic aggregation, confidence intervals, and grouping for distribution plots (histplot, kdeplot), categorical comparisons (boxplot, violinplot, stripplot), relational plots (scatterplot, lineplot), regression plots (regplot, lmplot), matrix plots (heatmap, clustermap), and multi-variable grids (pairplot, jointplot, FacetGrid). Use seaborn for statistical summaries with minimal code; use matplotlib for fine-grained figure control; use plotly for interactive HTML output."
+     date_added: "2026-02-18"
+ 
+-  - name: "Plotly Interactive Plots"
++  - name: "plotly-interactive-plots"
+     type: skill
+     sub_type: toolkit
+     category: "data-visualization"
+diff --git a/skills/data-visualization/plotly-interactive-plots/SKILL.md b/skills/data-visualization/plotly-interactive-plots/SKILL.md
+index 1d5d389..12c0dc9 100644
+--- a/skills/data-visualization/plotly-interactive-plots/SKILL.md
++++ b/skills/data-visualization/plotly-interactive-plots/SKILL.md
+@@ -1,5 +1,5 @@
+ ---
+-name: "Plotly Interactive Plots"
++name: "plotly-interactive-plots"
+ description: "Interactive scientific visualization with Plotly. Two-layer API: plotly.express (px) for one-liner DataFrame plots and plotly.graph_objects (go) for full trace-level control. 40+ chart types with hover, zoom, pan, and animation. Exports to interactive HTML or static PNG/SVG/PDF via kaleido. Use for interactive web figures, volcano plots with gene hover info, dose-response dashboards, gene expression heatmaps, and 3D molecular visualizations. Use seaborn for statistical summaries with automatic aggregation; use matplotlib for fine-grained publication figures; use plotly for interactive or web-embedded output."
+ license: "MIT"
+ ---

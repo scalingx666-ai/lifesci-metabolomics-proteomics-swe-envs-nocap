@@ -1,0 +1,1000 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundRepresentativeSelector.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundRepresentativeSelector.java
+index 34954b327ea..8655b893516 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundRepresentativeSelector.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundRepresentativeSelector.java
+@@ -27,6 +27,7 @@
+ 
+ import io.github.mzmine.datamodel.features.FeatureListRow;
+ import io.github.mzmine.datamodel.features.annotationpriority.AnnotationSummary;
++import io.github.mzmine.datamodel.features.annotationpriority.AnnotationSummaryOrder;
+ import java.util.Comparator;
+ import java.util.List;
+ import java.util.function.Predicate;
+@@ -57,13 +58,24 @@ public interface CompoundRepresentativeSelector {
+     return best;
+   }
+ 
++  /**
++   * Ranks {@link AnnotationSummary} best first by the {@link AnnotationSummaryOrder} of the feature
++   * list, the same order the AQS column sorts by. Summaries without an annotation sort last.
++   *
++   * @param members never empty. The sort config is shared by the whole feature list, so any member
++   *                defines the ranking
++   */
++  static @NotNull Comparator<@Nullable AnnotationSummary> annotationQualityBestFirst(
++      @NotNull final List<FeatureListRow> members) {
++    return members.getFirst().getFeatureList().getAnnotationSortConfig().sortOrder()
++        .getComparatorHighFirst();
++  }
++
+   /**
+    * @return the row with the best preferred annotation or null if no member is annotated
+    */
+   static @Nullable FeatureListRow pickBestAnnotated(@NotNull final List<FeatureListRow> members) {
+-    // sort config is shared by the whole feature list, so any member defines the ranking
+-    final Comparator<@Nullable AnnotationSummary> bestFirst = members.getFirst().getFeatureList()
+-        .getAnnotationSortConfig().sortOrder().getComparatorHighFirst();
++    final Comparator<@Nullable AnnotationSummary> bestFirst = annotationQualityBestFirst(members);
+     // equally confident annotations are decided by intensity
+     final Comparator<@NotNull AnnotationSummary> annotationThenIntensity = bestFirst.thenComparing(
+         summary -> CompoundRepresentativeSelector.heightOrZero(summary.row()),
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/fx/SampleTypeFilterHeaderColumn.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/fx/SampleTypeFilterHeaderColumn.java
+index 66b15ca94ab..b9061d0f6d2 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/fx/SampleTypeFilterHeaderColumn.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/fx/SampleTypeFilterHeaderColumn.java
+@@ -34,6 +34,8 @@
+ import io.github.mzmine.modules.dataprocessing.filter_featurelistpreferences.FeatureListPreferencesModule;
+ import io.github.mzmine.modules.dataprocessing.filter_featurelistpreferences.FeatureListPreferencesParameters;
+ import io.github.mzmine.modules.visualization.projectmetadata.SampleTypeFilter;
++import io.github.mzmine.parameters.parametertypes.combowithinput.DefaultOffCustomOption;
++import io.github.mzmine.parameters.parametertypes.combowithinput.DefaultOffCustomValue;
+ import io.github.mzmine.parameters.parametertypes.metadata.SampleTypeFilterComponent;
+ import io.github.mzmine.parameters.parametertypes.selectors.FeatureListsSelectionType;
+ import java.util.Objects;
+@@ -170,8 +172,11 @@ private void onFilterChanged(@Nullable final SampleTypeFilter filter) {
+         () -> "Redefining RSD sample types of feature list %s to %s".formatted(flist.getName(),
+             filter));
+ 
+-    final FeatureListPreferencesParameters parameters = FeatureListPreferencesParameters.fromPreferences(
+-        flist.getPreferences().withRsdSampleTypeFilter(filter));
++    // only the sample types are redefined, all other preferences of the list stay as they are
++    final FeatureListPreferencesParameters parameters = FeatureListPreferencesParameters.keepAllAsIs(
++        flist.getPreferences());
++    parameters.setParameter(FeatureListPreferencesParameters.rsdSampleTypes,
++        new DefaultOffCustomValue<>(DefaultOffCustomOption.CUSTOM, filter));
+     parameters.getParameter(FeatureListPreferencesParameters.flists)
+         .setValue(FeatureListsSelectionType.SPECIFIC_FEATURELISTS, new FeatureList[]{flist});
+     // run the module instead of setting the preferences directly, so that the applied method is
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/identities/iontype/IonTypeRanking.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/identities/iontype/IonTypeRanking.java
+index a44c16b923f..d4c7bacd644 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/identities/iontype/IonTypeRanking.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/identities/iontype/IonTypeRanking.java
+@@ -104,8 +104,9 @@ public IonTypeRanking(@NotNull final List<IonPartFrequency> frequencies) {
+     return new IonTypeRanking(new ArrayList<>(List.of(
+         // positive
+         IonPartFrequency.of(IonParts.H, 1f), //
++        // 0.86 keeps [M+Na]+ above [M+H-H2O]+, which scores mean(H=1, H2O=0.7) = 0.85
++        IonPartFrequency.of(IonParts.NA, 0.86f), //
+         IonPartFrequency.of(IonParts.NH4, 0.7f), //
+-        IonPartFrequency.of(IonParts.NA, 0.71f), //
+         IonPartFrequency.of(IonParts.K, 0.35f), //
+         IonPartFrequency.of(IonParts.CA, 0.2f), //
+         IonPartFrequency.of(IonParts.MG, 0.15f), //
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_featurelistpreferences/FeatureListPreferencesModule.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_featurelistpreferences/FeatureListPreferencesModule.java
+index 99ed26acfd8..a89d1360d9a 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_featurelistpreferences/FeatureListPreferencesModule.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_featurelistpreferences/FeatureListPreferencesModule.java
+@@ -72,8 +72,9 @@ public static void showSetupAndApply(@NotNull final List<? extends FeatureList>
+       return;
+     }
+ 
+-    // the dialog starts on the preferences that are currently in effect for the first list
+-    final FeatureListPreferencesParameters param = FeatureListPreferencesParameters.fromPreferences(
++    // the dialog redefines nothing, the custom inputs start on the preferences that are currently
++    // in effect for the first list
++    final FeatureListPreferencesParameters param = FeatureListPreferencesParameters.keepAllAsIs(
+         modular.getFirst().getPreferences());
+     param.setParameter(FeatureListPreferencesParameters.flists, new FeatureListsSelection(modular));
+ 
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_featurelistpreferences/FeatureListPreferencesParameters.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_featurelistpreferences/FeatureListPreferencesParameters.java
+index a2fe9282bde..a229052f725 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_featurelistpreferences/FeatureListPreferencesParameters.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_featurelistpreferences/FeatureListPreferencesParameters.java
+@@ -27,22 +27,35 @@
+ 
+ import io.github.mzmine.datamodel.features.preferences.FeatureListPreferences;
+ import io.github.mzmine.datamodel.identities.iontype.IonTypeRanking;
++import io.github.mzmine.javafx.components.factories.FxButtons;
+ import io.github.mzmine.modules.visualization.projectmetadata.SampleTypeFilter;
++import io.github.mzmine.parameters.Parameter;
++import io.github.mzmine.parameters.dialogs.ParameterSetupDialog;
+ import io.github.mzmine.parameters.impl.IonMobilitySupport;
+ import io.github.mzmine.parameters.impl.SimpleParameterSet;
+ import io.github.mzmine.parameters.parametertypes.combowithinput.DefaultOffCustomOption;
+ import io.github.mzmine.parameters.parametertypes.combowithinput.DefaultOffCustomParameter;
+ import io.github.mzmine.parameters.parametertypes.combowithinput.DefaultOffCustomValue;
+ import io.github.mzmine.parameters.parametertypes.selectors.FeatureListsParameter;
++import io.github.mzmine.util.ExitCode;
+ import java.util.Objects;
++import javafx.application.Platform;
++import javafx.scene.control.Button;
++import javafx.scene.control.ButtonBar;
++import javafx.scene.control.ButtonBar.ButtonData;
+ import org.jetbrains.annotations.NotNull;
+ 
+ /**
+  * Every preference is a {@link DefaultOffCustomParameter} without the OFF option and starts on
+- * {@link DefaultOffCustomOption#DEFAULT}. A preference always has to have a value, so OFF makes no
+- * sense, and DEFAULT lets the mzmine default change without every project pinning the old value.
+- * The custom input starts on the same default so switching to CUSTOM shows the value that was in
+- * effect.
++ * {@link DefaultOffCustomOption#KEEP_AS_IS}. A preference always has to have a value, so OFF option
++ * is removed, while KEEP_AS_IS leaves the preference of the feature list untouched and DEFAULT lets
++ * the mzmine default change without every project pinning the old value. The custom input starts on
++ * the mzmine default so switching to CUSTOM shows a sensible value.
++ * <p>
++ * The setup dialog always starts over on KEEP_AS_IS, no matter which values were used the last
++ * time, so that running the module never redefines a preference the user did not touch. Only the
++ * parameters of a batch step keep the selection of the user, see
++ * {@link #setAsBatchStepParameters()}.
+  */
+ public class FeatureListPreferencesParameters extends SimpleParameterSet {
+ 
+@@ -52,49 +65,116 @@ public class FeatureListPreferencesParameters extends SimpleParameterSet {
+ 
+   public static final DefaultOffCustomParameter<SampleTypeFilter> rsdSampleTypes = new DefaultOffCustomParameter<>(
+       FeatureListPreferencesDtoParameters.rsdSampleTypes.cloneParameter(),
+-      DEFAULTS.getRsdSampleTypeFilter(), null, false);
++      DEFAULTS.getRsdSampleTypeFilter(), null, false, true);
+ 
+   public static final DefaultOffCustomParameter<IonTypeRanking> ionTypeRanking = new DefaultOffCustomParameter<>(
+       FeatureListPreferencesDtoParameters.ionTypeRanking.cloneParameter(),
+-      DEFAULTS.getIonTypeRanking(), null, false);
++      DEFAULTS.getIonTypeRanking(), null, false, true);
+ 
+   public FeatureListPreferencesParameters() {
+     super(flists, rsdSampleTypes, ionTypeRanking);
+   }
+ 
++  @Override
++  public ExitCode showSetupDialog(final boolean valueCheckRequired) {
++    assert Platform.isFxApplicationThread();
++
++    if (!isBatchStepParameters()) {
++      // opened from the menu, the quick search, the feature list context menu, the summary, or
++      // while a batch step is added. Redefine nothing until the user picks a preference
++      setAllKeepAsIs();
++    }
++
++    final ParameterSetupDialog dialog = new ParameterSetupDialog(valueCheckRequired, this,
++        getMessage());
++    addKeepAllAsIsButton(dialog);
++    dialog.showAndWait();
++    return dialog.getExitCode();
++  }
++
++  /**
++   * Adds a button that sets every preference of the dialog back to
++   * {@link DefaultOffCustomOption#KEEP_AS_IS}, so that the module redefines nothing.
++   */
++  public void addKeepAllAsIsButton(@NotNull final ParameterSetupDialog dialog) {
++    final Button button = FxButtons.createButton("Keep all as is",
++        "Sets every preference to \"%s\", so that the feature list keeps the values it has".formatted(
++            DefaultOffCustomOption.KEEP_AS_IS), () -> {
++          // take over what the user typed so the custom inputs still show those values
++          dialog.updateParameterSetFromComponents();
++          setAllKeepAsIs();
++          dialog.setParameterValuesToComponents();
++        });
++    // same button data as OK and presets, so the button bar places it right next presets
++    ButtonBar.setButtonData(button, ButtonData.OK_DONE);
++    dialog.getButtonBar().getButtons().add(button);
++  }
++
++  /**
++   * Sets every preference to {@link DefaultOffCustomOption#KEEP_AS_IS}. The custom inputs are kept,
++   * so switching one to CUSTOM starts on the value that was shown.
++   */
++  public void setAllKeepAsIs() {
++    for (final Parameter<?> parameter : getParameters()) {
++      if (parameter instanceof DefaultOffCustomParameter<?> preference) {
++        setKeepAsIs(preference);
++      }
++    }
++  }
++
++  private static <V> void setKeepAsIs(@NotNull final DefaultOffCustomParameter<V> parameter) {
++    final DefaultOffCustomValue<V> current = parameter.getValue();
++    parameter.setValue(new DefaultOffCustomValue<>(DefaultOffCustomOption.KEEP_AS_IS,
++        current == null ? null : current.custom()));
++  }
++
+   /**
+    * Resolves every parameter, so the mzmine default is used where
+-   * {@link DefaultOffCustomOption#DEFAULT} is selected and the typed value where
+-   * {@link DefaultOffCustomOption#CUSTOM} is.
++   * {@link DefaultOffCustomOption#DEFAULT} is selected, the typed value where
++   * {@link DefaultOffCustomOption#CUSTOM} is, and the value of {@code current} where
++   * {@link DefaultOffCustomOption#KEEP_AS_IS} is.
++   *
++   * @param current the preferences that are currently in effect for the target feature list
+    */
+-  public @NotNull FeatureListPreferences toPreferences() {
++  public @NotNull FeatureListPreferences toPreferences(
++      @NotNull final FeatureListPreferences current) {
+     return new FeatureListPreferences(
+-        Objects.requireNonNullElse(getParameter(rsdSampleTypes).resolveValue(),
++        resolve(getParameter(rsdSampleTypes), current.getRsdSampleTypeFilter(),
+             DEFAULTS.getRsdSampleTypeFilter()),
+-        Objects.requireNonNullElse(getParameter(ionTypeRanking).resolveValue(),
++        resolve(getParameter(ionTypeRanking), current.getIonTypeRanking(),
+             DEFAULTS.getIonTypeRanking()));
+   }
+ 
+-  public static @NotNull FeatureListPreferencesParameters fromPreferences(
+-      @NotNull final FeatureListPreferences preferences) {
+-    final FeatureListPreferencesParameters param = (FeatureListPreferencesParameters) new FeatureListPreferencesParameters().cloneParameterSet();
+-    param.setParameter(rsdSampleTypes,
+-        defaultOrCustom(rsdSampleTypes, preferences.getRsdSampleTypeFilter()));
+-    param.setParameter(ionTypeRanking,
+-        defaultOrCustom(ionTypeRanking, preferences.getIonTypeRanking()));
+-    return param;
++  /**
++   * @param currentValue the value that is in effect for the target feature list, used for
++   *                     {@link DefaultOffCustomOption#KEEP_AS_IS}
++   * @param defaultValue fallback, a preference may never be null
++   */
++  private static <V> @NotNull V resolve(@NotNull final DefaultOffCustomParameter<V> parameter,
++      @NotNull final V currentValue, @NotNull final V defaultValue) {
++    if (parameter.isKeepAsIs()) {
++      return currentValue;
++    }
++    return Objects.requireNonNullElse(parameter.resolveValue(), defaultValue);
+   }
+ 
+   /**
+-   * @return DEFAULT if the value still is the mzmine default, otherwise CUSTOM with that value. The
+-   * custom value is always set so the input field shows the value that is in effect.
++   * A parameter set that redefines nothing. The custom inputs are preloaded with {@code current},
++   * so switching a preference to CUSTOM starts on the value that is in effect for the feature
++   * list.
++   *
++   * @param current the preferences of the feature list this parameter set is opened for
+    */
+-  private static <V> @NotNull DefaultOffCustomValue<V> defaultOrCustom(
+-      @NotNull final DefaultOffCustomParameter<V> parameter, @NotNull final V value) {
+-    final DefaultOffCustomOption option =
+-        Objects.equals(value, parameter.getDefaultValue()) ? DefaultOffCustomOption.DEFAULT
+-            : DefaultOffCustomOption.CUSTOM;
+-    return new DefaultOffCustomValue<>(option, value);
++  public static @NotNull FeatureListPreferencesParameters keepAllAsIs(
++      @NotNull final FeatureListPreferences current) {
++    final FeatureListPreferencesParameters param = (FeatureListPreferencesParameters) new FeatureListPreferencesParameters().cloneParameterSet();
++    param.setParameter(rsdSampleTypes,
++        new DefaultOffCustomValue<>(DefaultOffCustomOption.KEEP_AS_IS,
++            current.getRsdSampleTypeFilter()));
++    param.setParameter(ionTypeRanking,
++        new DefaultOffCustomValue<>(DefaultOffCustomOption.KEEP_AS_IS,
++            current.getIonTypeRanking()));
++    return param;
+   }
+ 
+   @Override
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_featurelistpreferences/FeatureListPreferencesTask.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_featurelistpreferences/FeatureListPreferencesTask.java
+index 9e68c6865a0..948a23794af 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_featurelistpreferences/FeatureListPreferencesTask.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_featurelistpreferences/FeatureListPreferencesTask.java
+@@ -58,8 +58,15 @@ protected FeatureListPreferencesTask(@Nullable MemoryMapStorage storage,
+ 
+   @Override
+   protected void process() {
+-    final FeatureListPreferences preferences = param.toPreferences();
+-    final boolean rankingChanged = !flist.getPreferences().getIonTypeRanking()
++    // parameters on KEEP_AS_IS define no value, those preferences are taken from the feature list
++    final FeatureListPreferences current = flist.getPreferences();
++    final FeatureListPreferences preferences = param.toPreferences(current);
++    if (preferences.equals(current)) {
++      // nothing to apply, e.g. all parameters are on KEEP_AS_IS
++      return;
++    }
++
++    final boolean rankingChanged = !current.getIonTypeRanking()
+         .equals(preferences.getIonTypeRanking());
+ 
+     flist.setPreferences(preferences);
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/group_compoundgrouper/CompoundRepresentativeSelectorOption.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/group_compoundgrouper/CompoundRepresentativeSelectorOption.java
+index 3c9bd3edd4b..b9a578ee183 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/group_compoundgrouper/CompoundRepresentativeSelectorOption.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/group_compoundgrouper/CompoundRepresentativeSelectorOption.java
+@@ -1,9 +1,33 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
+ package io.github.mzmine.modules.dataprocessing.group_compoundgrouper;
+ 
+ import io.github.mzmine.datamodel.features.compoundlist.CompoundRepresentativeSelectorModule;
+-import io.github.mzmine.datamodel.identities.iontype.IonPart;
++import io.github.mzmine.datamodel.identities.iontype.IonTypeRanking;
+ import io.github.mzmine.parameters.parametertypes.submodules.ModuleOptionsEnum;
+-import java.util.stream.Collectors;
+ import org.jetbrains.annotations.NotNull;
+ 
+ /**
+@@ -19,11 +43,11 @@ public enum CompoundRepresentativeSelectorOption implements
+   PREFER_ANNOTATED("Prefer annotated highest row (default)", "prefer_annotated", """
+       Prefer annotated rows > ion identities > unknowns and use maximum height row. (default option)""",
+       AnnotatedFirstRepresentativeSelectorModule.class), //
+-  ION_RANKING("Ion type ranking",
+-      "ion_type_ranking", """
+-      Rank by commonly seen ion types:
+-      %s""".formatted(PreferredIonTypeRepresentativeSelector.TIER_ORDER.stream().map(IonPart::name)
+-      .collect(Collectors.joining(" >"))), PreferredIonTypeRepresentativeSelectorModule.class);
++  ION_RANKING("Ion type ranking", "ion_type_ranking", """
++      Rank by the user definable ion type ranking of the feature list preferences 
++      (default: %s), ties broken by annotation quality (AQS) and then by maximum height.""".formatted(
++      IonTypeRanking.createDefault().toShortSummaryString()),
++      PreferredIonTypeRepresentativeSelectorModule.class);
+ 
+   private final String clearName;
+   private final String stableId;
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/group_compoundgrouper/PreferredIonTypeRepresentativeSelector.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/group_compoundgrouper/PreferredIonTypeRepresentativeSelector.java
+index 8fc9af26e8e..66e9477dea1 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/group_compoundgrouper/PreferredIonTypeRepresentativeSelector.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/group_compoundgrouper/PreferredIonTypeRepresentativeSelector.java
+@@ -1,108 +1,97 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
+ package io.github.mzmine.modules.dataprocessing.group_compoundgrouper;
+ 
+ import io.github.mzmine.datamodel.features.FeatureListRow;
++import io.github.mzmine.datamodel.features.annotationpriority.AnnotationSummary;
+ import io.github.mzmine.datamodel.features.compoundlist.CompoundRepresentativeSelector;
++import io.github.mzmine.datamodel.features.preferences.FeatureListPreferences;
+ import io.github.mzmine.datamodel.identities.iontype.IonIdentity;
+-import io.github.mzmine.datamodel.identities.iontype.IonPart;
+-import io.github.mzmine.datamodel.identities.iontype.IonParts;
+ import io.github.mzmine.datamodel.identities.iontype.IonType;
++import io.github.mzmine.datamodel.identities.iontype.IonTypeRanking;
+ import java.util.Comparator;
+ import java.util.List;
++import java.util.Objects;
+ import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
+ 
+ /**
+- * Picks the representative row by inspecting {@link IonType} parts directly: a tier preference
+- * chain (M+H / M-H first, then alternative adducts) is applied with intensity tie-break and an
+- * ultimate fallback to the highest-intensity row.
++ * Picks the representative row by ion type first:
++ * <ol>
++ *   <li>highest {@link IonTypeRanking#score(IonType)} of the row's best {@link IonIdentity}, using
++ *       the user definable ranking from the {@link FeatureListPreferences}
++ *       of the feature list</li>
++ *   <li>ties broken by annotation quality (AQS), see
++ *       {@link CompoundRepresentativeSelector#annotationQualityBestFirst(List)}</li>
++ *   <li>then by intensity</li>
++ * </ol>
++ * Rows without an {@link IonIdentity} are not eligible, the fallback is the highest-intensity row.
++ * Polarity is ignored.
++ * <p>
++ * decision: the ranking replaces the former hard coded adduct tier list so that this selector, the
++ * ion identity networking and every other consumer of {@link IonTypeRanking} agree on which ion
++ * type is the more likely explanation, and so that users can change it in one place.
+  */
+ public final class PreferredIonTypeRepresentativeSelector implements
+     CompoundRepresentativeSelector {
+ 
+-  // Reference parts ranked by tier preference (high → low). Each entry is matched structurally
+-  // via IonPart.equalsWithoutCount, so charge / mass / formula identify the part regardless of
+-  // count.
+-  // decision: M+H / M-H is the most reliable representative; M+ / M- (electron-only) ranks just
+-  // below; alkali adducts and chloride / formate fall after.
+-  public static final List<IonPart> TIER_ORDER = List.of( //
+-      IonParts.H,        // [M+H]+
+-      IonParts.H_MINUS,  // [M-H]-
+-      IonParts.M_PLUS,   // [M]+ (silent / electron-loss)
+-      IonParts.M_MINUS,  // [M]- (electron)
+-      IonParts.NA,       // [M+Na]+
+-      IonParts.CL,       // [M+Cl]-
+-      IonParts.K,        // [M+K]+
+-      IonParts.NH4,       // [M+NH4]+
+-      IonParts.FORMATE_FA // [M+FA-H]- (alone in negative single-adduct case if present)
+-  );
++  /**
++   * A row with its precomputed sort keys. {@link AnnotationSummary} caches its scores internally,
++   * so it is built once per row instead of on every comparison.
++   */
++  private record Candidate(@NotNull FeatureListRow row, double ionScore,
++                           @NotNull AnnotationSummary summary) {
++
++  }
+ 
+   @Override
+   public @NotNull FeatureListRow pickRepresentative(@NotNull final List<FeatureListRow> members) {
+-    final Comparator<FeatureListRow> tierTieIntensity = Comparator.<FeatureListRow>comparingInt(
+-        r -> -tierScore(r)).thenComparing(
+-        Comparator.comparing(CompoundRepresentativeSelector::heightOrZero).reversed());
+-    FeatureListRow best = null;
+-    int bestTier = 0;
+-    for (final FeatureListRow row : members) {
+-      final int tier = tierScore(row);
+-      if (tier <= 0) {
+-        continue;
+-      }
+-      if (best == null || tier > bestTier || (tier == bestTier
+-          && tierTieIntensity.compare(row, best) < 0)) {
+-        best = row;
+-        bestTier = tier;
+-      }
+-    }
+-    if (best != null) {
+-      return best;
+-    }
+-    return CompoundRepresentativeSelector.pickHighestIntensity(members);
+-  }
++    // ranking is shared by the whole feature list, so any member defines it
++    final IonTypeRanking ranking = members.getFirst().getFeatureList().getPreferences()
++        .getIonTypeRanking();
+ 
+-  /**
+-   * Tier score for representative selection. Higher is better. 0 means not eligible at any tier.
+-   * <p>
+-   * Eligibility requires the IonType to be a "clean" single-adduct form: one molecule, no neutral
+-   * losses or clusters, exactly one charged adduct, defined parts.
+-   */
+-  static int tierScore(@NotNull final FeatureListRow row) {
+-    final IonIdentity ion = row.getBestIonIdentity();
+-    if (ion == null) {
+-      return 0;
+-    }
+-    final IonType ionType = ion.getIonType();
+-    if (ionType.molecules() != 1 || ionType.absTotalCharge() > 1 || ionType.isUndefinedAdduct()) {
+-      return 0;
+-    }
+-    // reject any IonType carrying neutral losses / clusters (those rows belong to IN_SOURCE_FRAGMENT)
+-    if (ionType.streamNeutralMods().findAny().isPresent()) {
+-      return 0;
+-    }
+-    final List<IonPart> chargedAdducts = ionType.streamChargedAdducts().toList();
++    final Comparator<Candidate> bestFirst = Comparator.<Candidate>comparingDouble(
++            Candidate::ionScore).reversed().thenComparing(Candidate::summary,
++            CompoundRepresentativeSelector.annotationQualityBestFirst(members))
++        .thenComparing(c -> CompoundRepresentativeSelector.heightOrZero(c.row()),
++            Comparator.reverseOrder());
+ 
+-    // negative-mode special case: [M-H2O-H]- has TWO parts (H2O loss is neutral, H- is charged).
+-    // We reach here only if no neutral mods exist, so this case must be handled before the
+-    // neutral-mods check above. decision: keep neutral-mods reject for the common "single charged
+-    // adduct" rule and detect M-H2O-H separately *before* it via isWaterLossMinusHydrogen.
+-    // Therefore, recheck this case here (we won't get to it through the strict path).
+-    if (chargedAdducts.size() != 1) {
+-      return 0;
+-    }
+-    final IonPart adduct = chargedAdducts.getFirst();
+-    return tierIndex(adduct, TIER_ORDER);
++    // best first comparator so the minimum is the best candidate
++    return members.stream().map(row -> toCandidate(row, ranking)).filter(Objects::nonNull)
++        .min(bestFirst).map(Candidate::row)
++        .orElseGet(() -> CompoundRepresentativeSelector.pickHighestIntensity(members));
+   }
+ 
+-  /**
+-   * Returns the tier score for a single charged adduct against the given preference list. The
+-   * highest-priority match yields {@code preferred.size()}; no match yields 0.
+-   */
+-  private static int tierIndex(@NotNull final IonPart adduct,
+-      @NotNull final List<IonPart> preferred) {
+-    for (int i = 0; i < preferred.size(); i++) {
+-      if (preferred.get(i).equalsWithoutCount(adduct)) {
+-        return preferred.size() - i;
+-      }
++  private static @Nullable Candidate toCandidate(@NotNull final FeatureListRow row,
++      @NotNull final IonTypeRanking ranking) {
++    final IonIdentity ion = row.getBestIonIdentity();
++    if (ion == null) {
++      return null;
+     }
+-    return 0;
++    // AnnotationSummary.of uses the preferred annotation of the row, which may be user defined
++    return new Candidate(row, ranking.score(ion.getIonType()), AnnotationSummary.of(row));
+   }
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/impl/MZmineProcessingStepImpl.java b/mzmine-community/src/main/java/io/github/mzmine/modules/impl/MZmineProcessingStepImpl.java
+index 50fe43ef11e..b4027bbae71 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/impl/MZmineProcessingStepImpl.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/impl/MZmineProcessingStepImpl.java
+@@ -43,6 +43,8 @@ public MZmineProcessingStepImpl(@NotNull final ModuleType module,
+       @NotNull final ParameterSet parameters) {
+     this.module = module;
+     this.parameters = parameters;
++    // from here on the parameters are the stored configuration of this step and are not reset
++    parameters.setAsBatchStepParameters();
+   }
+ 
+   @Override
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/parameters/ParameterSet.java b/mzmine-community/src/main/java/io/github/mzmine/parameters/ParameterSet.java
+index e6c69739f0d..32c6470b8e1 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/parameters/ParameterSet.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/parameters/ParameterSet.java
+@@ -25,6 +25,8 @@
+ 
+ package io.github.mzmine.parameters;
+ 
++import io.github.mzmine.modules.MZmineProcessingStep;
++import io.github.mzmine.modules.dataprocessing.filter_featurelistpreferences.FeatureListPreferencesParameters;
+ import io.github.mzmine.modules.presets.ModulePreset;
+ import io.github.mzmine.modules.presets.ModulePresetStore;
+ import io.github.mzmine.parameters.impl.IonMobilitySupport;
+@@ -260,6 +262,21 @@ default IonMobilitySupport getIonMobilitySupport() {
+ 
+   ExitCode showSetupDialog(boolean valueCheckRequired);
+ 
++  /**
++   * Called when this parameter set becomes the configuration of a batch queue step
++   * {@link MZmineProcessingStep}, either by adding the step, by loading a queue, or by copying a
++   * step. So it is false before the step was added and true afterwards.
++   *
++   * See example of use in {@link FeatureListPreferencesParameters#showSetupDialog(boolean)}
++   */
++  void setAsBatchStepParameters();
++
++  /**
++   * @return true if this set is the stored configuration of a batch step in
++   * {@link MZmineProcessingStep}
++   */
++  boolean isBatchStepParameters();
++
+   /**
+    * Set the value of a parameter
+    *
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/parameters/impl/ComposedParameterSet.java b/mzmine-community/src/main/java/io/github/mzmine/parameters/impl/ComposedParameterSet.java
+index 7c6977a2d52..00c2bc9ee30 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/parameters/impl/ComposedParameterSet.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/parameters/impl/ComposedParameterSet.java
+@@ -53,6 +53,24 @@ public abstract class ComposedParameterSet implements ParameterSet {
+    */
+   protected abstract void setParamSet(ParameterSet newParameters);
+ 
++  @Override
++  public void setAsBatchStepParameters() {
++    final ParameterSet params = getParamSet();
++    if (params == null) {
++      return;
++    }
++    params.setAsBatchStepParameters();
++  }
++
++  /**
++   * @return true if this set is the stored configuration of a batch step, which keeps the selection
++   * of the user instead of starting over whenever the setup dialog is opened
++   */
++  public boolean isBatchStepParameters() {
++    final ParameterSet params = getParamSet();
++    return params != null && params.isBatchStepParameters();
++  }
++
+   @Override
+   public void setSkipSensitiveParameters(final boolean skipSensitiveParameters) {
+     getParamSet().setSkipSensitiveParameters(skipSensitiveParameters);
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/parameters/impl/SimpleParameterSet.java b/mzmine-community/src/main/java/io/github/mzmine/parameters/impl/SimpleParameterSet.java
+index 3abd78e24ef..dfb6251e5ee 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/parameters/impl/SimpleParameterSet.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/parameters/impl/SimpleParameterSet.java
+@@ -79,6 +79,13 @@ public class SimpleParameterSet implements ParameterSet {
+   private String moduleNameAttribute;
+   private boolean skipSensitiveParameters = false;
+ 
++  /**
++   * false as long as this set is a scratch copy, like the one of the module configuration that
++   * every setup dialog reuses. Not copied by {@link #cloneParameterSet()}, a clone is a scratch
++   * copy again until it becomes the configuration of a batch step.
++   */
++  private boolean batchStepParameters = false;
++
+   /**
+    * Error messages populated during loading from xml. This value is not cloned. Do not include in
+    * hashCode or equals.
+@@ -118,6 +125,16 @@ public void setSkipSensitiveParameters(boolean skipSensitiveParameters) {
+     }
+   }
+ 
++  @Override
++  public void setAsBatchStepParameters() {
++    batchStepParameters = true;
++  }
++
++  @Override
++  public boolean isBatchStepParameters() {
++    return batchStepParameters;
++  }
++
+   @Override
+   public Map<String, Parameter<?>> loadValuesFromXML(Element xmlElement) {
+     var nameParameterMap = getNameParameterMap();
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/combowithinput/DefaultOffCustomOption.java b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/combowithinput/DefaultOffCustomOption.java
+index f179ac52194..7ca60fc234a 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/combowithinput/DefaultOffCustomOption.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/combowithinput/DefaultOffCustomOption.java
+@@ -12,6 +12,7 @@
+  *
+  * The above copyright notice and this permission notice shall be
+  * included in all copies or substantial portions of the Software.
++ *
+  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+  * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+@@ -28,15 +29,22 @@
+ import org.jetbrains.annotations.NotNull;
+ 
+ /**
+- * Options for combo parameters that allow a built-in default, an off/disabled state, or a custom
+- * user-defined value.
++ * Options for combo parameters that allow a built-in default, an off/disabled state, a custom
++ * user-defined value, or keeping current value.
+  */
+ public enum DefaultOffCustomOption implements UniqueIdSupplier {
+-  DEFAULT, OFF, CUSTOM;
++
++  /**
++   * The parameter defines no value, the value that is already in effect at the target is kept. Only
++   * offered if the parameter was created with keep as is enabled, see
++   * {@link DefaultOffCustomParameter}.
++   */
++  KEEP_AS_IS, DEFAULT, OFF, CUSTOM;
+ 
+   @Override
+   public @NotNull String getUniqueID() {
+     return switch (this) {
++      case KEEP_AS_IS -> "keep_as_is";
+       case DEFAULT -> "default";
+       case OFF -> "off";
+       case CUSTOM -> "custom";
+@@ -46,6 +54,7 @@ public enum DefaultOffCustomOption implements UniqueIdSupplier {
+   @Override
+   public String toString() {
+     return switch (this) {
++      case KEEP_AS_IS -> "Keep as is";
+       case DEFAULT -> "Default";
+       case OFF -> "Off";
+       case CUSTOM -> "Custom";
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/combowithinput/DefaultOffCustomParameter.java b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/combowithinput/DefaultOffCustomParameter.java
+index 60bbdeab61f..b67c36c50be 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/combowithinput/DefaultOffCustomParameter.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/combowithinput/DefaultOffCustomParameter.java
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright (c) 2004-2026 The mzmine Development Team
++ *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+  * files (the "Software"), to deal in the Software without
+@@ -26,6 +27,8 @@
+ 
+ import io.github.mzmine.datamodel.utils.UniqueIdSupplier;
+ import io.github.mzmine.parameters.UserParameter;
++import java.util.ArrayList;
++import java.util.List;
+ import java.util.Objects;
+ import java.util.logging.Logger;
+ import org.jetbrains.annotations.NotNull;
+@@ -49,6 +52,7 @@ public class DefaultOffCustomParameter<V> extends
+   protected final @Nullable V defaultValue;
+   protected final @Nullable V offValue;
+   protected final boolean includeOff;
++  protected final boolean includeKeepAsIs;
+ 
+   /**
+    * @param embeddedParameter the parameter providing the input field (name, description,
+@@ -60,7 +64,7 @@ public class DefaultOffCustomParameter<V> extends
+    */
+   public DefaultOffCustomParameter(@NotNull UserParameter<V, ?> embeddedParameter,
+       @Nullable V defaultValue, @Nullable V offValue) {
+-    this(embeddedParameter, defaultValue, offValue, true);
++    this(embeddedParameter, defaultValue, offValue, true, false);
+   }
+ 
+   /**
+@@ -76,17 +80,47 @@ public DefaultOffCustomParameter(@NotNull UserParameter<V, ?> embeddedParameter,
+    */
+   public DefaultOffCustomParameter(@NotNull UserParameter<V, ?> embeddedParameter,
+       @Nullable V defaultValue, @Nullable V offValue, boolean includeOff) {
+-    super(embeddedParameter, optionsFor(includeOff), DefaultOffCustomOption.CUSTOM,
+-        new DefaultOffCustomValue<>(DefaultOffCustomOption.DEFAULT, defaultValue));
++    this(embeddedParameter, defaultValue, offValue, includeOff, false);
++  }
++
++  /**
++   * @param embeddedParameter the parameter providing the input field (name, description,
++   *                          validation, …)
++   * @param defaultValue      returned by {@link #resolveValue()} when
++   *                          {@link DefaultOffCustomOption#DEFAULT} is selected; may be
++   *                          {@code null}
++   * @param offValue          returned by {@link #resolveValue()} when
++   *                          {@link DefaultOffCustomOption#OFF} is selected; may be {@code null}
++   * @param includeOff        if {@code false} the {@link DefaultOffCustomOption#OFF} entry is
++   *                          omitted from the combo-box choices
++   * @param includeKeepAsIs   if {@code true} the {@link DefaultOffCustomOption#KEEP_AS_IS} entry is
++   *                          added as the first choice and is selected initially. It resolves to
++   *                          {@code null}, the caller has to keep the value that is already in
++   *                          effect, see {@link #isKeepAsIs()}
++   */
++  public DefaultOffCustomParameter(@NotNull UserParameter<V, ?> embeddedParameter,
++      @Nullable V defaultValue, @Nullable V offValue, boolean includeOff, boolean includeKeepAsIs) {
++    super(embeddedParameter, optionsFor(includeOff, includeKeepAsIs), DefaultOffCustomOption.CUSTOM,
++        new DefaultOffCustomValue<>(
++            includeKeepAsIs ? DefaultOffCustomOption.KEEP_AS_IS : DefaultOffCustomOption.DEFAULT,
++            defaultValue));
+     this.defaultValue = defaultValue;
+     this.offValue = offValue;
+     this.includeOff = includeOff;
++    this.includeKeepAsIs = includeKeepAsIs;
+   }
+ 
+-  private static DefaultOffCustomOption[] optionsFor(boolean includeOff) {
+-    return includeOff ? DefaultOffCustomOption.values()
+-        : new DefaultOffCustomOption[]{DefaultOffCustomOption.DEFAULT,
+-            DefaultOffCustomOption.CUSTOM};
++  private static DefaultOffCustomOption[] optionsFor(boolean includeOff, boolean includeKeepAsIs) {
++    final List<DefaultOffCustomOption> options = new ArrayList<>(4);
++    if (includeKeepAsIs) {
++      options.add(DefaultOffCustomOption.KEEP_AS_IS);
++    }
++    options.add(DefaultOffCustomOption.DEFAULT);
++    if (includeOff) {
++      options.add(DefaultOffCustomOption.OFF);
++    }
++    options.add(DefaultOffCustomOption.CUSTOM);
++    return options.toArray(DefaultOffCustomOption[]::new);
+   }
+ 
+   /**
+@@ -94,17 +128,28 @@ private static DefaultOffCustomOption[] optionsFor(boolean includeOff) {
+    * {@link #defaultValue} and {@link #offValue} fields.
+    *
+    * @return the resolved value; may be {@code null} when {@link DefaultOffCustomOption#OFF} or
+-   * {@link DefaultOffCustomOption#DEFAULT} is selected and the corresponding value is {@code null}
++   * {@link DefaultOffCustomOption#DEFAULT} is selected and the corresponding value is
++   * {@code null}, and always for {@link DefaultOffCustomOption#KEEP_AS_IS} which defines no value
+    */
+   @Nullable
+   public V resolveValue() {
+     return switch (value.getSelectedOption()) {
++      // defines no value, the caller keeps the value that is already in effect
++      case KEEP_AS_IS -> null;
+       case DEFAULT -> defaultValue;
+       case OFF -> offValue;
+       case CUSTOM -> value.getEmbeddedValue();
+     };
+   }
+ 
++  /**
++   * @return true if {@link DefaultOffCustomOption#KEEP_AS_IS} is selected and the caller therefore
++   * has to keep the value that is already in effect instead of applying {@link #resolveValue()}
++   */
++  public boolean isKeepAsIs() {
++    return value != null && value.getSelectedOption() == DefaultOffCustomOption.KEEP_AS_IS;
++  }
++
+   public @Nullable V getDefaultValue() {
+     return defaultValue;
+   }
+@@ -125,7 +170,7 @@ public DefaultOffCustomValue<V> createValue(@NotNull DefaultOffCustomOption opti
+     embeddedClone.setValue(value.custom());
+ 
+     final DefaultOffCustomParameter<V> clone = new DefaultOffCustomParameter<>(embeddedClone,
+-        defaultValue, offValue, includeOff);
++        defaultValue, offValue, includeOff, includeKeepAsIs);
+     final DefaultOffCustomValue<V> currentValue = getValue();
+     clone.setValue(
+         new DefaultOffCustomValue<>(currentValue.getSelectedOption(), currentValue.custom()));
+@@ -146,6 +191,11 @@ public void saveValueToXML(Element xmlElement) {
+     UniqueIdSupplier uniqueId = (UniqueIdSupplier) value.getSelectedOption();
+     xmlElement.setAttribute("selected", uniqueId.getUniqueID());
+ 
++    if (isKeepAsIs()) {
++      // there is no resolved value, the value in effect at the target is kept on load as well
++      return;
++    }
++
+     // save the actual resolved value, no matter what the setting was. We may change "default" or
+     // "off" values in the future.
+     UserParameter<V, ?> embeddedClone = embeddedParameter.cloneParameter();
+@@ -174,6 +224,11 @@ public void loadValueFromXML(Element xmlElement) {
+       return;
+     }
+ 
++    if (!choices.contains(option)) {
++      // an option this parameter does not offer, e.g. a config written while it still had it
++      option = DefaultOffCustomOption.DEFAULT;
++    }
++
+     NodeList actualValueList = xmlElement.getElementsByTagName("actual_value");
+     V actualValue = null;
+     if (actualValueList.getLength() > 0) {
+@@ -189,6 +244,8 @@ public void loadValueFromXML(Element xmlElement) {
+     }
+ 
+     switch (option) {
++      case KEEP_AS_IS ->
++          setValue(createValue(DefaultOffCustomOption.KEEP_AS_IS, embeddedParameter));
+       case DEFAULT -> {
+         if (!Objects.equals(actualValue, defaultValue)) {
+           // default changed, set to custom
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/datamodel/features/preferences/FeatureListPreferencesTest.java b/mzmine-community/src/test/java/io/github/mzmine/datamodel/features/preferences/FeatureListPreferencesTest.java
+index bdb31eb3532..2abac333a89 100644
+--- a/mzmine-community/src/test/java/io/github/mzmine/datamodel/features/preferences/FeatureListPreferencesTest.java
++++ b/mzmine-community/src/test/java/io/github/mzmine/datamodel/features/preferences/FeatureListPreferencesTest.java
+@@ -33,9 +33,11 @@
+ import io.github.mzmine.modules.io.projectload.version_3_0.CONST;
+ import io.github.mzmine.modules.visualization.projectmetadata.SampleType;
+ import io.github.mzmine.modules.visualization.projectmetadata.SampleTypeFilter;
++import io.github.mzmine.parameters.Parameter;
+ import io.github.mzmine.parameters.impl.SimpleParameterSet;
+ import io.github.mzmine.parameters.parametertypes.combowithinput.DefaultOffCustomOption;
+ import io.github.mzmine.parameters.parametertypes.combowithinput.DefaultOffCustomParameter;
++import io.github.mzmine.parameters.parametertypes.combowithinput.DefaultOffCustomValue;
+ import io.github.mzmine.util.XMLUtils;
+ import java.util.ArrayList;
+ import java.util.List;
+@@ -187,62 +189,76 @@ void testWrongElementIsNull() throws ParserConfigurationException {
+   }
+ 
+   /**
+-   * The module parameters wrap every preference in a {@link DefaultOffCustomParameter}. A fresh
+-   * parameter set is on DEFAULT and therefore resolves to the mzmine default.
++   * The module parameters wrap every preference in a {@link DefaultOffCustomParameter}. A set that
++   * is opened for a feature list redefines nothing, but preloads the custom inputs with the
++   * preferences that are in effect.
+    */
+   @Test
+-  void testModuleParametersStartOnDefault() {
+-    final FeatureListPreferencesParameters param = (FeatureListPreferencesParameters) new FeatureListPreferencesParameters().cloneParameterSet();
++  void testKeepAllAsIsStartsOnKeepAsIsWithCurrentInputs() {
++    final FeatureListPreferences current = new FeatureListPreferences(
++        SampleTypeFilter.ofValues("some other group"),
++        new IonTypeRanking(List.of(IonPartFrequency.of(IonParts.NA, 1f))));
++
++    final FeatureListPreferencesParameters param = FeatureListPreferencesParameters.keepAllAsIs(
++        current);
+ 
+-    Assertions.assertEquals(DefaultOffCustomOption.DEFAULT,
+-        param.getParameter(FeatureListPreferencesParameters.rsdSampleTypes).getValue()
+-            .getSelectedOption());
+-    Assertions.assertEquals(DefaultOffCustomOption.DEFAULT,
+-        param.getParameter(FeatureListPreferencesParameters.ionTypeRanking).getValue()
+-            .getSelectedOption());
+-    Assertions.assertEquals(FeatureListPreferences.createDefault(), param.toPreferences());
++    for (Parameter<?> parameter : param.getParameters()) {
++      checkSelectedOption(parameter, DefaultOffCustomOption.KEEP_AS_IS);
++    }
++    // the custom inputs show what is in effect, so switching to CUSTOM starts on that value
++    Assertions.assertEquals(current.getRsdSampleTypeFilter(),
++        param.getParameter(FeatureListPreferencesParameters.rsdSampleTypes).getValue().custom());
++    Assertions.assertEquals(current.getIonTypeRanking(),
++        param.getParameter(FeatureListPreferencesParameters.ionTypeRanking).getValue().custom());
++  }
++
++  private static void checkSelectedOption(Parameter<?> parameter, DefaultOffCustomOption expected) {
++    switch (parameter) {
++      case DefaultOffCustomParameter p ->
++          Assertions.assertEquals(expected, p.getValue().getSelectedOption());
++      default -> {
++      }
++    }
+   }
+ 
+   /**
+-   * A preference that differs from the mzmine default has to come back as CUSTOM, otherwise the
+-   * dialog would silently reset it to the default.
++   * CUSTOM applies the typed value, no matter which preferences the feature list has.
+    */
+   @Test
+-  void testModuleParametersUseCustomForNonDefaultValues() {
+-    final IonTypeRanking onlySodium = new IonTypeRanking(
+-        List.of(IonPartFrequency.of(IonParts.NA, 1f)));
++  void testCustomValuesAreApplied() {
+     final FeatureListPreferences preferences = new FeatureListPreferences(
+-        SampleTypeFilter.ofValues("some other group"), onlySodium);
++        SampleTypeFilter.ofValues("some other group"),
++        new IonTypeRanking(List.of(IonPartFrequency.of(IonParts.NA, 1f))));
+ 
+-    final FeatureListPreferencesParameters param = FeatureListPreferencesParameters.fromPreferences(
+-        preferences);
++    final FeatureListPreferencesParameters param = (FeatureListPreferencesParameters) new FeatureListPreferencesParameters().cloneParameterSet();
++    param.setParameter(FeatureListPreferencesParameters.rsdSampleTypes,
++        new DefaultOffCustomValue<>(DefaultOffCustomOption.CUSTOM,
++            preferences.getRsdSampleTypeFilter()));
++    param.setParameter(FeatureListPreferencesParameters.ionTypeRanking,
++        new DefaultOffCustomValue<>(DefaultOffCustomOption.CUSTOM,
++            preferences.getIonTypeRanking()));
+ 
+-    Assertions.assertEquals(DefaultOffCustomOption.CUSTOM,
+-        param.getParameter(FeatureListPreferencesParameters.rsdSampleTypes).getValue()
+-            .getSelectedOption());
+-    Assertions.assertEquals(DefaultOffCustomOption.CUSTOM,
+-        param.getParameter(FeatureListPreferencesParameters.ionTypeRanking).getValue()
+-            .getSelectedOption());
+-    // resolving returns the custom values again, this is what the task applies
+-    Assertions.assertEquals(preferences, param.toPreferences());
++    Assertions.assertEquals(preferences,
++        param.toPreferences(FeatureListPreferences.createDefault()));
+   }
+ 
+   /**
+-   * Values that still are the mzmine default stay on DEFAULT, so a later change of the mzmine
+-   * default is picked up instead of being pinned to the old value.
++   * DEFAULT applies the mzmine default, so a later change of that default is picked up instead of
++   * being pinned to the value the feature list has.
+    */
+   @Test
+-  void testModuleParametersKeepDefaultForDefaultValues() {
+-    final FeatureListPreferencesParameters param = FeatureListPreferencesParameters.fromPreferences(
+-        FeatureListPreferences.createDefault());
+-
+-    Assertions.assertEquals(DefaultOffCustomOption.DEFAULT,
+-        param.getParameter(FeatureListPreferencesParameters.rsdSampleTypes).getValue()
+-            .getSelectedOption());
+-    Assertions.assertEquals(DefaultOffCustomOption.DEFAULT,
+-        param.getParameter(FeatureListPreferencesParameters.ionTypeRanking).getValue()
+-            .getSelectedOption());
+-    Assertions.assertEquals(FeatureListPreferences.createDefault(), param.toPreferences());
++  void testDefaultAppliesTheMzmineDefault() {
++    final FeatureListPreferences current = new FeatureListPreferences(
++        SampleTypeFilter.ofValues("some other group"),
++        new IonTypeRanking(List.of(IonPartFrequency.of(IonParts.NA, 1f))));
++
++    final FeatureListPreferencesParameters param = (FeatureListPreferencesParameters) new FeatureListPreferencesParameters().cloneParameterSet();
++    param.setParameter(FeatureListPreferencesParameters.rsdSampleTypes,
++        new DefaultOffCustomValue<>(DefaultOffCustomOption.DEFAULT, null));
++    param.setParameter(FeatureListPreferencesParameters.ionTypeRanking,
++        new DefaultOffCustomValue<>(DefaultOffCustomOption.DEFAULT, null));
++
++    Assertions.assertEquals(FeatureListPreferences.createDefault(), param.toPreferences(current));
+   }
+ 
+   @Test

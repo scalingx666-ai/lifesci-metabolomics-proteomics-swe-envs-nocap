@@ -1,0 +1,205 @@
+diff --git a/.github/workflows/CI_build.yml b/.github/workflows/CI_build.yml
+index d43f25731..0474e3a48 100644
+--- a/.github/workflows/CI_build.yml
++++ b/.github/workflows/CI_build.yml
+@@ -139,6 +139,9 @@ jobs:
+       - name: Create conda environment
+         uses: conda-incubator/setup-miniconda@v3
+         with:
++          miniforge-variant: Miniforge3
++          channels: conda-forge
++          channel-priority: strict
+           auto-update-conda: true
+           python-version: '3.12'
+       - name: Show conda config
+diff --git a/matchms/similarity/ModifiedCosineGreedy.py b/matchms/similarity/ModifiedCosineGreedy.py
+index 060e4f739..dc33dd89a 100644
+--- a/matchms/similarity/ModifiedCosineGreedy.py
++++ b/matchms/similarity/ModifiedCosineGreedy.py
+@@ -4,6 +4,7 @@
+ from matchms.typing import SpectrumType
+ from ._precursor_validation import get_valid_precursor_mz
+ from .BaseSimilarity import BaseSimilarity
++from .CosineGreedy import CosineGreedy
+ from .spectrum_similarity_functions import collect_peak_pairs, score_best_matches
+ 
+ 
+@@ -50,16 +51,23 @@ def __init__(self, tolerance: float = 0.1, mz_power: float = 0.0, intensity_powe
+     def pair(self, reference: SpectrumType, query: SpectrumType) -> Tuple[float, int]:
+         """Calculate approximate modified cosine score between two spectra."""
+ 
++        precursor_mz_ref = get_valid_precursor_mz(reference, logger)
++        precursor_mz_query = get_valid_precursor_mz(query, logger)
++        mass_shift = precursor_mz_ref - precursor_mz_query
++
++        if abs(mass_shift) <= self.tolerance:
++            return CosineGreedy(
++                tolerance=self.tolerance,
++                mz_power=self.mz_power,
++                intensity_power=self.intensity_power,
++            ).pair(reference, query)
++
+         def get_matching_pairs():
+             """Find all pairs of peaks that match within the given tolerance."""
+             zero_pairs = collect_peak_pairs(
+                 spec1, spec2, self.tolerance, shift=0.0,
+                 mz_power=self.mz_power, intensity_power=self.intensity_power
+             )
+-            precursor_mz_ref = get_valid_precursor_mz(reference, logger)
+-            precursor_mz_query = get_valid_precursor_mz(query, logger)
+-
+-            mass_shift = precursor_mz_ref - precursor_mz_query
+             nonzero_pairs = collect_peak_pairs(
+                 spec1, spec2, self.tolerance, shift=mass_shift,
+                 mz_power=self.mz_power, intensity_power=self.intensity_power
+diff --git a/matchms/similarity/ModifiedCosineHungarian.py b/matchms/similarity/ModifiedCosineHungarian.py
+index 12a86afdb..6b14a5db8 100644
+--- a/matchms/similarity/ModifiedCosineHungarian.py
++++ b/matchms/similarity/ModifiedCosineHungarian.py
+@@ -6,6 +6,7 @@
+ from matchms.typing import SpectrumType
+ from ._precursor_validation import get_valid_precursor_mz
+ from .BaseSimilarity import BaseSimilarity
++from .CosineHungarian import CosineHungarian
+ 
+ 
+ logger = logging.getLogger("matchms")
+@@ -50,16 +51,23 @@ def __init__(self, tolerance: float = 0.1, mz_power: float = 0.0, intensity_powe
+     def pair(self, reference: SpectrumType, query: SpectrumType) -> Tuple[float, int]:
+         """Calculate exact modified cosine score between two spectra."""
+ 
++        precursor_mz_ref = get_valid_precursor_mz(reference, logger)
++        precursor_mz_query = get_valid_precursor_mz(query, logger)
++        mass_shift = precursor_mz_ref - precursor_mz_query
++
++        if abs(mass_shift) <= self.tolerance:
++            return CosineHungarian(
++                tolerance=self.tolerance,
++                mz_power=self.mz_power,
++                intensity_power=self.intensity_power,
++            ).pair(reference, query)
++
+         def get_matching_pairs():
+             """Find all candidate matching peak pairs for unshifted and shifted views."""
+             zero_pairs = collect_peak_pairs(
+                 spec1, spec2, self.tolerance, shift=0.0,
+                 mz_power=self.mz_power, intensity_power=self.intensity_power
+             )
+-
+-            precursor_mz_ref = get_valid_precursor_mz(reference, logger)
+-            precursor_mz_query = get_valid_precursor_mz(query, logger)
+-            mass_shift = precursor_mz_ref - precursor_mz_query
+             nonzero_pairs = collect_peak_pairs(
+                 spec1, spec2, self.tolerance, shift=mass_shift,
+                 mz_power=self.mz_power, intensity_power=self.intensity_power
+diff --git a/tests/similarity/test_modified_cosine_greedy.py b/tests/similarity/test_modified_cosine_greedy.py
+index 404e0c8e1..4d3662015 100644
+--- a/tests/similarity/test_modified_cosine_greedy.py
++++ b/tests/similarity/test_modified_cosine_greedy.py
+@@ -2,7 +2,7 @@
+ import pytest
+ from matchms import Spectrum
+ from matchms.filtering import normalize_intensities
+-from matchms.similarity import ModifiedCosineGreedy
++from matchms.similarity import CosineGreedy, ModifiedCosineGreedy
+ from ..builder_Spectrum import SpectrumBuilder
+ 
+ 
+@@ -142,3 +142,46 @@ def test_modified_cosine_precursor_mz_as_string(caplog):
+     assert score["matches"] == 0, "Expected 0 matching peaks."
+     expected_msg = "Precursor_mz must be int or float. Apply 'add_precursor_mz' filter first."
+     assert expected_msg in caplog.text, "Expected different log message"
++
++
++@pytest.mark.parametrize("query_precursor_mz", [500.0, 500.5, 501.0])
++def test_modified_cosine_greedy_matches_cosine_greedy_when_precursor_delta_within_tolerance(query_precursor_mz):
++    """Modified cosine greedy should reduce to cosine greedy when |precursor delta| <= tolerance."""
++    tolerance = 1.0
++    reference = Spectrum(
++        mz=np.array([100.0, 101.0, 102.0], dtype="float"),
++        intensities=np.array([1.0, 0.9, 0.8], dtype="float"),
++        metadata={"precursor_mz": 500.0},
++    )
++    query = Spectrum(
++        mz=np.array([100.0, 101.0, 104.0], dtype="float"),
++        intensities=np.array([1.0, 0.9, 0.8], dtype="float"),
++        metadata={"precursor_mz": query_precursor_mz},
++    )
++
++    modified_score = ModifiedCosineGreedy(tolerance=tolerance).pair(reference, query)
++    cosine_score = CosineGreedy(tolerance=tolerance).pair(reference, query)
++
++    assert modified_score["score"] == pytest.approx(cosine_score["score"], abs=1e-12)
++    assert modified_score["matches"] == cosine_score["matches"]
++
++
++def test_modified_cosine_greedy_matches_cosine_greedy_for_negative_boundary_delta():
++    """Modified cosine greedy should reduce to cosine greedy at negative boundary delta as well."""
++    tolerance = 1.0
++    reference = Spectrum(
++        mz=np.array([100.0, 101.0, 102.0], dtype="float"),
++        intensities=np.array([1.0, 0.9, 0.8], dtype="float"),
++        metadata={"precursor_mz": 499.0},
++    )
++    query = Spectrum(
++        mz=np.array([100.0, 101.0, 104.0], dtype="float"),
++        intensities=np.array([1.0, 0.9, 0.8], dtype="float"),
++        metadata={"precursor_mz": 500.0},
++    )
++
++    modified_score = ModifiedCosineGreedy(tolerance=tolerance).pair(reference, query)
++    cosine_score = CosineGreedy(tolerance=tolerance).pair(reference, query)
++
++    assert modified_score["score"] == pytest.approx(cosine_score["score"], abs=1e-12)
++    assert modified_score["matches"] == cosine_score["matches"]
+diff --git a/tests/similarity/test_modified_cosine_hungarian.py b/tests/similarity/test_modified_cosine_hungarian.py
+index 1e930a3d3..155477f3f 100644
+--- a/tests/similarity/test_modified_cosine_hungarian.py
++++ b/tests/similarity/test_modified_cosine_hungarian.py
+@@ -182,3 +182,46 @@ def test_modified_cosine_hungarian_outperforms_approximation_on_conflicting_matc
+     assert exact["matches"] == 2
+     assert approx["matches"] == 1
+     assert exact["score"] > approx["score"]
++
++
++@pytest.mark.parametrize("query_precursor_mz", [500.0, 500.5, 501.0])
++def test_modified_cosine_hungarian_matches_cosine_hungarian_when_precursor_delta_within_tolerance(query_precursor_mz):
++    """Modified cosine Hungarian should reduce to cosine Hungarian when |precursor delta| <= tolerance."""
++    tolerance = 1.0
++    reference = Spectrum(
++        mz=np.array([100.0, 101.0, 102.0], dtype="float"),
++        intensities=np.array([1.0, 0.9, 0.8], dtype="float"),
++        metadata={"precursor_mz": 500.0},
++    )
++    query = Spectrum(
++        mz=np.array([100.0, 101.0, 104.0], dtype="float"),
++        intensities=np.array([1.0, 0.9, 0.8], dtype="float"),
++        metadata={"precursor_mz": query_precursor_mz},
++    )
++
++    modified_score = ModifiedCosineHungarian(tolerance=tolerance).pair(reference, query)
++    cosine_score = CosineHungarian(tolerance=tolerance).pair(reference, query)
++
++    assert modified_score["score"] == pytest.approx(cosine_score["score"], abs=1e-12)
++    assert modified_score["matches"] == cosine_score["matches"]
++
++
++def test_modified_cosine_hungarian_matches_cosine_hungarian_for_negative_boundary_delta():
++    """Modified cosine Hungarian should reduce to cosine Hungarian at negative boundary delta."""
++    tolerance = 1.0
++    reference = Spectrum(
++        mz=np.array([100.0, 101.0, 102.0], dtype="float"),
++        intensities=np.array([1.0, 0.9, 0.8], dtype="float"),
++        metadata={"precursor_mz": 499.0},
++    )
++    query = Spectrum(
++        mz=np.array([100.0, 101.0, 104.0], dtype="float"),
++        intensities=np.array([1.0, 0.9, 0.8], dtype="float"),
++        metadata={"precursor_mz": 500.0},
++    )
++
++    modified_score = ModifiedCosineHungarian(tolerance=tolerance).pair(reference, query)
++    cosine_score = CosineHungarian(tolerance=tolerance).pair(reference, query)
++
++    assert modified_score["score"] == pytest.approx(cosine_score["score"], abs=1e-12)
++    assert modified_score["matches"] == cosine_score["matches"]

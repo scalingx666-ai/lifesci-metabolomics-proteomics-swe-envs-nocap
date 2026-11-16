@@ -1,0 +1,378 @@
+diff --git a/docs/src/gpt.md b/docs/src/gpt.md
+index 8b1378917..d316626f0 100644
+--- a/docs/src/gpt.md
++++ b/docs/src/gpt.md
+@@ -1 +1,65 @@
++> Python arguments are equivalent to long-option arguments (`--arg`), unless otherwise specified. Flags are True/False arguments in Python. The manual for any gget tool can be called from the command-line using the `-h` `--help` flag.  
++## gget gpt 💬
++Generates natural language text based on a given prompt using the [OpenAI](https://openai.com/) API's 'openai.ChatCompletion.create' endpoint. 
++This module, including its source code, documentation and unit tests, were partly written by OpenAI's Chat-GTP3.  
+ 
++NOTE:  
++OpenAI API calls are only 'free' for the first three months after generating your OpenAI Account (OpenAI provides a $5 credit that expires).  
++You can define a hard monthly billing limit (e.g. $1) [here](https://platform.openai.com/account/billing/limits).  
++See their pricing and FAQ [here](https://openai.com/pricing).  
++Get your OpenAI API key [here](https://platform.openai.com/account/api-keys).  
++
++Returns: A string containing the generated text.  
++
++**Positional argument**  
++`prompt`  
++The input prompt to generate text from (str).  
++
++`api_key`  
++Your OpenAI API key (str) ([get your API key](https://platform.openai.com/account/api-keys)).  
++
++**Optional arguments**  
++`-m` `--model`  
++The name of the GPT model to use for generating the text (str). Default is "gpt-3.5-turbo".  
++See https://platform.openai.com/docs/models/gpt-4 for more information on the available models.  
++
++`-temp` `--temperature`   
++Value between 0 and 2 that controls the level of randomness and creativity in the generated text (float).  
++Higher values result in more creative and varied text. Default is 1.  
++
++`-tp` `--top_p`   
++Controls the diversity of the generated text as an alternative to sampling with temperature (float).  
++Higher values result in more diverse and unexpected text. Default is 1.  
++Note: OpenAI recommends altering this or temperature but not both.  
++
++`-s` `--stop`   
++A sequence of tokens to mark the end of the generated text (str). Default is None.  
++
++`-mt` `--max_tokens`   
++Controls the maximum length of the generated text, in tokens (int). Default is 200.  
++
++`-pp` `--presence_penalty`   
++Number between -2.0 and 2.0. Higher values result increase the model's likelihood to talk about new topics (float). Default is 0.  
++
++`-fp` `--frequency_penalty`   
++Number between -2.0 and 2.0. Higher values decrease the model's likelihood to repeat the same line verbatim (float). Default is 0.  
++
++`-lb` `--logit_bias`   
++A dictionary that specifies a bias towards certain tokens in the generated text (dict). Default is None.  
++
++`-o` `--out`   
++If provided, saves the generated text to a file with the specified path (str). Default: Standard out.  
++  
++  
++### Example
++```bash
++gget gpt "How are you today GPT?" your_api_token
++```
++```python
++# Python
++print(gget.gpt("How are you today GPT?", "your_api_token"))
++```
++
++<br>
++
++<img width="725" alt="Screen Shot 2023-03-18 at 3 42 32 PM" src="https://user-images.githubusercontent.com/56094636/226143902-6fa2d0c7-7eea-4382-b1d2-df6c3f0d5fd5.png">
+diff --git a/gget/gget_gpt.py b/gget/gget_gpt.py
+index 8b1378917..3f5c46f01 100644
+--- a/gget/gget_gpt.py
++++ b/gget/gget_gpt.py
+@@ -1 +1,104 @@
++# Add and format time stamp in logging messages
++logging.basicConfig(
++    format="%(asctime)s %(levelname)s %(message)s",
++    level=logging.INFO,
++    datefmt="%c",
++)
++# Mute numexpr threads info
++logging.getLogger("numexpr").setLevel(logging.WARNING)
+ 
++import openai
++
++
++def gpt(
++    prompt,
++    api_key,
++    model="gpt-3.5-turbo",
++    temperature=1,
++    top_p=1,
++    stop=None,
++    max_tokens=200,
++    presence_penalty=0,
++    frequency_penalty=0,
++    logit_bias=None,
++    out=None,
++):
++    """
++    Generates natural language text based on a given prompt using the OpenAI API's 'openai.ChatCompletion.create' endpoint.
++
++    Parameters:
++    - prompt (str):             The input prompt to generate text from.
++    - api_key (str):            Your OpenAI API key (see: https://platform.openai.com/account/api-keys).
++    - model (str):              The name of the GPT model to use for generating the text. Default is "gpt-3.5-turbo".
++                                See https://platform.openai.com/docs/models/gpt-4 for more information on the available models.
++    - temperature (float)       Value between 0 and 2 that controls the level of randomness and creativity in the generated text.
++                                Higher values result in more creative and varied text. Default is 1.
++    - top_p (float)             Controls the diversity of the generated text as an alternative to sampling with temperature.
++                                Higher values result in more diverse and unexpected text. Default is 1.
++                                Note: OpenAI recommends altering this or temperature but not both.
++    - stop (str)                A sequence of tokens to mark the end of the generated text. Default is None.
++    - max_tokens (int)          Controls the maximum length of the generated text, in tokens. Default is 200.
++    - presence_penalty (float)  Number between -2.0 and 2.0. Higher values result increase the model's likelihood to talk about new topics.
++                                Default is 0.
++    - frequency_penalty (float) Number between -2.0 and 2.0. Higher values decrease the model's likelihood to repeat the same line verbatim.
++                                Default is 0.
++    - logit_bias (dict)         A dictionary that specifies a bias towards certain tokens in the generated text. Default is None.
++    - out (str)                 If provided, saves the generated text to a file with the specified path. Default: Standard out.
++
++    Returns:
++    - A string containing the generated text.
++
++    NOTE: OpenAI API calls are only 'free' for the first three months after generating your OpenAI Account
++    (OpenAI provides a $5 credit that expires).
++    You can define a hard billing limit (e.g. $1) here: https://platform.openai.com/account/billing/limits
++    See their pricing and FAQ here: https://openai.com/pricing
++
++    This module, including its source code, documentation and unittests, were partly written by OpenAI's Chat-GTP3.
++    """
++
++    openai.api_key = api_key
++
++    messages = [
++        {"role": "user", "content": prompt},
++    ]
++
++    # https://platform.openai.com/docs/api-reference/chat/create
++    if logit_bias is None:
++        response = openai.ChatCompletion.create(
++            model=model,
++            messages=messages,
++            temperature=temperature,
++            top_p=top_p,
++            n=1,
++            stream=False,
++            stop=stop,
++            max_tokens=max_tokens,
++            presence_penalty=presence_penalty,
++            frequency_penalty=frequency_penalty,
++        )
++    else:
++        response = openai.ChatCompletion.create(
++            model=model,
++            messages=messages,
++            temperature=temperature,
++            top_p=top_p,
++            n=1,
++            stream=False,
++            stop=stop,
++            max_tokens=max_tokens,
++            presence_penalty=presence_penalty,
++            frequency_penalty=frequency_penalty,
++            logit_bias=logit_bias,
++        )
++
++    logging.info(
++        f"Total tokens used for API call to model '{model}': {response['usage']['total_tokens']}"
++    )
++
++    texts = response["choices"][0]["message"]["content"]
++
++    if out:
++        with open(out, "w") as f:
++            f.write(texts)
++
++    return texts + "\n"
+diff --git a/gget/main.py b/gget/main.py
+index 68214535b..9c8f28655 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -969,7 +969,7 @@ def main():
+     )
+ 
+     # gpt parser arguments
+-    gpt_desc = "Generate text using the OpenAI API."
++    gpt_desc = "Generates natural language text based on a given prompt using the OpenAI API's 'openai.ChatCompletion.create' endpoint."
+     parser_gpt = parent_subparsers.add_parser(
+         "gpt",
+         parents=[parent],
+@@ -980,7 +980,7 @@ def main():
+     parser_gpt.add_argument(
+         "prompt",
+         type=str,
+-        help="The input prompt for the GPT-3 model to generate text from",
++        help="The input prompt to generate text from.",
+     )
+     parser_gpt.add_argument(
+         "api_key",
+@@ -988,21 +988,28 @@ def main():
+         help="Your OpenAI API key (see: https://platform.openai.com/account/api-keys)",
+     )
+     parser_gpt.add_argument(
+-        "-e",
+-        "--engine",
++        "-m",
++        "--model",
+         type=str,
+-        default="davinci",
+-        choices=["davinci", "curie", "babbage", "ada"],
++        default="gpt-3.5-turbo",
+         required=False,
+-        help="The name of the GPT-3 engine to use (defaults to 'davinci')",
++        help="The name of the GPT model to use (defaults to 'gpt-3.5-turbo') (see: https://platform.openai.com/docs/models/gpt-4)",
+     )
+     parser_gpt.add_argument(
+-        "-m",
+-        "--max_tokens",
+-        type=int,
+-        default=100,
++        "-temp",
++        "--temperature",
++        type=float,
++        default=1,
++        required=False,
++        help="Value between 0 and 2.0 that controls the level of randomness and creativity in the generated text.",
++    )
++    parser_gpt.add_argument(
++        "-tp",
++        "--top_p",
++        type=float,
++        default=1,
+         required=False,
+-        help="The maximum number of tokens (words or subwords) in the generated text (defaults to 100)",
++        help="Controls the diversity of the generated text as an alternative to sampling with temperature.",
+     )
+     parser_gpt.add_argument(
+         "-s",
+@@ -1010,19 +1017,43 @@ def main():
+         type=str,
+         default=None,
+         required=False,
+-        help="A sequence of tokens that should indicate the end of the generated text (defaults to None)",
++        help="A sequence of tokens to mark the end of the generated text.",
+     )
+     parser_gpt.add_argument(
+-        "-t",
+-        "--temperature",
++        "-mt",
++        "--max_tokens",
++        type=int,
++        default=200,
++        required=False,
++        help="Controls the maximum length of the generated text, in tokens.",
++    )
++    parser_gpt.add_argument(
++        "-pp",
++        "--presence_penalty",
++        type=float,
++        default=0,
++        required=False,
++        help="Number between -2.0 and 2.0. Higher values result increase the model's likelihood to talk about new topics.",
++    )
++    parser_gpt.add_argument(
++        "-fp",
++        "--frequency_penalty",
+         type=float,
+-        default=0.5,
++        default=0,
++        required=False,
++        help="Number between -2.0 and 2.0. Higher values decrease the model's likelihood to repeat the same line verbatim.",
++    )
++    parser_gpt.add_argument(
++        "-lb",
++        "--logit_bias",
++        type=dict,
++        default=None,
+         required=False,
+-        help="Controls the 'creativity' of the generated text (defaults to 0.5)",
++        help="A dictionary that specifies a bias towards certain tokens in the generated text.",
+     )
+     parser_gpt.add_argument(
+         "-o",
+-        "--output",
++        "--out",
+         type=str,
+         default=None,
+         required=False,
+@@ -1059,15 +1090,19 @@ def main():
+ 
+     # Show  module specific help if only module but no further arguments are given
+     command_to_parser = {
+-        "muscle": parser_muscle,
+         "ref": parser_ref,
+         "search": parser_gget,
+-        "seq": parser_seq,
+         "info": parser_info,
++        "seq": parser_seq,
++        "muscle": parser_muscle,
+         "blast": parser_blast,
+         "blat": parser_blat,
+         "enrichr": parser_enrichr,
+         "archs4": parser_archs4,
++        "setup": parser_setup,
++        "alphafold": parser_alphafold,
++        "pdb": parser_pdb,
++        "gpt": parser_gpt,
+     }
+ 
+     if len(sys.argv) == 2:
+@@ -1082,14 +1117,18 @@ def main():
+         gpt_results = gpt(
+             prompt=args.prompt,
+             api_key=args.api_key,
+-            engine=args.engine,
+-            max_tokens=args.max_tokens,
+-            stop=args.stop,
++            model=args.model,
+             temperature=args.temperature,
+-            output=args.output,
++            top_p=args.top_p,
++            stop=args.stop,
++            max_tokens=args.max_tokens,
++            presence_penalty=args.presence_penalty,
++            frequency_penalty=args.frequency_penalty,
++            logit_bias=args.logit_bias,
++            out=args.out,
+         )
+ 
+-        if args.output is None:
++        if args.out is None:
+             sys.stdout.write(gpt_results)
+ 
+     ## blat return
+diff --git a/tests/test_gpt.py b/tests/test_gpt.py
+index 8b1378917..4da87c097 100644
+--- a/tests/test_gpt.py
++++ b/tests/test_gpt.py
+@@ -1 +1,37 @@
++class TestGpt(unittest.TestCase):
++    @patch("openai.ChatCompletion.create")
++    def test_gpt(self, mock_create):
++        # Mock the response from the API
++        mock_response = {
++            "choices": [{"message": {"content": "This is a generated response."}}],
++            "usage": {"total_tokens": 10},
++        }
++        mock_create.return_value = mock_response
++
++        # Call the function with a prompt and test API key
++        prompt = "Test prompt"
++        api_key = "test_api_key"
++        output = gpt(prompt, api_key)
++
++        # Check that the mock API was called with the correct arguments
++        messages = [
++            {"role": "user", "content": prompt},
++        ]
++
++        mock_create.assert_called_once_with(
++            model="gpt-3.5-turbo",
++            messages=messages,
++            temperature=1,
++            top_p=1,
++            n=1,
++            stream=False,
++            stop=None,
++            max_tokens=200,
++            presence_penalty=0,
++            frequency_penalty=0,
++        )
++
++        # Check that the output matches the mock response
++        expected_output = "This is a generated response.\n"
++        self.assertEqual(output, expected_output)
+ 

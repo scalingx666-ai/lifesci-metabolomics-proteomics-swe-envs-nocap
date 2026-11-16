@@ -1,0 +1,57 @@
+diff --git a/matchms/filtering/metadata_processing/derive_annotation_from_compound_name.py b/matchms/filtering/metadata_processing/derive_annotation_from_compound_name.py
+index 1f2484041..1b3eca876 100644
+--- a/matchms/filtering/metadata_processing/derive_annotation_from_compound_name.py
++++ b/matchms/filtering/metadata_processing/derive_annotation_from_compound_name.py
+@@ -135,7 +135,7 @@ def _pubchem_name_search(compound_name: str, name_search_depth=10, max_retries=1
+             extracted_results = []
+             # extract the needed information:
+             for result in results_pubchem:
+-                smiles_pubchem = result.isomeric_smiles
++                smiles_pubchem = result.smiles
+                 if smiles_pubchem is None:
+                     smiles_pubchem = result.canonical_smiles
+                 extracted_results.append(
+diff --git a/pyproject.toml b/pyproject.toml
+index 9d20ceb24..bdec5d8ff 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -31,7 +31,6 @@ python = ">=3.10,<3.14"
+ numpy = ">=2.0.0"
+ scipy = "^1.15.3"
+ pandas = "^2.2.3"
+-pillow = "!=9.4.0"
+ lxml = "^5.4.0"
+ matplotlib = ">=3.7"
+ networkx = "^3.4.2"
+@@ -44,7 +43,8 @@ tqdm = ">=4.65.0"
+ rdkit = "^2024.3.5"
+ pyyaml = ">=6.0.1"
+ deprecated = ">=1.2.14"
+-pubchempy = "*"
++# Update pubchempy once a new version is released on pypi
++pubchempy= { git = "https://github.com/mcs07/PubChemPy.git", rev = "a5d8646" }
+ pynndescent = ">=0.5.13"
+ 
+ [tool.poetry.group.dev.dependencies]
+diff --git a/tests/filtering/test_derive_annotation_from_compound_name.py b/tests/filtering/test_derive_annotation_from_compound_name.py
+index fd96bc6f7..dcf3978ba 100644
+--- a/tests/filtering/test_derive_annotation_from_compound_name.py
++++ b/tests/filtering/test_derive_annotation_from_compound_name.py
+@@ -170,7 +170,7 @@ def test_load_compound_name_annotation(compound_name, expected_output, csv_file_
+             [
+                 {
+                     "compound_name": "glucose",
+-                    "smiles": None, # Correct: "C([C@@H]1[C@H]([C@@H]([C@H](C(O1)O)O)O)O)O", smiles retrieval is broken
++                    "smiles": "C([C@@H]1[C@H]([C@@H]([C@H](C(O1)O)O)O)O)O",
+                     "inchi": "InChI=1S/C6H12O6/c7-1-2-3(8)4(9)5(10)6(11)12-2/h2-11H,1H2/t2-,3-,4+,5-,6?/m1/s1",
+                     "inchikey": "WQZGKKKJIJFFOK-GASJEMHNSA-N",
+                     "monoisotopic_mass": 180.06338810,
+@@ -217,7 +217,7 @@ def test_pubchem_name_search(compound_name, expected_output):
+             [
+                 {
+                     "compound_name": "glucose",
+-                    "smiles": None, # "C([C@@H]1[C@H]([C@@H]([C@H](C(O1)O)O)O)O)O" (but smiles retrieval is broken)
++                    "smiles": "C([C@@H]1[C@H]([C@@H]([C@H](C(O1)O)O)O)O)O",
+                     "inchi": "InChI=1S/C6H12O6/c7-1-2-3(8)4(9)5(10)6(11)12-2/h2-11H,1H2/t2-,3-,4+,5-,6?/m1/s1",
+                     "inchikey": "WQZGKKKJIJFFOK-GASJEMHNSA-N",
+                     "monoisotopic_mass": 180.06338810,

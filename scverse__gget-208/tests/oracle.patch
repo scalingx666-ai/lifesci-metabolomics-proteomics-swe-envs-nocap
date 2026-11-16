@@ -1,0 +1,1381 @@
+diff --git a/docs/src/en/virus.md b/docs/src/en/virus.md
+index a17a5c03b..0724bb3c1 100644
+--- a/docs/src/en/virus.md
++++ b/docs/src/en/virus.md
+@@ -248,386 +248,3 @@ If you use `gget virus` in a publication, please cite the following articles:
+   - O’Leary, N.A., Cox, E., Holmes, J.B. et al (2024). Exploring and retrieving sequence and metadata for species across the tree of life with NCBI Datasets. Sci Data 11, 732. [https://doi.org/10.1038/s41597-024-03571-y](https://doi.org/10.1038/s41597-024-03571-y)
+ 
+ 
+----
+----
+-
+-# Additional Details: Virus Retrieval Workflow
+-
+-## Overview
+-
+-The `gget.virus()` function implements an optimized 10-step workflow for retrieving virus sequences and associated metadata from NCBI. The system is designed to minimize download overhead by filtering metadata first, then downloading only the sequences that pass initial filters, with optional detailed GenBank metadata retrieval. For SARS-CoV-2 and Alphainfluenza queries, the workflow can use optimized cached data packages while still applying all filters and fetching GenBank metadata.
+-
+-## Architecture
+-
+-```
+-┌─────────────────────────────┐
+-│           Users             │
+-│                             │
+-│  • Virus Query (Taxon/Acc)  │
+-│  • Filter Criteria          │
+-│    (Host, Dates, Length...) │
+-│  • Output Flags             │
+-│    (`--genbank_metadata`)   │
+-└──────────────┬──────────────┘
+-               │
+-               ▼
+-┌─────────────────────────────┐
+-│  Cached Download Check      │
+-│  (SARS-CoV-2/Alphainfluenza)│
+-│                             │
+-│  • Auto-detect or use flags │
+-│  • Download cached packages │
+-│  • Apply basic filters      │
+-│    (host, complete, lineage)│
+-│  • Store for pipeline use   │
+-└──────────────┬──────────────┘
+-               │
+-               ▼
+-┌─────────────────────────────┐
+-│   API & Pre-Filtering       │
+-│   (or use cached metadata)  │
+-│                             │
+-│  • Calls NCBI Datasets API  │
+-│    OR uses cached metadata  │
+-│  • Applies server-side      │
+-│    filters (host, refseq)   │
+-└──────────────┬──────────────┘
+-               │
+-               ▼
+-┌─────────────────────────────┐
+-│ Local Metadata Filtering &  │
+-│     Sequence Handling       │
+-│                             │
+-│  • Applies ALL remaining    │
+-│    local filters (dates,    │
+-│    gene counts, etc.)       │
+-│  • Generates final list of  │
+-│    accession numbers        │
+-│  • Uses cached sequences OR │
+-│    downloads via E-utilities│
+-└──────────────┬──────────────┘
+-               │
+-   ┌───────────┴──────────────────────────────────────────┐
+-   │                                                      │
+-   ▼                                                      ▼
+-┌─────────────────────────────┐      ┌───────────────────────────────────┐
+-│   Final Processing          │      │   GenBank Metadata (Optional)     │
+-│                             │      │                                   │
+-│  • Applies sequence-level   │      │ • Fetched even for cached         │
+-│    filters (e.g., max N's)  │      │   downloads when requested        │
+-│  • Formats standard metadata│      │ • Uses final accession list       │
+-└──────────────┬──────────────┘      │ • Fetches via E-utilities API     │
+-               │                     └──────────────────┬────────────────┘
+-               │                                        │
+-               └──────────────────┬─────────────────────┘
+-                                  │
+-                                  ▼
+-                    ┌───────────────────────────────┐
+-                    │   Save Final Output Files     │
+-                    │                               │
+-                    │  • _sequences.fasta           │
+-                    │  • _metadata.csv & .jsonl     │
+-                    │  • _genbank_metadata.csv      │
+-                    │    (if requested)             │
+-                    └──────────────┬────────────────┘
+-                                   │
+-                                   ▼
+-                    ┌───────────────────────────────┐
+-                    │   Summary & Cleanup           │
+-                    │                               │
+-                    │  • command_summary.txt        │
+-                    │  • Display results to user    │
+-                    │  • Clean temp files           │
+-                    └───────────────────────────────┘
+-```
+-
+-## Workflow Steps
+-
+-### Step 1: Input Validation & Setup
+-- **Function**: `virus()` main function
+-- **Purpose**: Validate all user parameters and configure logging
+-- **Key Operations**:
+-  - Validate virus taxon/accession format
+-  - Check filter parameter ranges and formats
+-  - Set up output directory structure
+-  - Configure logging based on verbosity level
+-  - Check for SARS-CoV-2 or Alphainfluenza optimization opportunities
+-
+-### Step 2: Optimized Cached Download (SARS-CoV-2 & Alphainfluenza)
+-- **Functions**: `download_sars_cov2_optimized()`, `download_alphainfluenza_optimized()`
+-- **Purpose**: Use NCBI's pre-computed cached data packages for faster downloads
+-- **NCBI datasets CLI**: gget bundles the NCBI datasets CLI binary for all major platforms (macOS, Linux, Windows). If you already have the `datasets` CLI installed on your system, gget will automatically use your system installation instead.
+-- **Key Operations**:
+-  - Auto-detect or use explicit flags for SARS-CoV-2/Alphainfluenza queries
+-  - Download compressed cached packages via NCBI datasets CLI
+-  - Apply basic filters supported by cached downloads (host, complete_only, annotated, lineage)
+-  - Extract sequences and basic metadata
+-  - **Store data for pipeline continuation** (does not return early)
+-  - Hierarchical fallback to standard API if cached download fails
+-- **Filters Applied**:
+-  - ✅ `host` - Applied during download
+-  - ✅ `complete_only` - Applied during download
+-  - ✅ `annotated` - Applied during download
+-  - ✅ `lineage` (COVID only) - Applied during download
+-  - ⏭️ All other filters applied in subsequent steps
+-
+-### Step 3: Metadata Retrieval
+-- **Function**: `fetch_virus_metadata()`
+-- **Purpose**: Retrieve metadata from NCBI Datasets API with server-side filtering, or use cached metadata
+-- **Key Operations**:
+-  - **If using cached download**: Skip API call, use cached metadata
+-  - **Otherwise**: Call NCBI Datasets API with server-side filters
+-  - Apply server-side filters (host, geographic location, release date, completeness)
+-  - Handle API pagination with connection pooling
+-  - Implement exponential backoff with jitter for retries
+-  - Parse JSON responses with streaming for large datasets
+-  - Store metadata in structured format with validation
+-
+-### Step 4: Metadata-Only Filtering
+-- **Function**: `filter_metadata_only()`
+-- **Purpose**: Apply ALL local filters that don't require sequence data
+-- **Key Operations**:
+-  - Filter by date ranges with smart date parsing
+-  - Filter by genome completeness and quality indicators
+-  - Apply numeric range filters (gene/protein counts, sequence length)
+-  - Handle missing or malformed metadata gracefully
+-  - Generate optimized accession list for targeted processing
+-  - **Note**: Filters not applied during cached download are applied here
+-
+-### Step 5: Sequence Handling
+-- **Function**: `download_sequences_by_accessions()`
+-- **Purpose**: Use cached sequences or download FASTA sequences for filtered accessions
+-- **Key Operations**:
+-  - **If using cached download**: Filter cached sequences by accession list from Step 4
+-  - **Otherwise**: Download via E-utilities API with batch optimization
+-  - Implement configurable batch sizes (default: 200)
+-  - Stream large responses to manage memory
+-  - Handle download retries with exponential backoff
+-  - Return path to FASTA file for processing
+-
+-### Step 6: Sequence-Dependent Filtering
+-- **Function**: `filter_sequences()`
+-- **Purpose**: Apply final filters requiring sequence analysis
+-- **Key Operations**:
+-  - Parse FASTA sequences and calculate sequence metrics
+-  - Filter by ambiguous character count (`max_ambiguous_chars`)
+-  - Filter by protein/gene presence (`has_proteins`)
+-  - Filter by protein completeness indicators (`proteins_complete`)
+-  - Return filtered sequences and updated metadata
+-
+-### Step 7: Saving Final Output Files
+-- **Functions**: `save_metadata_to_csv()`, `FastaIO.write()`
+-- **Purpose**: Save filtered sequences and metadata to output files
+-- **Key Operations**:
+-  - Write filtered sequences to FASTA file
+-  - Save metadata to CSV and JSONL formats
+-  - Track output file sizes for summary
+-  - Validate file creation success
+-
+-### Step 8: GenBank Metadata Retrieval (Optional)
+-- **Function**: `fetch_genbank_metadata()`
+-- **Purpose**: Fetch detailed GenBank records for final sequence set
+-- **Key Operations**:
+-  - **Available for both cached and non-cached downloads**
+-  - Retrieve comprehensive GenBank records
+-  - Extract 23+ metadata fields per record
+-  - Process in configurable batch sizes
+-  - Implement rate limiting and retries
+-  - Parse and validate GenBank XML
+-  - Merge with existing metadata
+-
+-### Step 9: Final Summary & Command Summary Generation
+-- **Function**: `save_command_summary()`
+-- **Purpose**: Create detailed summary of execution and display results
+-- **Key Operations**:
+-  - Record command line and parameters
+-  - Track filtering statistics at each stage
+-  - List output files with sizes
+-  - Document any failed operations with retry commands
+-  - Display comprehensive results summary to user
+-
+-### Step 10: Cleanup
+-- **Purpose**: Clean up temporary files and finalize execution
+-- **Key Operations**:
+-  - Remove temporary processing directory (unless `keep_temp=True`)
+-  - Remove intermediate metadata files
+-  - Preserve GenBank metadata CSV when successfully retrieved
+-  - Log completion status
+-
+-## Function Dependencies
+-
+-```
+-virus()
+-├── check_min_max()                          [Step 1: Input validation]
+-│   └── Validates min/max parameter pairs
+-├── is_sars_cov2_query()                     [Step 2: SARS-CoV-2 detection]
+-│   └── Auto-detects SARS-CoV-2 queries
+-├── download_sars_cov2_optimized()           [Step 2: Cached download]
+-│   ├── _get_datasets_path()
+-│   ├── NCBI datasets CLI calls
+-│   └── Cached package downloads
+-├── is_alphainfluenza_query()                [Step 2b: Alphainfluenza detection]
+-│   └── Auto-detects Alphainfluenza queries
+-├── download_alphainfluenza_optimized()      [Step 2b: Cached download]
+-│   ├── _get_datasets_path()
+-│   ├── NCBI datasets CLI calls
+-│   └── Cached package downloads
+-├── unzip_file()                             [Step 2/2b: Extract cached data]
+-│   └── ZIP extraction utilities
+-├── fetch_virus_metadata()                   [Step 3: API metadata retrieval]
+-│   ├── NCBI Datasets API client
+-│   ├── Pagination handling
+-│   ├── Retry logic with backoff
+-│   └── _get_modified_virus_name() for retry
+-├── fetch_virus_metadata_chunked()           [Step 3: Fallback for large datasets]
+-│   └── Date-chunked download strategy
+-├── load_metadata_from_api_reports()         [Step 3: Metadata conversion]
+-│   └── Converts API format to internal format
+-├── filter_metadata_only()                   [Step 4: Metadata filtering]
+-│   ├── parse_date() for date comparisons
+-│   ├── Numeric validation
+-│   └── Missing data handling
+-├── download_sequences_by_accessions()       [Step 5: Sequence download]
+-│   ├── E-utilities API client
+-│   ├── Batch processing (default: 200)
+-│   └── Stream handling
+-├── filter_sequences()                       [Step 6: Sequence filtering]
+-│   ├── FastaIO parser
+-│   └── Sequence validation
+-├── save_metadata_to_csv()                   [Step 7: Save outputs]
+-│   └── CSV formatting and writing
+-├── fetch_genbank_metadata()                 [Step 8: Optional GenBank data]
+-│   ├── _fetch_genbank_batch()
+-│   ├── _clean_xml_declarations()
+-│   ├── XML parsing utilities
+-│   └── Rate limiting
+-├── save_genbank_metadata_to_csv()           [Step 8: Save GenBank data]
+-│   └── Merges with virus metadata
+-└── save_command_summary()                   [Step 9: Execution summary]
+-    └── Failed operations tracking
+-```
+-
+-## Usage Examples
+-
+-### Command Line Examples
+-
+-```bash
+-# Get help and see all available parameters
+-$ gget virus --help
+-
+-$ gget virus "Nipah virus"
+-
+-# Download Zika virus sequences with basic filtering (API + metadata filtering)
+-$ gget virus "Zika virus" --host human --min_seq_length 10000 --max_seq_length 11000
+-
+-# Download with metadata and sequence filtering
+-$ gget virus "Ebolavirus" --max_seq_length 20000 --genbank_metadata -o ./ebola_data
+-
+-# Download SARS-CoV-2 with cached optimization
+-$ gget virus "SARS-CoV-2" --host dog --nuc_completeness complete
+-
+-# Download Influenza A with post-download sequence filtering (warning: big data size)
+-$ gget virus "Influenza A virus" --host human --max_ambiguous_chars 50 --has_proteins spike
+-
+-# Using accession ID to get data
+-$ gget virus -a "MK947457" --host deer --min_collection_date "2020-01-01"
+-```
+-
+-### Python Examples
+-
+-```python
+-  import gget
+-  import pandas as pd
+-  from Bio import SeqIO
+-
+-  # Basic download with GenBank metadata
+-  gget.virus(
+-    "Zika virus",
+-    host="human",
+-    genbank_metadata=True,
+-    outfolder="zika_data"
+-  )
+-
+-  # Access different data types from output files
+-  sequences = list(SeqIO.parse("zika_data/Zika_virus_sequences.fasta", "fasta"))
+-  virus_metadata = pd.read_csv("zika_data/Zika_virus_metadata.csv")
+-  genbank_metadata = pd.read_csv("zika_data/Zika_virus_genbank_metadata.csv")
+-
+-  # Print GenBank metadata summary
+-  for _, row in genbank_metadata.head().iterrows():
+-    print(f"Sequence: {row['accession']}")
+-    print(f"  Length: {row['sequence_length']} bp")
+-    print(f"  Host: {row.get('host', 'Unknown')}")
+-    print(f"  Location: {row.get('geographic_location', 'Unknown')}")
+-    print(f"  Collection date: {row.get('collection_date', 'Unknown')}")
+-
+-  # Advanced filtering with GenBank data
+-  gget.virus(
+-    "SARS-CoV-2", 
+-    host="human",
+-    min_seq_length=29000,
+-    max_seq_length=30000,
+-    min_collection_date="2020-03-01",
+-    max_collection_date="2020-03-31",
+-    geographic_location="North America",
+-    genbank_metadata=True,
+-    genbank_batch_size=200,
+-    outfolder="covid_march2020"
+-  )
+-
+-  # Process and analyze results
+-
+-  # Read virus metadata
+-  virus_df = pd.read_csv("covid_march2020/SARS-CoV-2_metadata.csv")
+-  print(f"Total sequences: {len(virus_df)}")
+-  print(f"Unique hosts: {virus_df['Host'].nunique()}")
+-  print(f"Date range: {virus_df['Collection Date'].min()} to {virus_df['Collection Date'].max()}")
+-
+-  # Read GenBank metadata for detailed analysis
+-  genbank_df = pd.read_csv("covid_march2020/SARS-CoV-2_genbank_metadata.csv")
+-  print(f"Sequences with GenBank data: {len(genbank_df)}")
+-  print("\nPublication summary:")
+-  print(genbank_df['reference_count'].describe())
+-
+-  # Custom sequence analysis
+-  sequences = list(SeqIO.parse("covid_march2020/SARS-CoV-2_sequences.fasta", "fasta"))
+-  for record in sequences:
+-    gc_content = (str(record.seq).count('G') + str(record.seq).count('C')) / len(record.seq)
+-    print(f"{record.id}: GC content = {gc_content:.2%}")
+-
+-  # Merge metadata sources
+-  merged_df = pd.merge(
+-    virus_df,
+-    genbank_df,
+-    on='accession',
+-    how='left',
+-    suffixes=('_virus', '_genbank')
+-  )
+-
+-  # Save merged analysis
+-  merged_df.to_csv("covid_march2020/combined_analysis.csv", index=False)
+-```
+-
+-### Analysis Strategy Examples
+-
+-The examples above demonstrate different analysis approaches:
+-
+-1. **Basic GenBank Integration**: Fetch sequences with GenBank metadata for comprehensive analysis
+-2. **Advanced Filtering**: Combine virus metadata and GenBank data with custom filters
+-3. **Custom Analysis**: Process sequences and metadata using BioPython and Pandas
+-4. **Data Integration**: Merge virus and GenBank metadata for detailed analysis
+-
+-### Programmatic Access
+-```python
+-# Access filtered metadata and sequences
+-metadata_file = "covid_data/SARS-CoV-2_metadata.jsonl"
+-sequences_file = "covid_data/SARS-CoV-2_sequences.fasta"
+-
+-# Process results with custom analysis
+-import json
+-with open(metadata_file) as f:
+-    for line in f:
+-        record = json.loads(line)
+-        # Custom analysis here
+-```
+-
+diff --git a/docs/src/es/virus.md b/docs/src/es/virus.md
+index 3acccee19..64db97ddb 100644
+--- a/docs/src/es/virus.md
++++ b/docs/src/es/virus.md
+@@ -244,593 +244,3 @@ Si utilizas `gget virus` en una publicación, por favor cita los siguientes art
+ 
+   - O’Leary, N.A., Cox, E., Holmes, J.B. et al (2024). Exploring and retrieving sequence and metadata for species across the tree of life with NCBI Datasets. Sci Data 11, 732. [https://doi.org/10.1038/s41597-024-03571-y](https://doi.org/10.1038/s41597-024-03571-y)
+ 
+----
+----
+-
+-# Detalles Adicionales: Flujo de trabajo de recuperación de virus
+-
+-## Visión general
+-
+-La función `gget.virus()` implementa un flujo de trabajo optimizado de 10 pasos para recuperar secuencias virales y metadatos asociados desde NCBI. El sistema está diseñado para minimizar la sobrecarga de descarga filtrando primero los metadatos y luego descargando solo las secuencias que pasan los filtros iniciales, con recuperación opcional de metadatos detallados de GenBank. Para consultas de SARS-CoV-2 y Alphainfluenza, el flujo de trabajo puede usar paquetes de datos optimizados en caché mientras sigue aplicando todos los filtros y obteniendo metadatos de GenBank.
+-
+-## Arquitectura
+-
+-```
+-┌─────────────────────────────┐
+-│           Usuarios          │
+-│                             │
+-│  • Consulta de virus        │
+-│    (Taxón/Acc)              │
+-│  • Criterios de filtrado    │
+-│    (Hospedador, fechas,     │
+-│     longitud...)            │
+-│  • Banderas de salida       │
+-│    (`--genbank_metadata`)   │
+-└──────────────┬──────────────┘
+-               │
+-               ▼
+-┌─────────────────────────────┐
+-│  Verificación de descarga   │
+-│  en caché                   │
+-│  (SARS-CoV-2/Alphainfluenza)│
+-│                             │
+-│  • Autodetección o banderas │
+-│  • Descarga de paquetes     │
+-│    en caché                 │
+-│  • Aplicar filtros básicos  │
+-│    (host, complete, lineage)│
+-│  • Guardar para el pipeline │
+-└──────────────┬──────────────┘
+-               │
+-               ▼
+-┌─────────────────────────────┐
+-│   API y prefiltrado         │
+-│   (o usar metadatos en      │
+-│    caché)                   │
+-│                             │
+-│  • Llama a NCBI Datasets API│
+-│    O usa metadatos en caché │
+-│  • Aplica filtros del lado  │
+-│    del servidor (host,      │
+-│    refseq)                  │
+-└──────────────┬──────────────┘
+-               │
+-               ▼
+-┌─────────────────────────────┐
+-│ Filtrado local de metadatos │
+-│ y manejo de secuencias      │
+-│                             │
+-│  • Aplica TODOS los filtros │
+-│    locales restantes        │
+-│    (fechas, recuentos de    │
+-│     genes, etc.)            │
+-│  • Genera la lista final de │
+-│    números de acceso        │
+-│  • Usa secuencias en caché  │
+-│    O descarga vía           │
+-│    E-utilities              │
+-└──────────────┬──────────────┘
+-               │
+-   ┌───────────┴──────────────────────────────────────────┐
+-   │                                                      │
+-   ▼                                                      ▼
+-┌─────────────────────────────┐      ┌───────────────────────────────────┐
+-│   Procesamiento final       │      │   Metadatos de GenBank (Opcional) │
+-│                             │      │                                   │
+-│  • Aplica filtros a nivel   │      │ • Se obtienen incluso para        │
+-│    de secuencia (p. ej.,    │      │   descargas en caché cuando       │
+-│    max N's)                 │      │   se solicita                     │
+-│  • Formatea metadatos       │      │ • Usa la lista final de           │
+-│    estándar                 │      │   números de acceso               │
+-└──────────────┬──────────────┘      │ • Se obtienen vía E-utilities API │
+-               │                     └──────────────────┬────────────────┘
+-               │                                        │
+-               └──────────────────┬─────────────────────┘
+-                                  │
+-                                  ▼
+-                    ┌───────────────────────────────┐
+-                    │ Guardar archivos de salida    │
+-                    │ finales                       │
+-                    │                               │
+-                    │  • _sequences.fasta           │
+-                    │  • _metadata.csv & .jsonl     │
+-                    │  • _genbank_metadata.csv      │
+-                    │    (si se solicita)           │
+-                    └──────────────┬────────────────┘
+-                                   │
+-                                   ▼
+-                    ┌───────────────────────────────┐
+-                    │   Resumen y limpieza          │
+-                    │                               │
+-                    │  • command_summary.txt        │
+-                    │  • Mostrar resultados al      │
+-                    │    usuario                    │
+-                    │  • Limpiar archivos temporales│
+-                    └───────────────────────────────┘
+-```
+-
+-## Pasos del flujo de trabajo
+-
+-### Paso 1: Validación de entrada y configuración
+-
+-* **Función**: función principal `virus()`
+-* **Propósito**: Validar todos los parámetros del usuario y configurar el logging
+-* **Operaciones clave**:
+-
+-  * Validar el formato del taxón/accesión del virus
+-  * Verificar rangos y formatos de los parámetros de filtrado
+-  * Configurar la estructura del directorio de salida
+-  * Configurar el logging según el nivel de verbosidad
+-  * Verificar oportunidades de optimización para SARS-CoV-2 o Alphainfluenza
+-
+-### Paso 2: Descarga optimizada en caché (SARS-CoV-2 y Alphainfluenza)
+-
+-* **Funciones**: `download_sars_cov2_optimized()`, `download_alphainfluenza_optimized()`
+-* **Propósito**: Usar los paquetes de datos en caché precomputados por NCBI para descargas más rápidas
+-* **NCBI datasets CLI**: gget incluye el binario de la CLI de NCBI datasets para las principales plataformas (macOS, Linux, Windows). Si ya tienes la CLI `datasets` instalada en tu sistema, gget usará automáticamente la instalación del sistema.
+-* **Operaciones clave**:
+-
+-  * Autodetectar o usar banderas explícitas para consultas de SARS-CoV-2/Alphainfluenza
+-  * Descargar paquetes comprimidos en caché mediante NCBI datasets CLI
+-  * Aplicar filtros básicos soportados por descargas en caché (host, complete_only, annotated, lineage)
+-  * Extraer secuencias y metadatos básicos
+-  * **Guardar datos para continuar el pipeline** (no retorna temprano)
+-  * Retroceso jerárquico a la API estándar si falla la descarga en caché
+-* **Filtros aplicados**:
+-
+-  * ✅ `host` - Aplicado durante la descarga
+-  * ✅ `complete_only` - Aplicado durante la descarga
+-  * ✅ `annotated` - Aplicado durante la descarga
+-  * ✅ `lineage` (solo COVID) - Aplicado durante la descarga
+-  * ⏭️ Todos los demás filtros se aplican en pasos posteriores
+-
+-### Paso 3: Recuperación de metadatos
+-
+-* **Función**: `fetch_virus_metadata()`
+-* **Propósito**: Recuperar metadatos desde NCBI Datasets API con filtrado del lado del servidor, o usar metadatos en caché
+-* **Operaciones clave**:
+-
+-  * **Si se usa descarga en caché**: Omitir llamada a la API, usar metadatos en caché
+-  * **De lo contrario**: Llamar a NCBI Datasets API con filtros del lado del servidor
+-  * Aplicar filtros del lado del servidor (host, ubicación geográfica, fecha de liberación, completitud)
+-  * Manejar paginación de la API con connection pooling
+-  * Implementar exponential backoff con jitter para reintentos
+-  * Parsear respuestas JSON con streaming para conjuntos de datos grandes
+-  * Almacenar metadatos en un formato estructurado con validación
+-
+-### Paso 4: Filtrado solo de metadatos
+-
+-* **Función**: `filter_metadata_only()`
+-* **Propósito**: Aplicar TODOS los filtros locales que no requieren datos de secuencia
+-* **Operaciones clave**:
+-
+-  * Filtrar por rangos de fechas con análisis inteligente de fechas
+-  * Filtrar por completitud del genoma e indicadores de calidad
+-  * Aplicar filtros de rango numérico (recuentos de genes/proteínas, longitud de secuencia)
+-  * Manejar metadatos faltantes o malformados de forma robusta
+-  * Generar lista optimizada de accesiones para procesamiento dirigido
+-  * **Nota**: Los filtros no aplicados durante la descarga en caché se aplican aquí
+-
+-### Paso 5: Manejo de secuencias
+-
+-* **Función**: `download_sequences_by_accessions()`
+-* **Propósito**: Usar secuencias en caché o descargar secuencias FASTA para accesiones filtradas
+-* **Operaciones clave**:
+-
+-  * **Si se usa descarga en caché**: Filtrar secuencias en caché por la lista de accesiones del Paso 4
+-  * **De lo contrario**: Descargar mediante la API de E-utilities con optimización por lotes
+-  * Implementar tamaños de lote configurables (por defecto: 200)
+-  * Hacer streaming de respuestas grandes para gestionar memoria
+-  * Manejar reintentos de descarga con exponential backoff
+-  * Devolver la ruta al archivo FASTA para procesamiento
+-
+-### Paso 6: Filtrado dependiente de la secuencia
+-
+-* **Función**: `filter_sequences()`
+-* **Propósito**: Aplicar filtros finales que requieren análisis de secuencia
+-* **Operaciones clave**:
+-
+-  * Parsear secuencias FASTA y calcular métricas de secuencia
+-  * Filtrar por recuento de caracteres ambiguos (`max_ambiguous_chars`)
+-  * Filtrar por presencia de proteína/gen (`has_proteins`)
+-  * Filtrar por indicadores de completitud de proteínas (`proteins_complete`)
+-  * Devolver secuencias filtradas y metadatos actualizados
+-
+-### Paso 7: Guardar los archivos de salida finales
+-
+-* **Funciones**: `save_metadata_to_csv()`, `FastaIO.write()`
+-* **Propósito**: Guardar secuencias filtradas y metadatos en archivos de salida
+-* **Operaciones clave**:
+-
+-  * Escribir secuencias filtradas en un archivo FASTA
+-  * Guardar metadatos en formatos CSV y JSONL
+-  * Registrar tamaños de archivos de salida para el resumen
+-  * Validar que los archivos se hayan creado correctamente
+-
+-### Paso 8: Recuperación de metadatos de GenBank (Opcional)
+-
+-* **Función**: `fetch_genbank_metadata()`
+-* **Propósito**: Obtener registros detallados de GenBank para el conjunto final de secuencias
+-* **Operaciones clave**:
+-
+-  * **Disponible tanto para descargas en caché como sin caché**
+-  * Recuperar registros completos de GenBank
+-  * Extraer 23+ campos de metadatos por registro
+-  * Procesar en tamaños de lote configurables
+-  * Implementar rate limiting y reintentos
+-  * Parsear y validar XML de GenBank
+-  * Combinar con metadatos existentes
+-
+-### Paso 9: Resumen final y generación del resumen del comando
+-
+-* **Función**: `save_command_summary()`
+-* **Propósito**: Crear un resumen detallado de la ejecución y mostrar resultados
+-* **Operaciones clave**:
+-
+-  * Registrar la línea de comandos y parámetros
+-  * Seguir estadísticas de filtrado en cada etapa
+-  * Listar archivos de salida con tamaños
+-  * Documentar operaciones fallidas con comandos de reintento
+-  * Mostrar un resumen de resultados completo al usuario
+-
+-### Paso 10: Limpieza
+-
+-* **Propósito**: Limpiar archivos temporales y finalizar la ejecución
+-* **Operaciones clave**:
+-
+-  * Eliminar el directorio temporal de procesamiento (a menos que `keep_temp=True`)
+-  * Eliminar archivos de metadatos intermedios
+-  * Conservar el CSV de metadatos de GenBank cuando se recupera con éxito
+-  * Registrar el estado de finalización
+-
+-## Dependencias de funciones
+-
+-```
+-virus()
+-├── check_min_max()                          [Paso 1: Validación de entrada]
+-│   └── Valida pares de parámetros min/max
+-├── is_sars_cov2_query()                     [Paso 2: Detección de SARS-CoV-2]
+-│   └── Autodetecta consultas de SARS-CoV-2
+-├── download_sars_cov2_optimized()           [Paso 2: Descarga en caché]
+-│   ├── _get_datasets_path()
+-│   ├── Llamadas a NCBI datasets CLI
+-│   └── Descarga de paquetes en caché
+-├── is_alphainfluenza_query()                [Paso 2b: Detección de Alphainfluenza]
+-│   └── Autodetecta consultas de Alphainfluenza
+-├── download_alphainfluenza_optimized()      [Paso 2b: Descarga en caché]
+-│   ├── _get_datasets_path()
+-│   ├── Llamadas a NCBI datasets CLI
+-│   └── Descarga de paquetes en caché
+-├── unzip_file()                             [Paso 2/2b: Extraer datos en caché]
+-│   └── Utilidades de extracción ZIP
+-├── fetch_virus_metadata()                   [Paso 3: Recuperación de metadatos API]
+-│   ├── Cliente de NCBI Datasets API
+-│   ├── Manejo de paginación
+-│   ├── Lógica de reintento con backoff
+-│   └── _get_modified_virus_name() para reintento
+-├── fetch_virus_metadata_chunked()           [Paso 3: Fallback para conjuntos grandes]
+-│   └── Estrategia de descarga por bloques de fecha
+-├── load_metadata_from_api_reports()         [Paso 3: Conversión de metadatos]
+-│   └── Convierte el formato de la API al formato interno
+-├── filter_metadata_only()                   [Paso 4: Filtrado de metadatos]
+-│   ├── parse_date() para comparaciones de fecha
+-│   ├── Validación numérica
+-│   └── Manejo de datos faltantes
+-├── download_sequences_by_accessions()       [Paso 5: Descarga de secuencias]
+-│   ├── Cliente de la API de E-utilities
+-│   ├── Procesamiento por lotes (por defecto: 200)
+-│   └── Manejo de streaming
+-├── filter_sequences()                       [Paso 6: Filtrado de secuencias]
+-│   ├── Parser FastaIO
+-│   └── Validación de secuencias
+-├── save_metadata_to_csv()                   [Paso 7: Guardar salidas]
+-│   └── Formateo y escritura CSV
+-├── fetch_genbank_metadata()                 [Paso 8: Datos opcionales de GenBank]
+-│   ├── _fetch_genbank_batch()
+-│   ├── _clean_xml_declarations()
+-│   ├── Utilidades de parseo XML
+-│   └── Rate limiting
+-├── save_genbank_metadata_to_csv()           [Paso 8: Guardar datos de GenBank]
+-│   └── Combina con metadatos del virus
+-└── save_command_summary()                   [Paso 9: Resumen de ejecución]
+-    └── Seguimiento de operaciones fallidas
+-```
+-
+-## Características de optimización
+-
+-### 1. **Filtrado del lado del servidor**
+-
+-* Aplica filtros a nivel de la API de NCBI para reducir la transferencia de datos
+-* Filtros soportados: host, ubicación geográfica, fecha de liberación, completitud del genoma
+-* Validación automática de compatibilidad y valores de filtros
+-
+-### 2. **Filtrado en múltiples etapas**
+-
+-* **Etapa 1**: Filtros solo de metadatos (rápido, sin descarga de secuencias)
+-* **Etapa 2**: Filtros dependientes de la secuencia (conjunto prefiltrado)
+-* **Etapa 3**: Integración y filtrado de metadatos de GenBank
+-* **Etapa 4**: Validación final y controles de calidad
+-
+-### 3. **Descargas optimizadas**
+-
+-* Tamaños de lote configurables para diferentes tipos de datos
+-* Connection pooling para mejorar el rendimiento
+-* Manejo de streaming para descargas grandes
+-* Mecanismos de rate limiting y reintento
+-
+-### 4. **Descargas optimizadas en caché**
+-
+-* Manejo especial para consultas de SARS-CoV-2 y Alphainfluenza usando paquetes de datos en caché de NCBI
+-* Detección automática o banderas explícitas (`--is_sars_cov2`, `--is_alphainfluenza`)
+-* Estrategias de fallback jerárquicas a la API estándar si falla la descarga en caché
+-* Descargas significativamente más rápidas para conjuntos de datos grandes
+-* **Continuación del pipeline**: Las descargas en caché ahora continúan por todos los pasos del flujo de trabajo
+-* **Filtrado posterior a la descarga**: Los filtros no aplicados durante la descarga en caché se aplican después
+-* **Metadatos de GenBank**: Disponible para descargas en caché cuando se usa la bandera `--genbank_metadata`
+-* **Categorías de filtros**:
+-
+-  * Aplicados durante la descarga: `host`, `complete_only`, `annotated`, `lineage` (COVID)
+-  * Aplicados después: todos los demás filtros (longitud de secuencia, recuentos de genes, fechas, etc.)
+-
+-### 5. **Estructuras de datos eficientes**
+-
+-* Diccionarios basados en accesión para búsquedas O(1)
+-* Parsers en streaming para JSON y XML
+-* Manejo de FASTA eficiente en memoria
+-* Combinación de metadatos optimizada
+-
+-## Archivos de salida
+-
+-### 1. **Secuencias FASTA** (`{virus}_sequences.fasta`)
+-
+-* Contiene secuencias de nucleótidos para resultados filtrados
+-* Formato FASTA estándar con encabezados detallados
+-* Se conserva la orientación original de NCBI
+-* Anotaciones opcionales de proteínas/segmentos en los encabezados
+-
+-### 2. **Metadatos CSV** (`{virus}_metadata.csv`)
+-
+-* Formato tabular para análisis en hojas de cálculo
+-* Estructura de columnas estandarizada
+-* Información geográfica y taxonómica
+-* Detalles de recolección y envío
+-* Métricas de calidad y anotaciones
+-
+-### 3. **Metadatos de GenBank** (`{virus}_genbank_metadata.csv`) [Opcional]
+-
+-* 23+ columnas detalladas de metadatos
+-* Referencias de publicaciones
+-* Anotaciones de características
+-* Referencias cruzadas a otras bases de datos
+-* Detalles de cepa e aislamiento
+-
+-### 4. **Metadatos JSONL** (`{virus}_metadata.jsonl`)
+-
+-* Formato JSON Lines para metadatos de virus después del filtrado solo de metadatos
+-* Formato amigable para streaming y acceso programático
+-* Un objeto JSON por secuencia con los mismos campos que el CSV de metadatos
+-* Los campos específicos de GenBank se almacenan por separado en `{virus}_genbank_metadata.csv` cuando se utiliza `--genbank_metadata`
+-
+-### 5. **Resumen del comando** (`command_summary.txt`)
+-
+-* Resumen generado automáticamente de la ejecución del comando
+-* Registra la línea de comandos exacta que se ejecutó
+-* Estado de ejecución (éxito/fallo con mensajes de error)
+-* Estadísticas de filtrado en cada etapa:
+-
+-  * Registros totales desde la API
+-  * Registros después del filtrado de metadatos
+-  * Secuencias finales después de todos los filtros
+-* Estadísticas detalladas:
+-
+-  * Hospedadores únicos con recuentos (hasta 20 principales)
+-  * Ubicaciones geográficas únicas con recuentos (hasta 20 principales)
+-  * Rango de longitudes de secuencia y promedio
+-  * Desglose de completitud (complete vs partial)
+-  * Desglose de base de datos de origen (GenBank vs RefSeq)
+-  * Países de remitentes únicos con recuentos (hasta 20 principales)
+-* Lista de todos los archivos de salida generados con tamaños
+-* **Seguimiento de operaciones fallidas** (cuando aplica):
+-
+-  * **Fallos por timeout de API**: URL exacta que expiró con sugerencias alternativas
+-  * **Lotes de descarga de secuencias fallidos**: números de lote, listas de accesiones y URLs de reintento
+-  * **Lotes de metadatos de GenBank fallidos**: listas de accesiones con URLs de reintento individuales
+-  * Todas las operaciones fallidas incluyen comandos/URLs exactos que pueden ejecutarse manualmente para reintentar
+-
+-## Características de rendimiento
+-
+-### Escalabilidad
+-
+-* **Conjuntos pequeños** (< 1,000 secuencias): procesamiento casi instantáneo
+-* **Conjuntos medianos** (1,000 - 10,000 secuencias): minutos para completarse
+-* **Conjuntos grandes** (> 10,000 secuencias): paginación y filtrado optimizados
+-
+-### Uso de memoria
+-
+-* El procesamiento en streaming minimiza el uso de memoria
+-* Metadatos cacheados en memoria para operaciones de filtrado
+-* Archivos FASTA grandes procesados en bloques
+-
+-### Eficiencia de red
+-
+-* Mínimas llamadas a la API gracias al filtrado del lado del servidor
+-* Descargas dirigidas reducen el uso de ancho de banda
+-* Reintento automático con exponential backoff
+-
+-## Manejo de errores
+-
+-### Fallos de API
+-
+-* Estrategia de reintento inteligente con exponential backoff y jitter
+-* Detección de errores del lado del servidor con guía específica:
+-
+-  * Manejo de timeouts para conjuntos grandes
+-  * Sugerencias para optimizar filtros geográficos
+-  * Ajustes de tamaño de lote para metadatos de GenBank
+-* Connection pooling y gestión de sesiones
+-* Registro detallado de errores con pasos de troubleshooting
+-
+-### Validación de datos
+-
+-* Validación integral de parámetros de entrada:
+-
+-  * Verificación de tipos para todos los parámetros
+-  * Validación de rangos para valores numéricos
+-  * Validación de formato y rango de fechas
+-  * Normalización de parámetros booleanos
+-* Verificación de integridad de secuencias:
+-
+-  * Validación de formato FASTA
+-  * Detección de caracteres ambiguos
+-  * Chequeos de completitud de proteínas/genes
+-* Validación de consistencia de metadatos:
+-
+-  * Verificación de presencia de campos requeridos
+-  * Validación de tipo de datos
+-  * Validación de referencias cruzadas
+-  * Validación de registros de GenBank
+-
+-### Mecanismos de recuperación
+-
+-* Limpieza automática de archivos temporales
+-* Preservación parcial de resultados:
+-
+-  * Guardado de metadatos intermedios
+-  * Guardado progresivo del estado de filtrado
+-  * Caché de metadatos de GenBank
+-* Estrategias de fallback jerárquicas:
+-
+-  * Paquetes optimizados de SARS-CoV-2
+-  * Fallback a datos en caché
+-  * Fallback a recuperación basada en API
+-* Reporte detallado de errores:
+-
+-  * Análisis de causa raíz
+-  * Sugerencias de comandos alternativos
+-  * Recomendaciones para relajar filtros
+-  * Consejos de optimización de rendimiento
+-
+-## Ejemplos de uso
+-
+-### Ejemplos de línea de comandos
+-
+-```bash
+-# Get help and see all available parameters
+-$ gget virus --help
+-
+-$ gget virus "Nipah virus"
+-
+-# Download Zika virus sequences with basic filtering (API + metadata filtering)
+-$ gget virus "Zika virus" --host human --min_seq_length 10000 --max_seq_length 11000
+-
+-# Download with metadata and sequence filtering
+-$ gget virus "Ebolavirus" --max_seq_length 20000 --genbank_metadata -o ./ebola_data
+-
+-# Download SARS-CoV-2 with cached optimization
+-$ gget virus "SARS-CoV-2" --host dog --nuc_completeness complete
+-
+-# Download Influenza A with post-download sequence filtering (warning: big data size)
+-$ gget virus "Influenza A virus" --host human --max_ambiguous_chars 50 --has_proteins spike
+-
+-# Using accession ID to get data
+-$ gget virus -a "MK947457" --host deer --min_collection_date "2020-01-01"
+-```
+-
+-### Ejemplos en Python
+-
+-```python
+-  import gget
+-  import pandas as pd
+-  from Bio import SeqIO
+-
+-  # Basic download with GenBank metadata
+-  gget.virus(
+-    "Zika virus",
+-    host="human",
+-    genbank_metadata=True,
+-    outfolder="zika_data"
+-  )
+-
+-  # Access different data types from output files
+-  sequences = list(SeqIO.parse("zika_data/Zika_virus_sequences.fasta", "fasta"))
+-  virus_metadata = pd.read_csv("zika_data/Zika_virus_metadata.csv")
+-  genbank_metadata = pd.read_csv("zika_data/Zika_virus_genbank_metadata.csv")
+-
+-  # Print GenBank metadata summary
+-  for _, row in genbank_metadata.head().iterrows():
+-    print(f"Sequence: {row['accession']}")
+-    print(f"  Length: {row['sequence_length']} bp")
+-    print(f"  Host: {row.get('host', 'Unknown')}")
+-    print(f"  Location: {row.get('geographic_location', 'Unknown')}")
+-    print(f"  Collection date: {row.get('collection_date', 'Unknown')}")
+-
+-  # Advanced filtering with GenBank data
+-  gget.virus(
+-    "SARS-CoV-2", 
+-    host="human",
+-    min_seq_length=29000,
+-    max_seq_length=30000,
+-    min_collection_date="2020-03-01",
+-    max_collection_date="2020-03-31",
+-    geographic_location="North America",
+-    genbank_metadata=True,
+-    genbank_batch_size=200,
+-    outfolder="covid_march2020"
+-  )
+-
+-  # Process and analyze results
+-
+-  # Read virus metadata
+-  virus_df = pd.read_csv("covid_march2020/SARS-CoV-2_metadata.csv")
+-  print(f"Total sequences: {len(virus_df)}")
+-  print(f"Unique hosts: {virus_df['Host'].nunique()}")
+-  print(f"Date range: {virus_df['Collection Date'].min()} to {virus_df['Collection Date'].max()}")
+-
+-  # Read GenBank metadata for detailed analysis
+-  genbank_df = pd.read_csv("covid_march2020/SARS-CoV-2_genbank_metadata.csv")
+-  print(f"Sequences with GenBank data: {len(genbank_df)}")
+-  print("\nPublication summary:")
+-  print(genbank_df['reference_count'].describe())
+-
+-  # Custom sequence analysis
+-  sequences = list(SeqIO.parse("covid_march2020/SARS-CoV-2_sequences.fasta", "fasta"))
+-  for record in sequences:
+-    gc_content = (str(record.seq).count('G') + str(record.seq).count('C')) / len(record.seq)
+-    print(f"{record.id}: GC content = {gc_content:.2%}")
+-
+-  # Merge metadata sources
+-  merged_df = pd.merge(
+-    virus_df,
+-    genbank_df,
+-    on='accession',
+-    how='left',
+-    suffixes=('_virus', '_genbank')
+-  )
+-
+-  # Save merged analysis
+-  merged_df.to_csv("covid_march2020/combined_analysis.csv", index=False)
+-```
+-
+-### Ejemplos de estrategia de análisis
+-
+-Los ejemplos anteriores demuestran diferentes enfoques de análisis:
+-
+-1. **Integración básica de GenBank**: Obtener secuencias con metadatos de GenBank para un análisis completo
+-2. **Filtrado avanzado**: Combinar metadatos de virus y datos de GenBank con filtros personalizados
+-3. **Análisis personalizado**: Procesar secuencias y metadatos usando BioPython y Pandas
+-4. **Integración de datos**: Unir metadatos de virus y GenBank para un análisis detallado
+-
+-### Acceso programático
+-
+-```python
+-# Access filtered metadata and sequences
+-metadata_file = "covid_data/SARS-CoV-2_metadata.jsonl"
+-sequences_file = "covid_data/SARS-CoV-2_sequences.fasta"
+-
+-# Process results with custom analysis
+-import json
+-with open(metadata_file) as f:
+-    for line in f:
+-        record = json.loads(line)
+-        # Custom analysis here
+-```
+diff --git a/gget/gget_virus.py b/gget/gget_virus.py
+index 4b90ac255..ad44bc5ae 100644
+--- a/gget/gget_virus.py
++++ b/gget/gget_virus.py
+@@ -1065,172 +1065,161 @@ def fetch_single_page():
+             failed_commands=failed_commands,
+         )
+         
+-        # If the initial page fetch failed, try with a smaller page size before giving up
+-        if not success and params['page_size'] > MIN_PAGE_SIZE_FALLBACK:
+-            logger.debug("⚠️ Page fetch failed with page_size=%d. Retrying with smaller page sizes...", params['page_size'])
+-            
+-            # Try decreasing page size until we succeed or reach minimum
+-            current_page_size = params['page_size']
+-            page_size_retry_count = 0
+-            tried_without_geo_location = False  # Track if we've tried removing geographic_location
+-            tried_without_host = False  # Track if we've tried removing host
+-            
+-            while not success and current_page_size > MIN_PAGE_SIZE_FALLBACK:
+-                # Decrease page size for next retry
+-                current_page_size = max(MIN_PAGE_SIZE_FALLBACK, current_page_size - PAGE_SIZE_FALLBACK_DECREMENT)
+-                page_size_retry_count += 1
+-                
+-                logger.debug("📉 Attempting retry #%d with page_size=%d (page %d)", 
+-                           page_size_retry_count, current_page_size, page_count)
+-                
+-                # Update params with new page size
+-                params['page_size'] = current_page_size
+-                
+-                # Retry the fetch with the smaller page size
+-                success, page_data, error_info = _retry_with_exponential_backoff(
+-                    operation_name=f"API page {page_count} (page_size={current_page_size})",
+-                    operation_func=fetch_single_page,
+-                    max_retries=API_MAX_RETRIES,
+-                    initial_delay=API_INITIAL_RETRY_DELAY,
+-                    backoff_multiplier=API_RETRY_BACKOFF_MULTIPLIER,
+-                    retryable_exceptions=(requests.exceptions.ConnectionError, requests.exceptions.HTTPError, requests.exceptions.Timeout),
+-                    failed_commands=failed_commands,
+-                )
++        # If the initial page fetch failed, try filter removal strategies FIRST, then page size reduction
++        if not success and _retry_attempt == 0:
++            logger.debug("⚠️ Page fetch failed with page_size=%d. Trying filter removal strategies...", params['page_size'])
++            
++            # Helper to close temp files before retry
++            def close_temp_files():
++                nonlocal pages_pbar, metadata_file
++                if pages_pbar:
++                    pages_pbar.close()
++                    pages_pbar = None
++                if metadata_file:
++                    try:
++                        metadata_file.close()
++                    except:
++                        pass
++            
++            # STRATEGY 1: If geo_location filter exists, try without it (keeping host)
++            if not success and geographic_location:
++                logger.warning("🔄 FETCH FAILED - ATTEMPTING WITHOUT GEOGRAPHIC FILTER")
++                logger.warning("Retrying without the geographic_location filter '%s' (will be applied later)...", geographic_location)
++                close_temp_files()
+                 
+-                if success:
+-                    logger.debug("✅ Successfully fetched page with page_size=%d after %d retry attempt(s)", 
+-                               current_page_size, page_size_retry_count)
+-                    # Update the global page_size for remaining pages if successful
+-                    params['page_size'] = current_page_size
++                try:
++                    retry_reports, _ = fetch_virus_metadata(
++                        virus=virus,
++                        accession=accession,
++                        host=host,  # Keep host filter
++                        geographic_location=None,  # Remove geo filter
++                        annotated=annotated,
++                        complete_only=complete_only,
++                        min_release_date=min_release_date,
++                        refseq_only=refseq_only,
++                        failed_commands=failed_commands,
++                        _retry_attempt=1,  # Mark as retry to prevent infinite loops
++                        temp_output_dir=temp_output_dir,
++                    )
+                     
+-                    # If progress bar exists, recalculate total pages based on new page size
+-                    if pages_pbar is not None and page_data:
+-                        total_count = page_data.get('total_count', 0)
+-                        if total_count > 0:
+-                            new_total_pages = (total_count + current_page_size - 1) // current_page_size
+-                            # Update progress bar total to reflect the new page size
+-                            logger.debug("📊 Recalculating progress bar: page_size changed to %d, total pages now: %d", 
+-                                       current_page_size, new_total_pages)
+-                            pages_pbar.total = new_total_pages
+-                    break
++                    if retry_reports is not None:
++                        logger.info("✅ Successfully retrieved %d records without geographic filter", len(retry_reports))
++                        logger.info("Geographic location filter '%s' will be applied during metadata filtering", geographic_location)
++                        return retry_reports, {'geographic_location': geographic_location}
++                except Exception as retry_error:
++                    logger.warning("❌ Retry without geographic filter failed: %s", retry_error)
++            
++            # STRATEGY 2: If BOTH geo_location and host filters exist, try without both
++            if not success and geographic_location and host:
++                logger.warning("🔄 ATTEMPTING WITHOUT BOTH GEOGRAPHIC AND HOST FILTERS")
++                logger.warning("Retrying without both filters (will be applied later)...")
++                close_temp_files()
+                 
+-                # After FIRST page size reduction fails, try without geographic_location filter
+-                # This happens once at page_size = API_PAGE_SIZE - PAGE_SIZE_FALLBACK_DECREMENT (e.g., 900)
+-                if not success and not tried_without_geo_location and geographic_location and _retry_attempt == 0:
+-                    tried_without_geo_location = True
+-                    # logger.warning("=" * 80)
+-                    logger.warning("🔄 PAGE SIZE REDUCTION FAILED - ATTEMPTING WITHOUT GEOGRAPHIC FILTER")
+-                    # logger.warning("=" * 80)
+-                    logger.warning("Page size %d with geographic location '%s' failed.", current_page_size, geographic_location)
+-                    logger.warning("Retrying without the geographic_location filter (will be applied later)...")
++                try:
++                    retry_reports, _ = fetch_virus_metadata(
++                        virus=virus,
++                        accession=accession,
++                        host=None,  # Remove host filter
++                        geographic_location=None,  # Remove geo filter
++                        annotated=annotated,
++                        complete_only=complete_only,
++                        min_release_date=min_release_date,
++                        refseq_only=refseq_only,
++                        failed_commands=failed_commands,
++                        _retry_attempt=1,  # Mark as retry to prevent infinite loops
++                        temp_output_dir=temp_output_dir,
++                    )
+                     
+-                    # Close temporary files before retry
+-                    if pages_pbar:
+-                        pages_pbar.close()
+-                        pages_pbar = None
+-                    if metadata_file:
+-                        try:
+-                            metadata_file.close()
+-                        except:
+-                            pass
++                    if retry_reports is not None:
++                        logger.info("✅ Successfully retrieved %d records without geographic and host filters", len(retry_reports))
++                        logger.info("Geographic location filter '%s' will be applied during metadata filtering", geographic_location)
++                        logger.info("Host filter '%s' will be applied during metadata filtering", host)
++                        return retry_reports, {'geographic_location': geographic_location, 'host': host}
++                except Exception as retry_error:
++                    logger.warning("❌ Retry without both filters failed: %s", retry_error)
++            
++            # STRATEGY 3: If host filter exists (whether or not geo_location was tried), try without host only
++            if not success and host:
++                logger.warning("🔄 ATTEMPTING WITHOUT HOST FILTER ONLY")
++                logger.warning("Retrying without the host filter '%s' (will be applied later)...", host)
++                close_temp_files()
++                
++                try:
++                    retry_reports, _ = fetch_virus_metadata(
++                        virus=virus,
++                        accession=accession,
++                        host=None,  # Remove host filter
++                        geographic_location=geographic_location,  # Keep geo filter if present
++                        annotated=annotated,
++                        complete_only=complete_only,
++                        min_release_date=min_release_date,
++                        refseq_only=refseq_only,
++                        failed_commands=failed_commands,
++                        _retry_attempt=1,  # Mark as retry to prevent infinite loops
++                        temp_output_dir=temp_output_dir,
++                    )
+                     
+-                    try:
+-                        # Retry the fetch without geographic_location
+-                        retry_reports, _ = fetch_virus_metadata(
+-                            virus=virus,
+-                            accession=accession,
+-                            host=host,
+-                            geographic_location=None,  # Remove geo filter
+-                            annotated=annotated,
+-                            complete_only=complete_only,
+-                            min_release_date=min_release_date,
+-                            refseq_only=refseq_only,
+-                            failed_commands=failed_commands,
+-                            _retry_attempt=1,  # Mark as retry to prevent infinite loops
+-                            temp_output_dir=temp_output_dir,
+-                        )
+-                        
+-                        if retry_reports is not None:
+-                            logger.info("✅ Successfully retrieved %d records without geographic filter", len(retry_reports))
+-                            logger.info("Geographic location filter '%s' will be applied during metadata filtering", geographic_location)
+-                            
+-                            # Return with deferred filter info
+-                            return retry_reports, {'geographic_location': geographic_location}
+-                    except Exception as retry_error:
+-                        logger.warning("❌ Retry without geographic filter also failed: %s", retry_error)
+-                        logger.info("Continuing with smaller page sizes...")
+-                        # Re-open temp file for continued attempts
+-                        try:
+-                            metadata_file = open(temp_metadata_file, 'a', encoding='utf-8')
+-                        except IOError:
+-                            metadata_file = None
+-                        # Continue the page size reduction loop
++                    if retry_reports is not None:
++                        logger.info("✅ Successfully retrieved %d records without host filter", len(retry_reports))
++                        logger.info("Host filter '%s' will be applied during metadata filtering", host)
++                        return retry_reports, {'host': host}
++                except Exception as retry_error:
++                    logger.warning("❌ Retry without host filter failed: %s", retry_error)
++            
++            # STRATEGY 4: If all filter removal strategies failed, try reducing page size
++            if not success and params['page_size'] > MIN_PAGE_SIZE_FALLBACK:
++                logger.info("All filter removal strategies failed. Trying smaller page sizes...")
+                 
+-                # After geo_location retry (if applicable), try without host filter
+-                # This happens if we have a host filter and haven't tried removing it yet
+-                if not success and not tried_without_host and host and _retry_attempt == 0:
+-                    tried_without_host = True
+-                    # logger.warning("=" * 80)
+-                    logger.warning("🔄 PAGE SIZE REDUCTION FAILED - ATTEMPTING WITHOUT HOST FILTER")
+-                    # logger.warning("=" * 80)
+-                    logger.warning("Page size %d with host '%s' failed.", current_page_size, host)
++                # Re-open temp file for continued attempts
++                try:
++                    metadata_file = open(temp_metadata_file, 'a', encoding='utf-8')
++                except IOError:
++                    metadata_file = None
++                
++                current_page_size = params['page_size']
++                page_size_retry_count = 0
++                
++                while not success and current_page_size > MIN_PAGE_SIZE_FALLBACK:
++                    # Decrease page size for next retry
++                    current_page_size = max(MIN_PAGE_SIZE_FALLBACK, current_page_size - PAGE_SIZE_FALLBACK_DECREMENT)
++                    page_size_retry_count += 1
+                     
+-                    # If geo_location retry was also attempted and failed, remove both filters
+-                    also_defer_geo = tried_without_geo_location and geographic_location
+-                    if also_defer_geo:
+-                        logger.warning("Also removing geographic_location filter (both filters will be applied later)...")
+-                    else:
+-                        logger.warning("Retrying without the host filter (will be applied later)...")
++                    logger.debug("📉 Attempting retry #%d with page_size=%d (page %d)", 
++                               page_size_retry_count, current_page_size, page_count)
+                     
+-                    # Close temporary files before retry
+-                    if pages_pbar:
+-                        pages_pbar.close()
+-                        pages_pbar = None
+-                    if metadata_file:
+-                        try:
+-                            metadata_file.close()
+-                        except:
+-                            pass
++                    # Update params with new page size
++                    params['page_size'] = current_page_size
+                     
+-                    try:
+-                        # Retry the fetch without host (and optionally without geo_location)
+-                        retry_reports, _ = fetch_virus_metadata(
+-                            virus=virus,
+-                            accession=accession,
+-                            host=None,  # Remove host filter
+-                            geographic_location=None if also_defer_geo else geographic_location,
+-                            annotated=annotated,
+-                            complete_only=complete_only,
+-                            min_release_date=min_release_date,
+-                            refseq_only=refseq_only,
+-                            failed_commands=failed_commands,
+-                            _retry_attempt=1,  # Mark as retry to prevent infinite loops
+-                            temp_output_dir=temp_output_dir,
+-                        )
++                    # Retry the fetch with the smaller page size
++                    success, page_data, error_info = _retry_with_exponential_backoff(
++                        operation_name=f"API page {page_count} (page_size={current_page_size})",
++                        operation_func=fetch_single_page,
++                        max_retries=API_MAX_RETRIES,
++                        initial_delay=API_INITIAL_RETRY_DELAY,
++                        backoff_multiplier=API_RETRY_BACKOFF_MULTIPLIER,
++                        retryable_exceptions=(requests.exceptions.ConnectionError, requests.exceptions.HTTPError, requests.exceptions.Timeout),
++                        failed_commands=failed_commands,
++                    )
++                    
++                    if success:
++                        logger.debug("✅ Successfully fetched page with page_size=%d after %d retry attempt(s)", 
++                                   current_page_size, page_size_retry_count)
++                        # Update the global page_size for remaining pages if successful
++                        params['page_size'] = current_page_size
+                         
+-                        if retry_reports is not None:
+-                            logger.info("✅ Successfully retrieved %d records without host filter", len(retry_reports))
+-                            logger.info("Host filter '%s' will be applied during metadata filtering", host)
+-                            
+-                            # Return with deferred filter info (include geo_location if also deferred)
+-                            deferred = {'host': host}
+-                            if also_defer_geo:
+-                                deferred['geographic_location'] = geographic_location
+-                                logger.info("Geographic location filter '%s' will also be applied during metadata filtering", geographic_location)
+-                            return retry_reports, deferred
+-                    except Exception as retry_error:
+-                        logger.warning("❌ Retry without host filter also failed: %s", retry_error)
+-                        logger.info("Continuing with smaller page sizes...")
+-                        # Re-open temp file for continued attempts
+-                        try:
+-                            metadata_file = open(temp_metadata_file, 'a', encoding='utf-8')
+-                        except IOError:
+-                            metadata_file = None
+-                        # Continue the page size reduction loop
+-            
+-            # If still failed after trying all page sizes down to minimum
+-            if not success:
+-                logger.warning("⚠️ All page size fallback attempts failed (page %d)", page_count)
++                        # If progress bar exists, recalculate total pages based on new page size
++                        if pages_pbar is not None and page_data:
++                            total_count = page_data.get('total_count', 0)
++                            if total_count > 0:
++                                new_total_pages = (total_count + current_page_size - 1) // current_page_size
++                                logger.debug("📊 Recalculating progress bar: page_size changed to %d, total pages now: %d", 
++                                           current_page_size, new_total_pages)
++                                pages_pbar.total = new_total_pages
++                        break
++                
++                # If still failed after trying all page sizes down to minimum
++                if not success:
++                    logger.warning("⚠️ All page size fallback attempts failed (page %d)", page_count)
+         
+         # Handle page fetch result
+         if success and page_data:
+@@ -1326,17 +1315,6 @@ def fetch_single_page():
+                             'alternative_command': None
+                         }
+                     
+-                    # Note: Retry without geographic_location is now handled in the page size
+-                    # reduction loop above, after the first smaller page size fails
+-                    
+-                    if geographic_location:
+-                        error_msg += (
+-                            f"\n\n🔧 TIMEOUT LIKELY DUE TO GEOGRAPHIC FILTER: "
+-                            f"The combination of '{virus}' + geographic location '{geographic_location}' "
+-                            f"is known to cause server timeouts. All page size and filter removal retries "
+-                            f"have been exhausted."
+-                        )
+-                    
+                     # Log the timeout error before raising
+                     logger.error("=" * 80)
+                     logger.error("❌ REQUEST TIMEOUT")
+@@ -5612,7 +5590,7 @@ def virus(
+     genbank_batch_size=GENBANK_DEFAULT_BATCH_SIZE,
+     download_all_accessions=False,
+     _skip_cache=False,
+-    quiet=False,
++    verbose=True,
+     ):
+     """
+     Download a virus genome dataset from the NCBI Virus database (https://www.ncbi.nlm.nih.gov/labs/virus/).
+@@ -5668,7 +5646,7 @@ def virus(
+     """
+     # Save the original logger level and set it based on verbose parameter
+     original_logger_level = logger.level
+-    if quiet:
++    if not verbose:
+         logger.setLevel(logging.CRITICAL)
+     
+     logger.info("Starting virus data retrieval process...")
+diff --git a/gget/main.py b/gget/main.py
+index 3178ea8f1..790a5f077 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -2488,7 +2488,7 @@ def main():
+         type=str,
+         nargs="?",
+         default=None,
+-        help="Virus taxon name/ID to query, e.g. 'SARS-CoV-2', 'zika virus',, or taxon ID '1335626'.\n"
++        help="Virus taxon name/ID to query, e.g. 'SARS-CoV-2', 'zika virus', or taxon ID '1335626'.\n"
+              "When using --is_accession flag, can also be:\n"
+              "  - Single accession: 'NC_038294.1'\n"
+              "  - Space-separated accessions: 'NC_038294.1 NC_045512.2'\n"
+@@ -2783,10 +2783,10 @@ def main():
+     parser_virus.add_argument(
+         "-q",
+         "--quiet",
+-        default=False,
+-        action="store_true",
++        default=True,
++        action="store_false",
+         required=False,
+-        help="Does not print progress information. For large datasets, it is recommended to set this flag to False to monitor progress.",
++        help="Does not print progress information. For large datasets, it is recommended to not use this flag, to monitor progress.",
+     )
+ 
+     ### Define return values
+@@ -3906,5 +3906,5 @@ def main():
+             genbank_batch_size=args.genbank_batch_size,
+             download_all_accessions=args.download_all_accessions,
+             _skip_cache=args._skip_cache,
+-            quiet=args.quiet,
++            verbose=args.quiet,
+         )

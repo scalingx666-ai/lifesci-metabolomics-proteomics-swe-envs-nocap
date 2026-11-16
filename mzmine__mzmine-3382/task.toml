@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3382"
+description = "raw data overview: disable feature datasets on \"show xic\""
+
+[metadata]
+difficulty = "easy"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "f97e8d41eca64215f23f5060334a5ffc1f175956"
+reference = "https://github.com/mzmine/mzmine/pull/3382"
+source_access = "auto"
+built_at = "2026-11-16T08:46:12.465982+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:99bf8decdeb9f56fccd38994f83df1c3b3fbd258e6e88b82c2f4eb9740f91936"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-06-25T18:36:35Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/chromatogramandspectra/ChromatogramAndSpectraVisualizer.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 2
+difficulty = "trivial"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

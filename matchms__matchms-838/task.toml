@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-838"
+description = "Update add_precursor_formula.py"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "86f0f608cc41be1f9867104e341dd610c3e850c6"
+reference = "https://github.com/matchms/matchms/pull/838"
+source_access = "auto"
+built_at = "2026-11-16T12:53:45.707845+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:dd126660d6eb3104ea217292b0281616edd997eb8174acfe8dd56792fa574b4a"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-08-27T08:26:36Z"
+diff_format = "unified"
+context_files = [
+    "matchms/filtering/metadata_processing/add_precursor_formula.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 14
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

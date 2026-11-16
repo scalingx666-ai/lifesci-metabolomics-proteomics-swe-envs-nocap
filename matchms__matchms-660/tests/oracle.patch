@@ -1,0 +1,52 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index a2f671560..bdd30f27f 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
+ ## Unreleased
+ ### Added
+ - Added remove_profile_spectra filter
++- Allowed peaks to have any floating point dtype
+ - Added require_matching_ionmode_and_adduct filter
+ 
+ ### Removed:
+diff --git a/matchms/Fragments.py b/matchms/Fragments.py
+index 52787605d..1badbd3e5 100644
+--- a/matchms/Fragments.py
++++ b/matchms/Fragments.py
+@@ -36,8 +36,8 @@ def __init__(self, mz=None, intensities=None):
+         assert isinstance(mz, np.ndarray), "Input argument 'mz' should be a np.array."
+         assert isinstance(intensities, np.ndarray), "Input argument 'intensities' should be a np.array."
+         assert mz.shape == intensities.shape, "Input arguments 'mz' and 'intensities' should be the same shape."
+-        assert mz.dtype == "float", "Input argument 'mz' should be an array of type float."
+-        assert intensities.dtype == "float", "Input argument 'intensities' should be an array of type float."
++        assert mz.dtype.kind == "f", "Input argument 'mz' should be an array of type float."
++        assert intensities.dtype.kind == "f", "Input argument 'intensities' should be an array of type float."
+ 
+         self._mz = mz
+         self._intensities = intensities
+diff --git a/tests/test_fragments.py b/tests/test_fragments.py
+index d17b19f7e..dd74d4b3e 100644
+--- a/tests/test_fragments.py
++++ b/tests/test_fragments.py
+@@ -3,10 +3,16 @@
+ from matchms.Fragments import Fragments
+ 
+ 
+-def test_fragments_init():
+-
+-    mz = np.array([10, 20, 30], dtype="float")
+-    intensities = np.array([100, 20, 300], dtype="float")
++@pytest.mark.parametrize('dtype', [
++    np.float16,
++    np.float32,
++    np.float64,
++    float,
++    "float",
++])
++def test_fragments_init(dtype):
++    mz = np.array([10, 20, 30], dtype=dtype)
++    intensities = np.array([100, 20, 300], dtype=dtype)
+ 
+     peaks = Fragments(mz=mz, intensities=intensities)
+ 

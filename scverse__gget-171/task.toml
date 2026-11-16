@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/scverse__gget-171"
+description = "Allow for returning a dataframe from gget.mutate, w/ more context"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "gget",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "scverse/gget"
+ref = "9b3bffae48e4033f7054d11568143c02f7107470"
+reference = "https://github.com/scverse/gget/pull/171"
+source_access = "auto"
+built_at = "2026-11-15T21:05:25.882450+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:399b77a41be23022ab5769bed19652186c6426e3f8a8e8a1f4e23f2a064c4894"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-02-04T17:05:26Z"
+diff_format = "unified"
+context_files = [
+    "gget/gget_mutate.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 625
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

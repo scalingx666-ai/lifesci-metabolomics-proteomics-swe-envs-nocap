@@ -1,0 +1,196 @@
+diff --git a/registry.yaml b/registry.yaml
+index eefbfee..e8ebd99 100644
+--- a/registry.yaml
++++ b/registry.yaml
+@@ -1335,7 +1335,7 @@ entries:
+     sub_type: database
+     category: "genomics-bioinformatics"
+     path: "skills/genomics-bioinformatics/databases/cbioportal-database/SKILL.md"
+-    description: "Access TCGA and other cancer genomics datasets via cBioPortal REST API. Retrieve somatic mutations, copy number alterations, gene expression profiles, and clinical data (survival, stage, treatment) for thousands of cancer studies. Use for tumor mutation burden analysis, oncoprint queries, and survival analysis. For population variant frequencies use gnomad-database; for drug-gene interactions use dgidb-database."
++    description: "Access TCGA and other cancer genomics datasets via cBioPortal REST API. Retrieve somatic mutations, copy number alterations, gene expression profiles, and clinical data (survival, stage, treatment) for thousands of cancer studies. Use for tumor mutation burden analysis, oncoprint queries, and survival analysis. For population variant frequencies use gnomad-database; for drug-gene interactions use opentargets-database."
+     date_added: "2026-03-08"
+ 
+   - name: "archs4-database"
+@@ -1552,7 +1552,7 @@ entries:
+     sub_type: pipeline
+     category: "structural-biology-drug-discovery"
+     path: "skills/structural-biology-drug-discovery/smina-molecular-docking/SKILL.md"
+-    description: "smina molecular docking CLI. AutoDock Vina fork with customizable scoring functions, native SDF/MOL2/PDB ligand input, autoboxing, local energy minimization, and per-atom score breakdowns. Pipeline: receptor PDBQT prep -> ligand prep (RDKit/OpenBabel) -> dock via autobox or explicit grid -> rescore/minimize with custom scoring -> rank poses by affinity. Choose smina over Vina when you need custom scoring terms (--custom_scoring), local optimization of an existing pose (--local_only), per-atom contributions (--atom_term_data), or SDF/MOL2 ligands without manual PDBQT conversion. For unknown binding sites use diffdock-blind-docking; for the Python-bindings/Vinardo workflow use autodock-vina-docking."
++    description: "smina molecular docking CLI. AutoDock Vina fork with customizable scoring functions, native SDF/MOL2/PDB ligand input, autoboxing, local energy minimization, and per-atom score breakdowns. Pipeline: receptor PDBQT prep -> ligand prep (RDKit/OpenBabel) -> dock via autobox or explicit grid -> rescore/minimize with custom scoring -> rank poses by affinity. Choose smina over Vina when you need custom scoring terms (--custom_scoring), local optimization of an existing pose (--local_only), per-atom contributions (--atom_term_data), or SDF/MOL2 ligands without manual PDBQT conversion. For unknown binding sites use diffdock; for the Python-bindings/Vinardo workflow use autodock-vina-docking."
+     date_added: "2026-05-28"
+ 
+   - name: "mdtraj-trajectory-analysis"
+diff --git a/skills/genomics-bioinformatics/databases/bioservices-multi-database/SKILL.md b/skills/genomics-bioinformatics/databases/bioservices-multi-database/SKILL.md
+index e1a0dc4..8981982 100644
+--- a/skills/genomics-bioinformatics/databases/bioservices-multi-database/SKILL.md
++++ b/skills/genomics-bioinformatics/databases/bioservices-multi-database/SKILL.md
+@@ -24,7 +24,7 @@ BioServices provides a unified Python interface to 40+ bioinformatics web servic
+ - Retrieving Gene Ontology annotations via QuickGO
+ - Finding protein-protein interactions via PSICQUIC (IntAct, MINT, BioGRID)
+ - Batch converting thousands of biological identifiers with error handling
+-- For single-database deep queries → use gget (Ensembl), pubchempy (PubChem), or chembl-database skill
++- For single-database deep queries → use gget (Ensembl), pubchempy (PubChem), or chembl-database-bioactivity skill
+ - For pathway visualization → use pathway analysis tools (Cytoscape, NetworkX) after retrieving data with bioservices
+ 
+ ## Prerequisites
+@@ -590,9 +590,9 @@ Comprehensive guide to cross-database identifier conversion: UniProt mapping ser
+ 
+ ## Related Skills
+ 
+-- **gget-genomic-data** — deeper Ensembl/BLAST/enrichment queries via gget (simpler API for single-database access)
+-- **chembl-database** — dedicated ChEMBL bioactivity queries beyond compound lookup
+-- **pubchem-database** — dedicated PubChem compound/assay queries with similarity search
++- **gget-genomic-databases** — deeper Ensembl/BLAST/enrichment queries via gget (simpler API for single-database access)
++- **chembl-database-bioactivity** — dedicated ChEMBL bioactivity queries beyond compound lookup
++- **pubchem-compound-search** — dedicated PubChem compound/assay queries with similarity search
+ 
+ ## References
+ 
+diff --git a/skills/genomics-bioinformatics/databases/cbioportal-database/SKILL.md b/skills/genomics-bioinformatics/databases/cbioportal-database/SKILL.md
+index 394c26e..7831836 100644
+--- a/skills/genomics-bioinformatics/databases/cbioportal-database/SKILL.md
++++ b/skills/genomics-bioinformatics/databases/cbioportal-database/SKILL.md
+@@ -1,6 +1,6 @@
+ ---
+ name: "cbioportal-database"
+-description: "Cancer genomics (TCGA et al.) via cBioPortal REST API. Retrieve somatic mutations, CNAs, expression, clinical data (survival/stage/treatment) across thousands of studies. Use for TMB, oncoprints, survival analysis. For population frequencies use gnomad-database; for drug-gene interactions use dgidb-database."
++description: "Cancer genomics (TCGA et al.) via cBioPortal REST API. Retrieve somatic mutations, CNAs, expression, clinical data (survival/stage/treatment) across thousands of studies. Use for TMB, oncoprints, survival analysis. For population frequencies use gnomad-database; for drug-gene interactions use opentargets-database."
+ license: "AGPL-3.0"
+ ---
+ 
+@@ -19,7 +19,7 @@ cBioPortal for Cancer Genomics is a public repository of cancer genomics data in
+ - Downloading gene expression (RNA-seq FPKM/RSEM) data from specific TCGA cohorts for differential expression analysis
+ - Correlating genomic alterations with clinical outcomes in a specific study
+ - Use `gnomad-database` instead when you need population-level variant allele frequencies in healthy individuals
+-- For drug-gene interaction lookups use `dgidb-database`; cBioPortal provides the genomic alteration data, not drug interaction annotations
++- For drug-gene interaction lookups use `opentargets-database`; cBioPortal provides the genomic alteration data, not drug interaction annotations
+ 
+ ## Prerequisites
+ 
+diff --git a/skills/genomics-bioinformatics/single-cell/cellxgene-census/SKILL.md b/skills/genomics-bioinformatics/single-cell/cellxgene-census/SKILL.md
+index 336fd1b..2185648 100644
+--- a/skills/genomics-bioinformatics/single-cell/cellxgene-census/SKILL.md
++++ b/skills/genomics-bioinformatics/single-cell/cellxgene-census/SKILL.md
+@@ -381,7 +381,7 @@ with cellxgene_census.open_soma() as census:
+ ## Related Skills
+ 
+ - **scanpy-scrna-seq** — downstream analysis of Census data (clustering, DEG, visualization)
+-- **anndata-annotated-data** — manipulating AnnData objects returned by Census queries
++- **anndata-data-structure** — manipulating AnnData objects returned by Census queries
+ - **esm-protein-language-model** — protein embeddings from sequences; complementary to Census gene expression data
+ 
+ ## References
+diff --git a/skills/proteomics-protein-engineering/esm-protein-language-model/SKILL.md b/skills/proteomics-protein-engineering/esm-protein-language-model/SKILL.md
+index 5296b43..f7e7b50 100644
+--- a/skills/proteomics-protein-engineering/esm-protein-language-model/SKILL.md
++++ b/skills/proteomics-protein-engineering/esm-protein-language-model/SKILL.md
+@@ -383,7 +383,7 @@ print(f"Loaded embedding: {embedding.shape}")
+ 
+ ## Related Skills
+ 
+-- **alphafold-database** — retrieve predicted structures from AlphaFold DB; use ESM for de novo structure prediction
++- **alphafold-database-access** — retrieve predicted structures from AlphaFold DB; use ESM for de novo structure prediction
+ - **biopython** — sequence I/O and alignment; preprocess sequences before ESM embedding
+ - **scikit-learn** — downstream ML on ESM embeddings (classification, clustering, regression)
+ - **rdkit** — cheminformatics for small-molecule drug design (complementary to protein design)
+diff --git a/skills/proteomics-protein-engineering/uniprot-protein-database/SKILL.md b/skills/proteomics-protein-engineering/uniprot-protein-database/SKILL.md
+index 21fbb67..9aa659f 100644
+--- a/skills/proteomics-protein-engineering/uniprot-protein-database/SKILL.md
++++ b/skills/proteomics-protein-engineering/uniprot-protein-database/SKILL.md
+@@ -1,6 +1,6 @@
+ ---
+ name: uniprot-protein-database
+-description: "Query UniProt REST API: search by gene/protein name, fetch FASTA, map IDs (Ensembl, PDB, RefSeq), access Swiss-Prot annotations. Use bioservices for multi-DB access; alphafold-database for structures."
++description: "Query UniProt REST API: search by gene/protein name, fetch FASTA, map IDs (Ensembl, PDB, RefSeq), access Swiss-Prot annotations. Use bioservices for multi-DB access; alphafold-database-access for structures."
+ license: CC-BY-4.0
+ ---
+ 
+@@ -19,7 +19,7 @@ UniProt is the most comprehensive protein sequence and functional annotation dat
+ - Batch retrieving multiple protein entries for comparative analysis
+ - Downloading reviewed (Swiss-Prot) protein datasets for a specific organism
+ - For **unified access to 40+ databases**, use bioservices instead
+-- For **protein 3D structures**, use alphafold-database or pdb-database
++- For **protein 3D structures**, use alphafold-database-access or pdb-database
+ 
+ ## Prerequisites
+ 
+@@ -359,7 +359,7 @@ for r in results.get("results", []):
+ ## Related Skills
+ 
+ - **biopython-molecular-biology** — parse FASTA sequences returned by UniProt; run BLAST with retrieved sequences
+-- **alphafold-database** — retrieve predicted 3D structures using UniProt accessions
++- **alphafold-database-access** — retrieve predicted 3D structures using UniProt accessions
+ - **esm-protein-language-model** — generate embeddings from UniProt protein sequences
+ - **gget-genomic-databases** — alternative interface for quick gene/protein lookups across databases
+ 
+diff --git a/skills/scientific-computing/zarr-python/SKILL.md b/skills/scientific-computing/zarr-python/SKILL.md
+index 3cfb58e..456089a 100644
+--- a/skills/scientific-computing/zarr-python/SKILL.md
++++ b/skills/scientific-computing/zarr-python/SKILL.md
+@@ -526,7 +526,7 @@ print(f"Written: {z.shape}, {z.npartitions} partitions")
+ ## Related Skills
+ 
+ - **lamindb-data-management** — uses Zarr as a storage backend; provides data management, lineage, and ontology validation on top of Zarr arrays
+-- **anndata-annotated-data** — AnnData objects can be backed by Zarr stores for out-of-core single-cell data
++- **anndata-data-structure** — AnnData objects can be backed by Zarr stores for out-of-core single-cell data
+ - **sympy-symbolic-math** — unrelated but co-exists in scientific-computing category
+ 
+ ## References
+diff --git a/skills/structural-biology-drug-discovery/molfeat-molecular-featurization/SKILL.md b/skills/structural-biology-drug-discovery/molfeat-molecular-featurization/SKILL.md
+index d5580f9..4ac173a 100644
+--- a/skills/structural-biology-drug-discovery/molfeat-molecular-featurization/SKILL.md
++++ b/skills/structural-biology-drug-discovery/molfeat-molecular-featurization/SKILL.md
+@@ -19,7 +19,7 @@ Molfeat is a comprehensive Python library for molecular featurization that unifi
+ - Deep learning on molecules using pretrained embeddings (ChemBERTa, GIN)
+ - Featurization pipelines integrating with scikit-learn or PyTorch
+ - Comparing multiple molecular representations for benchmarking
+-- For molecular manipulation and filtering use datamol instead; for substructure-based molecular operations use rdkit-molecular-toolkit
++- For molecular manipulation and filtering use datamol instead; for substructure-based molecular operations use rdkit-cheminformatics
+ 
+ ## Prerequisites
+ 
+@@ -381,8 +381,8 @@ def featurize_chunks(smiles_list, transformer, chunk_size=10000):
+ 
+ ## Related Skills
+ 
+-- `datamol-molecular-toolkit` — High-level molecular manipulation (standardization, I/O, conformers)
+-- `rdkit-molecular-toolkit` — Low-level cheminformatics (substructure, reactions, 3D)
++- `datamol-cheminformatics` — High-level molecular manipulation (standardization, I/O, conformers)
++- `rdkit-cheminformatics` — Low-level cheminformatics (substructure, reactions, 3D)
+ - `scikit-learn` — ML models consuming molfeat features
+ 
+ ## References
+diff --git a/skills/structural-biology-drug-discovery/smina-molecular-docking/SKILL.md b/skills/structural-biology-drug-discovery/smina-molecular-docking/SKILL.md
+index 43ef860..525677b 100644
+--- a/skills/structural-biology-drug-discovery/smina-molecular-docking/SKILL.md
++++ b/skills/structural-biology-drug-discovery/smina-molecular-docking/SKILL.md
+@@ -1,6 +1,6 @@
+ ---
+ name: "smina-molecular-docking"
+-description: "smina molecular docking CLI. AutoDock Vina fork with customizable scoring functions, native SDF/MOL2/PDB ligand input, autoboxing, local energy minimization, and per-atom score breakdowns. Pipeline: receptor PDBQT prep -> ligand prep (RDKit/OpenBabel) -> dock via autobox or explicit grid -> rescore/minimize with custom scoring -> rank poses by affinity. Choose smina over Vina when you need custom scoring terms (--custom_scoring), local optimization of an existing pose (--local_only), per-atom contributions (--atom_term_data), or SDF/MOL2 ligands without manual PDBQT conversion. For unknown binding sites use diffdock-blind-docking; for the Python-bindings/Vinardo workflow use autodock-vina-docking."
++description: "smina molecular docking CLI. AutoDock Vina fork with customizable scoring functions, native SDF/MOL2/PDB ligand input, autoboxing, local energy minimization, and per-atom score breakdowns. Pipeline: receptor PDBQT prep -> ligand prep (RDKit/OpenBabel) -> dock via autobox or explicit grid -> rescore/minimize with custom scoring -> rank poses by affinity. Choose smina over Vina when you need custom scoring terms (--custom_scoring), local optimization of an existing pose (--local_only), per-atom contributions (--atom_term_data), or SDF/MOL2 ligands without manual PDBQT conversion. For unknown binding sites use diffdock; for the Python-bindings/Vinardo workflow use autodock-vina-docking."
+ license: "GPL-2.0"
+ ---
+ 
+@@ -19,7 +19,7 @@ smina is an AutoDock Vina 1.1.2 fork focused on flexible scoring and minimizatio
+ - Autoboxing the grid around a co-crystallized reference ligand
+ - Per-atom energy decomposition (`--atom_term_data`) for medchem analog design
+ - Batch virtual screening that parallelizes well across nodes (one CLI process per ligand)
+-- Use **autodock-vina-docking** instead when you need Vina Python bindings, Vinardo scoring, or Vina 1.2's expanded force field; use **diffdock-blind-docking** when the binding site is unknown
++- Use **autodock-vina-docking** instead when you need Vina Python bindings, Vinardo scoring, or Vina 1.2's expanded force field; use **diffdock** when the binding site is unknown
+ 
+ ## Prerequisites
+ 
+diff --git a/skills/systems-biology-multiomics/lamindb-data-management/SKILL.md b/skills/systems-biology-multiomics/lamindb-data-management/SKILL.md
+index e33e311..a4f5323 100644
+--- a/skills/systems-biology-multiomics/lamindb-data-management/SKILL.md
++++ b/skills/systems-biology-multiomics/lamindb-data-management/SKILL.md
+@@ -461,7 +461,7 @@ for child in descendants:
+ 
+ ## Related Skills
+ 
+-- **anndata-annotated-data** — AnnData format used as primary data container in LaminDB for single-cell data
++- **anndata-data-structure** — AnnData format used as primary data container in LaminDB for single-cell data
+ - **scanpy-scrna-seq** — single-cell analysis pipeline; LaminDB manages data that scanpy analyzes
+ - **scvi-tools-single-cell** — deep learning models for single-cell; integrates with LaminDB for data/model tracking
+ 

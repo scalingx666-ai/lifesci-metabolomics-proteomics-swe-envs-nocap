@@ -1,0 +1,345 @@
+diff --git a/matchms/similarity/default_parameters.py b/matchms/similarity/default_parameters.py
+index 92c4955f8..e1fdb12e4 100644
+--- a/matchms/similarity/default_parameters.py
++++ b/matchms/similarity/default_parameters.py
+@@ -8,4 +8,5 @@
+ DEFAULT_INTENSITY_POWER = 1.0
+ DEFAULT_NOISE_CUTOFF = 0.01
+ DEFAULT_USE_PPM = False
+-DEFAULT_DTYPE = np.float64
+\ No newline at end of file
++DEFAULT_DTYPE = np.float64
++DEFAULT_OFFSET_TO_PRECURSOR = -1.6
+\ No newline at end of file
+diff --git a/matchms/similarity/entropy.py b/matchms/similarity/entropy.py
+index b6361d507..b80a673a8 100644
+--- a/matchms/similarity/entropy.py
++++ b/matchms/similarity/entropy.py
+@@ -5,6 +5,7 @@
+ from .default_parameters import (
+     DEFAULT_MZ_TOLERANCE,
+     DEFAULT_NOISE_CUTOFF,
++    DEFAULT_OFFSET_TO_PRECURSOR,
+ )
+ from .entropy_greedy import EntropyGreedy
+ from .flash_similarity import FlashEntropy
+@@ -40,9 +41,10 @@ class Entropy(BaseSimilarity):
+         If True, interpret ``tolerance`` as a symmetric ppm tolerance.
+     remove_precursor
+         If True and ``precursor_mz`` metadata are available, remove peaks above
+-        ``precursor_mz - precursor_window`` before scoring.
+-    precursor_window
+-        Window used when ``remove_precursor=True``. Default is 1.6 Da.
++        ``precursor_mz + offset_to_precursor`` before scoring.
++    offset_to_precursor
++        Offset used when ``remove_precursor=True``. This will only keep 
++        mz values <= precursor_mz + offset_to_precursor. Default is -1.6 Da.
+     noise_cutoff
+         Remove peaks below this fraction of the spectrum's maximum intensity.
+         Set to 0 or None to disable. Default is 0.01.
+@@ -62,7 +64,7 @@ def __init__(
+         tolerance: float = DEFAULT_MZ_TOLERANCE,
+         use_ppm: bool = False,
+         remove_precursor: bool = False,
+-        precursor_window: float = 1.6,
++        offset_to_precursor: float = DEFAULT_OFFSET_TO_PRECURSOR,
+         noise_cutoff: float | None = DEFAULT_NOISE_CUTOFF,
+         merge_within: float = 0.0,
+         dtype: np.dtype = np.float64,
+@@ -70,7 +72,7 @@ def __init__(
+         self.tolerance = tolerance
+         self.use_ppm = use_ppm
+         self.remove_precursor = remove_precursor
+-        self.precursor_window = precursor_window
++        self.offset_to_precursor = offset_to_precursor
+         self.noise_cutoff = noise_cutoff
+         self.merge_within = merge_within
+         self.dtype = np.dtype(dtype)
+@@ -81,7 +83,7 @@ def _pair_similarity(self) -> EntropyGreedy:
+             tolerance=self.tolerance,
+             use_ppm=self.use_ppm,
+             remove_precursor=self.remove_precursor,
+-            precursor_window=self.precursor_window,
++            offset_to_precursor=self.offset_to_precursor,
+             noise_cutoff=self.noise_cutoff,
+             merge_within=self.merge_within,
+             dtype=self.dtype,
+@@ -93,7 +95,7 @@ def _matrix_similarity(self) -> FlashEntropy:
+             tolerance=self.tolerance,
+             use_ppm=self.use_ppm,
+             remove_precursor=self.remove_precursor,
+-            precursor_window=self.precursor_window,
++            offset_to_precursor=self.offset_to_precursor,
+             noise_cutoff=self.noise_cutoff,
+             normalize_to_half=True,
+             merge_within=self.merge_within,
+diff --git a/matchms/similarity/entropy_greedy.py b/matchms/similarity/entropy_greedy.py
+index f6204d6c6..3d47d4ec2 100644
+--- a/matchms/similarity/entropy_greedy.py
++++ b/matchms/similarity/entropy_greedy.py
+@@ -4,6 +4,7 @@
+ from .default_parameters import (
+     DEFAULT_MZ_TOLERANCE,
+     DEFAULT_NOISE_CUTOFF,
++    DEFAULT_OFFSET_TO_PRECURSOR,
+ )
+ from .flash_utils import _clean_and_weight
+ 
+@@ -99,9 +100,10 @@ class EntropyGreedy(BaseSimilarityWithSparse):
+         If True, interpret ``tolerance`` as a symmetric ppm tolerance.
+     remove_precursor
+         If True and ``precursor_mz`` metadata are available, remove peaks above
+-        ``precursor_mz - precursor_window`` before scoring.
+-    precursor_window
+-        Window used when ``remove_precursor=True``. Default is 1.6 Da.
++        ``precursor_mz + offset_to_precursor`` before scoring.
++    offset_to_precursor
++        Offset used when ``remove_precursor=True``. This will only keep 
++        mz values <= precursor_mz + offset_to_precursor. Default is -1.6 Da.
+     noise_cutoff
+         Remove peaks below this fraction of the spectrum's maximum intensity.
+         Set to 0 or None to disable. Default is 0.01.
+@@ -122,7 +124,7 @@ def __init__(
+         tolerance: float = DEFAULT_MZ_TOLERANCE,
+         use_ppm: bool = False,
+         remove_precursor: bool = False,
+-        precursor_window: float = 1.6,
++        offset_to_precursor: float = DEFAULT_OFFSET_TO_PRECURSOR,
+         noise_cutoff: float | None = DEFAULT_NOISE_CUTOFF,
+         merge_within: float = 0.0,
+         dtype: np.dtype = np.float64,
+@@ -135,7 +137,7 @@ def __init__(
+         self.tolerance = tolerance
+         self.use_ppm = use_ppm
+         self.remove_precursor = remove_precursor
+-        self.precursor_window = precursor_window
++        self.offset_to_precursor = offset_to_precursor
+         self.noise_cutoff = noise_cutoff
+         self.merge_within = merge_within
+         self.dtype = np.dtype(dtype)
+@@ -149,7 +151,7 @@ def _prepare(self, spectrum: SpectrumType) -> np.ndarray:
+             precursor_mz,
+             intensity_power=1.0,
+             remove_precursor=self.remove_precursor,
+-            precursor_window=self.precursor_window,
++            offset_to_precursor=self.offset_to_precursor,
+             noise_cutoff=self.noise_cutoff,
+             normalize_to_half=True,
+             merge_within_da=self.merge_within,
+diff --git a/matchms/similarity/flash_similarity.py b/matchms/similarity/flash_similarity.py
+index 678af1c76..970900d99 100644
+--- a/matchms/similarity/flash_similarity.py
++++ b/matchms/similarity/flash_similarity.py
+@@ -13,6 +13,7 @@
+     DEFAULT_INTENSITY_POWER,
+     DEFAULT_MZ_TOLERANCE,
+     DEFAULT_NOISE_CUTOFF,
++    DEFAULT_OFFSET_TO_PRECURSOR,
+ )
+ from .flash_utils import _build_library_index, _clean_and_weight
+ 
+@@ -32,7 +33,7 @@ def __init__(
+         use_ppm: bool = False,
+         intensity_power: float = DEFAULT_INTENSITY_POWER,
+         remove_precursor: bool = False,
+-        precursor_window: float = 1.6,
++        offset_to_precursor: float = DEFAULT_OFFSET_TO_PRECURSOR,
+         noise_cutoff: float = DEFAULT_NOISE_CUTOFF,
+         normalize_to_half: bool = False,
+         merge_within: float = 0,
+@@ -48,7 +49,7 @@ def __init__(
+         self.use_ppm = use_ppm
+         self.intensity_power = intensity_power
+         self.remove_precursor = remove_precursor
+-        self.precursor_window = precursor_window
++        self.offset_to_precursor = offset_to_precursor
+         self.noise_cutoff = noise_cutoff
+         self.normalize_to_half = normalize_to_half
+         self.merge_within = merge_within
+@@ -80,7 +81,7 @@ def _prepare(self, spectrum: SpectrumType) -> tuple[np.ndarray, float | None]:
+             pmz,
+             intensity_power=self.intensity_power,
+             remove_precursor=self.remove_precursor,
+-            precursor_window=self.precursor_window,
++            offset_to_precursor=self.offset_to_precursor,
+             noise_cutoff=self.noise_cutoff,
+             normalize_to_half=self.normalize_to_half,
+             merge_within_da=self.merge_within,
+@@ -101,7 +102,7 @@ def _build_library(self, spectra_2: Sequence[SpectrumType]):
+                 pmz,
+                 intensity_power=self.intensity_power,
+                 remove_precursor=self.remove_precursor,
+-                precursor_window=self.precursor_window,
++                offset_to_precursor=self.offset_to_precursor,
+                 noise_cutoff=self.noise_cutoff,
+                 normalize_to_half=self.normalize_to_half,
+                 merge_within_da=self.merge_within,
+@@ -238,15 +239,16 @@ class FlashEntropy(_BaseFlashSimilarity):
+     matching_mode:
+         Matching mode: 'fragment', 'neutral_loss', or 'hybrid' (default is 'fragment').
+     tolerance:
+-        Matching tolerance in Da or ppm (use_ppm=True). Default is 0.02.
++        Matching tolerance in Da or ppm (use_ppm=True). Default is 0.01.
+     use_ppm:
+         If True, interpret `tolerance` as parts-per-million. Default is False.
+     remove_precursor:
+-        If True, remove precursor peak and peaks within precursor_window.
++        If True, remove precursor peak and peaks within offset_to_precursor.
+         Default is False.
+-    precursor_window:
+-        If remove_precursor is True, remove peaks within this window around the precursor
+-        m/z. Default is 1.6 Da (as suggested by Li & Fiehn(2023)).
++    offset_to_precursor:
++        Offset used when ``remove_precursor=True``. This will only keep 
++        mz values <= precursor_mz + offset_to_precursor. Default is -1.6 Da.
++        (as suggested by Li & Fiehn(2023)).
+     noise_cutoff:
+         If > 0, remove peaks with intensities below this fraction of the maximum intensity.
+         Default is 0.01 (1%).
+@@ -420,9 +422,9 @@ class CosineFlash(_BaseFlashSimilarity):
+     intensity_power:
+         The power to raise intensity to in the cosine function. The default is 1 (no weighting).
+     remove_precursor:
+-        If True, remove precursor peak and peaks within precursor_window.
++        If True, remove precursor peak and peaks within offset_to_precursor.
+         Default is False.
+-    precursor_window:
++    offset_to_precursor:
+         If remove_precursor is True, remove peaks within this window around the precursor
+         m/z. Default is 1.6 Da (as suggested by Li & Fiehn(2023)).
+     noise_cutoff:
+diff --git a/matchms/similarity/flash_utils.py b/matchms/similarity/flash_utils.py
+index e51643ef1..d968f9594 100644
+--- a/matchms/similarity/flash_utils.py
++++ b/matchms/similarity/flash_utils.py
+@@ -236,7 +236,7 @@ def _clean_and_weight(
+         peaks: np.ndarray,
+         precursor_mz: float | None,
+         remove_precursor: bool,
+-        precursor_window: float,
++        offset_to_precursor: float,
+         noise_cutoff: float,
+         normalize_to_half: bool,
+         merge_within_da: float,
+@@ -248,7 +248,7 @@ def _clean_and_weight(
+     Apply the Flash preprocessing rules to a (mz, intensity) peak list.
+ 
+     Steps:
+-      1) (Optional) Remove all peaks at/above (precursor_mz - precursor_window).
++      1) (Optional) Remove all peaks above (precursor_mz + offset_to_precursor).
+       2) (Optional) Remove noise: keep peaks with intensity >= noise_cutoff * max(intensity).
+       3) (Optional) Entropy-weight intensities (Li & Fiehn): raise intensities by a power derived 
+          from spectrum entropy.
+@@ -263,8 +263,8 @@ def _clean_and_weight(
+         Precursor m/z for the spectrum (if known).
+     remove_precursor : bool
+         If True, remove the precursor and near-precursor peaks.
+-    precursor_window : float
+-        Size (Da) to cut below the precursor (remove m/z > precursor_mz - window).
++    offset_to_precursor : float
++        Size (Da) to cut below the precursor (remove m/z > precursor_mz + offset_to_precursor).
+     noise_cutoff : float
+         Fraction of max intensity to keep (0.01 means keep peaks >= 1% of max).
+     normalize_to_half : bool
+@@ -293,7 +293,7 @@ def _clean_and_weight(
+ 
+     # (optional) remove precursor and nearby peaks
+     if remove_precursor and (precursor_mz is not None):
+-        mask = mz <= (precursor_mz - precursor_window)
++        mask = mz <= (precursor_mz + offset_to_precursor)
+         mz, intensities = mz[mask], intensities[mask]
+         if mz.size == 0:
+             return np.empty((0, 2), dtype=dtype)
+diff --git a/tests/similarity/test_entropy.py b/tests/similarity/test_entropy.py
+index 6a765d09b..1e41cfb0f 100644
+--- a/tests/similarity/test_entropy.py
++++ b/tests/similarity/test_entropy.py
+@@ -249,7 +249,7 @@ def test_entropy_greedy_remove_precursor_can_remove_all_peaks():
+     score = EntropyGreedy(
+         tolerance=0.02,
+         remove_precursor=True,
+-        precursor_window=1.6,
++        offset_to_precursor=-1.6,
+         noise_cutoff=0.0,
+     ).pair(spectrum_1, spectrum_2)
+ 
+@@ -271,7 +271,7 @@ def test_entropy_greedy_remove_precursor_keeps_cutoff_boundary():
+     score = EntropyGreedy(
+         tolerance=0.02,
+         remove_precursor=True,
+-        precursor_window=1.6,
++        offset_to_precursor=-1.6,
+         noise_cutoff=0.0,
+     ).pair(spectrum_1, spectrum_2)
+ 
+@@ -440,7 +440,7 @@ def test_entropy_greedy_matches_flash_entropy_after_precursor_cleanup():
+     kwargs = {
+         "tolerance": 0.02,
+         "remove_precursor": True,
+-        "precursor_window": 1.5,
++        "offset_to_precursor": -1.5,
+         "noise_cutoff": 0.0,
+         "dtype": np.float64,
+     }
+@@ -475,7 +475,7 @@ def test_entropy_pair_matches_entropy_greedy_with_same_configuration():
+         "tolerance": 0.02,
+         "use_ppm": False,
+         "remove_precursor": True,
+-        "precursor_window": 0.5,
++        "offset_to_precursor": -0.5,
+         "noise_cutoff": 0.0,
+         "merge_within": 0.015,
+         "dtype": np.float64,
+@@ -500,7 +500,7 @@ def test_entropy_matrix_matches_flash_entropy_with_same_configuration():
+         "tolerance": 0.01,
+         "use_ppm": False,
+         "remove_precursor": False,
+-        "precursor_window": 1.6,
++        "offset_to_precursor": -1.6,
+         "noise_cutoff": 0.0,
+         "merge_within": 0.0,
+         "dtype": np.float64,
+diff --git a/tests/similarity/test_flash_similarity.py b/tests/similarity/test_flash_similarity.py
+index 0422f3626..6807314c0 100644
+--- a/tests/similarity/test_flash_similarity.py
++++ b/tests/similarity/test_flash_similarity.py
+@@ -55,7 +55,7 @@ def test_entropy_pair_returns_zero_when_empty_after_cleanup():
+         tolerance=0.02,
+         matching_mode="fragment",
+         remove_precursor=True,
+-        precursor_window=1.6,
++        offset_to_precursor=-1.6,
+         noise_cutoff=0.0,
+         normalize_to_half=True,
+         merge_within=0.0,
+diff --git a/tests/similarity/test_flash_utils.py b/tests/similarity/test_flash_utils.py
+index c15d33552..d51a20f29 100644
+--- a/tests/similarity/test_flash_utils.py
++++ b/tests/similarity/test_flash_utils.py
+@@ -87,7 +87,7 @@ def test_clean_and_weight_pipeline_precursor_noise_norm_merge():
+         np.column_stack([mz, intens]),
+         precursor_mz=pmz,
+         remove_precursor=True,
+-        precursor_window=1.6,   # keep only <= 198.4
++        offset_to_precursor=-1.6,   # keep only <= 198.4
+         noise_cutoff=0.05,      # remove peaks below 5% of max (max AFTER precursor filter)
+         normalize_to_half=True,
+         merge_within_da=0.5,    # merge anything within 0.5 Da
+@@ -106,7 +106,7 @@ def test_clean_and_weight_cosine_weighting_no_change_when_not_normalized():
+     out = _clean_and_weight(peaks,
+                             precursor_mz=None,
+                             remove_precursor=False,
+-                            precursor_window=1.6,
++                            offset_to_precursor=-1.6,
+                             noise_cutoff=0.0,
+                             normalize_to_half=False,   # ensure no scaling applied
+                             merge_within_da=0.0,
+@@ -123,7 +123,7 @@ def test_clean_and_weight_raises_on_unknown_weighing_type():
+         _clean_and_weight(peaks,
+                           precursor_mz=None,
+                           remove_precursor=False,
+-                          precursor_window=1.6,
++                          offset_to_precursor=-1.6,
+                           noise_cutoff=0.0,
+                           normalize_to_half=False,
+                           merge_within_da=0.0,

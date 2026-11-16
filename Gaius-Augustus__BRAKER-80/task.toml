@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/Gaius-Augustus__BRAKER-80"
+description = "braker.pl : fixed bug in check_fasta_headers function (issue https://…"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "BRAKER",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "Gaius-Augustus/BRAKER"
+ref = "c6af38ade5645dc3da8c1d18ed1780861274680b"
+reference = "https://github.com/Gaius-Augustus/BRAKER/pull/80"
+source_access = "auto"
+built_at = "2026-11-15T22:38:37.002985+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:0203f1ede510bf2d0c64b0484dcf6f0c0b056e2e5ed346752e58e043d3051245"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2019-09-30T12:45:05Z"
+diff_format = "unified"
+context_files = [
+    "scripts/braker.pl",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 236
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

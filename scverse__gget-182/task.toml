@@ -1,0 +1,75 @@
+version = "1.0"
+
+[task]
+name = "default/scverse__gget-182"
+description = "Fix BLAT request and cellxgene arg handling"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "gget",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "scverse/gget"
+ref = "deb7e3b003336645be44cd1d663295ef6158905e"
+reference = "https://github.com/scverse/gget/pull/182"
+source_access = "auto"
+built_at = "2026-11-15T21:05:22.989792+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:9580f13c17d1687cd218a6a9ede0164c01bce73acbd3395d2df5a0b25a9d2f55"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-09-10T02:09:03Z"
+diff_format = "unified"
+context_files = [
+    "docs/src/en/cellxgene.md",
+    "docs/src/en/updates.md",
+    "docs/src/es/cellxgene.md",
+    "docs/src/es/updates.md",
+    "gget/gget_blat.py",
+    "gget/gget_cellxgene.py",
+    "gget/gget_setup.py",
+    "gget/main.py",
+    "setup.cfg",
+    "tests/fixtures.py",
+    "tests/fixtures/test_cellxgene.json",
+    "tests/fixtures/test_info.json",
+    "tests/test_cellxgene.py",
+    "tests/test_cosmic.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 298
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

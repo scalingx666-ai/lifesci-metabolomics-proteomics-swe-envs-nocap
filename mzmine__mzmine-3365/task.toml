@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3365"
+description = "Network with pie charts based on sample metadata"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "c5baff0f8307d30260fbf6b22ff9c503ab3b3319"
+reference = "https://github.com/mzmine/mzmine/pull/3365"
+source_access = "auto"
+built_at = "2026-11-16T08:46:26.975982+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:072d5698c12b829b0ad274c97eba941702cff486d06b5c1dd40f3c2b43909592"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-06-15T05:56:32Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/networking/visual/FeatureNetworkController.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/networking/visual/FeatureNetworkGenerator.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/networking/visual/FeatureNetworkPane.fxml",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/networking/visual/FeatureNetworkPane.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/networking/visual/NetworkLegend.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/networking/visual/NetworkPieChartStyler.java",
+    "mzmine-community/src/main/resources/themes/graph_network_style.css",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 428
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,14 @@
+diff --git a/setup.py b/setup.py
+index 1c0a5ee..97f3471 100755
+--- a/setup.py
++++ b/setup.py
+@@ -7,7 +7,8 @@
+   version = '1.300',
+   install_requires=[
+         'xmltodict', 
+-        'beautifulsoup4'
++        'beautifulsoup4',
++		'requests'
+   ],
+   description = 'A Python wrapper for the RCSB Protein Data Bank (PDB) API',
+   author = 'William Gilpin',

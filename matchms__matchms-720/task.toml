@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-720"
+description = "Add ecosystem dependency tests"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "5e92aeeef27435f7bf4ef6d2281feb68c746bf45"
+reference = "https://github.com/matchms/matchms/pull/720"
+source_access = "auto"
+built_at = "2026-11-16T12:56:04.391752+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:275b3fb4f439164a90ac8c728c21eb7102febb579471ddf378ffe72684304de9"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2024-12-04T20:26:16Z"
+diff_format = "unified"
+context_files = [
+    ".github/workflows/test_ecosystem.yml",
+    "README.rst",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 290
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

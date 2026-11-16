@@ -1,0 +1,2211 @@
+diff --git a/docs/src/SUMMARY.md b/docs/src/SUMMARY.md
+index 527abe85b..f7b04402a 100644
+--- a/docs/src/SUMMARY.md
++++ b/docs/src/SUMMARY.md
+@@ -26,6 +26,7 @@
+ * [gget search](en/search.md)  
+ * [gget setup](en/setup.md)  
+ * [gget seq](en/seq.md)  
++* [gget opentargets](en/opentargets.md)  
+ 
+ ---
+ 
+diff --git a/docs/src/en/opentargets.md b/docs/src/en/opentargets.md
+new file mode 100644
+index 000000000..26b549040
+--- /dev/null
++++ b/docs/src/en/opentargets.md
+@@ -0,0 +1,259 @@
++> Python arguments are equivalent to long-option arguments (`--arg`), unless otherwise specified. Flags are True/False arguments in Python. The manual for any gget tool can be called from the command-line using the `-h` `--help` flag.  
++## gget opentargets 📖
++Fetch associated diseases or drugs from [OpenTargets](https://platform.opentargets.org/) using Ensembl IDs.   
++Return format: JSON/CSV (command-line) or data frame (Python).
++
++**Positional argument**  
++`ens_id`  
++Ensembl gene ID, e.g ENSG00000169194.
++
++**Optional arguments**  
++`-r` `--resource`   
++Defines the type of information to return in the output. Default: 'diseases'.   
++Possible resources are:
++
++| Resource           | Return Value                                                      | Valid Filters                                     |
++|--------------------|-------------------------------------------------------------------|---------------------------------------------------|
++| `diseases`         | Associated diseases                                               | None                                              |
++| `drugs`            | Associated drugs                                                  | `disease_id`                                      |
++| `tractability`     | Tractability data                                                 | None                                              |
++| `pharmacogenetics` | Pharmacogenetic responses                                         | `drug_id`                                         |
++| `expression`       | Gene expression data (by tissues, organs, and anatomical systems) | `tissue_id`<br/>`anatomical_system`<br/>`organ`   |
++| `depmap`           | DepMap gene&rarr;disease-effect data.                             | `tissue_id`                                       |
++| `interactions`     | Protein&rlarr;protein interactions                                | `protein_a_id`<br/>`protein_b_id`<br/>`gene_b_id` |
++
++`-l` `--limit`  
++Limit the number of results, e.g 10. Default: No limit.     
++Note: Not compatible with the `tractability` and `depmap` resources.
++
++`-o` `--out`    
++Path to the JSON file the results will be saved in, e.g. path/to/directory/results.json. Default: Standard out.  
++Python: `save=True` will save the output in the current working directory.
++
++**Optional filter arguments**
++
++`-fd` `--filter_disease` `disease_id`  
++Filter by disease ID, e.g. 'EFO_0000274'. *Only valid for the `drugs` resource.*
++
++`-fc` `--filter_drug` `drug_id`  
++Filter by drug ID, e.g. 'CHEMBL1743081'. *Only valid for the `pharmacogenetics` resource.*
++
++`-ft` `--filter_tissue` `tissue_id`  
++Filter by tissue ID, e.g. 'UBERON_0000473'. *Only valid for the `expression` and `depmap` resources.*
++
++`-fa` `--filter_anat_sys`  
++Filter by anatomical system, e.g. 'nervous system'. *Only valid for the `expression` resource.*
++
++`-fo` `--filter_organ` `anatomical_system`  
++Filter by organ, e.g. 'brain'. *Only valid for the `expression` resource.*
++
++`-fpa` `--filter_protein_a` `protein_a_id`  
++Filter by the protein ID of the first protein in the interaction, e.g. 'ENSP00000304915'. *Only valid for the `interactions` resource.*
++
++`-fpb` `--filter_protein_b` `protein_b_id`  
++Filter by the protein ID of the second protein in the interaction, e.g. 'ENSP00000379111'. *Only valid for the `interactions` resource.*
++
++`-fgb` `--filter_gene_b` `gene_b_id`  
++Filter by the gene ID of the second protein in the interaction, e.g. 'ENSG00000077238'. *Only valid for the `interactions` resource.*
++
++`filters`  
++Python only. A dictionary of filters, e.g.
++```python
++{'disease_id': ['EFO_0000274', 'HP_0000964']}
++```
++
++`filter_mode`  
++Python only. `filter_mode='or'` combines filters of different IDs with OR logic.
++`filter_mode='and'` combines filters of different IDs with AND logic (default).
++
++**Flags**   
++`-csv` `--csv`  
++Command-line only. Returns the output in CSV format, instead of JSON format.
++
++`-q` `--quiet`   
++Command-line only. Prevents progress information from being displayed.  
++Python: Use `verbose=False` to prevent progress information from being displayed. 
++
++`-or` `--or`  
++Command-line only. Filters are combined with OR logic. Default: AND logic.
++
++`wrap_text`  
++Python only. `wrap_text=True` displays data frame with wrapped text for easy reading (default: False).  
++  
++  
++### Examples
++
++**Get associated diseases for a specific gene:**   
++```bash
++gget opentargets ENSG00000169194 -r diseases -l 1
++```
++```python
++# Python
++import gget
++gget.opentargets('ENSG00000169194', resource='diseases', limit=1)
++```
++&rarr; Returns the top disease associated with the gene ENSG00000169194.
++
++| id            | name               | description                                                           | score            |
++|---------------|--------------------|-----------------------------------------------------------------------|------------------|
++| EFO_0000274   | atopic&nbsp;eczema | A chronic inflammatory genetically determined disease of the skin ... | 0.66364347241831 |
++
++<br/><br/>
++
++**Get associated drugs for a specific gene:**   
++```bash
++gget opentargets ENSG00000169194 -r drugs -l 2
++```
++```python
++import gget
++gget.opentargets('ENSG00000169194', resource='drugs', limit=2)
++```
++
++&rarr; Returns the top 2 drugs associated with the gene ENSG00000169194.
++
++| id            | name         | type     | action_mechanism                    | description                                                  | synonyms                                           | trade_names           | disease_id  | disease_name                  | trial_phase | trial_status | trial_ids     | approved |
++|---------------|--------------|----------|-------------------------------------|--------------------------------------------------------------|----------------------------------------------------|-----------------------|-------------|-------------------------------|-------------|--------------|---------------|----------|
++| CHEMBL1743081 | TRALOKINUMAB | Antibody | Interleukin&#8209;13&nbsp;inhibitor | Antibody drug with a maximum clinical trial phase of IV ...  | ['CAT-354', 'Tralokinumab']                        | ['Adbry', 'Adtralza'] | EFO_0000274 | atopic&nbsp;eczema            | 4           |              | []            | True     |
++| CHEMBL4297864 | CENDAKIMAB   | Antibody | Interleukin&#8209;13&nbsp;inhibitor | Antibody drug with a maximum clinical trial phase of III ... | [ABT-308, Abt-308, CC-93538, Cendakimab, RPC-4046] | []                    | EFO_0004232 | eosinophilic&nbsp;esophagitis | 3           | Recruiting   | [NCT04991935] | False    |
++
++*Note: Returned `trial_ids` are [ClinicalTrials.gov](https://clinicaltrials.gov) identifiers*
++
++<br/><br/>
++
++**Get tractability data for a specific gene:**   
++```bash
++gget opentargets ENSG00000169194 -r tractability
++```
++```python
++import gget
++gget.opentargets('ENSG00000169194', resource='tractability')
++```
++
++&rarr; Returns tractability data for the gene ENSG00000169194.
++
++| label                 | modality       |
++|-----------------------|----------------|
++| High-Quality Pocket   | Small molecule |
++| Approved Drug         | Antibody       |
++| GO CC high conf       | Antibody       |
++| UniProt loc med conf  | Antibody       |
++| UniProt SigP or TMHMM | Antibody       |
++
++<br/><br/>
++
++**Get pharmacogenetic responses for a specific gene:**
++```bash
++gget opentargets ENSG00000169194 -r pharmacogenetics -l 1
++```
++```python
++import gget
++gget.opentargets('ENSG00000169194', resource='pharmacogenetics', limit=1)
++```
++
++&rarr; Returns pharmacogenetic responses for the gene ENSG00000169194.
++
++| rs_id     | genotype_id       | genotype | variant_consequence_id | variant_consequence_label | drugs                                                                                                                                   | phenotype                                                               | genotype_annotation                                                                                          | response_category | direct_target | evidence_level | source   | literature |
++|-----------|-------------------|----------|------------------------|---------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|-------------------|---------------|----------------|----------|------------|
++| rs1295686 | 5_132660151_T_T,T | TT       | SO:0002073             | no_sequence_alteration    | &nbsp;&nbsp;&nbsp;&nbsp;id&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;name<br/>0&nbsp;&nbsp;None&nbsp;&nbsp;hepatitis&nbsp;vaccines | increased risk for non&#8209;immune response to the hepatitis B vaccine | Patients with the TT genotype may be at increased risk for non-immune response to the hepatitis B vaccine... | efficacy          | False         | 3              | pharmgkb | [21111021] |
++
++*Note: Returned `literature` ids are [Europe PMC](https://europepmc.org/article/med/) identifiers*
++
++<br/><br/>
++
++**Get tissues where a gene is most expressed:**
++```bash
++gget opentargets ENSG00000169194 -r expression -l 2
++```
++```python
++import gget
++gget.opentargets('ENSG00000169194', resource='expression', limit=2)
++```
++
++&rarr; Returns the top 2 tissues where the gene ENSG00000169194 is most expressed.
++
++| tissue_id      | tissue_name                           | rna_zscore | rna_value | rna_unit | rna_level | anatomical_systems                                                   | organs                                                 |
++|----------------|---------------------------------------|------------|-----------|----------|-----------|----------------------------------------------------------------------|--------------------------------------------------------|
++| UBERON_0000473 | testis                                | 5          | 1026      |          | 3         | [reproductive&nbsp;system]                                           | [reproductive&nbsp;organ, reproductive&nbsp;structure] |
++| CL_0000542     | EBV&#8209;transformed&nbsp;lymphocyte | 1          | 54        |          | 2         | [hemolymphoid&nbsp;system, immune&nbsp;system, lymphoid&nbsp;system] | [immune organ]                                         |
++
++<br/><br/>
++
++**Get DepMap gene-disease effect data for a specific gene:**
++```bash
++gget opentargets ENSG00000169194 -r depmap
++```
++```python
++import gget
++gget.opentargets('ENSG00000169194', resource='depmap')
++```
++
++&rarr; Returns DepMap gene-disease effect data for the gene ENSG00000169194.
++
++| depmap_id        | expression | effect   | tissue_id      | tissue_name | cell_line_name | disease_cell_line_id | disease_name         | mutation |
++|------------------|------------|----------|----------------|-------------|----------------|----------------------|----------------------|----------|
++| ACH&#8209;001532 | 0.176323   | 0.054950 | UBERON_0002113 | kidney      | JMU-RTK-2      | None                 | Rhabdoid&nbsp;Cancer | None     |
++
++<br/><br/>
++
++**Get protein-protein interactions for a specific gene:**
++```bash
++gget opentargets ENSG00000169194 -r interactions -l 2
++```
++```python
++import gget
++gget.opentargets('ENSG00000169194', resource='interactions', limit=2)
++```
++
++&rarr; Returns the top 2 protein-protein interactions for the gene ENSG00000169194.
++
++| evidence_score | evidence_count | source_db | protein_a_id    | gene_a_id       | gene_a_symbol | role_a                | taxon_a | protein_b_id    | gene_b_id       | gene_b_symbol | role_b                | taxon_b |
++|----------------|----------------|-----------|-----------------|-----------------|---------------|-----------------------|---------|-----------------|-----------------|---------------|-----------------------|---------|
++| 0.999          | 3              | string    | ENSP00000304915 | ENSG00000169194 | IL13          | unspecified&nbsp;role | 9606    | ENSP00000379111 | ENSG00000077238 | IL4R          | unspecified&nbsp;role | 9606    |
++| 0.999          | 3              | string    | ENSP00000304915 | ENSG00000169194 | IL13          | unspecified&nbsp;role | 9606    | ENSP00000360730 | ENSG00000131724 | IL13RA1       | unspecified&nbsp;role | 9606    |
++
++**Get protein-protein interactions for a specific gene, filtering by protein and gene IDs:**
++```bash
++gget opentargets ENSG00000169194 -r interactions -fpa P35225 --filter_gene_b ENSG00000077238
++```
++```python
++import gget
++gget.opentargets('ENSG00000169194', resource='interactions', filters={'protein_a_id': 'P35225', 'gene_b_id': 'ENSG00000077238'})
++```
++
++&rarr; Returns protein-protein interactions for the gene ENSG00000169194, where the first protein is P35225 **and** the second gene is ENSG00000077238.
++
++| evidence_score | evidence_count | source_db | protein_a_id | gene_a_id       | gene_a_symbol | role_a                | taxon_a | protein_b_id | gene_b_id       | gene_b_symbol | role_b                | taxon_b |
++|----------------|----------------|-----------|--------------|-----------------|---------------|-----------------------|---------|--------------|-----------------|---------------|-----------------------|---------|
++| None           | 3              | reactome  | P35225       | ENSG00000169194 | IL13          | unspecified&nbsp;role | 9606    | P24394       | ENSG00000077238 | IL4R          | unspecified&nbsp;role | 9606    |
++| None           | 2              | signor    | P35225       | ENSG00000169194 | IL13          | regulator             | 9606    | P24394       | ENSG00000077238 | IL4R          | regulator&nbsp;target | 9606    |
++
++<br/><br/>
++
++**Get protein-protein interactions for a specific gene, filtering by protein or gene IDs:**
++```bash
++gget opentargets ENSG00000169194 -r interactions -fpa P35225 --filter_gene_b ENSG00000077238 ENSG00000111537 --or -l 5
++```
++```python
++import gget
++gget.opentargets(
++    'ENSG00000169194',
++    resource='interactions',
++    filters={'protein_a_id': 'P35225', 'gene_b_id': ['ENSG00000077238', 'ENSG00000111537']},
++    filter_mode='or',
++    limit=5
++)
++```
++
++&rarr; Returns protein-protein interactions for the gene ENSG00000169194, where the first protein is P35225 **or** the second gene is either ENSG00000077238 or ENSG00000111537.
++
++| evidence_score | evidence_count | source_db | protein_a_id    | gene_a_id       | gene_a_symbol | role_a                | taxon_a | protein_b_id    | gene_b_id       | gene_b_symbol | role_b                | taxon_b |
++|----------------|----------------|-----------|-----------------|-----------------|---------------|-----------------------|---------|-----------------|-----------------|---------------|-----------------------|---------|
++| 0.999          | 3              | string    | ENSP00000304915 | ENSG00000169194 | IL13          | unspecified&nbsp;role | 9606    | ENSP00000379111 | ENSG00000077238 | IL4R          | unspecified&nbsp;role | 9606    |
++| 0.961          | 2              | string    | ENSP00000304915 | ENSG00000169194 | IL13          | unspecified&nbsp;role | 9606    | ENSP00000229135 | ENSG00000111537 | IFNG          | unspecified&nbsp;role | 9606    |
++| 0.800          | 9              | intact    | P35225          | ENSG00000169194 | IL13          | unspecified&nbsp;role | 9606    | Q14627          | ENSG00000123496 | IL13RA2       | unspecified&nbsp;role | 9606    |
++| 0.740          | 6              | intact    | P35225          | ENSG00000169194 | IL13          | unspecified&nbsp;role | 9606    | P78552          | ENSG00000131724 | IL13RA1       | unspecified&nbsp;role | 9606    |
++| 0.400          | 1              | intact    | P35225          | ENSG00000169194 | IL13          | unspecified&nbsp;role | 9606    | Q86XT9          | ENSG00000149932 | TMEM219       | stimulator            | 9606    |
++
++
++    
++#### [More examples](https://github.com/pachterlab/gget_examples)
+diff --git a/gget/__init__.py b/gget/__init__.py
+index c570b900a..dc26f033a 100644
+--- a/gget/__init__.py
++++ b/gget/__init__.py
+@@ -16,6 +16,7 @@
+ from .gget_diamond import diamond
+ from .gget_cosmic import cosmic
+ from .gget_mutate import mutate
++from .gget_opentargets import opentargets
+ 
+ import logging
+ # Mute numexpr threads info
+diff --git a/gget/constants.py b/gget/constants.py
+index b62ca5d6a..eed040362 100644
+--- a/gget/constants.py
++++ b/gget/constants.py
+@@ -51,3 +51,6 @@
+ # COSMIC API endpoint
+ COSMIC_GET_URL = "https://cancer.sanger.ac.uk/cosmic/search/"
+ COSMIC_RELEASE_URL = "https://cancer.sanger.ac.uk/cosmic/release_notes"
++
++# OpenTargets API endpoint
++OPENTARGETS_GRAPHQL_API = "https://api.platform.opentargets.org/api/v4/graphql"
+diff --git a/gget/gget_opentargets.py b/gget/gget_opentargets.py
+new file mode 100644
+index 000000000..8d9a53a1e
+--- /dev/null
++++ b/gget/gget_opentargets.py
+@@ -0,0 +1,663 @@
++import time
++from typing import Literal, Callable, Any, TypeAlias
++
++import pandas as pd
++
++from .constants import OPENTARGETS_GRAPHQL_API
++from .utils import set_up_logger, wrap_cols_func, graphql_query, json_list_to_df
++
++logger = set_up_logger()
++
++
++def opentargets(
++    ensembl_id: str,
++    resource: Literal[
++        "diseases",
++        "drugs",
++        "tractability",
++        "pharmacogenetics",
++        "expression",
++        "depmap",
++        "interactions",
++    ] = "diseases",
++    limit: int | None = None,
++    verbose: bool = True,
++    wrap_text: bool = False,
++    filters: dict[str, str | list[str]] | None = None,
++    filter_mode: Literal["and", "or"] = "and",
++) -> pd.DataFrame:
++    """
++    Query OpenTargets for data associated with a given Ensembl gene ID.
++
++    Args:
++
++    - ensembl_id    Ensembl gene ID to be queried (str), e.g. "ENSG00000169194".
++    - resource      Defines type of information to be returned.
++                    "diseases":         Returns diseases associated with the gene (default).
++                    "drugs":            Returns drugs associated with the gene.
++                    "tractability":     Returns tractability data for the gene.
++                    "pharmacogenetics": Returns pharmacogenetics data for the gene.
++                    "expression":       Returns gene expression data (by tissues, organs, and anatomical systems).
++                    "depmap":           Returns DepMap gene-disease effect data for the gene.
++                    "interactions":     Returns protein-protein interactions for the gene.
++    - limit         Limit the number of results returned (default: No limit).
++                    Note: Not compatible with the 'tractability' and 'depmap' resources.
++    - verbose       Print progress messages (default: True).
++    - wrap_text     If True, displays data frame with wrapped text for easy reading. Default: False.
++    - filters       Filters to apply to the data. Supported filters by resource:
++                    "diseases": None
++                    "drugs": disease_id (e.g. "EFO_0000274")
++                    "tractability": None
++                    "pharmacogenetics": drug_id (e.g. "CHEMBL535")
++                    "expression": tissue_id (e.g. "UBERON_0002245"), anatomical_system (e.g. "nervous system"), organ (e.g. "brain")
++                    "depmap": tissue_id (e.g. "UBERON_0002245")
++                    "interactions": protein_a_id (e.g. "ENSP00000304915"), protein_b_id (e.g. "ENSP00000379111"), gene_b_id (e.g. "ENSG00000077238")
++    - filter_mode   For resources that support multiple types of filters, this argument specifies how to combine them.
++
++
++    Returns requested information in DataFrame format.
++    """
++
++    # check if resource argument is valid
++    if resource not in _RESOURCES:
++        raise ValueError(
++            f"'resource' argument specified as {resource}. Expected one of: {', '.join(_RESOURCES)}"
++        )
++
++    # Wrap everything into a list
++    if filters is not None:
++        filters = {k: v if isinstance(v, list) else [v] for k, v in filters.items()}
++
++    return _RESOURCES[resource](
++        ensembl_id,
++        limit=limit,
++        verbose=verbose,
++        wrap_text=wrap_text,
++        filters=filters,
++        filter_mode=filter_mode,
++    )
++
++
++def _limit_pagination() -> tuple[str, str, callable]:
++    """
++    Limit is expressed as (page: {"index": 0, "size": limit}).
++    """
++
++    def f(limit: int | None, is_rows_based_query: bool):
++        if limit is None:
++            # special case because `None` is used to probe the total count
++            if is_rows_based_query:
++                limit = 1
++            else:
++                return None
++        return {"index": 0, "size": limit}
++
++    return "page", "Pagination", f
++
++
++def _limit_size() -> tuple[str, str, callable]:
++    """
++    Limit is expressed as (size: limit).
++    """
++
++    def f(limit: int | None, is_rows_based_query: bool):
++        # special case because `None` is used to probe the total count
++        if limit is None and is_rows_based_query:
++            limit = 1
++        return limit
++
++    return "size", "Int", f
++
++
++def _limit_not_supported() -> tuple[None, None, callable]:
++    """
++    Limit is not supported for this resource (it has no GraphQL-support, and it is meaningless).
++    """
++
++    def f(limit: int | None, _is_rows_based_query: bool):
++        if limit is not None:
++            raise ValueError("Limit is not supported for this resource.")
++        return None
++
++    return None, None, f
++
++
++def _limit_deferred() -> tuple[None, None, callable]:
++    """
++    Limit is handled after fetching the data (it is not supported by the GraphQL query, but does have meaning).
++    """
++
++    def f(_limit: int | None, _is_rows_based_query: bool):
++        return None
++
++    return None, None, f
++
++
++def _tractability_converter(row: dict[str, ...]):
++    _modality_map = {
++        "SM": "Small molecule",
++        "AB": "Antibody",
++        "PR": "PROTAC",
++        "OC": "Other",
++    }
++    row["modality"] = _modality_map.get(row["modality"], row["modality"])
++
++
++def _pharmacogenetics_converter(row: dict[str, ...]):
++    # need to modify the drugs field to parse it into a dataframe
++    drugs = row["drugs"]
++    drugs_df = json_list_to_df(drugs, [("id", "drugId"), ("name", "drugFromSource")])
++    row["drugs"] = drugs_df
++
++
++def _mk_list_converter(
++    f: Callable[[dict[str, ...]], None]
++) -> Callable[[list[dict[str, ...]]], None]:
++    def fun(rows: list[dict[str, ...]]):
++        for row in rows:
++            f(row)
++
++    return fun
++
++
++def _flatten_depmap(json_entries: list[dict[str, ...]]):
++    old_entries = json_entries.copy()
++    json_entries.clear()
++
++    for entry in old_entries:
++        for screen in entry["screens"]:
++            new_entry = entry.copy()
++            del new_entry["screens"]
++            new_entry["screen"] = screen
++            json_entries.append(new_entry)
++
++
++_FilterApplicator: TypeAlias = Callable[
++    [dict[str, ...], Literal["and", "or"], dict[str, list[str]]], bool
++]
++
++
++def _mk_filter_applicator(id_key: dict[str, str]) -> tuple[set[str], _FilterApplicator]:
++    """
++    Make a filter applicator function based on the provided mapping.
++    :param id_key: Mapping of filter key to the key in the row data. (e.g. {"disease_id": "disease.id"})
++    """
++
++    def f(
++        row: dict[str, ...], mode: Literal["and", "or"], filters: dict[str, list[str]]
++    ) -> bool:
++        for filter_id, filter_values in filters.items():
++            split_key = id_key[filter_id].split(".")
++            actual_value: dict[str, ...] | list[dict[str, ...]] = row
++            for k in split_key:
++                if actual_value is None:
++                    break
++                if type(actual_value) is list:
++                    actual_value = [v[k] for v in actual_value]
++                else:
++                    actual_value = actual_value[k]
++
++            if mode == "and":
++                if type(actual_value) is list:
++                    if not any(
++                        v in filter_values for v in actual_value
++                    ):  # if none match, return False
++                        return False
++                elif actual_value not in filter_values:
++                    return False
++            else:
++                if type(actual_value) is list:
++                    if any(
++                        v in filter_values for v in actual_value
++                    ):  # if any match, return True
++                        return True
++                elif actual_value in filter_values:
++                    return True
++
++        return mode == "and"  # fallthrough return for "and" is True, for "or" is False
++
++    return set(id_key.keys()), f
++
++
++def _make_query_fun(
++    top_level_key: str,
++    inner_query: str,
++    human_readable_tlk: str,
++    df_schema: list[tuple[str, str]],
++    wrap_columns: list[str],
++    limit_func: callable,
++    is_rows_based_query: bool = True,
++    sorter: Callable[[dict[str, ...]], Any] | None = None,
++    sort_reverse: bool = False,
++    filter_: Callable[[dict[str, ...]], bool] = lambda x: True,
++    converter: Callable[[list[dict[str, ...]]], None] = lambda x: None,
++    user_filter: tuple[set[str], _FilterApplicator] | None = None,
++) -> callable:
++    """
++    Make a query function for OpenTargets API.
++
++    Args:
++
++    - top_level_key         Top level key in the GraphQL query response, e.g. "associatedDiseases".
++    - inner_query           Query string for the row data, e.g. "score disease{id name description}".
++    - human_readable_tlk    Human readable version of the top level key, e.g. "associated diseases".
++    - df_schema             Schema for the DataFrame, e.g. [("id", "disease.id"), ("name", "disease.name")].
++    - wrap_columns          Columns to wrap text for easy reading, e.g. ["description"].
++    - limit_func            Function to convert a limit into a pagination variable.
++    - is_rows_based_query   If True, the query is wrapped inside `count rows{query}`.
++    - sorter                Function to sort the raw data before it is limited, filtered, or converted.
++                            Note: you may want to use `_limit_deferred`, otherwise the limit will be
++                            applied through GraphQL before sorting.
++    - sort_reverse          If True, sort in reverse order.
++    - filter_               Function to filter the raw data (return False to skip value).
++                            Note: applied after limit but before converter.
++    - converter             Function to optionally manipulate the raw data IN PLACE before it is converted to a DataFrame.
++    - user_filter           Tuple of a set of valid filter keys and a function to apply filters to the raw data.
++                            Run before limit, `filter_`, and `converter`. Only called if filters are provided.
++
++    Returns a function that queries the OpenTargets API and returns the data in DataFrame format.
++    """
++
++    limit_key, limit_type, limit_func = limit_func()
++
++    def fun(
++        ensembl_id: str,
++        limit: int | None = None,
++        verbose: bool = True,
++        wrap_text: bool = False,
++        filters: dict[str, list[str]] | None = None,
++        filter_mode: Literal["and", "or"] = "and",
++    ) -> pd.DataFrame:
++        if limit_key is None:
++            query_string = """
++            query target($ensemblId: String!) {
++                target(ensemblId: $ensemblId) {
++                    <TOP_LEVEL_KEY>{
++                        <ROW_QUERY>
++                    }
++                }
++            }
++            """.replace(
++                "<TOP_LEVEL_KEY>", top_level_key
++            ).replace(
++                "<ROW_QUERY>", inner_query
++            )
++        else:
++            if is_rows_based_query:
++                query_tmp = """
++                count
++                rows{
++                    <INNER_QUERY>
++                }""".replace(
++                    "<INNER_QUERY>", inner_query
++                )
++            else:
++                query_tmp = inner_query
++            query_string = (
++                """
++            query target($ensemblId: String!, $pagination: <LIMIT_TYPE>) {
++                target(ensemblId: $ensemblId) {
++                    <TOP_LEVEL_KEY>(<LIMIT_KEY>: $pagination){
++                        <QUERY>
++                    }
++                }
++            }
++            """.replace(
++                    "<TOP_LEVEL_KEY>", top_level_key
++                )
++                .replace("<LIMIT_TYPE>", limit_type)
++                .replace("<LIMIT_KEY>", limit_key)
++                .replace("<QUERY>", query_tmp)
++            )
++
++        actual_limit = limit
++
++        if filters is not None and len(filters) > 0:
++            if user_filter is None:
++                raise ValueError("Filters are not supported for this resource.")
++            valid_keys, filter_func = user_filter
++            invalid_keys = set(filters.keys()) - valid_keys
++            if len(invalid_keys) > 0:
++                invalid_keys = [f"'{k}'" for k in invalid_keys]
++                valid_keys = [f"'{k}'" for k in valid_keys]
++                raise ValueError(
++                    f"The following filter keys are invalid for this resource: {', '.join(invalid_keys)}. Valid keys are: {', '.join(valid_keys)}"
++                )
++            # we have to fetch all data to be able to apply limit in a sane way when filters are specified
++            limit = None
++
++        pagination = limit_func(limit, is_rows_based_query)
++        variables = {"ensemblId": ensembl_id, "pagination": pagination}
++
++        if limit_key is None:
++            del variables["pagination"]
++
++        results = graphql_query(OPENTARGETS_GRAPHQL_API, query_string, variables)
++        target: dict[str, ...] = results["data"]["target"]
++        if target is None:
++            raise ValueError(
++                f"No data found for Ensembl ID: {ensembl_id}. Please double-check the ID and try again."
++            )
++        data: dict[str, ...] = target[top_level_key]
++
++        if is_rows_based_query:
++            total_count: int = data["count"]
++            rows: list[dict[str, ...]] = data["rows"]
++        else:
++            # noinspection PyTypeChecker
++            rows: list[dict[str, ...]] = data
++            total_count = len(data)
++
++        if verbose:
++            explanation = ""
++            if limit is None and limit_key is not None and is_rows_based_query:
++                explanation = " (Querying count, will fetch all results next.)"
++            logger.info(
++                f"Retrieved {len(rows)}/{total_count} {human_readable_tlk}.{explanation}"
++            )
++
++        if limit is None and limit_key is not None and is_rows_based_query:
++            variables["pagination"] = limit_func(total_count, is_rows_based_query)
++
++            new_results = graphql_query(
++                OPENTARGETS_GRAPHQL_API, query_string, variables
++            )
++            new_data: dict[str, ...] = new_results["data"]["target"][top_level_key]
++            new_rows: list[dict[str, ...]] = new_data["rows"]
++            # we re-fetched the original 1, so we need to replace them
++            rows = new_rows
++            if verbose:
++                logger.info(
++                    f"Retrieved {len(rows)}/{total_count} {human_readable_tlk}."
++                )
++
++        if sorter is not None:
++            rows.sort(key=sorter, reverse=sort_reverse)
++
++        if filters is not None and len(filters) > 0:
++            rows = [row for row in rows if user_filter[1](row, filter_mode, filters)]
++
++        if actual_limit is not None:
++            rows = rows[:actual_limit]
++
++        rows = [row for row in rows if filter_(row)]
++        converter(rows)
++
++        if actual_limit is not None: # just in case the converter changed the length
++            rows = rows[:actual_limit]
++
++        df = json_list_to_df(
++            rows,
++            df_schema,
++        )
++
++        if wrap_text:
++            df_wrapped = df.copy()
++            wrap_cols_func(df_wrapped, wrap_columns)
++
++        return df
++
++    return fun
++
++
++_RESOURCES = {
++    "diseases": _make_query_fun(
++        "associatedDiseases",
++        """
++        score
++        disease{
++            id
++            name
++            description
++        }""",
++        "associated diseases",
++        [
++            ("id", "disease.id"),
++            ("name", "disease.name"),
++            ("description", "disease.description"),
++            ("score", "score"),
++        ],
++        ["description"],
++        _limit_pagination,
++    ),
++    "drugs": _make_query_fun(
++        "knownDrugs",
++        """
++        # Basic drug data
++        drugId
++        prefName
++        drugType
++        mechanismOfAction
++        # Disease data
++        disease{
++            id
++            name
++        }
++        # Clinical trial data
++        phase
++        status
++        ctIds
++        # More drug data
++        drug{
++            synonyms
++            tradeNames
++            description
++            isApproved
++        }
++        """,
++        "known drugs",
++        [
++            # Drug data
++            ("id", "drugId"),
++            ("name", "prefName"),
++            ("type", "drugType"),
++            ("action_mechanism", "mechanismOfAction"),
++            ("description", "drug.description"),
++            ("synonyms", "drug.synonyms"),
++            ("trade_names", "drug.tradeNames"),
++            # Disease data
++            ("disease_id", "disease.id"),
++            ("disease_name", "disease.name"),
++            # Trial data
++            ("trial_phase", "phase"),
++            ("trial_status", "status"),
++            ("trial_ids", "ctIds"),
++            ("approved", "drug.isApproved"),
++        ],
++        ["description", "synonyms", "trade_names", "trial_ids"],
++        _limit_size,
++        user_filter=_mk_filter_applicator({"disease_id": "disease.id"}),
++    ),
++    "tractability": _make_query_fun(
++        "tractability",
++        """
++        label
++        modality
++        value
++        """,
++        "tractability states",
++        [
++            ("label", "label"),
++            ("modality", "modality"),
++        ],
++        [],
++        _limit_not_supported,
++        filter_=lambda x: x["value"],
++        converter=_mk_list_converter(_tractability_converter),
++        is_rows_based_query=False,
++    ),
++    "pharmacogenetics": _make_query_fun(
++        "pharmacogenomics",
++        """
++        variantRsId
++        
++        genotypeId
++        genotype
++        
++        variantFunctionalConsequence{
++            id
++            label
++        }
++        
++        drugs{
++            drugId
++            drugFromSource
++        }
++        phenotypeText
++        genotypeAnnotationText
++        
++        pgxCategory
++        isDirectTarget
++        
++        evidenceLevel
++        
++        datasourceId
++        literature
++        """,
++        "pharmacogenetic responses",
++        [
++            ("rs_id", "variantRsId"),
++            ("genotype_id", "genotypeId"),
++            ("genotype", "genotype"),
++            ("variant_consequence_id", "variantFunctionalConsequence.id"),
++            ("variant_consequence_label", "variantFunctionalConsequence.label"),
++            ("drugs", "drugs"),  # this is processed into a DataFrame by the converter
++            ("phenotype", "phenotypeText"),
++            ("genotype_annotation", "genotypeAnnotationText"),
++            ("response_category", "pgxCategory"),
++            ("direct_target", "isDirectTarget"),
++            ("evidence_level", "evidenceLevel"),
++            ("source", "datasourceId"),
++            ("literature", "literature"),
++        ],
++        ["phenotype", "genotype_annotation"],
++        _limit_pagination,
++        is_rows_based_query=False,
++        converter=_mk_list_converter(_pharmacogenetics_converter),
++        user_filter=_mk_filter_applicator({"drug_id": "drugs.drugId"}),
++    ),
++    "expression": _make_query_fun(
++        "expressions",
++        """
++        tissue{
++            id
++            label
++            anatomicalSystems
++            organs
++        }
++        rna{
++            zscore
++            value
++            unit
++            level
++        }
++        """,
++        "baseline expressions",
++        [
++            ("tissue_id", "tissue.id"),
++            ("tissue_name", "tissue.label"),
++            ("rna_zscore", "rna.zscore"),
++            ("rna_value", "rna.value"),
++            ("rna_unit", "rna.unit"),
++            ("rna_level", "rna.level"),
++            ("anatomical_systems", "tissue.anatomicalSystems"),
++            ("organs", "tissue.organs"),
++        ],
++        ["tissue_name", "anatomical_systems", "organs"],
++        _limit_deferred,
++        is_rows_based_query=False,
++        sorter=lambda x: (x["rna"]["value"], x["rna"]["zscore"]),
++        sort_reverse=True,
++        user_filter=_mk_filter_applicator(
++            {
++                "tissue_id": "tissue.id",
++                "anatomical_system": "tissue.anatomicalSystems",
++                "organ": "tissue.organs",
++            }
++        ),
++    ),
++    "depmap": _make_query_fun(
++        "depMapEssentiality",
++        """
++        tissueId
++        tissueName
++        screens{
++            depmapId
++            expression
++            geneEffect
++            cellLineName
++            diseaseCellLineId
++            diseaseFromSource
++            mutation
++        }
++        """,
++        "DepMap entries",
++        [
++            ("depmap_id", "screen.depmapId"),
++            ("expression", "screen.expression"),
++            ("effect", "screen.geneEffect"),
++            ("tissue_id", "tissueId"),
++            ("tissue_name", "tissueName"),
++            ("cell_line_name", "screen.cellLineName"),
++            ("disease_cell_line_id", "screen.diseaseCellLineId"),
++            ("disease_name", "screen.diseaseFromSource"),
++            ("mutation", "screen.mutation"),
++        ],
++        [],
++        _limit_not_supported,
++        is_rows_based_query=False,
++        converter=_flatten_depmap,
++        user_filter=_mk_filter_applicator({"tissue_id": "tissueId"}),
++    ),
++    "interactions": _make_query_fun(
++        "interactions",
++        """
++        score
++        count
++        sourceDatabase
++        
++        intA
++        targetA{
++            id
++            approvedSymbol
++        }
++        intABiologicalRole
++        speciesA{
++            taxonId
++        }
++        
++        intB
++        targetB{
++            id
++            approvedSymbol
++        }
++        intBBiologicalRole
++        speciesB{
++            taxonId
++        }
++        """,
++        "interactions",
++        [
++            ("evidence_score", "score"),
++            ("evidence_count", "count"),
++            ("source_db", "sourceDatabase"),
++            ("protein_a_id", "intA"),
++            ("gene_a_id", "targetA.id"),
++            ("gene_a_symbol", "targetA.approvedSymbol"),
++            ("role_a", "intABiologicalRole"),
++            ("taxon_a", "speciesA.taxonId"),
++            ("protein_b_id", "intB"),
++            ("gene_b_id", "targetB.id"),
++            ("gene_b_symbol", "targetB.approvedSymbol"),
++            ("role_b", "intBBiologicalRole"),
++            ("taxon_b", "speciesB.taxonId"),
++        ],
++        [],
++        _limit_pagination,
++        user_filter=_mk_filter_applicator(
++            {"protein_a_id": "intA", "protein_b_id": "intB", "gene_b_id": "targetB.id"}
++        ),
++    ),
++}
++
++OPENTARGETS_RESOURCES = list(_RESOURCES.keys())
+diff --git a/gget/main.py b/gget/main.py
+index 8095fd0ae..7fd9a87a4 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -33,6 +33,7 @@
+ from .gget_diamond import diamond
+ from .gget_cosmic import cosmic
+ from .gget_mutate import mutate
++from .gget_opentargets import opentargets, OPENTARGETS_RESOURCES
+ 
+ 
+ # Custom formatter for help messages that preserved the text formatting and adds the default value to the end of the help message
+@@ -43,6 +44,11 @@ def _get_help_string(self, action):
+             "%(default)" not in help_str
+             and action.default is not argparse.SUPPRESS
+             and action.default is not None
++            # default information can be deceptive or confusing for boolean flags.
++            # For example, `--quiet` says "Does not print progress information. (default: True)" even though
++            # the default action is to NOT be quiet (to the user, the default is False).
++            and not isinstance(action, argparse._StoreTrueAction)
++            and not isinstance(action, argparse._StoreFalseAction)
+         ):
+             help_str += " (default: %(default)s)"
+         return help_str
+@@ -1951,6 +1957,105 @@ def main():
+         help="Do not print progress information.",
+     )
+ 
++    ## opentargets parser arguments
++    opentargets_desc = (
++        "Query the Open Targets Platform with a gene for associated drugs, diseases, tractability stats,"
++        " pharmacogenetic responses, expression data, DepMap effects, and protein-protein interaction data."
++    )
++    parser_opentargets = parent_subparsers.add_parser(
++        "opentargets",
++        parents=[parent],
++        description=opentargets_desc,
++        help=opentargets_desc,
++        add_help=True,
++        formatter_class=CustomHelpFormatter,
++    )
++    parser_opentargets.add_argument(
++        "ens_id",
++        type=str,
++        help="Ensembl gene ID, e.g. ENSG00000169194.",
++    )
++    parser_opentargets.add_argument(
++        "-r",
++        "--resource",
++        choices=OPENTARGETS_RESOURCES,
++        default="diseases",
++        type=str,
++        required=False,
++        help="Type of information to be returned.",
++    )
++    parser_opentargets.add_argument(
++        "-l",
++        "--limit",
++        default=None,
++        type=int,
++        required=False,
++        help="Limits the number of results, e.g. 10 (default: None). Note: Not compatible with the 'tractability' and 'depmap' resources",
++    )
++    parser_opentargets.add_argument(
++        "-o",
++        "--out",
++        type=str,
++        required=False,
++        help=(
++            "Path to the file the results will be saved in, e.g. path/to/directory/results.json.\n"
++            "Default: Standard out."
++        ),
++    )
++    # Filters
++    _filters = [
++        # flag, long flag,   filter name,            example,            valid resources
++        ('d',  'disease',    "disease ID",           "EFO_0000274",      ["drugs"]),
++        ('c',  'drug',       "drug ID",              "CHEMBL1743081",    ["pharmacogenetics"]),
++        ('t',  'tissue',     "tissue ID",            "UBERON_0000473",   ["expression", "depmap"]),
++        ('a',  'anat_sys',   "anatomical system",    "nervous system",   ["expression"]),
++        ('o',  'organ',      "organ",                "brain",            ["expression"]),
++        ('pa', 'protein_a',  "protein A ID",         "ENSP00000304915",  ["interactions"]),
++        ('pb', 'protein_b',  "protein B ID",         "ENSP00000379111",  ["interactions"]),
++        ('gb', 'gene_b',     "gene B ID",            "ENSG00000077238",  ["interactions"]),
++    ]
++    for flag, long_flag, filter_name, example, valid_resources in _filters:
++        help_text = f"Filter results by {filter_name}, e.g. '{example}'.\n"
++        if len(valid_resources) > 1:
++            quot = "'"
++            help_text += f"Only valid for the following resources: {', '.join([quot+vr+quot for vr in valid_resources])}."
++        else:
++            help_text += f"Only valid for the '{valid_resources[0]}' resource."
++        parser_opentargets.add_argument(
++            "-f" + flag,
++            "--filter_" + long_flag,
++            type=str,
++            required=False,
++            nargs="+",
++            default=None,
++            help=help_text,
++        )
++    # End Filters
++    parser_opentargets.add_argument(
++        "-csv",
++        "--csv",
++        default=False,
++        action="store_true",
++        required=False,
++        help="Returns results in csv format instead of json.",
++    )
++    parser_opentargets.add_argument(
++        "-q",
++        "--quiet",
++        default=True,
++        action="store_false",
++        required=False,
++        help="Does not print progress information.",
++    )
++    parser_opentargets.add_argument(
++        "-or",
++        "--or",
++        default=False,
++        action="store_true",
++        required=False,
++        help="Use OR instead of AND logic for multiple filter IDs.",
++    )
++
+     ### Define return values
+     args = parent_parser.parse_args()
+ 
+@@ -1999,6 +2104,7 @@ def main():
+         "diamond": parser_diamond,
+         "cosmic": parser_cosmic,
+         "mutate": parser_mutate,
++        "opentargets": parser_opentargets,
+     }
+ 
+     if len(sys.argv) == 2:
+@@ -2798,3 +2904,57 @@ def main():
+                         json.dump(pdb_results, f, ensure_ascii=False, indent=4)
+                 else:
+                     print(json.dumps(pdb_results, ensure_ascii=False, indent=4))
++
++    ## opentargets return
++    if args.command == "opentargets":
++        flag_to_filter_id = {
++            "filter_disease": "disease_id",
++            "filter_drug": "drug_id",
++            "filter_tissue": "tissue_id",
++            "filter_anat_sys": "anatomical_system",
++            "filter_organ": "organ",
++            "filter_protein_a": "protein_a_id",
++            "filter_protein_b": "protein_b_id",
++            "filter_gene_b": "gene_b_id",
++        }
++        filters: dict[str, list[str]] | None = {}
++
++        for flag, filter_id in flag_to_filter_id.items():
++            if getattr(args, flag) is not None:
++                filters[filter_id] = getattr(args, flag)
++
++        if len(filters) == 0:
++            filters = None
++
++        opentargets_results = opentargets(
++            ensembl_id=args.ens_id,
++            resource=args.resource,
++            limit=args.limit,
++            verbose=args.quiet,
++            filters=filters,
++            filter_mode="or" if getattr(args, "or") else "and",
++        )
++
++        if args.out is not None and args.out != "":
++            # Make saving directory
++            directory = os.path.dirname(args.out)
++            if directory != "":
++                os.makedirs(directory, exist_ok=True)
++
++            # Save json
++            with open(args.out, "w", encoding="utf-8") as f:
++                if args.csv:
++                    opentargets_results.to_csv(f, index=False)
++                else:
++                    opentargets_results.to_json(
++                        f, orient="records", force_ascii=False, indent=4
++                    )
++        else:
++            if args.csv:
++                opentargets_results.to_csv(sys.stdout, index=False)
++            else:
++                print(
++                    opentargets_results.to_json(
++                        orient="records", force_ascii=False, indent=4
++                    )
++                )
+diff --git a/gget/utils.py b/gget/utils.py
+index 7fc66a77b..7e00c32b4 100644
+--- a/gget/utils.py
++++ b/gget/utils.py
+@@ -25,7 +25,10 @@
+ 
+ 
+ def set_up_logger():
+-    logging_level = logging.INFO
++    logging_level_name = os.getenv("GGET_LOGLEVEL", "INFO")
++    logging_level = logging.getLevelName(logging_level_name)
++    if type(logging_level) != int:  # unknown log level
++        logging_level = logging.INFO
+     logger = logging.getLogger(__name__)
+     logger.setLevel(logging_level)
+ 
+@@ -648,6 +651,32 @@ def rest_query(server, query, content_type):
+         return r.text
+ 
+ 
++def graphql_query(server: str, query: str, variables: dict[str, ...]) -> dict[str, ...]:
++    """
++    Function to perform a GraphQL API query.
++
++    Args:
++    - server        Server to query.
++    - query         Query that is passed to server.
++    - variables     Variables that are passed to server.
++
++    Returns server output.
++    """
++
++    r = requests.post(server, json={"query": query, "variables": variables})
++
++    if not r.ok:
++        logger.debug(
++            f"Server: {server}, Query: {query}, Variables: {variables}, Response: {r.text}"
++        )
++        raise RuntimeError(
++            f"{server} returned error status code {r.status_code}. "
++            "Please double-check arguments and try again.\n"
++        )
++
++    return r.json()
++
++
+ def find_latest_ens_rel(database=ENSEMBL_FTP_URL):
+     """
+     Returns the latest Ensembl release number.
+@@ -979,3 +1008,34 @@ def remove_temp_files(files_to_delete):
+     for file in files_to_delete:
+         if os.path.exists(file):
+             os.remove(file)
++
++
++def json_list_to_df(
++    json_list: list[dict[str, ...]], columns: list[tuple[str, str]]
++) -> pd.DataFrame:
++    """
++    Convert list of JSON objects to data frame.
++
++    Args:
++
++    - json_list     List of JSON objects.
++    - columns       List of (column, key) pairs in the data frame.
++                    Format of each key is "key.subkey.etc", which corresponds to json_list[i]["key"]["subkey"]["etc"].
++
++    Returns data frame with columns as specified in keys.
++    """
++
++    tmp_columns = [[] for _ in range(len(columns))]
++
++    for json_obj in json_list:
++        for i, column_key in enumerate(columns):
++            _, key = column_key
++            keys_split = key.split(".")
++            value = json_obj
++            for k in keys_split:
++                if value is None:
++                    break
++                value = value[k]
++            tmp_columns[i].append(value)
++
++    return pd.DataFrame({key[0]: value for key, value in zip(columns, tmp_columns)})
+diff --git a/tests/fixtures/test_opentargets.json b/tests/fixtures/test_opentargets.json
+new file mode 100644
+index 000000000..5d80c05c3
+--- /dev/null
++++ b/tests/fixtures/test_opentargets.json
+@@ -0,0 +1,791 @@
++{
++    "test_opentargets": {
++        "type": "assert_equal",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "diseases",
++            "limit": 5
++        },
++        "expected_result": [
++            [
++                "EFO_0000274",
++                "atopic eczema",
++                "A chronic inflammatory genetically determined disease of the skin marked by increased ability to form reagin (IgE), with increased susceptibility to allergic rhinitis and asthma, and hereditary disposition to a lowered threshold for pruritus. It is manifested by lichenification, excoriation, and crusting, mainly on the flexural surfaces of the elbow and knee. In infants it is known as infantile eczema.",
++                0.6636434724183102
++            ],
++            [
++                "MONDO_0004979",
++                "asthma",
++                "A bronchial disease that is characterized by chronic inflammation and narrowing of the airways, which is caused by a combination of environmental and genetic factors resulting in recurring periods of wheezing (a whistling sound while breathing), chest tightness, shortness of breath, mucus production and coughing. The symptoms appear due to a variety of triggers such as allergens, irritants, respiratory infections, weather changes, exercise, stress, reflux disease, medications, foods and emotional anxiety.",
++                0.5436820890787305
++            ],
++            [
++                "HP_0000964",
++                "Eczematoid dermatitis",
++                "Eczema is a form of dermatitis that is characterized by scaly, pruritic, erythematous lesions located on flexural surfaces.",
++                0.5116116699305998
++            ],
++            [
++                "EFO_0005854",
++                "allergic rhinitis",
++                "Inflammation of the nasal mucous membranes caused by an IgE-mediated response to external allergens. The inflammation may also involve the mucous membranes of the sinuses, eyes, middle ear, and pharynx. Symptoms include sneezing, nasal congestion, rhinorrhea, and itching. It may lead to fatigue, drowsiness, and malaise thus causing impairment of the quality of life.",
++                0.48632862582122033
++            ],
++            [
++                "EFO_0000676",
++                "psoriasis",
++                "A common genetically determined, chronic, inflammatory skin disease characterized by rounded erythematous, dry, scaling patches. The lesions have a predilection for nails, scalp, genitalia, extensor surfaces, and the lumbosacral region. Accelerated epidermopoiesis is considered to be the fundamental pathologic feature in psoriasis.",
++                0.4338730716075263
++            ]
++        ]
++    },
++    "test_opentargets_no_limit": {
++        "type": "assert_equal_json_hash",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "diseases"
++        },
++        "expected_result": "e6030c0f3da91f8176deaf29dcc08285"
++    },
++    "test_opentargets_no_limit_accurate_coverage": {
++        "type": "assert_equal_json_hash",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "diseases",
++            "verbose": false,
++            "wrap_text": true
++        },
++        "expected_result": "e6030c0f3da91f8176deaf29dcc08285"
++    },
++    "test_opentargets_no_specified_resource": {
++        "type": "assert_equal",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "limit": 5
++        },
++        "expected_result": [
++            [
++                "EFO_0000274",
++                "atopic eczema",
++                "A chronic inflammatory genetically determined disease of the skin marked by increased ability to form reagin (IgE), with increased susceptibility to allergic rhinitis and asthma, and hereditary disposition to a lowered threshold for pruritus. It is manifested by lichenification, excoriation, and crusting, mainly on the flexural surfaces of the elbow and knee. In infants it is known as infantile eczema.",
++                0.6636434724183102
++            ],
++            [
++                "MONDO_0004979",
++                "asthma",
++                "A bronchial disease that is characterized by chronic inflammation and narrowing of the airways, which is caused by a combination of environmental and genetic factors resulting in recurring periods of wheezing (a whistling sound while breathing), chest tightness, shortness of breath, mucus production and coughing. The symptoms appear due to a variety of triggers such as allergens, irritants, respiratory infections, weather changes, exercise, stress, reflux disease, medications, foods and emotional anxiety.",
++                0.5436820890787305
++            ],
++            [
++                "HP_0000964",
++                "Eczematoid dermatitis",
++                "Eczema is a form of dermatitis that is characterized by scaly, pruritic, erythematous lesions located on flexural surfaces.",
++                0.5116116699305998
++            ],
++            [
++                "EFO_0005854",
++                "allergic rhinitis",
++                "Inflammation of the nasal mucous membranes caused by an IgE-mediated response to external allergens. The inflammation may also involve the mucous membranes of the sinuses, eyes, middle ear, and pharynx. Symptoms include sneezing, nasal congestion, rhinorrhea, and itching. It may lead to fatigue, drowsiness, and malaise thus causing impairment of the quality of life.",
++                0.48632862582122033
++            ],
++            [
++                "EFO_0000676",
++                "psoriasis",
++                "A common genetically determined, chronic, inflammatory skin disease characterized by rounded erythematous, dry, scaling patches. The lesions have a predilection for nails, scalp, genitalia, extensor surfaces, and the lumbosacral region. Accelerated epidermopoiesis is considered to be the fundamental pathologic feature in psoriasis.",
++                0.4338730716075263
++            ]
++        ]
++    },
++
++
++    "test_opentargets_drugs": {
++        "type": "assert_equal",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "drugs",
++            "limit": 2
++        },
++        "expected_result": [
++            [
++                "CHEMBL1743081",
++                "TRALOKINUMAB",
++                "Antibody",
++                "Interleukin-13 inhibitor",
++                "Antibody drug with a maximum clinical trial phase of IV (across all indications) that was first approved in 2021 and is indicated for atopic eczema and eczematoid dermatitis and has 5 investigational indications.",
++                [
++                    "CAT-354",
++                    "Tralokinumab"
++                ],
++                [
++                    "Adbry",
++                    "Adtralza"
++                ],
++                "EFO_0000274",
++                "atopic eczema",
++                4,
++                [],
++                true
++            ],
++            [
++                "CHEMBL1743081",
++                "TRALOKINUMAB",
++                "Antibody",
++                "Interleukin-13 inhibitor",
++                "Antibody drug with a maximum clinical trial phase of IV (across all indications) that was first approved in 2021 and is indicated for atopic eczema and eczematoid dermatitis and has 5 investigational indications.",
++                [
++                    "CAT-354",
++                    "Tralokinumab"
++                ],
++                [
++                    "Adbry",
++                    "Adtralza"
++                ],
++                "HP_0000964",
++                "Eczematoid dermatitis",
++                4,
++                [],
++                true
++            ]
++        ]
++    },
++    "test_opentargets_drugs_no_limit": {
++        "type": "assert_equal_json_hash",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "drugs"
++        },
++        "expected_result": "dcdd8421204bb3a273c8ca0b2de8d088"
++    },
++    "test_opentargets_drugs_filter": {
++        "type": "assert_equal",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "drugs",
++            "filters": {
++                "disease_id": "EFO_0000274"
++            },
++            "limit": 2
++        },
++        "expected_result": [
++            [
++                "CHEMBL1743081",
++                "TRALOKINUMAB",
++                "Antibody",
++                "Interleukin-13 inhibitor",
++                "Antibody drug with a maximum clinical trial phase of IV (across all indications) that was first approved in 2021 and is indicated for atopic eczema and eczematoid dermatitis and has 5 investigational indications.",
++                [
++                    "CAT-354",
++                    "Tralokinumab"
++                ],
++                [
++                    "Adbry",
++                    "Adtralza"
++                ],
++                "EFO_0000274",
++                "atopic eczema",
++                4,
++                [],
++                true
++            ],
++            [
++                "CHEMBL1743081",
++                "TRALOKINUMAB",
++                "Antibody",
++                "Interleukin-13 inhibitor",
++                "Antibody drug with a maximum clinical trial phase of IV (across all indications) that was first approved in 2021 and is indicated for atopic eczema and eczematoid dermatitis and has 5 investigational indications.",
++                [
++                    "CAT-354",
++                    "Tralokinumab"
++                ],
++                [
++                    "Adbry",
++                    "Adtralza"
++                ],
++                "EFO_0000274",
++                "atopic eczema",
++                3,
++                [
++                    "NCT03587805"
++                ],
++                true
++            ]
++        ]
++    },
++
++
++    "test_opentargets_tractability": {
++        "type": "assert_equal",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "tractability"
++        },
++        "expected_result": [
++            [
++                "High-Quality Pocket",
++                "Small molecule"
++            ],
++            [
++                "Approved Drug",
++                "Antibody"
++            ],
++            [
++                "GO CC high conf",
++                "Antibody"
++            ],
++            [
++                "UniProt loc med conf",
++                "Antibody"
++            ],
++            [
++                "UniProt SigP or TMHMM",
++                "Antibody"
++            ]
++        ]
++    },
++
++
++    "test_opentargets_pharmacogenetics": {
++        "type": "assert_equal_nested",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "pharmacogenetics",
++            "limit": 2
++        },
++        "expected_result": [
++            {
++                "direct_target": false,
++                "drugs": [
++                    {
++                        "id": null,
++                        "name": "hepatitis vaccines"
++                    }
++                ],
++                "evidence_level": "3",
++                "genotype": "TT",
++                "genotype_annotation": "Patients with the TT genotype may be at increased risk for non-immune response to the hepatitis B vaccine, as compared to patients with the CC genotype. Other genetic and clinical factors may also influence risk of non-immune response in patients receiving the hepatitis B vaccine.",
++                "genotype_id": "5_132660151_T_T,T",
++                "literature": [
++                    "21111021"
++                ],
++                "phenotype": "increased risk for non-immune response to the hepatitis B vaccine",
++                "response_category": "efficacy",
++                "rs_id": "rs1295686",
++                "source": "pharmgkb",
++                "variant_consequence_id": "SO:0002073",
++                "variant_consequence_label": "no_sequence_alteration"
++            },
++            {
++                "direct_target": false,
++                "drugs": [
++                    {
++                        "id": "CHEMBL535",
++                        "name": "sunitinib"
++                    }
++                ],
++                "evidence_level": "3",
++                "genotype": "TT",
++                "genotype_annotation": "Patients with renal cell carcinoma and the TT genotype may have a decreased severity of drug-induced toxicity when administered sunitinib as compared to patients with the CC or CT genotypes. Other clinical and genetic factors may also influence severity of drug-induced toxicity in patients with renal cell carcinoma who are administered sunitinib.",
++                "genotype_id": "5_132657117_C_T,T",
++                "literature": [
++                    "26387812",
++                    "26387812"
++                ],
++                "phenotype": "decreased severity of drug-induced toxicity",
++                "response_category": "toxicity",
++                "rs_id": "rs1800925",
++                "source": "pharmgkb",
++                "variant_consequence_id": "SO:0001631",
++                "variant_consequence_label": "upstream_gene_variant"
++            }
++        ]
++    },
++    "test_opentargets_pharmacogenetics_no_limit": {
++        "type": "assert_equal_json_hash_nested",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "pharmacogenetics"
++        },
++        "expected_result": "34e64088e72da5710cdacd522c5fbd67"
++    },
++    "test_opentargets_pharmacogenetics_filter": {
++        "type": "assert_equal_nested",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "pharmacogenetics",
++            "filters": {
++                "drug_id": "CHEMBL535"
++            }
++        },
++        "expected_result": [
++            {
++                "direct_target": false,
++                "drugs": [
++                    {
++                        "id": "CHEMBL535",
++                        "name": "sunitinib"
++                    }
++                ],
++                "evidence_level": "3",
++                "genotype": "TT",
++                "genotype_annotation": "Patients with renal cell carcinoma and the TT genotype may have a decreased severity of drug-induced toxicity when administered sunitinib as compared to patients with the CC or CT genotypes. Other clinical and genetic factors may also influence severity of drug-induced toxicity in patients with renal cell carcinoma who are administered sunitinib.",
++                "genotype_id": "5_132657117_C_T,T",
++                "literature": [
++                    "26387812",
++                    "26387812"
++                ],
++                "phenotype": "decreased severity of drug-induced toxicity",
++                "response_category": "toxicity",
++                "rs_id": "rs1800925",
++                "source": "pharmgkb",
++                "variant_consequence_id": "SO:0001631",
++                "variant_consequence_label": "upstream_gene_variant"
++            },
++            {
++                "direct_target": false,
++                "drugs": [
++                    {
++                        "id": "CHEMBL535",
++                        "name": "sunitinib"
++                    }
++                ],
++                "evidence_level": "3",
++                "genotype": "CC",
++                "genotype_annotation": "Patients with renal cell carcinoma and the CC genotype may have a decreased severity of drug-induced toxicity when administered sunitinib as compared to patients with the TT genotype. Other clinical and genetic factors may also influence severity of drug-induced toxicity in patients with renal cell carcinoma who are administered sunitinib.",
++                "genotype_id": "5_132657117_C_C,C",
++                "literature": [
++                    "26387812",
++                    "26387812"
++                ],
++                "phenotype": "decreased severity of drug-induced toxicity",
++                "response_category": "toxicity",
++                "rs_id": "rs1800925",
++                "source": "pharmgkb",
++                "variant_consequence_id": "SO:0002073",
++                "variant_consequence_label": "no_sequence_alteration"
++            },
++            {
++                "direct_target": false,
++                "drugs": [
++                    {
++                        "id": "CHEMBL535",
++                        "name": "sunitinib"
++                    }
++                ],
++                "evidence_level": "3",
++                "genotype": "CT",
++                "genotype_annotation": "Patients with renal cell carcinoma and the CT genotype may have a decreased severity of drug-induced toxicity when administered sunitinib as compared to patients with the TT genotype. Other clinical and genetic factors may also influence severity of drug-induced toxicity in patients with renal cell carcinoma who are administered sunitinib.",
++                "genotype_id": "5_132657117_C_C,T",
++                "literature": [
++                    "26387812",
++                    "26387812"
++                ],
++                "phenotype": "decreased severity of drug-induced toxicity",
++                "response_category": "toxicity",
++                "rs_id": "rs1800925",
++                "source": "pharmgkb",
++                "variant_consequence_id": "SO:0001631",
++                "variant_consequence_label": "upstream_gene_variant"
++            }
++        ]
++    },
++    "test_opentargets_pharmacogenetics_filter_or": {
++        "type": "assert_equal_json_hash_nested",
++        "args": {
++            "ensembl_id": "ENSG00000130164",
++            "resource": "pharmacogenetics",
++            "filters": {
++                "drug_id": [
++                    "CHEMBL1643",
++                    "CHEMBL24"
++                ]
++            },
++            "filter_mode": "or"
++        },
++        "expected_result": "870d20f5746e90144ff986e800767b87"
++    },
++
++
++    "test_opentargets_expression": {
++        "type": "assert_equal",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "expression",
++            "limit": 3
++        },
++        "expected_result": [
++            [
++                "UBERON_0000473",
++                "testis",
++                5,
++                1026.0,
++                "",
++                3,
++                [
++                    "reproductive system"
++                ],
++                [
++                    "reproductive organ",
++                    "reproductive structure"
++                ]
++            ],
++            [
++                "CL_0000542",
++                "EBV-transformed lymphocyte",
++                1,
++                54.0,
++                "",
++                2,
++                [
++                    "hemolymphoid system",
++                    "immune system",
++                    "lymphoid system"
++                ],
++                [
++                    "immune organ"
++                ]
++            ],
++            [
++                "UBERON_0002371",
++                "bone marrow",
++                1,
++                45.5,
++                "TPM",
++                2,
++                [
++                    "hemolymphoid system",
++                    "musculoskeletal system",
++                    "hematopoietic system",
++                    "immune system"
++                ],
++                [
++                    "skeletal element"
++                ]
++            ]
++        ]
++    },
++    "test_opentargets_expression_no_limit": {
++        "type": "assert_equal_json_hash",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "expression"
++        },
++        "expected_result": "192b5fceebfbb1cc7386cf319c264688"
++    },
++    "test_opentargets_expression_filter": {
++        "type": "assert_equal",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "expression",
++            "filters": {
++                "tissue_id": "UBERON_0000473",
++                "organ": "reproductive organ"
++            }
++        },
++        "expected_result": [
++            [
++                "UBERON_0000473",
++                "testis",
++                5,
++                1026,
++                "",
++                3,
++                [
++                    "reproductive system"
++                ],
++                [
++                    "reproductive organ",
++                    "reproductive structure"
++                ]
++            ]
++        ]
++    },
++
++
++    "test_opentargets_depmap": {
++        "type": "assert_equal_json_hash",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "depmap"
++        },
++        "expected_result": "83de5c6bfee6e796bd5d68af1af702fc"
++    },
++    "test_opentargets_depmap_filter": {
++        "type": "assert_equal",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "depmap",
++            "filters": {
++                "tissue_id": "UBERON_0002367"
++            },
++            "limit": 2
++        },
++        "expected_result": [
++            [
++                "ACH-000977",
++                -0.08063846,
++                "UBERON_0002367",
++                "prostate gland",
++                "LNCaP clone FGC",
++                "SIDM00683",
++                "Prostate Adenocarcinoma"
++            ],
++            [
++                "ACH-000979",
++                -0.09671201,
++                "UBERON_0002367",
++                "prostate gland",
++                "DU 145",
++                "SIDM00120",
++                "Prostate Adenocarcinoma"
++            ]
++        ]
++    },
++
++
++    "test_opentargets_interactions": {
++        "type": "assert_equal",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "interactions",
++            "limit": 2
++        },
++        "expected_result": [
++            [
++                0.999,
++                3,
++                "string",
++                "ENSP00000304915",
++                "ENSG00000169194",
++                "IL13",
++                "unspecified role",
++                9606,
++                "ENSP00000379111",
++                "ENSG00000077238",
++                "IL4R",
++                "unspecified role",
++                9606
++            ],
++            [
++                0.999,
++                3,
++                "string",
++                "ENSP00000304915",
++                "ENSG00000169194",
++                "IL13",
++                "unspecified role",
++                9606,
++                "ENSP00000360730",
++                "ENSG00000131724",
++                "IL13RA1",
++                "unspecified role",
++                9606
++            ]
++        ]
++    },
++    "test_opentargets_interactions_no_limit": {
++        "type": "assert_equal_json_hash",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "interactions"
++        },
++        "expected_result": "483362ee0e9454f16cde738a6dc4887c"
++    },
++    "test_opentargets_interactions_simple_filter": {
++        "type": "assert_equal",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "interactions",
++            "filters": {
++                "protein_a_id": "P35225",
++                "gene_b_id": "ENSG00000077238"
++            }
++        },
++        "expected_result": [
++            [
++                3,
++                "reactome",
++                "P35225",
++                "ENSG00000169194",
++                "IL13",
++                "unspecified role",
++                9606,
++                "P24394",
++                "ENSG00000077238",
++                "IL4R",
++                "unspecified role",
++                9606
++            ],
++            [
++                2,
++                "signor",
++                "P35225",
++                "ENSG00000169194",
++                "IL13",
++                "regulator",
++                9606,
++                "P24394",
++                "ENSG00000077238",
++                "IL4R",
++                "regulator target",
++                9606
++            ]
++        ]
++    },
++    "test_opentargets_interactions_complex_filter": {
++        "type": "assert_equal",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "interactions",
++            "filters": {
++                "protein_a_id": "P35225",
++                "gene_b_id": [
++                    "ENSG00000077238",
++                    "ENSG00000111537"
++                ]
++            },
++            "filter_mode": "or",
++            "limit": 5
++        },
++        "expected_result": [
++            [
++                0.999,
++                3,
++                "string",
++                "ENSP00000304915",
++                "ENSG00000169194",
++                "IL13",
++                "unspecified role",
++                9606,
++                "ENSP00000379111",
++                "ENSG00000077238",
++                "IL4R",
++                "unspecified role",
++                9606
++            ],
++            [
++                0.961,
++                2,
++                "string",
++                "ENSP00000304915",
++                "ENSG00000169194",
++                "IL13",
++                "unspecified role",
++                9606,
++                "ENSP00000229135",
++                "ENSG00000111537",
++                "IFNG",
++                "unspecified role",
++                9606
++            ],
++            [
++                0.8,
++                9,
++                "intact",
++                "P35225",
++                "ENSG00000169194",
++                "IL13",
++                "unspecified role",
++                9606,
++                "Q14627",
++                "ENSG00000123496",
++                "IL13RA2",
++                "unspecified role",
++                9606
++            ],
++            [
++                0.74,
++                6,
++                "intact",
++                "P35225",
++                "ENSG00000169194",
++                "IL13",
++                "unspecified role",
++                9606,
++                "P78552",
++                "ENSG00000131724",
++                "IL13RA1",
++                "unspecified role",
++                9606
++            ],
++            [
++                0.4,
++                1,
++                "intact",
++                "P35225",
++                "ENSG00000169194",
++                "IL13",
++                "unspecified role",
++                9606,
++                "Q86XT9",
++                "ENSG00000149932",
++                "TMEM219",
++                "stimulator",
++                9606
++            ]
++        ]
++    },
++
++
++    "test_error_opentargets_bad_resource": {
++        "type": "error",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "this resource does not exist",
++            "limit": 5
++        },
++        "expected_result": "ValueError"
++    },
++    "test_error_opentargets_bad_limit": {
++        "type": "error",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "diseases",
++            "limit": "this is not a number"
++        },
++        "expected_result": "RuntimeError"
++    },
++    "test_error_opentargets_nonexistent_id": {
++        "type": "error",
++        "args": {
++            "ensembl_id": "NON EXISTENT ID",
++            "resource": "diseases",
++            "limit": 5
++        },
++        "expected_result": "ValueError"
++    },
++    "test_error_opentargets_diseases_filter": {
++        "type": "error",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "diseases",
++            "filters": {
++                "disease_id": "EFO_0000274"
++            }
++        },
++        "expected_result": "ValueError"
++    },
++
++
++    "test_error_opentargets_drugs_invalid_filter": {
++        "type": "error",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "drugs",
++            "filters": {
++                "organ": "brain"
++            }
++        },
++        "expected_result": "ValueError"
++    },
++
++
++    "test_error_opentargets_tractability_limit": {
++        "type": "error",
++        "args": {
++            "ensembl_id": "ENSG00000169194",
++            "resource": "tractability",
++            "limit": 2
++        },
++        "expected_result": "ValueError"
++    }
++}
+\ No newline at end of file
+diff --git a/tests/from_json.py b/tests/from_json.py
+new file mode 100644
+index 000000000..ab43ce0f2
+--- /dev/null
++++ b/tests/from_json.py
+@@ -0,0 +1,140 @@
++import unittest
++from typing import Callable
++import pandas as pd
++import sys
++import json
++import hashlib
++
++
++_KNOWN_ERRORS = {
++    "ValueError": ValueError,
++    "RuntimeError": RuntimeError,
++    "TypeError": TypeError,
++    "KeyError": KeyError,
++    "AssertionError": AssertionError,
++    "AttributeError": AttributeError,
++    "NotImplementedError": NotImplementedError
++}
++
++
++def _assert_equal(name: str, td: dict[str, dict[str, ...]], func: Callable) -> Callable:
++    def assert_equal(self: unittest.TestCase):
++        test = name
++        expected_result = td[test]["expected_result"]
++        result_to_test = func(**td[test]["args"])
++        # If result is a DataFrame, convert to list
++        if isinstance(result_to_test, pd.DataFrame):
++            result_to_test = result_to_test.dropna(axis=1).values.tolist()
++
++        self.assertEqual(result_to_test, expected_result)
++    return assert_equal
++
++
++def _assert_equal_json_hash(name: str, td: dict[str, dict[str, ...]], func: Callable) -> Callable:
++    def assert_equal_json_hash(self: unittest.TestCase):
++        test = name
++        expected_result = td[test]["expected_result"]
++        result_to_test = func(**td[test]["args"])
++        # If result is a DataFrame, convert to list
++        if isinstance(result_to_test, pd.DataFrame):
++            result_to_test = result_to_test.dropna(axis=1).values.tolist()
++
++        result_to_test = json.dumps(result_to_test)
++        result_to_test = hashlib.md5(result_to_test.encode()).hexdigest()
++
++        self.assertEqual(result_to_test, expected_result)
++    return assert_equal_json_hash
++
++
++def _assert_equal_nested(name: str, td: dict[str, dict[str, ...]], func: Callable) -> Callable:
++    def assert_equal_nested(self: unittest.TestCase):
++        test = name
++        expected_result = td[test]["expected_result"]
++        result_to_test = func(**td[test]["args"])
++        # If result is a DataFrame, convert to json (nested dataframes prevent easy listification)
++        if isinstance(result_to_test, pd.DataFrame):
++            result_to_test = json.loads(
++                result_to_test.to_json(orient="records", force_ascii=False)
++            )
++
++        self.assertEqual(result_to_test, expected_result)
++    return assert_equal_nested
++
++
++def _assert_equal_json_hash_nested(name: str, td: dict[str, dict[str, ...]], func: Callable) -> Callable:
++    def assert_equal_json_hash_nested(self: unittest.TestCase):
++        test = name
++        expected_result = td[test]["expected_result"]
++        result_to_test = func(**td[test]["args"])
++        # If result is a DataFrame, convert to json (nested dataframes prevent easy listification)
++        if isinstance(result_to_test, pd.DataFrame):
++            result_to_test = json.loads(
++                result_to_test.to_json(orient="records", force_ascii=False)
++            )
++
++        result_to_test = json.dumps(result_to_test)
++        result_to_test = hashlib.md5(result_to_test.encode()).hexdigest()
++
++        self.assertEqual(result_to_test, expected_result)
++    return assert_equal_json_hash_nested
++
++
++def _error(name: str, td: dict[str, dict[str, ...]], func: Callable) -> Callable:
++    try:
++        # noinspection PyPep8Naming
++        Error = td[name]["expected_result"]
++    except KeyError:
++        raise ValueError("Error test must have an 'expected_result' key.")
++
++    if Error not in _KNOWN_ERRORS:
++        raise ValueError(f"Unknown error type: {Error}")
++
++    # noinspection PyPep8Naming
++    Error = _KNOWN_ERRORS[Error]
++
++    def error(self: unittest.TestCase):
++        test = name
++        with self.assertRaises(Error):
++            func(**td[test]["args"])
++    return error
++
++
++_TYPES: dict[str, Callable[[str, dict[str, dict[str, ...]], Callable], Callable]] = {
++    "assert_equal": _assert_equal,
++    "assert_equal_json_hash": _assert_equal_json_hash,
++    "assert_equal_nested": _assert_equal_nested,
++    "assert_equal_json_hash_nested": _assert_equal_json_hash_nested,
++    "error": _error
++}
++
++
++def from_json(test_dict: dict[str, dict[str, ...]], func: callable) -> type:
++    """
++    Create a metaclass that will generate test methods from a (json-loaded) dictionary.
++    """
++    class C(type):
++        def __new__(cls, name: str, bases: tuple[type, ...], dct: dict[str, ...]):
++            assert unittest.TestCase in bases, "from_json should only be applied to unittest.TestCase subclasses."
++            for k, v in test_dict.items():
++                type_ = v["type"]
++                if type_ == "code_defined":
++                    continue
++                if type_ in _TYPES:
++                    if not k.startswith("test_"):
++                        print(f"Invalid test name: {k}", file=sys.stderr)
++                        continue
++
++                    if k in dct:
++                        print(f"Duplicate test name: {k}", file=sys.stderr)
++                        continue
++
++                    # Create the test method for the given type and add it to the new class
++                    dct[k] = _TYPES[type_](k, test_dict, func)
++                    print(f"Loaded test {k} of type {type_} from json.")
++                else:
++                    if k not in dct:
++                        raise ValueError(f"Unknown test type: {type_} and no test method defined.")
++                    print(f"Unknown test type: {type_}", file=sys.stderr)
++
++            return super().__new__(cls, name, bases, dct)
++    return C
+diff --git a/tests/test_opentargets.py b/tests/test_opentargets.py
+new file mode 100644
+index 000000000..3879b0921
+--- /dev/null
++++ b/tests/test_opentargets.py
+@@ -0,0 +1,12 @@
++import unittest
++import json
++from gget.gget_opentargets import opentargets
++from .from_json import from_json
++
++# Load dictionary containing arguments and expected results
++with open("./tests/fixtures/test_opentargets.json") as json_file:
++    ot_dict = json.load(json_file)
++
++
++class TestOpenTargets(unittest.TestCase, metaclass=from_json(ot_dict, opentargets)):
++    pass  # all tests are loaded from json

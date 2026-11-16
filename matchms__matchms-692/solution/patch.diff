@@ -1,0 +1,175 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index a3962ec60..411662d63 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
+ ### Changed
+ - Avoid using unstable sorting while sorting collected matching peaks [#636](https://github.com/matchms/matchms/pull/636).
+ - Losses will no longer be stored as part of a `Spectrum` object, but will be computed on the fly (using `spectrum.losses` or `spectrum.compute_losses(loss_mz_from, loss_mz_to)`)[#681](https://github.com/matchms/matchms/pull/681)
++- Replace some `@njit`ted similarity functions with faster numpy matrix multiplications [#638](https://github.com/matchms/matchms/pull/638).
+ 
+ ### Removed
+ - `add_losses()` filter was removed. Losses will no longer be stored as part of a `Spectrum` object, but will be computed on the fly [#681](https://github.com/matchms/matchms/pull/681).
+@@ -59,7 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
+ - filters `require_formula` and `require_compound_name`. [#627](https://github.com/matchms/matchms/pull/627)
+ - filters `require_retention_time` and `require_retention_index`. [#585](https://github.com/matchms/matchms/pull/602)
+ 
+-### changed
++### Changed
+ - Removed repair_precursor_is_parent_mass
+ - repair_adduct_based_on_smiles does not repair adducts [M]+ and [M]- anymore, since these cases could also be due to a mistake in filling in the parent mass instead of the precursor mz. 
+ - repair_parent_mass_is_molar_weight does only repair parent mass and does not change the precursor mz.
+@@ -69,11 +70,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
+ - Set RDKIT version to rdkit = ">=2023.3.2,<2023.9.5" to fix installation issues. 
+ 
+ ## [0.24.4] -2024-01-16
+-### changed
++### Changed
+ - return processing_report by pipeline
+ 
+ ## [0.24.3] -2024-01-16
+-### changed
++### Changed
+ - Removed repair_precursor_is_parent_mass
+ 
+ - Removed option accept_parent_mass_is_mol_wt in Repair_adduct_based_on_smiles
+diff --git a/matchms/logging_functions.py b/matchms/logging_functions.py
+index 513fc8df1..d7f0a47d6 100644
+--- a/matchms/logging_functions.py
++++ b/matchms/logging_functions.py
+@@ -132,11 +132,19 @@ def reset_matchms_logger(logger_name="matchms"):
+     _init_logger()
+ 
+ 
+-# function recreates the functionality of the rdkit function
+-# https://github.com/rdkit/rdkit/blob/master/rdkit/RDLogger.py setLevel()
+ def set_rdkit_logger_level(level):
+-    # Rdkit log levels severity order
++    """Rdkit log levels severity order.
++
++    This function recreates the functionality of the rdkit function.
++    Created based on https://github.com/rdkit/rdkit/blob/master/rdkit/RDLogger.py setLevel()
++
++    Parameters
++    ----------
++    level
++        Refers to rdkit log levels ('rdApp.debug', 'rdApp.info', 'rdApp.warning', 'rdApp.error').
++    """
+     rdkit_log_levels = ['rdApp.debug', 'rdApp.info', 'rdApp.warning', 'rdApp.error']
++    
+     if not _has_rdkit:
+         raise ImportError(rdkit_missing_message)
+ 
+diff --git a/matchms/similarity/vector_similarity_functions.py b/matchms/similarity/vector_similarity_functions.py
+index 07aee471c..4ed591839 100644
+--- a/matchms/similarity/vector_similarity_functions.py
++++ b/matchms/similarity/vector_similarity_functions.py
+@@ -3,7 +3,6 @@
+ import numpy as np
+ 
+ 
+-@numba.njit
+ def jaccard_similarity_matrix(references: np.ndarray, queries: np.ndarray) -> np.ndarray:
+     """Returns matrix of jaccard indices between all-vs-all vectors of references
+     and queries.
+@@ -23,16 +22,16 @@ def jaccard_similarity_matrix(references: np.ndarray, queries: np.ndarray) -> np
+         Matrix of all-vs-all similarity scores. scores[i, j] will contain the score
+         between the vectors references[i, :] and queries[j, :].
+     """
+-    size1 = references.shape[0]
+-    size2 = queries.shape[0]
+-    scores = np.zeros((size1, size2))
+-    for i in range(size1):
+-        for j in range(size2):
+-            scores[i, j] = jaccard_index(references[i, :], queries[j, :])
+-    return scores
++    # The trick to fast inference is to use float32 since it allows using BLAS
++    references = np.array(references, dtype=np.float32)  # R,N
++    queries = np.array(queries, dtype=np.float32)  # Q,N
++    intersection = references @ queries.T  # R,N @ N,Q -> R,Q
++    union = np.sum(references, axis=1, keepdims=True) + np.sum(queries,axis=1, keepdims=True).T  # R,1+1,Q -> R,Q
++    union -= intersection
++    jaccard = np.nan_to_num(intersection / union)  # R,Q
++    return jaccard
+ 
+ 
+-@numba.njit
+ def dice_similarity_matrix(references: np.ndarray, queries: np.ndarray) -> np.ndarray:
+     """Returns matrix of dice similarity scores between all-vs-all vectors of references
+     and queries.
+@@ -52,16 +51,13 @@ def dice_similarity_matrix(references: np.ndarray, queries: np.ndarray) -> np.nd
+         Matrix of all-vs-all similarity scores. scores[i, j] will contain the score
+         between the vectors references[i, :] and queries[j, :].
+     """
+-    size1 = references.shape[0]
+-    size2 = queries.shape[0]
+-    scores = np.zeros((size1, size2))
+-    for i in range(size1):
+-        for j in range(size2):
+-            scores[i, j] = dice_similarity(references[i, :], queries[j, :])
+-    return scores
++    references = np.array(references, dtype=np.float32)  # R,N
++    queries = np.array(queries, dtype=np.float32)  # Q,N
++    intersection = references @ queries.T  # R,N @ N,Q -> R,Q
++    union = np.sum(references, axis=1, keepdims=True) + np.sum(queries, axis=1, keepdims=True).T  # R,1 + 1,Q -> R, Q
++    dice = 2 * np.nan_to_num(intersection / union)  # R,Q
++    return dice
+ 
+-
+-@numba.njit
+ def cosine_similarity_matrix(references: np.ndarray, queries: np.ndarray) -> np.ndarray:
+     """Returns matrix of cosine similarity scores between all-vs-all vectors of
+     references and queries.
+@@ -81,13 +77,14 @@ def cosine_similarity_matrix(references: np.ndarray, queries: np.ndarray) -> np.
+         Matrix of all-vs-all similarity scores. scores[i, j] will contain the score
+         between the vectors references[i, :] and queries[j, :].
+     """
+-    size1 = references.shape[0]
+-    size2 = queries.shape[0]
+-    scores = np.zeros((size1, size2))
+-    for i in range(size1):
+-        for j in range(size2):
+-            scores[i, j] = cosine_similarity(references[i, :], queries[j, :])
+-    return scores
++    references = np.array(references, dtype=np.float32)  # R,N
++    queries = np.array(queries, dtype=np.float32)  # Q,N
++    cosine = references @ queries.T  # R,N @ N,Q -> R,Q
++    r_norm = np.sum(references ** 2, axis=1, keepdims=True)  # R,N -> R,1
++    q_norm = np.sum(queries**2, axis=1, keepdims=True) #  Q,N -> Q,1
++    norm = r_norm @ q_norm.T  # R,N @ N,Q -> R,Q
++    cosine = np.nan_to_num(cosine * norm ** -.5)  # R,Q
++    return cosine
+ 
+ 
+ @numba.njit
+diff --git a/tests/similarity/test_vector_similarity_functions.py b/tests/similarity/test_vector_similarity_functions.py
+index 898efc209..9d04cdfcf 100644
+--- a/tests/similarity/test_vector_similarity_functions.py
++++ b/tests/similarity/test_vector_similarity_functions.py
+@@ -75,7 +75,7 @@ def test_cosine_similarity_matrix():
+     vectors2 = np.array([[0, 1, 1, 0],
+                             [0, 0, 1, 1]])
+ 
+-    scores = cosine_similarity_matrix.py_func(vectors1, vectors2)
++    scores = cosine_similarity_matrix(vectors1, vectors2)
+     expected_scores = np.array([[0.5, 0.],
+                                    [0.40824829, 0.81649658]])
+     assert scores == pytest.approx(expected_scores, 1e-7), "Expected different scores."
+@@ -149,7 +149,7 @@ def test_dice_similarity_matrix():
+     vectors2 = np.array([[0, 1, 1, 0],
+                             [1, 0, 1, 1]])
+ 
+-    scores = dice_similarity_matrix.py_func(vectors1, vectors2)
++    scores = dice_similarity_matrix(vectors1, vectors2)
+     expected_scores = np.array([[0.5, 0.4],
+                                    [0.5, 0.8]])
+     assert scores == pytest.approx(expected_scores, 1e-7), "Expected different scores."
+@@ -223,7 +223,7 @@ def test_jaccard_similarity_matrix():
+     vectors2 = np.array([[0, 1, 1, 0],
+                             [1, 0, 1, 1]])
+ 
+-    scores = jaccard_similarity_matrix.py_func(vectors1, vectors2)
++    scores = jaccard_similarity_matrix(vectors1, vectors2)
+     expected_scores = np.array([[1/3, 1/4],
+                                    [1/3, 2/3]])
+     assert scores == pytest.approx(expected_scores, 1e-7), "Expected different scores."

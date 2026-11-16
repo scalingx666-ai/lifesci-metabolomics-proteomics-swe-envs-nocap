@@ -1,0 +1,331 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/util/FormulaParser.java b/mzmine-community/src/main/java/io/github/mzmine/util/FormulaParser.java
+index 72d0b64ebc5..dcd07282b53 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/util/FormulaParser.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/util/FormulaParser.java
+@@ -26,7 +26,11 @@
+ package io.github.mzmine.util;
+ 
+ import io.github.mzmine.datamodel.identities.iontype.IonTypeParser;
++import java.util.Map;
+ import java.util.logging.Logger;
++import java.util.regex.Pattern;
++import java.util.stream.Collectors;
++import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+ import org.openscience.cdk.interfaces.IChemObjectBuilder;
+ import org.openscience.cdk.interfaces.IMolecularFormula;
+@@ -40,13 +44,37 @@ public class FormulaParser {
+ 
+   private static final Logger logger = Logger.getLogger(FormulaParser.class.getName());
+ 
++  /**
++   * Symbols that are commonly used in formula strings although they are no elements. They are
++   * translated to the isotope notation understood by CDK before parsing because CDK parses them as
++   * R atoms.
++   */
++  private static final Map<String, String> ELEMENT_SYNONYMS = Map.of( //
++      "D", "[2H]", // deuterium
++      "T", "[3H]" // tritium
++  );
++
++  /**
++   * Matches a synonym only if it is not the first letter of a two letter element like Dy, Db, Th,
++   * or Ti, which all stay untouched.
++   */
++  private static final Pattern ELEMENT_SYNONYM_PATTERN = Pattern.compile("(%s)(?![a-z])".formatted(
++      ELEMENT_SYNONYMS.keySet().stream().sorted().collect(Collectors.joining("|"))));
++
++  /**
++   * Content of brackets that define an isotope like [13C] or [2H]. Those brackets belong to the
++   * formula and must not be mistaken for the brackets of the charge notation [CO2]-.
++   */
++  private static final Pattern ISOTOPE_IN_BRACKETS = Pattern.compile("\\d+[A-Z][a-z]?");
++
+   /**
+    * Creates a formula with the major isotopes (important to use this method for exact mass
+    * calculation over the CDK version, which generates formulas without an exact mass)
+    * <p>
+    * Keeps specifically defined isotopes as is: If the formula string contains specific isotopes
+    * like C5[13C] or C5[13]C then one 13C isotope will be retained and not exchanged for the major
+-   * isotope.
++   * isotope. The same is true for the hydrogen isotope synonyms D and T, which are read as [2H] and
++   * [3H], so that D2O parses like [2H]2O.
+    *
+    * @return the formula or null on error
+    */
+@@ -61,12 +89,8 @@ public static IMolecularFormula parseFormula(@Nullable String formula) {
+       // this method adds missing atoms as isotope with atom number 0
+       // parsing TEST will result in 1 S atom and 3 atoms with number 0 -> check this to validate parsing
+       formula = formula.replaceAll("\\s+", "");
+-
+-      if (formula.endsWith("]") && formula.startsWith("[")) {
+-        // parser uses [CO2]- for charge
+-        // but cannot parse [CO2] without charge needs to be CO2
+-        formula = formula.substring(1, formula.length() - 1);
+-      }
++      formula = replaceElementSynonyms(formula);
++      formula = removeChargeBrackets(formula);
+ 
+       var f = MolecularFormulaManipulator.getMolecularFormula(formula, builder);
+ 
+@@ -89,4 +113,24 @@ public static IMolecularFormula parseFormula(@Nullable String formula) {
+     }
+   }
+ 
++  /**
++   * Replaces synonyms like D and T by their isotope notation [2H] and [3H].
++   */
++  static @NotNull String replaceElementSynonyms(@NotNull String formula) {
++    return ELEMENT_SYNONYM_PATTERN.matcher(formula)
++        .replaceAll(match -> ELEMENT_SYNONYMS.get(match.group()));
++  }
++
++  /**
++   * The CDK parser uses [CO2]- for charge but cannot parse [CO2] without charge, which needs to be
++   * CO2. Only those brackets are removed: [2H] defines an isotope and is kept.
++   */
++  static @NotNull String removeChargeBrackets(@NotNull String formula) {
++    if (!(formula.startsWith("[") && formula.endsWith("]"))) {
++      return formula;
++    }
++    final String content = formula.substring(1, formula.length() - 1);
++    return ISOTOPE_IN_BRACKETS.matcher(content).matches() ? formula : content;
++  }
++
+ }
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/datamodel/structures/StructureUtilsTest.java b/mzmine-community/src/test/java/io/github/mzmine/datamodel/structures/StructureUtilsTest.java
+index 13a2a531ccc..46c9e27b466 100644
+--- a/mzmine-community/src/test/java/io/github/mzmine/datamodel/structures/StructureUtilsTest.java
++++ b/mzmine-community/src/test/java/io/github/mzmine/datamodel/structures/StructureUtilsTest.java
+@@ -29,6 +29,7 @@
+ 
+ import io.github.mzmine.datamodel.structures.StructureUtils.HydrogenFlavor;
+ import io.github.mzmine.datamodel.structures.StructureUtils.SmilesFlavor;
++import io.github.mzmine.util.FormulaUtils;
+ import org.junit.jupiter.api.Assertions;
+ import org.junit.jupiter.api.Test;
+ 
+@@ -85,6 +86,79 @@ void testHasExplicitHydrogens() {
+         "query options keep explicit hydrogens");
+   }
+ 
++  /**
++   * Unlike in molecular formulas, D and T are valid SMILES atoms. CDK reads them as [2H] and [3H],
++   * but only as single atoms/
++   */
++  @Test
++  void testParseDeuteriumSmiles() {
++    assertEquals("[2]H2O", formulaOfSmiles("[2H]O[2H]"));
++    assertEquals("[2]H2O", formulaOfSmiles("DOD"));
++    assertEquals("[2]H", formulaOfSmiles("[2H]"));
++    assertEquals("[3]H2O", formulaOfSmiles("[3H]O[3H]"));
++    assertEquals("[3]H", formulaOfSmiles("T"));
++    // methanol-d4 and d3, mixed with regular hydrogens
++    assertEquals("C[2]H4O", formulaOfSmiles("C([2H])([2H])([2H])O[2H]"));
++    assertEquals("CH[2]H3O", formulaOfSmiles("C([2H])([2H])([2H])O"));
++
++    // D followed by a digit is a ring bond in SMILES, so the formula shorthand does not parse here
++    // even though FormulaUtils.parse accepts it
++    Assertions.assertNull(
++        StructureParser.silent().parseStructureWithoutCache("CD3OD", StructureInputType.SMILES));
++    Assertions.assertNull(
++        StructureParser.silent().parseStructureWithoutCache("D2O", StructureInputType.SMILES));
++  }
++
++  @Test
++  void testDeuteriumSmilesMass() {
++    final MolecularStructure d2o = parse("[2H]O[2H]", StructureInputType.SMILES);
++    assertEquals(20.023118176, StructureUtils.getMonoIsotopicMass(d2o.structure()), 0.000001);
++    final MolecularStructure h2o = parse("O", StructureInputType.SMILES);
++    assertEquals(18.010564684, StructureUtils.getMonoIsotopicMass(h2o.structure()), 0.000001);
++  }
++
++  /**
++   * Deuterium is carried in the InChI isotope layer (/i) and is parsed back from it. The InChIKey
++   * differs in the second block, so a labeled standard is not equal to its unlabeled analog.
++   */
++  @Test
++  void testDeuteriumInchi() {
++    final MolecularStructure paracetamol = parse("CC(=O)Nc1ccc(O)cc1", StructureInputType.SMILES);
++    final MolecularStructure paracetamolD3 = parse("[2H]C([2H])([2H])C(=O)Nc1ccc(O)cc1",
++        StructureInputType.SMILES);
++
++    assertEquals("C8H6[2]H3NO2", formula(paracetamolD3));
++    assertEquals("InChI=1S/C8H9NO2/c1-6(10)9-7-2-4-8(11)5-3-7/h2-5,11H,1H3,(H,9,10)/i1D3",
++        StructureUtils.getInchi(paracetamolD3.structure()));
++    assertEquals("RZVAJINKPMORJF-UHFFFAOYSA-N",
++        StructureUtils.getInchiKey(paracetamol.structure()));
++    assertEquals("RZVAJINKPMORJF-FIBGUPNXSA-N",
++        StructureUtils.getInchiKey(paracetamolD3.structure()));
++    assertEquals(false,
++        StructureUtils.equalsInchiKey(paracetamol.structure(), paracetamolD3.structure()));
++
++    // and the isotope layer is read back
++    final MolecularStructure fromInchi = parse("InChI=1S/H2O/h1H2/i/hD2", StructureInputType.INCHI);
++    assertEquals("[2]H2O", formula(fromInchi));
++    assertEquals(20.023118176, StructureUtils.getMonoIsotopicMass(fromInchi.structure()), 0.000001);
++    assertEquals("XLYOFNOQVPJJNP-ZSJDYOACSA-N", StructureUtils.getInchiKey(fromInchi.structure()));
++  }
++
++  private static MolecularStructure parse(String input, StructureInputType type) {
++    final MolecularStructure structure = StructureParser.silent()
++        .parseStructureWithoutCache(input, type);
++    Assertions.assertNotNull(structure, "Cannot parse " + input);
++    return structure;
++  }
++
++  private static String formulaOfSmiles(String smiles) {
++    return formula(parse(smiles, StructureInputType.SMILES));
++  }
++
++  private static String formula(MolecularStructure structure) {
++    return FormulaUtils.getFormulaString(StructureUtils.getFormula(structure.structure()));
++  }
++
+   @Test
+   void testEqual() {
+     test(true, true, "CCO", "CC(OH)");
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/util/FormulaUtilsTest.java b/mzmine-community/src/test/java/io/github/mzmine/util/FormulaUtilsTest.java
+index cacc5143bca..8aac42360f0 100644
+--- a/mzmine-community/src/test/java/io/github/mzmine/util/FormulaUtilsTest.java
++++ b/mzmine-community/src/test/java/io/github/mzmine/util/FormulaUtilsTest.java
+@@ -288,7 +288,7 @@ void getFormulaString() {
+ 
+   @Test
+   void parseFormulaString() {
+-    parseFormula("D2O", true);
++    parseFormula("D2O", false); // D is a synonym for [2H]
+     parseFormula("TEST", true); //
+     parseFormula("GGG", true); //
+     parseFormula("H2o", true);
+@@ -307,6 +307,130 @@ private static IMolecularFormula parseFormula(final String formula, boolean resu
+   }
+ 
+ 
++  /**
++   * D and T are no element symbols but common synonyms for the hydrogen isotopes, so they are read
++   * as [2H] and [3H]. All notations end up in the same formula and are formatted as [2]H.
++   */
++  @Test
++  void parseDeuteriumFormula() {
++    assertEquals("[2]H2O", FormulaUtils.getFormulaString(parseFormula("D2O", false)));
++    assertEquals("[2]H2O", FormulaUtils.getFormulaString(parseFormula("[2H]2O", false)));
++    assertEquals("[2]H2O", FormulaUtils.getFormulaString(parseFormula("[2]H2O", false)));
++    assertEquals("[2]H", FormulaUtils.getFormulaString(parseFormula("[2H]", false)));
++    assertEquals("[2]H", FormulaUtils.getFormulaString(parseFormula("D", false)));
++    assertEquals("C[2]H4O", FormulaUtils.getFormulaString(parseFormula("CD3OD", false)));
++    // tritium
++    assertEquals("[3]H2O", FormulaUtils.getFormulaString(parseFormula("T2O", false)));
++    assertEquals("[3]H2O", FormulaUtils.getFormulaString(parseFormula("[3H]2O", false)));
++    // mixed with regular hydrogen
++    assertEquals("H[2]HO", FormulaUtils.getFormulaString(parseFormula("HDO", false)));
++
++    // charge still parses next to the isotope
++    assertEquals("[[2]H2O]+", FormulaUtils.getFormulaString(parseFormula("[2H]2O+", false), true));
++    assertEquals("[[2]H2O]+",
++        FormulaUtils.getFormulaString(parseFormula("[[2H]2O]+", false), true));
++    assertEquals("[[2]H2O]+", FormulaUtils.getFormulaString(parseFormula("D2O+", false), true));
++    assertEquals("[[2]H2O]2-", FormulaUtils.getFormulaString(parseFormula("[D2O]2-", false), true));
++  }
++
++  /**
++   * The synonyms must not swallow the first letter of a two letter element.
++   */
++  @Test
++  void parseElementsStartingWithSynonymLetter() {
++    assertTrue(FormulaUtils.containsElement(parseFormula("Dy", false), "Dy"));
++    assertTrue(FormulaUtils.containsElement(parseFormula("Ti", false), "Ti"));
++    assertTrue(FormulaUtils.containsElement(parseFormula("H2Te", false), "Te"));
++    assertEquals(2, FormulaUtils.countElement(parseFormula("H2Te", false), "H"));
++
++    // an element and a synonym next to each other
++    final IMolecularFormula dyD3 = parseFormula("DyD3", false);
++    assertEquals(1, FormulaUtils.countElement(dyD3, "Dy"));
++    assertEquals(3, FormulaUtils.countElement(dyD3, "H"));
++    assertEquals(3, FormulaUtils.getIsotopes(dyD3).stream()
++        .filter(i -> "H".equals(i.getSymbol()) && i.getMassNumber() == 2)
++        .mapToInt(i -> dyD3.getIsotopeCount(i)).sum());
++  }
++
++  @Test
++  void deuteriumMass() {
++    assertEquals(2.014101778, FormulaUtils.getMonoisotopicMass(formula("[2]H")), 0.000001);
++    assertEquals(3.016049278, FormulaUtils.getMonoisotopicMass(formula("[3]H")), 0.000001);
++    // the isotope brackets are kept, only the brackets of the charge notation are removed
++    assertEquals(2.014101778, FormulaUtils.getMonoisotopicMass(formula("[2H]")), 0.000001);
++    assertEquals(2.014101778, FormulaUtils.getMonoisotopicMass(formula("[[2H]]")), 0.000001);
++    assertEquals(2.014101778, FormulaUtils.getMonoisotopicMass(formula("D")), 0.000001);
++    assertEquals(20.023118176, FormulaUtils.getMonoisotopicMass(formula("D2O")), 0.000001);
++    // heavy water is 2 * 1.00627 heavier than water
++    assertEquals(18.010564684, FormulaUtils.getMonoisotopicMass(formula("H2O")), 0.000001);
++    assertEquals(20.023118176, FormulaUtils.getMonoisotopicMass(formula("[2H]2O")), 0.000001);
++    // methanol-d4
++    assertEquals(36.051321732, FormulaUtils.getMonoisotopicMass(formula("C[2H]4O")), 0.000001);
++  }
++
++  /**
++   * Deuterium behaves like a specified [13C]: parsing keeps it, only the explicit
++   * {@link FormulaUtils#replaceAllToMajorIsotopes} exchanges it for 1H.
++   */
++  @Test
++  void deuteriumAndMajorIsotopes() {
++    final IMolecularFormula d2o = FormulaUtils.parse("[2H]2O");
++    assertEquals("H2O", FormulaUtils.getFormulaString(FormulaUtils.replaceAllToMajorIsotopes(d2o)));
++    assertEquals("[2]H2O", FormulaUtils.getFormulaString(
++        FormulaUtils.createMajorIsotopeMolFormulaWithCharge("[2H]2O")));
++  }
++
++  @Test
++  void deuteriumIsotopeAbundance() {
++    final List<IIsotope> isotopes = FormulaUtils.getIsotopes(FormulaUtils.parse("H[2H]"));
++    assertEquals(2, isotopes.size());
++
++    IIsotope iso = isotopes.get(0);
++    assertEquals("H", iso.getSymbol());
++    assertEquals(1, iso.getAtomicNumber());
++    assertEquals(1, iso.getMassNumber());
++    assertEquals(1.007825032, iso.getExactMass(), 0.0000001d);
++
++    iso = isotopes.get(1);
++    assertEquals("H", iso.getSymbol());
++    assertEquals(1, iso.getAtomicNumber());
++    assertEquals(2, iso.getMassNumber());
++    assertEquals(2.014101778, iso.getExactMass(), 0.0000001d);
++    assertEquals(0.0115, iso.getNaturalAbundance(), 0.0001d);
++  }
++
++  /**
++   * Element based methods see deuterium as hydrogen, there is no D element.
++   */
++  @Test
++  void deuteriumCountsAsHydrogenElement() {
++    final IMolecularFormula d2o = FormulaUtils.parse("[2H]2O");
++    assertTrue(FormulaUtils.containsElement(d2o, "H"));
++    assertFalse(FormulaUtils.containsElement(d2o, "D"));
++    assertEquals(2, FormulaUtils.countElement(d2o, "H"));
++
++    final IMolecularFormula hdo = FormulaUtils.parse("H[2H]O");
++    assertEquals(2, FormulaUtils.countElement(hdo, "H"));
++  }
++
++  @Test
++  void addAndSubtractDeuterium() {
++    // isotopes are kept apart when adding
++    assertEquals("H2[2]H2O", FormulaUtils.getFormulaString(
++        FormulaUtils.addFormula(FormulaUtils.parse("H2O"), FormulaUtils.parse("[2H]2"), 1, true)));
++    assertEquals("[2]H4O", FormulaUtils.getFormulaString(
++        FormulaUtils.addFormula(FormulaUtils.parse("[2H]2O"), FormulaUtils.parse("[2H]2"), 1,
++            true)));
++
++    // subtraction prefers the light isotope and only then falls back to deuterium
++    assertEquals("[2]H2O", FormulaUtils.getFormulaString(
++        FormulaUtils.subtractFormula(FormulaUtils.parse("H2[2H]2O"), FormulaUtils.parse("H2"), 1,
++            true).orElseThrow()));
++    assertEquals("O", FormulaUtils.getFormulaString(
++        FormulaUtils.subtractFormula(FormulaUtils.parse("[2H]2O"), FormulaUtils.parse("H2"), 1,
++            true).orElseThrow()));
++  }
++
+   @Test
+   void containsElement() {
+     final IMolecularFormula hexose = FormulaUtils.parse("C6H12O6");

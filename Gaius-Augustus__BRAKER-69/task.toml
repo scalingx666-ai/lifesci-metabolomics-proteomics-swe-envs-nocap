@@ -1,0 +1,64 @@
+version = "1.0"
+
+[task]
+name = "default/Gaius-Augustus__BRAKER-69"
+description = "Fix is fs"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "BRAKER",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "Gaius-Augustus/BRAKER"
+ref = "8c6b85141e1d5a2e28c79b62c753180cd31d6f5f"
+reference = "https://github.com/Gaius-Augustus/BRAKER/pull/69"
+source_access = "auto"
+built_at = "2026-11-15T22:38:46.853995+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:cedbccbca8d17704d226308d807ceeb23ba1779cb383a2cc5ac87056bb5bb198"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2019-09-06T07:16:08Z"
+diff_format = "unified"
+context_files = [
+    "README.md",
+    "docs/userguide.pdf",
+    "scripts/braker_cleanup.pl",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 28
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

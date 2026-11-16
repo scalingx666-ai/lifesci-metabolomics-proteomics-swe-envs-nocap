@@ -1,0 +1,204 @@
+diff --git a/docs/src/en/cellxgene.md b/docs/src/en/cellxgene.md
+index 362b0bbf5..018175d34 100644
+--- a/docs/src/en/cellxgene.md
++++ b/docs/src/en/cellxgene.md
+@@ -10,7 +10,8 @@ Before using `gget cellxgene` for the first time, run `gget setup cellxgene` / `
+ 
+ **Optional arguments**  
+ `-s` `--species`  
+-Choice of 'homo_sapiens' or 'mus_musculus'. Default: 'homo_sapiens'.  
++Choice of 'homo_sapiens', 'mus_musculus', 'macaca_mulatta', 'callithrix_jacchus', or 'pan_troglodytes'. Default: 'homo_sapiens'.  
++Non-human primates ('macaca_mulatta', 'callithrix_jacchus', 'pan_troglodytes') require `--census_version 2025-11-08` (LTS) or newer.  
+ 
+ `-g` `--gene`  
+  Str or list of gene name(s) or Ensembl ID(s). Default: None.  
+diff --git a/docs/src/en/updates.md b/docs/src/en/updates.md
+index c618d0723..602388784 100644
+--- a/docs/src/en/updates.md
++++ b/docs/src/en/updates.md
+@@ -2,6 +2,10 @@
+ 
+ ## ✨ What's new
+ **Version ≥ 0.30.6** (Jun 10, 2026):
++- [`gget cellxgene`](cellxgene.md): Added support for the three non-human primate species available in the CZ CELLxGENE Census LTS `2025-11-08`: rhesus macaque (`macaca_mulatta`), common marmoset (`callithrix_jacchus`), and chimpanzee (`pan_troglodytes`).
++  - The `species` argument (both Python and command line) now accepts all five supported organisms; the CLI `choices`, help text, and docstrings list them.
++  - Added early validation of the `species` argument that raises a clear `ValueError` listing the supported species, instead of failing later inside the Census API call.
++  - Note: the new primate species require `census_version="2025-11-08"` (LTS) or newer.
+ - [`gget blat`](blat.md): Improved resilience against UCSC BLAT endpoint failures (fixes intermittently failing tests).
+   - Added retry-with-exponential-backoff for transient failures (HTTP 429/5xx, network errors, and non-JSON 200 responses caused by UCSC rate-limiting or HTML error pages). Up to 4 attempts with 1.5s → 3s → 6s backoff.
+   - Replaced the misleading "sequence too short or assembly invalid" message with the actual server response (status code, response preview) so failures are diagnosable.
+diff --git a/gget/gget_cellxgene.py b/gget/gget_cellxgene.py
+index e2d45241c..febaa9fc7 100644
+--- a/gget/gget_cellxgene.py
++++ b/gget/gget_cellxgene.py
+@@ -2,6 +2,18 @@
+ 
+ logger = set_up_logger()
+ 
++# Organisms available in the CZ CELLxGENE Discover Census.
++# As of Census LTS 2025-11-08 this includes non-human primates in addition to
++# human and mouse. These strings correspond to the `organism` experiment keys
++# expected by cellxgene_census (census["census_data"][organism]).
++SUPPORTED_SPECIES = [
++    "homo_sapiens",
++    "mus_musculus",
++    "macaca_mulatta",
++    "callithrix_jacchus",
++    "pan_troglodytes",
++]
++
+ 
+ def _listify(x):
+     """
+@@ -78,7 +90,10 @@ def cellxgene(
+     The CZ CELLxGENE Discover Census recommends >16 GB of memory and a >5 Mbps internet connection.
+ 
+     General args:
+-        - species        Choice of 'homo_sapiens' or 'mus_musculus'. Default: 'homo_sapiens'.
++        - species        Choice of 'homo_sapiens', 'mus_musculus', 'macaca_mulatta', 'callithrix_jacchus',
++                         or 'pan_troglodytes'. Default: 'homo_sapiens'.
++                         NOTE: Non-human primates ('macaca_mulatta', 'callithrix_jacchus', 'pan_troglodytes')
++                         require census_version='2025-11-08' (LTS) or newer.
+         - gene           Str or list of gene name(s) or Ensembl ID(s), e.g. ['ACE2', 'SLC5A1'] or ['ENSG00000130234', 'ENSG00000100170']. Default: None.
+                          NOTE: Set ensembl=True when providing Ensembl ID(s) instead of gene name(s).
+                          NOTE: Gene symbols are case sensitive! Use canonical casing, e.g., 'PAX7' (human), 'Pax7' (mouse).
+@@ -121,6 +136,14 @@ def cellxgene(
+ 
+     Returns AnnData object (when meta_only=False) or dataframe (when meta_only=True).
+     """
++    # Validate species early (before any network access) for a friendly error
++    if species not in SUPPORTED_SPECIES:
++        raise ValueError(
++            f"Species '{species}' is not supported. "
++            f"Choose one of: {', '.join(SUPPORTED_SPECIES)}. "
++            "Note: non-human primates require census_version='2025-11-08' (LTS) or newer."
++        )
++
+     # Defaults for column_names
+     if column_names is None:
+         column_names = [
+diff --git a/gget/main.py b/gget/main.py
+index 264bb41dc..b51adc92e 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -1558,9 +1558,19 @@ def main():
+         "--species",
+         default="homo_sapiens",
+         type=str,
+-        choices=["homo_sapiens", "mus_musculus"],
++        choices=[
++            "homo_sapiens",
++            "mus_musculus",
++            "macaca_mulatta",
++            "callithrix_jacchus",
++            "pan_troglodytes",
++        ],
+         required=False,
+-        help="Choice of 'homo_sapiens' or 'mus_musculus'.",
++        help=(
++            "Choice of 'homo_sapiens', 'mus_musculus', 'macaca_mulatta', "
++            "'callithrix_jacchus', or 'pan_troglodytes'. "
++            "Non-human primates require --census_version 2025-11-08 (LTS) or newer."
++        ),
+     )
+     parser_cellxgene.add_argument(
+         "-g",
+diff --git a/tests/fixtures/test_cellxgene.json b/tests/fixtures/test_cellxgene.json
+index 377af4c24..01f664f8a 100644
+--- a/tests/fixtures/test_cellxgene.json
++++ b/tests/fixtures/test_cellxgene.json
+@@ -323,5 +323,42 @@
+                 true
+             ]
+         ]
++    },
++    "test_cellxgene_metadata_macaca_mulatta": {
++        "type": "assert_equal",
++        "args": {
++            "species": "macaca_mulatta",
++            "tissue": "midbrain",
++            "cell_type": "oligodendrocyte",
++            "meta_only": true,
++            "census_version": "2025-11-08"
++        },
++        "expected_result": [
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true],
++            ["d87ba7ec-fddf-4141-abfd-1d69e8427a42", "sci-RNA-seq3", "nucleus", "female", "brain", "midbrain", "oligodendrocyte", "normal", true]
++        ]
+     }
+ }
+diff --git a/tests/test_cellxgene.py b/tests/test_cellxgene.py
+index 14d313cda..07acf7301 100644
+--- a/tests/test_cellxgene.py
++++ b/tests/test_cellxgene.py
+@@ -1,7 +1,7 @@
+ import unittest
+ import pandas as pd
+ import json
+-from gget.gget_cellxgene import cellxgene
++from gget.gget_cellxgene import cellxgene, SUPPORTED_SPECIES
+ 
+ # Load dictionary containing arguments and expected results
+ with open("./tests/fixtures/test_cellxgene.json") as json_file:
+@@ -55,3 +55,38 @@ def test_cellxgene_metadata(self):
+         result_to_test = result_to_test.values.tolist()[:25]
+ 
+         self.assertListEqual(result_to_test, expected_result)
++
++    def test_cellxgene_metadata_macaca_mulatta(self):
++        # Integration test for non-human primate support (Census LTS 2025-11-08+)
++        test = "test_cellxgene_metadata_macaca_mulatta"
++        expected_result = cellxgene_dict[test]["expected_result"]
++        result_to_test = cellxgene(**cellxgene_dict[test]["args"])
++
++        # Convert dataframe to list (and only keep first 25 results)
++        result_to_test = result_to_test.values.tolist()[:25]
++
++        self.assertListEqual(result_to_test, expected_result)
++
++
++class TestCellxgeneValidation(unittest.TestCase):
++    """Fast, network-free tests for the species allowlist validation."""
++
++    def test_supported_species_includes_new_primates(self):
++        for sp in [
++            "homo_sapiens",
++            "mus_musculus",
++            "macaca_mulatta",
++            "callithrix_jacchus",
++            "pan_troglodytes",
++        ]:
++            self.assertIn(sp, SUPPORTED_SPECIES)
++
++    def test_invalid_species_raises_valueerror(self):
++        # Validation runs before any network access / optional dependency import,
++        # so this must raise without contacting the Census API.
++        with self.assertRaises(ValueError):
++            cellxgene(species="not_a_species", tissue="lung")
++
++    def test_typo_species_raises_valueerror(self):
++        with self.assertRaises(ValueError):
++            cellxgene(species="macaca_mulata", tissue="blood")

@@ -1,0 +1,445 @@
+diff --git a/matchms/similarity/Cosine.py b/matchms/similarity/Cosine.py
+index 3164538fb..c77466376 100644
+--- a/matchms/similarity/Cosine.py
++++ b/matchms/similarity/Cosine.py
+@@ -5,7 +5,7 @@
+ from .BaseSimilarity import BaseSimilarity
+ from .CosineGreedy import CosineGreedy
+ from .CosineHungarian import CosineHungarian
+-from .FlashSimilarity import FlashCosine
++from .FlashSimilarity import CosineFlash
+ 
+ 
+ logger = logging.getLogger("matchms")
+@@ -116,7 +116,7 @@ def matrix(
+                 progress_bar=progress_bar,
+             )
+ 
+-        cosine = FlashCosine(
++        cosine = CosineFlash(
+             matching_mode="fragment",
+             tolerance=self.tolerance,
+             intensity_power=self.intensity_power,
+diff --git a/matchms/similarity/BlinkCosine.py b/matchms/similarity/CosineBlink.py
+similarity index 99%
+rename from matchms/similarity/BlinkCosine.py
+rename to matchms/similarity/CosineBlink.py
+index 59f362ba1..0fed844b0 100644
+--- a/matchms/similarity/BlinkCosine.py
++++ b/matchms/similarity/CosineBlink.py
+@@ -65,7 +65,7 @@ def _windowed_sum_numba(
+     return out
+ 
+ 
+-class BlinkCosine(BaseSimilarity):
++class CosineBlink(BaseSimilarity):
+     """
+     BLINK-style approximate cosine similarity for mass spectra with fast `.pair()` and `.matrix()`.
+     This score is implemented based on the method BLINK, proposed by Harwood et al. (2023,
+@@ -212,7 +212,7 @@ def matrix(
+         selected_fields = self._resolve_score_fields(score_fields)
+         if selected_fields != ("score",):
+             raise NotImplementedError(
+-                "BlinkCosine.matrix() currently supports only score_fields=('score',), "
++                "CosineBlink.matrix() currently supports only score_fields=('score',), "
+                 "because the optimized matrix implementation computes scores but not matches."
+             )
+ 
+diff --git a/matchms/similarity/FlashSimilarity.py b/matchms/similarity/FlashSimilarity.py
+index 43f68484c..15dde2a71 100644
+--- a/matchms/similarity/FlashSimilarity.py
++++ b/matchms/similarity/FlashSimilarity.py
+@@ -372,7 +372,7 @@ def matrix(
+         return Scores({"score": out_score.astype(self.score_datatype, copy=False)})
+ 
+ 
+-class FlashCosine(_BaseFlashSimilarity):
++class CosineFlash(_BaseFlashSimilarity):
+     """
+     Flash Cosine similarity following the original Flash Entropy (Li & Fiehn, 2023)
+     with a fast .matrix() that builds a library-wide index over 'queries' and streams 
+diff --git a/matchms/similarity/ModifiedCosine.py b/matchms/similarity/ModifiedCosine.py
+index 71b938d78..fd348cf70 100644
+--- a/matchms/similarity/ModifiedCosine.py
++++ b/matchms/similarity/ModifiedCosine.py
+@@ -3,7 +3,7 @@
+ import numpy as np
+ from matchms.typing import SpectrumType
+ from .BaseSimilarity import BaseSimilarity
+-from .FlashSimilarity import FlashCosine
++from .FlashSimilarity import CosineFlash
+ from .ModifiedCosineGreedy import ModifiedCosineGreedy
+ from .ModifiedCosineHungarian import ModifiedCosineHungarian
+ 
+@@ -121,7 +121,7 @@ def matrix(
+                 score_fields=score_fields,
+                 progress_bar=progress_bar,
+             )
+-        modcos = FlashCosine(
++        modcos = CosineFlash(
+             matching_mode="hybrid",
+             tolerance=self.tolerance,
+             intensity_power=self.intensity_power,
+diff --git a/matchms/similarity/__init__.py b/matchms/similarity/__init__.py
+index 2469461ee..25ee1b017 100644
+--- a/matchms/similarity/__init__.py
++++ b/matchms/similarity/__init__.py
+@@ -11,7 +11,7 @@
+ as the default choice for most workflows. Users who need a specific algorithmic
+ variant can select one of the explicit implementations directly, for example
+ :class:`~matchms.similarity.CosineLinear`,
+-:class:`~matchms.similarity.FlashCosine`,
++:class:`~matchms.similarity.CosineFlash`,
+ :class:`~matchms.similarity.CosineGreedy`, or
+ :class:`~matchms.similarity.CosineHungarian`.
+ 
+@@ -20,19 +20,19 @@
+ * cosine-based peak similarity
+   (:class:`~matchms.similarity.Cosine`,
+   :class:`~matchms.similarity.CosineLinear`,
+-  :class:`~matchms.similarity.FlashCosine`,
++  :class:`~matchms.similarity.CosineFlash`,
+   :class:`~matchms.similarity.CosineGreedy`,
+   :class:`~matchms.similarity.CosineHungarian`)
+ * modified cosine similarity for spectra with shifted fragment peaks
+   (:class:`~matchms.similarity.ModifiedCosine`,
+-  :class:`~matchms.similarity.FlashCosine` with matching_mode="hybrid",
++  :class:`~matchms.similarity.CosineFlash` with matching_mode="hybrid",
+   :class:`~matchms.similarity.ModifiedCosineGreedy`,
+   :class:`~matchms.similarity.ModifiedCosineHungarian`)
+ * neutral-loss-based peak similarity
+   (:class:`~matchms.similarity.NeutralLossesCosine`)
+ * fast embedding-based or approximate similarity methods
+   (:class:`~matchms.similarity.BinnedEmbeddingSimilarity`,
+-  :class:`~matchms.similarity.BlinkCosine`,
++  :class:`~matchms.similarity.CosineBlink`,
+   :class:`~matchms.similarity.FlashEntropy`)
+ * simple precursor or parent-mass matching
+   (:class:`~matchms.similarity.PrecursorMzMatch`,
+@@ -55,13 +55,13 @@
+ """
+ 
+ from .BinnedEmbeddingSimilarity import BinnedEmbeddingSimilarity
+-from .BlinkCosine import BlinkCosine
+ from .Cosine import Cosine
++from .CosineBlink import CosineBlink
+ from .CosineGreedy import CosineGreedy
+ from .CosineHungarian import CosineHungarian
+ from .CosineLinear import CosineLinear
+ from .FingerprintSimilarity import FingerprintSimilarity
+-from .FlashSimilarity import FlashCosine, FlashEntropy
++from .FlashSimilarity import CosineFlash, FlashEntropy
+ from .MetadataMatch import MetadataMatch
+ from .ModifiedCosine import ModifiedCosine
+ from .ModifiedCosineGreedy import ModifiedCosineGreedy
+@@ -73,13 +73,13 @@
+ 
+ __all__ = [
+     "BinnedEmbeddingSimilarity",
+-    "BlinkCosine",
++    "CosineBlink",
+     "Cosine",
+     "CosineGreedy",
+     "CosineHungarian",
+     "CosineLinear",
+     "FingerprintSimilarity",
+-    "FlashCosine",
++    "CosineFlash",
+     "FlashEntropy",
+     "MetadataMatch",
+     "ModifiedCosine",
+@@ -102,13 +102,13 @@ def get_similarity_function_by_name(similarity_function_name: str):
+     """
+     mapper = {
+         "BinnedEmbeddingSimilarity": BinnedEmbeddingSimilarity,
+-        "BlinkCosine": BlinkCosine,
++        "CosineBlink": CosineBlink,
+         "Cosine": Cosine,
+         "CosineLinear": CosineLinear,
+         "CosineGreedy": CosineGreedy,
+         "CosineHungarian": CosineHungarian,
+         "FingerprintSimilarity": FingerprintSimilarity,
+-        "FlashCosine": FlashCosine,
++        "CosineFlash": CosineFlash,
+         "FlashEntropy": FlashEntropy,
+         "MetadataMatch": MetadataMatch,
+         "ModifiedCosine": ModifiedCosine,
+diff --git a/tests/networking/test_SimilarityNetwork.py b/tests/networking/test_SimilarityNetwork.py
+index c0b6fba42..74f51ff47 100644
+--- a/tests/networking/test_SimilarityNetwork.py
++++ b/tests/networking/test_SimilarityNetwork.py
+@@ -4,7 +4,7 @@
+ import pytest
+ from matchms import Scores, Spectrum, calculate_scores
+ from matchms.networking import SimilarityNetwork
+-from matchms.similarity import FlashCosine
++from matchms.similarity import CosineFlash
+ 
+ 
+ @pytest.fixture(params=["cyjs", "gexf", "gml", "graphml", "json"])
+@@ -44,14 +44,14 @@ def create_dummy_scores():
+     spectra_1 = spectra[:5]
+     spectra_2 = spectra[5:]
+ 
+-    similarity_measure = FlashCosine(matching_mode="fragment")
++    similarity_measure = CosineFlash(matching_mode="fragment")
+     scores = calculate_scores(spectra_1, spectra_2, similarity_measure)
+     return scores, spectra_1, spectra_2
+ 
+ 
+ def create_dummy_scores_symmetric():
+     spectra = create_dummy_spectra()
+-    similarity_measure = FlashCosine(matching_mode="fragment")
++    similarity_measure = CosineFlash(matching_mode="fragment")
+     scores = calculate_scores(spectra, spectra, similarity_measure)
+     return scores, spectra
+ 
+diff --git a/tests/similarity/test_bench_matrix.py b/tests/similarity/test_bench_matrix.py
+index 5fc9bf600..658cedb0c 100644
+--- a/tests/similarity/test_bench_matrix.py
++++ b/tests/similarity/test_bench_matrix.py
+@@ -1,7 +1,7 @@
+ import numpy as np
+ import pytest
+ from matchms import Spectrum
+-from matchms.similarity import CosineGreedy, CosineHungarian, CosineLinear, FlashCosine
++from matchms.similarity import CosineFlash, CosineGreedy, CosineHungarian, CosineLinear
+ 
+ 
+ def _make_synthetic_spectra(n_spectra, n_peaks=30, n_common=50, tolerance=0.02, seed=42):
+@@ -53,5 +53,5 @@ def test_bench_cosine_linear(benchmark, n_spectra):
+ @pytest.mark.parametrize("n_spectra", SIZES)
+ def test_bench_flash_similarity(benchmark, n_spectra):
+     spectra = _make_synthetic_spectra(n_spectra)
+-    sim = FlashCosine(tolerance=0.02)
++    sim = CosineFlash(tolerance=0.02)
+     benchmark(sim.matrix, spectra, n_jobs=1)
+diff --git a/tests/similarity/test_blink_cosine.py b/tests/similarity/test_blink_cosine.py
+index 5d16876ba..3446f8286 100644
+--- a/tests/similarity/test_blink_cosine.py
++++ b/tests/similarity/test_blink_cosine.py
+@@ -2,7 +2,7 @@
+ import pytest
+ from matchms.Scores import Scores, ScoresMask
+ from matchms.similarity import CosineGreedy
+-from matchms.similarity.BlinkCosine import BlinkCosine
++from matchms.similarity.CosineBlink import CosineBlink
+ from ..builder_Spectrum import SpectrumBuilder
+ 
+ 
+@@ -25,7 +25,7 @@ def _expected_strict_cosine(bins1, vals1, bins2, vals2):
+ 
+ 
+ def _prep_naive(s, bin_width=1.0, mz_power=0.0, intensity_power=1.0):
+-    """Replicates BlinkCosine _prep_spectrum steps used in tests (prefilter disabled)."""
++    """Replicates CosineBlink _prep_spectrum steps used in tests (prefilter disabled)."""
+     mz = s.peaks.mz
+     inten = s.peaks.intensities
+ 
+@@ -65,7 +65,7 @@ def test_pair_strict_R0_expected(mz1, int1, mz2, int2, use_numba):
+     s1 = _build(builder, mz1, int1)
+     s2 = _build(builder, mz2, int2)
+ 
+-    sim = BlinkCosine(tolerance=0.0, bin_width=1.0, prefilter=False, use_numba=use_numba)
++    sim = CosineBlink(tolerance=0.0, bin_width=1.0, prefilter=False, use_numba=use_numba)
+     out = sim.pair(s1, s2)
+ 
+     b1, v1 = _prep_naive(s1, bin_width=1.0)
+@@ -80,7 +80,7 @@ def test_pair_clip_to_one():
+     builder = SpectrumBuilder()
+     s = _build(builder, [100, 200, 300], [0.1, 0.2, 1.0])
+ 
+-    sim = BlinkCosine(tolerance=0.0, bin_width=1.0, prefilter=False, clip_to_one=True)
++    sim = CosineBlink(tolerance=0.0, bin_width=1.0, prefilter=False, clip_to_one=True)
+     out = sim.pair(s, s)
+ 
+     assert out == pytest.approx(1.0, 1e-6)
+@@ -92,7 +92,7 @@ def test_pair_empty_spectrum():
+     s_empty = _build(builder, [], [])
+     s_full = _build(builder, [100, 200], [1.0, 1.0])
+ 
+-    sim = BlinkCosine(tolerance=0.0, bin_width=1.0, prefilter=False)
++    sim = CosineBlink(tolerance=0.0, bin_width=1.0, prefilter=False)
+     out = sim.pair(s_empty, s_full)
+ 
+     assert out == 0.0
+@@ -112,7 +112,7 @@ def test_matrix_equals_pair_scores_dense(use_numba):
+         _build(builder, [110, 190, 290], [0.5, 0.2, 1.0]),
+     ]
+ 
+-    sim = BlinkCosine(tolerance=5.0, bin_width=1.0, prefilter=False, use_numba=use_numba)
++    sim = CosineBlink(tolerance=5.0, bin_width=1.0, prefilter=False, use_numba=use_numba)
+     scores = sim.matrix(refs, qrys)
+ 
+     assert isinstance(scores, Scores)
+@@ -136,7 +136,7 @@ def test_matrix_self_comparison_is_symmetric():
+     s2 = _build(builder, [100, 210, 310], [0.1, 0.2, 1.0])
+     spectra = [s1, s2]
+ 
+-    sim = BlinkCosine(tolerance=10.0, bin_width=1.0, prefilter=False)
++    sim = CosineBlink(tolerance=10.0, bin_width=1.0, prefilter=False)
+     scores = sim.matrix(spectra)
+ 
+     assert isinstance(scores, Scores)
+@@ -150,7 +150,7 @@ def test_matrix_self_comparison_is_symmetric():
+ 
+ 
+ def test_matrix_handles_empty_inputs():
+-    sim = BlinkCosine(tolerance=0.0, bin_width=1.0, prefilter=False)
++    sim = CosineBlink(tolerance=0.0, bin_width=1.0, prefilter=False)
+     builder = SpectrumBuilder()
+     s = _build(builder, [100], [1.0])
+ 
+@@ -174,7 +174,7 @@ def test_matrix_default_score_fields_returns_score_only():
+     refs = [_build(builder, [100, 200], [1.0, 1.0])]
+     qrys = [_build(builder, [100, 201], [1.0, 1.0])]
+ 
+-    sim = BlinkCosine(tolerance=2.0, bin_width=1.0, prefilter=False)
++    sim = CosineBlink(tolerance=2.0, bin_width=1.0, prefilter=False)
+     scores = sim.matrix(refs, qrys)
+ 
+     assert isinstance(scores, Scores)
+@@ -188,7 +188,7 @@ def test_matrix_score_field_selection_still_works():
+     refs = [_build(builder, [100, 200], [1.0, 1.0])]
+     qrys = [_build(builder, [100, 201], [1.0, 1.0])]
+ 
+-    sim = BlinkCosine(tolerance=2.0, bin_width=1.0, prefilter=False)
++    sim = CosineBlink(tolerance=2.0, bin_width=1.0, prefilter=False)
+     scores = sim.matrix(refs, qrys)
+     score_only = scores["score"]
+ 
+@@ -210,7 +210,7 @@ def test_scalar_scores_score_alias_behaves_like_scores_itself():
+         _build(builder, [350], [1.0]),
+     ]
+ 
+-    sim = BlinkCosine(tolerance=2.0, bin_width=1.0, prefilter=False)
++    sim = CosineBlink(tolerance=2.0, bin_width=1.0, prefilter=False)
+     scores = sim.matrix(refs, qrys)
+     score_view = scores["score"]
+ 
+@@ -229,7 +229,7 @@ def test_sparse_matrix_not_implemented():
+     builder = SpectrumBuilder()
+     s = _build(builder, [100, 200], [1.0, 1.0])
+ 
+-    sim = BlinkCosine(tolerance=2.0, bin_width=1.0, prefilter=False)
++    sim = CosineBlink(tolerance=2.0, bin_width=1.0, prefilter=False)
+ 
+     with pytest.raises(NotImplementedError, match="sparse_matrix"):
+         sim.sparse_matrix([s], [s], progress_bar=False)
+@@ -242,8 +242,8 @@ def test_pair_numba_vs_fallback_identical(use_numba_pair):
+     s1 = _build(builder, [100, 200, 300, 400], [0.3, 1.0, 0.5, 0.2])
+     s2 = _build(builder, [99, 201, 305, 500], [0.2, 0.9, 0.4, 0.1])
+ 
+-    sim_numba = BlinkCosine(tolerance=5.0, bin_width=1.0, prefilter=False, use_numba=True)
+-    sim_fallback = BlinkCosine(tolerance=5.0, bin_width=1.0, prefilter=False, use_numba=False)
++    sim_numba = CosineBlink(tolerance=5.0, bin_width=1.0, prefilter=False, use_numba=True)
++    sim_fallback = CosineBlink(tolerance=5.0, bin_width=1.0, prefilter=False, use_numba=False)
+ 
+     out_a = (sim_numba if use_numba_pair else sim_fallback).pair(s1, s2)
+     out_b = (sim_fallback if use_numba_pair else sim_numba).pair(s1, s2)
+@@ -265,7 +265,7 @@ def test_blinkcosine_upper_bound_cosinegreedy():
+ 
+     tolerance = 5.0
+     cg = CosineGreedy(tolerance=tolerance)
+-    bc = BlinkCosine(tolerance=tolerance, bin_width=1.0, prefilter=False)
++    bc = CosineBlink(tolerance=tolerance, bin_width=1.0, prefilter=False)
+ 
+     score_cg = cg.pair(spectrum_1, spectrum_2)["score"]
+     score_bc = bc.pair(spectrum_1, spectrum_2)
+diff --git a/tests/similarity/test_cosine.py b/tests/similarity/test_cosine.py
+index 644c06d24..9c052abf6 100644
+--- a/tests/similarity/test_cosine.py
++++ b/tests/similarity/test_cosine.py
+@@ -3,9 +3,9 @@
+ from matchms import Spectrum
+ from matchms.similarity import (
+     Cosine,
++    CosineFlash,
+     CosineGreedy,
+     CosineHungarian,
+-    FlashCosine,
+ )
+ 
+ 
+@@ -69,7 +69,7 @@ def test_cosine_matrix_matches_flash_cosine_when_use_hungarian_false():
+     spectra = [spectrum_1, spectrum_2, spectrum_3]
+ 
+     wrapped = Cosine(tolerance=0.1, use_hungarian=False)
+-    direct = FlashCosine(matching_mode="fragment", tolerance=0.1)
++    direct = CosineFlash(matching_mode="fragment", tolerance=0.1)
+ 
+     wrapped_scores = wrapped.matrix(spectra, progress_bar=False, n_jobs=1)
+     direct_scores = direct.matrix(spectra, progress_bar=False, n_jobs=1)
+diff --git a/tests/similarity/test_flash_similarity.py b/tests/similarity/test_flash_similarity.py
+index 9a5a5b714..a7aad60c6 100644
+--- a/tests/similarity/test_flash_similarity.py
++++ b/tests/similarity/test_flash_similarity.py
+@@ -2,7 +2,7 @@
+ import pytest
+ from matchms.Scores import Scores
+ from matchms.similarity import CosineGreedy, ModifiedCosineGreedy
+-from matchms.similarity.FlashSimilarity import FlashCosine, FlashEntropy
++from matchms.similarity.FlashSimilarity import CosineFlash, FlashEntropy
+ from ..builder_Spectrum import SpectrumBuilder
+ 
+ 
+@@ -281,7 +281,7 @@ def test_entropy_fragment_matrix_matches_pair_with_sparse_candidate_columns():
+ # ----------------------------
+ 
+ def _mc_flash(tolerance, intensity_power=1.0):
+-    return FlashCosine(
++    return CosineFlash(
+         matching_mode="hybrid",  # hybrid = "modified cosine"
+         tolerance=tolerance,
+         intensity_power=intensity_power,
+@@ -398,7 +398,7 @@ def test_cosine_pair_matches_cosinegreedy_default_tolerance_001():
+         ),
+     ]
+ 
+-    flash = FlashCosine(
++    flash = CosineFlash(
+         matching_mode="fragment",
+         tolerance=0.01,
+         remove_precursor=False,
+@@ -428,7 +428,7 @@ def test_cosine_matrix_dense_matches_pair():
+         build_spectrum([100.007, 150.002, 300.000], [0.6, 1.0, 0.4], precursor_mz=500.0),
+         build_spectrum([110.004, 250.009, 400.006], [0.5, 0.9, 0.7], precursor_mz=600.0),
+     ]
+-    flash = FlashCosine(
++    flash = CosineFlash(
+         matching_mode="fragment",
+         tolerance=0.01,
+         remove_precursor=False,
+@@ -450,8 +450,8 @@ def test_cosine_matrix_dense_matches_pair():
+ def test_cosine_dtype_and_commutativity():
+     a = build_spectrum([100, 150, 300], [0.5, 1.0, 0.4], precursor_mz=600.0)
+     b = build_spectrum([100, 155, 295], [0.5, 0.8, 0.6], precursor_mz=600.0)
+-    f32 = FlashCosine(dtype=np.float32, remove_precursor=False, noise_cutoff=0.0)
+-    f64 = FlashCosine(dtype=np.float64, remove_precursor=False, noise_cutoff=0.0)
++    f32 = CosineFlash(dtype=np.float32, remove_precursor=False, noise_cutoff=0.0)
++    f64 = CosineFlash(dtype=np.float64, remove_precursor=False, noise_cutoff=0.0)
+ 
+     s_ab_32 = f32.pair(a, b)["score"]
+     s_ba_32 = f32.pair(b, a)["score"]
+diff --git a/tests/similarity/test_modified_cosine.py b/tests/similarity/test_modified_cosine.py
+index 3a2b37f5d..1cdc8f3dc 100644
+--- a/tests/similarity/test_modified_cosine.py
++++ b/tests/similarity/test_modified_cosine.py
+@@ -2,7 +2,7 @@
+ import pytest
+ from matchms import Spectrum
+ from matchms.similarity import (
+-    FlashCosine,
++    CosineFlash,
+     ModifiedCosine,
+     ModifiedCosineGreedy,
+     ModifiedCosineHungarian,
+@@ -69,7 +69,7 @@ def test_modified_cosine_matrix_matches_flash_cosine_when_use_hungarian_false():
+     spectra = [spectrum_1, spectrum_2, spectrum_3]
+ 
+     wrapped = ModifiedCosine(tolerance=0.1, use_hungarian=False)
+-    direct = FlashCosine(matching_mode="hybrid", tolerance=0.1)
++    direct = CosineFlash(matching_mode="hybrid", tolerance=0.1)
+ 
+     wrapped_scores = wrapped.matrix(spectra, progress_bar=False, n_jobs=1)
+     direct_scores = direct.matrix(spectra, progress_bar=False, n_jobs=1)

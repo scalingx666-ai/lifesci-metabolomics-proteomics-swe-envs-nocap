@@ -1,0 +1,64 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3548"
+description = "wizard: add labels to combos"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "ea6ee5e46409d8297e570e7427527327e7171e2f"
+reference = "https://github.com/mzmine/mzmine/pull/3548"
+source_access = "auto"
+built_at = "2026-11-16T08:43:15.420746+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:c8f5d5e309319554afda2e3e99688a7428455ae19accf86655955a7502b8334d"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-01T15:01:39Z"
+diff_format = "unified"
+context_files = [
+    "javafx-framework/src/main/java/io/github/mzmine/javafx/components/factories/FxLabels.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/tools/batchwizard/BatchWizardTab.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/tools/batchwizard/WizardPart.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 95
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

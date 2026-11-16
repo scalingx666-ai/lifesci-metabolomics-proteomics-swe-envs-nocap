@@ -1,0 +1,13 @@
+diff --git a/pypdb/clients/search/operators/text_operators.py b/pypdb/clients/search/operators/text_operators.py
+index ef1fd8b..96021d0 100644
+--- a/pypdb/clients/search/operators/text_operators.py
++++ b/pypdb/clients/search/operators/text_operators.py
+@@ -90,7 +90,7 @@ def _to_dict(self) -> Dict[str, str]:
+ class ComparisonType(Enum):
+     GREATER = "greater"
+     GREATER_OR_EQUAL = "greater_or_equal"
+-    EQUAL = "equal"
++    EQUAL = "equals"
+     NOT_EQUAL = "not_equal"
+     LESS_OR_EQUAL = "less_or_equal"
+     LESS = "less"

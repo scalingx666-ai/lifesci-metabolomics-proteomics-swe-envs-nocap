@@ -1,0 +1,1217 @@
+diff --git a/docs/src/SUMMARY.md b/docs/src/SUMMARY.md
+index a39effe97..ef091474c 100644
+--- a/docs/src/SUMMARY.md
++++ b/docs/src/SUMMARY.md
+@@ -28,6 +28,7 @@
+ * [gget seq](en/seq.md)  
+ * [gget opentargets](en/opentargets.md)  
+ * [gget cbio](en/cbio.md)  
++* [gget bgee](en/bgee.md)
+ 
+ ---
+ 
+diff --git a/docs/src/en/bgee.md b/docs/src/en/bgee.md
+new file mode 100644
+index 000000000..4f9d1834d
+--- /dev/null
++++ b/docs/src/en/bgee.md
+@@ -0,0 +1,79 @@
++> Python arguments are equivalent to long-option arguments (`--arg`), unless otherwise specified. Flags are True/False arguments in Python. The manual for any gget tool can be called from the command-line using the `-h` `--help` flag.  
++## gget bgee 🐝
++Fetch orthology and gene expression data from [Bgee](https://www.bgee.org/) using Ensembl IDs.   
++Return format: JSON/CSV (command-line) or data frame (Python).
++
++> If you are specifically interested in human gene expression data, consider using [gget opentargets](./opentargets.md) instead.
++> **gget bgee** has less data, but supports more species.
++
++**Positional argument**  
++`ens_id`  
++Ensembl gene ID, e.g. ENSG00000169194 or ENSSSCG00000014725.
++
++**Required arguments**  
++`-t` `--type`  
++Type of data to fetch. Options: `orthologs`, `expression`.  
++
++**Optional arguments**  
++`-o` `--out`    
++Path to the JSON file the results will be saved in, e.g. path/to/directory/results.json. Default: Standard out.
++
++**Flags**   
++`-csv` `--csv`  
++Command-line only. Returns the output in CSV format, instead of JSON format.  
++Python: Use `json=True` to return output in JSON format.
++
++`-q` `--quiet`   
++Command-line only. Prevents progress information from being displayed.  
++Python: Use `verbose=False` to prevent progress information from being displayed.
++  
++  
++### Examples
++
++**Get orthologs for a gene**
++
++```bash
++gget bgee ENSSSCG00000014725 -t orthologs
++```
++
++```python
++import gget
++gget.bgee("ENSSSCG00000014725", type="orthologs")
++```
++
++&rarr; Returns orthologs for the gene with Ensembl ID ENSSSCG00000014725.
++
++| gene_id            | gene_name    | species_id | genus   | species    |
++|--------------------|--------------|------------|---------|------------|
++| 734881             | hbb1         | 8355       | Xenopus | laevis     |
++| ENSFCAG00000038029 | LOC101098159 | 9685       | Felis   | catus      |
++| ENSBTAG00000047356 | LOC107131172 | 9913       | Bos     | taurus     |
++| ENSOARG00000019163 | LOC101105437 | 9940       | Ovis    | aries      |
++| ENSXETG00000025667 | hbg1         | 8364       | Xenopus | tropicalis |
++| ...                | ...          | ...        | ...     | ...        |
++
++<br/><br/>
++
++**Get gene expression data for a gene**
++
++```bash
++gget bgee ENSSSCG00000014725 -t expression
++```
++```python
++import gget
++gget.bgee("ENSSSCG00000014725", type="expression")
++```
++
++&rarr; Returns gene expression data for the gene with Ensembl ID ENSSSCG00000014725.
++
++| anat_entity_id | anat_entity_name            | score | score_confidence | expression_state |
++|----------------|-----------------------------|-------|------------------|------------------|
++| UBERON:0000178 | blood                       | 99.98 | high             | expressed        |
++| UBERON:0002106 | spleen                      | 99.96 | high             | expressed        |
++| UBERON:0002190 | subcutaneous adipose tissue | 99.70 | high             | expressed        |
++| UBERON:0005316 | endocardial endothelium     | 99.61 | high             | expressed        |
++| UBERON:0002107 | liver                       | 99.27 | high             | expressed        |
++| ...            | ...                         | ...   | ...              | ...              |
++
++    
++#### [More examples](https://github.com/pachterlab/gget_examples)
+diff --git a/docs/src/en/opentargets.md b/docs/src/en/opentargets.md
+index 1ae701224..08f33b1a0 100644
+--- a/docs/src/en/opentargets.md
++++ b/docs/src/en/opentargets.md
+@@ -1,5 +1,5 @@
+ > Python arguments are equivalent to long-option arguments (`--arg`), unless otherwise specified. Flags are True/False arguments in Python. The manual for any gget tool can be called from the command-line using the `-h` `--help` flag.  
+-## gget opentargets 📖
++## gget opentargets 🎯
+ Fetch associated diseases or drugs from [OpenTargets](https://platform.opentargets.org/) using Ensembl IDs.   
+ Return format: JSON/CSV (command-line) or data frame (Python).
+ 
+diff --git a/gget/__init__.py b/gget/__init__.py
+index 54fe36fe3..085ac0559 100644
+--- a/gget/__init__.py
++++ b/gget/__init__.py
+@@ -18,6 +18,7 @@
+ from .gget_mutate import mutate
+ from .gget_opentargets import opentargets
+ from .gget_cbio import cbio_plot, cbio_search
++from .gget_bgee import bgee
+ 
+ import logging
+ # Mute numexpr threads info
+diff --git a/gget/gget_bgee.py b/gget/gget_bgee.py
+new file mode 100644
+index 000000000..4409fef9b
+--- /dev/null
++++ b/gget/gget_bgee.py
+@@ -0,0 +1,190 @@
++import pandas as pd
++import json as json_
++from typing import Literal
++
++import requests
++
++from .utils import set_up_logger, json_list_to_df
++
++logger = set_up_logger()
++
++
++def _bgee_species(gene_id: str, verbose: bool = True) -> int:
++    """
++    Get species ID from Bgee
++    :param gene_id: Ensembl gene ID
++    :param verbose: log progress
++    :return: species ID
++    """
++
++    if verbose:
++        logger.info(f"Getting species ID for gene {gene_id} from Bgee")
++
++    response = requests.get(
++        "https://bgee.org/api/",
++        params={
++            "display_type": "json",
++            "page": "gene",
++            "action": "general_info",
++            "gene_id": gene_id,
++        },
++    )
++
++    if not response.ok:
++        raise RuntimeError(
++            f"Bgee API request returned with error code: {response.status_code}. "
++            "Please double-check the arguments and try again.\n"
++        )
++
++    genes_data: list[dict[str, ...]] = response.json()["data"]["genes"]
++    assert len(genes_data) == 1
++    gene_data: dict[str, ...] = genes_data[0]
++
++    species: int = gene_data["species"]["genomeSpeciesId"]
++    return species
++
++
++def _bgee_orthologs(
++    gene_id: str, json: bool = False, verbose: bool = True
++) -> pd.DataFrame | list[dict[str, ...]]:
++    """
++    Get orthologs for a gene from Bgee
++
++    Args:
++
++    :param gene_id: Ensembl gene ID
++    :param json:    return JSON instead of DataFrame
++    :param verbose: log progress
++
++    Returns requested information as a DataFrame or JSON
++    """
++
++    # must first obtain species
++    species = _bgee_species(gene_id, verbose=verbose)
++
++    if verbose:
++        logger.info(f"Getting orthologs for gene {gene_id} from Bgee")
++
++    # then obtain homologs
++    response = requests.get(
++        f"https://bgee.org/api/",
++        params={
++            "display_type": "json",
++            "page": "gene",
++            "action": "homologs",
++            "gene_id": gene_id,
++            "species_id": species,
++        },
++    )
++
++    if not response.ok:
++        raise RuntimeError(
++            f"Bgee API request returned with error code: {response.status_code}. "
++            "Please double-check the arguments and try again.\n"
++        )
++
++    homologs_data: list[dict[str, ...]] = response.json()["data"]["orthologsByTaxon"]
++    homologs_data: list[dict[str, ...]] = sum([v["genes"] for v in homologs_data], [])
++
++    df = json_list_to_df(
++        homologs_data,
++        [
++            ("gene_id", "geneId"),
++            ("gene_name", "name"),
++            ("species_id", "species.id"),
++            ("genus", "species.genus"),
++            ("species", "species.speciesName"),
++        ],
++    )
++
++    if json:
++        return json_.loads(df.to_json(orient="records", force_ascii=False))
++    else:
++        return df
++
++
++def _bgee_expression(
++    gene_id: str, json: bool = False, verbose: bool = True
++) -> pd.DataFrame | list[dict[str, ...]]:
++    """
++    Get expression data from Bgee
++
++    Args:
++
++    :param gene_id: Ensembl gene ID
++    :param json:    return JSON instead of DataFrame
++    :param verbose: log progress
++
++    Returns requested information as a DataFrame or JSON
++    """
++    # must first obtain species
++    species = _bgee_species(gene_id, verbose=verbose)
++
++    if verbose:
++        logger.info(f"Getting expression data for gene {gene_id} from Bgee")
++
++    # then obtain expression data
++    response = requests.get(
++        "https://bgee.org/api/",
++        params={
++            "display_type": "json",
++            "page": "gene",
++            "action": "expression",
++            "gene_id": gene_id,
++            "species_id": species,
++            "cond_param": ["anat_entity", "cell_type"],
++            "data_type": "all",
++        },
++    )
++
++    if not response.ok:
++        raise RuntimeError(
++            f"Bgee API request returned with error code: {response.status_code}. "
++            "Please double-check the arguments and try again.\n"
++        )
++
++    expression_data: list[dict[str, ...]] = response.json()["data"]["calls"]
++
++    df = json_list_to_df(
++        expression_data,
++        [
++            ("anat_entity_id", "condition.anatEntity.id"),
++            ("anat_entity_name", "condition.anatEntity.name"),
++            ("score", "expressionScore.expressionScore"),
++            ("score_confidence", "expressionScore.expressionScoreConfidence"),
++            ("expression_state", "expressionState"),
++        ],
++    )
++    df["score"] = df["score"].astype(float)
++
++    if json:
++        return json_.loads(df.to_json(orient="records", force_ascii=False))
++    else:
++        return df
++
++
++# noinspection PyShadowingBuiltins
++def bgee(
++    gene_id: str,
++    type: Literal["expression", "orthologs"],
++    json: bool = False,
++    verbose: bool = True,
++) -> pd.DataFrame | list[dict[str, ...]]:
++    """
++    Get orthologs/expression data for a gene from Bgee
++
++    Args:
++
++    :param type:    type of data to retrieve (expression or orthologs)
++    :param gene_id: Ensembl gene ID
++    :param json:    return JSON instead of DataFrame
++    :param verbose: log progress
++
++    Returns requested information as a DataFrame or JSON
++    """
++    if type == "expression":
++        return _bgee_expression(gene_id, json=json, verbose=verbose)
++    elif type == "orthologs":
++        return _bgee_orthologs(gene_id, json=json, verbose=verbose)
++    else:
++        raise ValueError(f"Unknown type: {type}")
+diff --git a/gget/main.py b/gget/main.py
+index 8eadc1ea4..99476609f 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -2,6 +2,8 @@
+ import sys
+ from datetime import datetime
+ 
++import pandas as pd
++
+ # Get current date and time for alphafold default foldername
+ dt_string = datetime.now().strftime("%Y_%m_%d-%H_%M")
+ 
+@@ -35,6 +37,7 @@
+ from .gget_mutate import mutate
+ from .gget_opentargets import opentargets, OPENTARGETS_RESOURCES
+ from .gget_cbio import cbio_plot, cbio_search
++from .gget_bgee import bgee
+ 
+ 
+ # Custom formatter for help messages that preserved the text formatting and adds the default value to the end of the help message
+@@ -2233,6 +2236,56 @@ def main():
+         help="Show the plot in a window"
+     )
+ 
++    ## bgee parser arguments
++    bgee_desc = "Query the Bgee database for orthology and gene expression data using Ensembl IDs."
++    parser_bgee = parent_subparsers.add_parser(
++        "bgee",
++        parents=[parent],
++        description=bgee_desc,
++        help=bgee_desc,
++        add_help=True,
++        formatter_class=CustomHelpFormatter,
++    )
++    parser_bgee.add_argument(
++        "ens_id",
++        type=str,
++        help="Ensembl gene ID, e.g. ENSG00000169194 or ENSSSCG00000014725.",
++    )
++    parser_bgee.add_argument(
++        "-t",
++        "--type",
++        type=str,
++        choices=["orthologs", "expression"],
++        help="Type of information to be returned.",
++        required=True
++    )
++    parser_bgee.add_argument(
++        "-o",
++        "--out",
++        type=str,
++        required=False,
++        help=(
++            "Path to the file the results will be saved in, e.g. path/to/directory/results.json.\n"
++            "Default: Standard out."
++        ),
++    )
++    parser_bgee.add_argument(
++        "-csv",
++        "--csv",
++        default=False,
++        action="store_true",
++        required=False,
++        help="Returns results in csv format instead of json.",
++    )
++    parser_bgee.add_argument(
++        "-q",
++        "--quiet",
++        default=True,
++        action="store_false",
++        required=False,
++        help="Does not print progress information.",
++    )
++
+ 
+     ### Define return values
+     args = parent_parser.parse_args()
+@@ -2284,6 +2337,7 @@ def main():
+         "mutate": parser_mutate,
+         "opentargets": parser_opentargets,
+         "cbio": parser_cbio,
++        "bgee": parser_bgee,
+     }
+ 
+     if len(sys.argv) == 2:
+@@ -3164,3 +3218,35 @@ def main():
+                 figure_filename=args.filename,
+                 figure_title=args.title,
+             )
++
++    ## bgee return
++    if args.command == "bgee":
++        bgee_results: pd.DataFrame = bgee(
++            args.ens_id,
++            type=args.type,
++            verbose=args.quiet,
++        )
++
++        if args.out is not None and args.out != "":
++            # Make saving directory
++            directory = os.path.dirname(args.out)
++            if directory != "":
++                os.makedirs(directory, exist_ok=True)
++
++            # Save json
++            with open(args.out, "w", encoding="utf-8") as f:
++                if args.csv:
++                    bgee_results.to_csv(f, index=False)
++                else:
++                    bgee_results.to_json(
++                        f, orient="records", force_ascii=False, indent=4
++                    )
++        else:
++            if args.csv:
++                bgee_results.to_csv(sys.stdout, index=False)
++            else:
++                print(
++                    bgee_results.to_json(
++                        orient="records", force_ascii=False, indent=4
++                    )
++                )
+diff --git a/tests/fixtures/test_bgee.json b/tests/fixtures/test_bgee.json
+new file mode 100644
+index 000000000..2eeb58f26
+--- /dev/null
++++ b/tests/fixtures/test_bgee.json
+@@ -0,0 +1,710 @@
++{
++    "test_bgee_expression": {
++        "type": "assert_equal",
++        "args": {
++            "type": "expression",
++            "gene_id": "ENSBTAG00000047356"
++        },
++        "expected_result": [
++            [
++                "UBERON:0001968",
++                "semen",
++                97.46,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0001954",
++                "Ammon's horn",
++                53.61,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0001801",
++                "anterior segment of eyeball",
++                51.28,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0002367",
++                "prostate gland",
++                49.46,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0007358",
++                "abomasum",
++                45.43,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0000947",
++                "aorta",
++                45.09,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0001225",
++                "cortex of kidney",
++                43.64,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0010533",
++                "metanephros cortex",
++                43.51,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0002000",
++                "gluteal muscle",
++                41.91,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0001891",
++                "midbrain",
++                35.41,
++                "high",
++                "expressed"
++            ],
++            [
++                "CL:0000711",
++                "cumulus cell",
++                32.33,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0001158",
++                "descending colon",
++                28.93,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0001870",
++                "frontal cortex",
++                28.83,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0002107",
++                "liver",
++                27.93,
++                "high",
++                "expressed"
++            ],
++            [
++                "CL:0000576",
++                "monocyte",
++                27.18,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0001111",
++                "intercostal muscle",
++                26.73,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0000569",
++                "ileocecal valve",
++                24.96,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0001134",
++                "skeletal muscle tissue",
++                22.99,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0007365",
++                "rumen",
++                22.88,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0002114",
++                "duodenum",
++                22.34,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0010239",
++                "spiral colon",
++                22.25,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0001911",
++                "mammary gland",
++                22.19,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0002048",
++                "lung",
++                21.36,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0000459",
++                "uterine wall",
++                21.27,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0001295",
++                "endometrium",
++                21.26,
++                "high",
++                "expressed"
++            ],
++            [
++                "UBERON:0002115",
++                "jejunum",
++                20.7,
++                "high",
++                "expressed"
++            ]
++        ]
++    },
++
++
++    "test_bgee_orthologs": {
++        "type": "assert_equal",
++        "args": {
++            "type": "orthologs",
++            "gene_id": "ENSOARG00000019163"
++        },
++        "expected_result": [
++            [
++                "ENSCHIG00000017796",
++                "LOC102175876",
++                9925,
++                "Capra",
++                "hircus"
++            ],
++            [
++                "ENSBTAG00000037644",
++                "HBB",
++                9913,
++                "Bos",
++                "taurus"
++            ],
++            [
++                "ENSCHIG00000017796",
++                "LOC102175876",
++                9925,
++                "Capra",
++                "hircus"
++            ],
++            [
++                "ENSSSCG00000014725",
++                "HBB",
++                9823,
++                "Sus",
++                "scrofa"
++            ],
++            [
++                "ENSSSCG00000014727",
++                "LOC100515788",
++                9823,
++                "Sus",
++                "scrofa"
++            ],
++            [
++                "ENSBTAG00000037644",
++                "HBB",
++                9913,
++                "Bos",
++                "taurus"
++            ],
++            [
++                "ENSCHIG00000017796",
++                "LOC102175876",
++                9925,
++                "Capra",
++                "hircus"
++            ],
++            [
++                "ENSCAFG00000030286",
++                "LOC609402",
++                9615,
++                "Canis",
++                "lupus familiaris"
++            ],
++            [
++                "ENSFCAG00000038029",
++                "LOC101098159",
++                9685,
++                "Felis",
++                "catus"
++            ],
++            [
++                "ENSECAG00000010020",
++                "LOC100068926",
++                9796,
++                "Equus",
++                "caballus"
++            ],
++            [
++                "ENSECAG00000030768",
++                "GLNB2",
++                9796,
++                "Equus",
++                "caballus"
++            ],
++            [
++                "ENSSSCG00000014725",
++                "HBB",
++                9823,
++                "Sus",
++                "scrofa"
++            ],
++            [
++                "ENSSSCG00000014727",
++                "LOC100515788",
++                9823,
++                "Sus",
++                "scrofa"
++            ],
++            [
++                "ENSBTAG00000037644",
++                "HBB",
++                9913,
++                "Bos",
++                "taurus"
++            ],
++            [
++                "ENSCHIG00000017796",
++                "LOC102175876",
++                9925,
++                "Capra",
++                "hircus"
++            ],
++            [
++                "108407212",
++                "LOC108407212",
++                9974,
++                "Manis",
++                "javanica"
++            ],
++            [
++                "108407213",
++                "LOC108407213",
++                9974,
++                "Manis",
++                "javanica"
++            ],
++            [
++                "108407214",
++                "LOC108407214",
++                9974,
++                "Manis",
++                "javanica"
++            ],
++            [
++                "ENSCAFG00000030286",
++                "LOC609402",
++                9615,
++                "Canis",
++                "lupus familiaris"
++            ],
++            [
++                "ENSFCAG00000038029",
++                "LOC101098159",
++                9685,
++                "Felis",
++                "catus"
++            ],
++            [
++                "ENSECAG00000010020",
++                "LOC100068926",
++                9796,
++                "Equus",
++                "caballus"
++            ],
++            [
++                "ENSECAG00000030768",
++                "GLNB2",
++                9796,
++                "Equus",
++                "caballus"
++            ],
++            [
++                "ENSSSCG00000014725",
++                "HBB",
++                9823,
++                "Sus",
++                "scrofa"
++            ],
++            [
++                "ENSSSCG00000014727",
++                "LOC100515788",
++                9823,
++                "Sus",
++                "scrofa"
++            ],
++            [
++                "ENSBTAG00000037644",
++                "HBB",
++                9913,
++                "Bos",
++                "taurus"
++            ],
++            [
++                "ENSCHIG00000017796",
++                "LOC102175876",
++                9925,
++                "Capra",
++                "hircus"
++            ],
++            [
++                "108407212",
++                "LOC108407212",
++                9974,
++                "Manis",
++                "javanica"
++            ],
++            [
++                "108407213",
++                "LOC108407213",
++                9974,
++                "Manis",
++                "javanica"
++            ],
++            [
++                "108407214",
++                "LOC108407214",
++                9974,
++                "Manis",
++                "javanica"
++            ],
++            [
++                "100037217",
++                "XB5745823.L",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "100381042",
++                "hbg2.S",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "108701506",
++                "LOC108701506",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "108702026",
++                "XB5745823.L",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "108702417",
++                "LOC108702417",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "108702418",
++                "LOC108702418",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "108703093",
++                "LOC108703093",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "108703094",
++                "LOC108703094",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "379431",
++                "hbd.S",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "397871",
++                "hbb2",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "447111",
++                "hbe1.L",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "734881",
++                "hbb1",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "ENSXETG00000025667",
++                "hbg1",
++                8364,
++                "Xenopus",
++                "tropicalis"
++            ],
++            [
++                "ENSCAFG00000030286",
++                "LOC609402",
++                9615,
++                "Canis",
++                "lupus familiaris"
++            ],
++            [
++                "ENSFCAG00000038029",
++                "LOC101098159",
++                9685,
++                "Felis",
++                "catus"
++            ],
++            [
++                "ENSECAG00000010020",
++                "LOC100068926",
++                9796,
++                "Equus",
++                "caballus"
++            ],
++            [
++                "ENSECAG00000030768",
++                "GLNB2",
++                9796,
++                "Equus",
++                "caballus"
++            ],
++            [
++                "ENSSSCG00000014725",
++                "HBB",
++                9823,
++                "Sus",
++                "scrofa"
++            ],
++            [
++                "ENSSSCG00000014727",
++                "LOC100515788",
++                9823,
++                "Sus",
++                "scrofa"
++            ],
++            [
++                "ENSBTAG00000037644",
++                "HBB",
++                9913,
++                "Bos",
++                "taurus"
++            ],
++            [
++                "ENSCHIG00000017796",
++                "LOC102175876",
++                9925,
++                "Capra",
++                "hircus"
++            ],
++            [
++                "108407212",
++                "LOC108407212",
++                9974,
++                "Manis",
++                "javanica"
++            ],
++            [
++                "108407213",
++                "LOC108407213",
++                9974,
++                "Manis",
++                "javanica"
++            ],
++            [
++                "108407214",
++                "LOC108407214",
++                9974,
++                "Manis",
++                "javanica"
++            ],
++            [
++                "100037217",
++                "XB5745823.L",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "100381042",
++                "hbg2.S",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "108701506",
++                "LOC108701506",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "108702026",
++                "XB5745823.L",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "108702417",
++                "LOC108702417",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "108702418",
++                "LOC108702418",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "108703093",
++                "LOC108703093",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "108703094",
++                "LOC108703094",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "379431",
++                "hbd.S",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "397871",
++                "hbb2",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "447111",
++                "hbe1.L",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "734881",
++                "hbb1",
++                8355,
++                "Xenopus",
++                "laevis"
++            ],
++            [
++                "ENSXETG00000025667",
++                "hbg1",
++                8364,
++                "Xenopus",
++                "tropicalis"
++            ],
++            [
++                "ENSAMXG00000016420",
++                "",
++                7994,
++                "Astyanax",
++                "mexicanus"
++            ],
++            [
++                "ENSAMXG00000016437",
++                "HBE1",
++                7994,
++                "Astyanax",
++                "mexicanus"
++            ]
++        ]
++    },
++
++
++    "test_error_bgee_expression_no_exist": {
++        "type": "error",
++        "args": {
++            "type": "expression",
++            "gene_id": "this gene does not exist"
++        },
++        "expected_result": "RuntimeError"
++    },
++
++
++    "test_error_bgee_orthologs_no_exist": {
++        "type": "error",
++        "args": {
++            "type": "orthologs",
++            "gene_id": "this gene does not exist"
++        },
++        "expected_result": "RuntimeError"
++    },
++
++
++    "test_error_bgee_unknown_type": {
++        "type": "error",
++        "args": {
++            "type": "this type does not exist",
++            "gene_id": "ENSBTAG00000047356"
++        },
++        "expected_result": "ValueError"
++    }
++}
+\ No newline at end of file
+diff --git a/tests/from_json.py b/tests/from_json.py
+index 89094e81d..9c457d89f 100644
+--- a/tests/from_json.py
++++ b/tests/from_json.py
+@@ -1,7 +1,7 @@
+ from __future__ import annotations
+ 
+ import unittest
+-from typing import Callable, Any, Optional
++from typing import Callable, Any, Optional, Union
+ import pandas as pd
+ import sys
+ import json
+@@ -50,7 +50,7 @@
+ }
+ 
+ 
+-def do_call(func: Callable, args: dict[str, ...] | list[...]) -> Any:
++def do_call(func: Callable, args: Union[dict[str, ...], list[...]]) -> Any:
+     if isinstance(args, dict):
+         return func(**args)
+     return func(*args)
+diff --git a/tests/test_bgee.py b/tests/test_bgee.py
+new file mode 100644
+index 000000000..58af3cb49
+--- /dev/null
++++ b/tests/test_bgee.py
+@@ -0,0 +1,12 @@
++import unittest
++import json
++from gget.gget_bgee import bgee
++from .from_json import from_json
++
++# Load dictionary containing arguments and expected results
++with open("./tests/fixtures/test_bgee.json") as json_file:
++    bgee_dict = json.load(json_file)
++
++
++class TestBgee(unittest.TestCase, metaclass=from_json(bgee_dict, bgee)):
++    pass  # all tests are loaded from json
+diff --git a/tests/test_mutate.py b/tests/test_mutate.py
+index 92e00b601..a71db826c 100644
+--- a/tests/test_mutate.py
++++ b/tests/test_mutate.py
+@@ -6,7 +6,7 @@
+ import pandas as pd
+ import os
+ import tempfile
+-from typing import Callable
++from typing import Callable, Union
+ from .from_json import from_json, do_call
+ 
+ LONG_SEQUENCE = 'CCCCGCCCCACCCCGCCCCTCCCCGCCCCACCCCGCCCCTCCCCGCCCCACCCCGCCCCTCCCCGCCCCACCCCG'
+@@ -57,7 +57,7 @@ def assert_global_variables_zero(number_intronic_position_mutations = 0, number_
+     assert gget.gget_mutate.mut_idx_outside_seq == number_index_errors
+ 
+ 
+-def _recursive_replace(v: str|dict|list, old: str, new: str, exact: bool = False) -> str|dict|list:
++def _recursive_replace(v: Union[str, dict, list], old: str, new: str, exact: bool = False) -> Union[str, dict, list]:
+     if isinstance(v, str):
+         if exact:
+             if v == old:

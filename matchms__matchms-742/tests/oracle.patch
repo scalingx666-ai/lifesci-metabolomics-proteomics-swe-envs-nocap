@@ -1,0 +1,233 @@
+diff --git a/matchms/exporting/save_as_json.py b/matchms/exporting/save_as_json.py
+index 5f907b85d..92ad588b6 100644
+--- a/matchms/exporting/save_as_json.py
++++ b/matchms/exporting/save_as_json.py
+@@ -1,11 +1,8 @@
+ import json
+ from typing import List
+ from ..Spectrum import Spectrum
+-from ..utils import (
+-    filter_empty_spectra,
+-    fingerprint_export_warning,
+-    rename_deprecated_params,
+-)
++from ..utils import (filter_empty_spectra, fingerprint_export_warning,
++                     rename_deprecated_params)
+ 
+ 
+ @rename_deprecated_params(param_mapping={"spectrums": "spectra"}, version="0.26.5")
+diff --git a/matchms/exporting/save_as_mgf.py b/matchms/exporting/save_as_mgf.py
+index c2efec296..1d8fa37a1 100644
+--- a/matchms/exporting/save_as_mgf.py
++++ b/matchms/exporting/save_as_mgf.py
+@@ -2,11 +2,9 @@
+ from typing import List, Union
+ import pyteomics.mgf as py_mgf
+ from ..Spectrum import Spectrum
+-from ..utils import (
+-    filter_empty_spectra,
+-    fingerprint_export_warning,
+-    rename_deprecated_params,
+-)
++from ..utils import (filter_empty_spectra, fingerprint_export_warning,
++                     rename_deprecated_params)
++
+ 
+ logger = logging.getLogger("matchms")
+ 
+diff --git a/matchms/exporting/save_as_msp.py b/matchms/exporting/save_as_msp.py
+index 7d0ae1f9e..2c1f55394 100644
+--- a/matchms/exporting/save_as_msp.py
++++ b/matchms/exporting/save_as_msp.py
+@@ -3,11 +3,9 @@
+ from typing import IO, Dict, List, Union
+ from ..Fragments import Fragments
+ from ..Spectrum import Spectrum
+-from ..utils import (
+-    filter_empty_spectra,
+-    fingerprint_export_warning,
+-    rename_deprecated_params,
+-)
++from ..utils import (filter_empty_spectra, fingerprint_export_warning,
++                     rename_deprecated_params)
++
+ 
+ logger = logging.getLogger("matchms")
+ _extensions_not_allowed = ["mzml", "mzxml", "json", "mgf"]
+diff --git a/matchms/exporting/save_spectra.py b/matchms/exporting/save_spectra.py
+index 6584d22b5..8c3c0c6e2 100644
+--- a/matchms/exporting/save_spectra.py
++++ b/matchms/exporting/save_spectra.py
+@@ -46,7 +46,8 @@ def save_spectra(
+ 
+     if len(spectra) == 0:
+         logger.warning("No spectra to save. File will be empty.")
+-        open(file, "w").close()
++        with open(file, "w", encoding="utf-8"):
++            pass
+         return
+ 
+     if ftype == "json":
+diff --git a/matchms/importing/load_from_mgf.py b/matchms/importing/load_from_mgf.py
+index ca69683fb..f34aff7d7 100644
+--- a/matchms/importing/load_from_mgf.py
++++ b/matchms/importing/load_from_mgf.py
+@@ -1,13 +1,13 @@
+ import os
++from pathlib import Path
+ from typing import Generator, TextIO, Union
+ from pyteomics.mgf import MGF
+ from matchms.importing.parsing_utils import parse_spectrum_dict
+ from matchms.Spectrum import Spectrum
+ 
+ 
+-def load_from_mgf(
+-    filename: Union[str, TextIO], metadata_harmonization: bool = True
+-) -> Generator[Spectrum, None, None]:
++def load_from_mgf(filename: Union[str, Path, TextIO],
++                  metadata_harmonization: bool = True) -> Generator[Spectrum, None, None]:
+     """Load spectrum(s) from mgf file.
+ 
+     This function will create ~matchms.Spectrum for every spectrum in the given
+@@ -38,6 +38,9 @@ def load_from_mgf(
+     if isinstance(filename, str) and not os.path.isfile(filename):
+         raise FileNotFoundError(f"The specified file: {filename} doesn't exist.")
+ 
++    if isinstance(filename, Path):
++        filename = str(filename)  # pyteomics does not support pathlib.Path
++
+     def parse_file():
+         with MGF(filename, convert_arrays=1, encoding="utf-8") as reader:
+             for pyteomics_spectrum in reader:
+diff --git a/matchms/importing/load_from_mzml.py b/matchms/importing/load_from_mzml.py
+index f7540177c..01898c8ea 100644
+--- a/matchms/importing/load_from_mzml.py
++++ b/matchms/importing/load_from_mzml.py
+@@ -1,4 +1,5 @@
+-from typing import Generator
++from pathlib import Path
++from typing import Generator, Union
+ import numpy as np
+ from pyteomics.mzml import read
+ from matchms.importing.parsing_utils import (parse_mzml_mzxml_metadata,
+@@ -6,7 +7,7 @@
+ from matchms.Spectrum import Spectrum
+ 
+ 
+-def load_from_mzml(filename: str, ms_level: int = 2,
++def load_from_mzml(filename: Union[str, Path], ms_level: int = 2,
+                    metadata_harmonization: bool = True) -> Generator[Spectrum, None, None]:
+     """Load spectrum(s) from mzml file.
+ 
+@@ -33,6 +34,9 @@ def load_from_mzml(filename: str, ms_level: int = 2,
+         Set to False if metadata harmonization to default keys is not desired.
+         The default is True.
+     """
++    if isinstance(filename, Path):
++        filename = str(filename)  # pyteomics does not support pathlib.Path
++
+     with read(filename, dtype=dict) as reader:
+         for pyteomics_spectrum in reader:
+             if "ms level" in pyteomics_spectrum and pyteomics_spectrum["ms level"] == ms_level:
+diff --git a/matchms/importing/load_from_mzxml.py b/matchms/importing/load_from_mzxml.py
+index 06bee882a..0e9967ccd 100644
+--- a/matchms/importing/load_from_mzxml.py
++++ b/matchms/importing/load_from_mzxml.py
+@@ -1,4 +1,5 @@
+-from typing import Generator
++from pathlib import Path
++from typing import Generator, Union
+ import numpy as np
+ from pyteomics.mzxml import read
+ from matchms.importing.parsing_utils import (parse_mzml_mzxml_metadata,
+@@ -6,7 +7,7 @@
+ from matchms.Spectrum import Spectrum
+ 
+ 
+-def load_from_mzxml(filename: str, ms_level: int = 2,
++def load_from_mzxml(filename: Union[str, Path], ms_level: int = 2,
+                     metadata_harmonization: bool = True) -> Generator[Spectrum, None, None]:
+     """Load spectrum(s) from mzml file.
+ 
+@@ -33,6 +34,9 @@ def load_from_mzxml(filename: str, ms_level: int = 2,
+         Set to False if metadata harmonization to default keys is not desired.
+         The default is True.
+     """
++    if isinstance(filename, Path):
++        filename = str(filename)  # pyteomics does not support pathlib.Path
++
+     with read(filename, dtype=dict) as reader:
+         for pyteomics_spectrum in reader:
+             if ("ms level" in pyteomics_spectrum and pyteomics_spectrum["ms level"] == ms_level
+diff --git a/tests/importing/test_load_from_mgf.py b/tests/importing/test_load_from_mgf.py
+index 7a5f559a3..8323086ce 100644
+--- a/tests/importing/test_load_from_mgf.py
++++ b/tests/importing/test_load_from_mgf.py
+@@ -1,5 +1,6 @@
+ import os
+ from io import StringIO
++from pathlib import Path
+ import pytest
+ from matchms import Spectrum
+ from matchms.importing import load_from_mgf
+@@ -14,6 +15,12 @@ def test_load_from_mgf_using_filepath():
+     assert len(spectra) > 0
+     assert isinstance(spectra[0], Spectrum)
+ 
++    spectra_file_path = Path(module_root).joinpath("testdata", "pesticides.mgf")
++    spectra = list(load_from_mgf(spectra_file_path))
++
++    assert len(spectra) > 0
++    assert isinstance(spectra[0], Spectrum)
++
+ 
+ def test_load_missing_mgf_raises():
+     with pytest.raises(FileNotFoundError):
+diff --git a/tests/importing/test_load_from_mzml.py b/tests/importing/test_load_from_mzml.py
+index 90ea07fe6..a00b23b60 100644
+--- a/tests/importing/test_load_from_mzml.py
++++ b/tests/importing/test_load_from_mzml.py
+@@ -1,12 +1,16 @@
+ import os
++from pathlib import Path
++import pytest
+ from matchms.importing import load_from_mzml
+ 
+ 
+-def test_load_from_mzml():
++@pytest.mark.parametrize("mzml_file", [
++    (os.path.join(os.path.dirname(__file__), "..", "testdata", "testdata.mzml")),
++    (Path(os.path.join(os.path.dirname(__file__), "..", "testdata", "testdata.mzml")))
++])
++def test_load_from_mzml(mzml_file):
+     """Test parsing of mzml file to spectrum objects"""
+ 
+-    module_root = os.path.join(os.path.dirname(__file__), "..")
+-    mzml_file = os.path.join(module_root, "testdata", "testdata.mzml")
+     spectra = list(load_from_mzml(mzml_file))
+ 
+     assert len(spectra) == 10, "Expected 10 spectra."
+diff --git a/tests/importing/test_load_from_mzxml.py b/tests/importing/test_load_from_mzxml.py
+index 0aae385e0..b2510a771 100644
+--- a/tests/importing/test_load_from_mzxml.py
++++ b/tests/importing/test_load_from_mzxml.py
+@@ -1,12 +1,16 @@
+ import os
++from pathlib import Path
++import pytest
+ from matchms.importing import load_from_mzxml
+ 
+ 
+-def test_load_from_mzxml():
++@pytest.mark.parametrize("mzxml_file", [
++    (os.path.join(os.path.dirname(__file__), "..", "testdata", "testdata.mzXML")),
++    (Path(os.path.join(os.path.dirname(__file__), "..", "testdata", "testdata.mzXML")))
++])
++def test_load_from_mzxml(mzxml_file):
+     """Test parsing of mzxml file to spectrum objects"""
+ 
+-    module_root = os.path.join(os.path.dirname(__file__), "..")
+-    mzxml_file = os.path.join(module_root, "testdata", "testdata.mzXML")
+     spectrum = next(load_from_mzxml(mzxml_file))
+ 
+     assert len(list(load_from_mzxml(mzxml_file))) == 1, "Expected single spectrum"

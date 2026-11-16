@@ -1,0 +1,1004 @@
+diff --git a/registry.yaml b/registry.yaml
+index 41e0dc8..0de9f24 100644
+--- a/registry.yaml
++++ b/registry.yaml
+@@ -1578,3 +1578,10 @@ entries:
+     description: "3Dmol.js WebGL molecular visualization emitted as self-contained HTML. Render structures (PDB/SDF/XYZ/MOL2/cube) with stick, sphere, cartoon, line, and surface styles; animate trajectories with a frame-delay (interval, ms) control; and animate vibrational normal modes via vibrate() from per-atom dx/dy/dz displacements or from precomputed frames. Output standalone HTML that loads 3Dmol from a CDN, with optional play/pause and speed controls. Use for transition-state imaginary-mode animations, MD or reaction-path playback, docking poses, and orbital/density isosurfaces. For static 2D chemical structure drawings use rdkit-chemdraw-cdxml; for 2D statistical plots use matplotlib or plotly."
+     date_added: "2026-08-15"
+     tags: ["molecular-visualization"]
++  - name: "neb-irc-activation-energy"
++    type: skill
++    sub_type: pipeline
++    category: "scientific-computing"
++    path: "skills/scientific-computing/neb-irc-activation-energy/SKILL.md"
++    description: "NEB-IRC activation energy pipeline for reaction barriers using GFN2-xTB and pysisyphus. Optimize reactant and product geometries, run CI-NEB path search, optimize the transition state with a Hessian, verify with IRC (one imaginary mode, endpoints matching reactant/product, single NEB maximum), and report the electronic and Gibbs barriers. Use when you need a transition state, reaction barrier, activation energy, minimum energy path, or intrinsic reaction coordinate. Covers reactant/product atom-ordering pitfalls, feasibility sizing for single-core runs, and thermochemistry corrections. Renders an IRC energy-profile plot and an animated TS imaginary-mode HTML viewer. For 2D reaction scheme drawing use rdkit-chemdraw-cdxml."
++    date_added: "2026-08-03"
+diff --git a/skills/scientific-computing/neb-irc-activation-energy/SKILL.md b/skills/scientific-computing/neb-irc-activation-energy/SKILL.md
+new file mode 100644
+index 0000000..b76e7e0
+--- /dev/null
++++ b/skills/scientific-computing/neb-irc-activation-energy/SKILL.md
+@@ -0,0 +1,293 @@
++---
++name: "neb-irc-activation-energy"
++description: "NEB-IRC activation energy pipeline for reaction barriers using GFN2-xTB and pysisyphus. Optimize reactant and product geometries, run CI-NEB path search, optimize the transition state with a Hessian, verify with IRC (one imaginary mode, endpoints matching reactant/product, single NEB maximum), and report the electronic and Gibbs barriers. Use when you need a transition state, reaction barrier, activation energy, minimum energy path, or intrinsic reaction coordinate. Covers reactant/product atom-ordering pitfalls, feasibility sizing for single-core runs, and thermochemistry corrections. Renders an IRC energy-profile plot and an animated TS imaginary-mode HTML viewer. For 2D reaction scheme drawing use rdkit-chemdraw-cdxml."
++license: "CC-BY-4.0"
++---
++
++# NEB-IRC activation energy pipeline
++
++## Overview
++
++Computes a reaction activation energy end to end — optimize reactant and product, find the
++minimum energy path with climbing-image NEB, refine the transition state with a Hessian, and
++confirm it with IRC — using GFN2-xTB through pysisyphus. Outputs a verified TS geometry, the
++barrier (ΔE‡; ΔG‡ after thermal corrections), an IRC energy profile (`irc_energy_profile.png`),
++and an animated TS imaginary-mode viewer (`ts_imaginary_mode.html`). Verification is required,
++not optional: a converged TS is meaningless until its single imaginary mode and IRC endpoints
++are checked.
++
++## When to Use
++
++- Finding the transition state for an elementary reaction step and its activation energy
++- Computing a reaction barrier (ΔE‡ or ΔG‡) to rank a series of related reactions
++- Running a climbing-image NEB / minimum energy path between a reactant and product
++- Verifying a candidate TS with IRC — does it connect the intended reactant and product?
++- Screening barriers at a cheap semi-empirical level before committing DFT time
++
++Reach for DFT on a multi-core node instead when you need quantitative agreement with
++experiment; GFN2-xTB barriers are semi-quantitative (see `references/energetics.md`). For a 2D
++scheme figure of the reaction, use the `rdkit-chemdraw-cdxml` skill instead.
++
++## Prerequisites
++
++- **Tools**: `xtb` (GFN2-xTB engine), `pysisyphus` (`pysis` CLI for the path pipeline)
++- **Python**: `matplotlib` for the IRC plot (the TS animation HTML needs no packages)
++- **Input**: `reactant.xyz` and `product.xyz` with **identical atom ordering** (see Step 1)
++- **Environment**: single core suffices; set `OMP_NUM_THREADS` to match physical cores
++
++**Work in a local scratch dir** (e.g. `/tmp/rxn/`), not a mounted/networked workspace:
++pysisyphus creates and deletes symlinks and throws `PermissionError` mid-run on s3fs/FUSE.
++Copy results out at the end.
++
++**Materialize the bundled scripts into the scratch dir first.** They can't be run in place from
++the skill directory, so use your file tools to read each one and save it into your working dir
++before running it. The scripts live in this skill's `scripts/` folder (next to this SKILL.md):
++
++- `scripts/setup_env.sh`
++- `scripts/pipeline.yaml`
++- `scripts/check_result.py`
++- `scripts/plot_irc.py`
++
++The TS imaginary-mode animation is **not** produced here — read the
++**molecular-visualization-3dmol** skill and use its `mol_viewer.py` (Step 6).
++
++Check for the tools; install only if missing (inside pixi/conda, invoke via `pixi run xtb`):
++
++```bash
++cd /tmp/rxn
++command -v xtb && command -v pysis || bash setup_env.sh   # xtb binary + pysisyphus, ~2-3 min
++source "${ROOT:-${HOME:-/tmp}/xtbenv}/env.sh"              # re-source in every new shell
++```
++
++## Workflow
++
++### Step 1: Prepare reactant and product geometries
++
++Most failures originate here, not in the NEB. Build the product by editing a **copy** of the
++reactant so atom ordering is identical — a permuted order gives a path that is geometrically
++valid and chemically meaningless. Align non-reacting groups so a spectator conformational
++change does not fold into the barrier. For bimolecular reactions use a pre-reaction complex as
++the reactant, not separated fragments (NEB converges poorly from infinite separation, and the
++reference state changes the reported barrier — record it).
++
++```python
++# Build product from a copy of the reactant, moving only the reacting atoms.
++from pathlib import Path
++
++lines = Path("reactant.xyz").read_text().splitlines()
++natoms = int(lines[0])
++atoms = [ln.split() for ln in lines[2:2 + natoms]]   # [symbol, x, y, z] per atom
++# ... edit ONLY the coordinates of atoms that move; keep order + symbols ...
++Path("product.xyz").write_text("\n".join([str(natoms), "product"] + [" ".join(a) for a in atoms]) + "\n")
++```
++
++### Step 2: Check the endpoints sit in different basins
++
++If the reacting groups start too close, preoptimization carries the reactant over the barrier
++and both endpoints relax to the same structure; the NEB then returns a flat profile and the TS
++search aborts. This looks like success in the log until it fails minutes later, so compare the
++two pre-optimized endpoints on the key reacting bond.
++
++```python
++import numpy as np
++
++def load_xyz(fn):
++    lines = open(fn).read().splitlines()
++    return np.array([[float(v) for v in ln.split()[1:4]] for ln in lines[2:2 + int(lines[0])]])
++
++r, p = load_xyz("first_pre_opt.xyz"), load_xyz("last_pre_opt.xyz")   # written by preopt
++i, j = 0, 5                                     # indices of the atoms whose bond changes
++dr, dp = np.linalg.norm(r[i] - r[j]), np.linalg.norm(p[i] - p[j])
++assert abs(dr - dp) > 0.3, "endpoints nearly identical: move the reacting fragment further out"
++```
++
++### Step 3: Run the pipeline
++
++The template chains preopt → IDPP interpolation → CI-NEB → RS-I-RFO TS optimization with
++Hessian → IRC both directions → endpoint reoptimization. **Set `charge` and `mult` in
++`pipeline.yaml` before running** — the default `charge: 0` is wrong for any ion and converges
++silently to a meaningless TS. Add `alpb: <solvent>` for solution reactions. Whatever you set
++here must match every standalone `xtb` call in Step 5. Raise `max_cycles` to 150–200 above
++~50 atoms.
++
++```bash
++pysis pipeline.yaml > pipeline.log 2>&1
++tail -40 pipeline.log            # confirm it reached the endopt/IRC stage
++```
++
++ΔE‡ and the reaction energy come from the pipeline's `| BARRIERS |` block, referenced to the
++reactant endpoint (`check_result.py` in Step 4 reports the same numbers):
++
++```
++  Left:     0.00 kJ mol-1      # reactant endpoint
++    TS:   107.84 kJ mol-1      # dE‡ = TS - Left = 107.84 kJ/mol
++ Right:    10.19 kJ mol-1      # dE_rxn = Right - Left = 10.19 kJ/mol
++```
++
++### Step 4: Verify the transition state
++
++Never report a barrier before this passes. The checker applies all three gates (see Key
++Concepts) and exits 0 only if every one passes.
++
++```bash
++python3 check_result.py pipeline.log
++# [PASS] imaginary frequencies  exactly 1 at -621.8 cm-1
++# [PASS] IRC endpoints          forward and backward matched distinct inputs
++# [PASS] NEB profile            elementary, single barrier, span 107.5 kJ/mol
++#   electronic barrier dE‡ (GFN2-xTB): 107.8 kJ/mol = 25.77 kcal/mol
++```
++
++### Step 5: Compute thermochemistry and report the barrier
++
++Report ΔE‡ and the level of theory; for comparison against experimental rates, report ΔG‡,
++which needs Hessians on the TS and reactant. **Every standalone `xtb` call must use the same
++`--chrg`, `--uhf`, and solvent as `pipeline.yaml`, on the pipeline's optimized geometries — not
++the raw input.** A gas-phase Hessian against a solvated barrier, or a missing `--chrg`, yields
++a nonsensical (often negative) ΔG‡.
++
++```bash
++# flags must match pipeline.yaml (here: charge -1, aqueous)
++xtb forward_end_final_geometry.xyz --hess --gfn 2 --alpb water --chrg -1 --uhf 0 > r_hess.log 2>&1
++xtb ts_final_geometry.xyz          --hess --gfn 2 --alpb water --chrg -1 --uhf 0 > ts_hess.log 2>&1
++# dG‡ = G(TS) - G(reactant), from the "TOTAL FREE ENERGY" lines
++grep -i "TOTAL FREE ENERGY" r_hess.log ts_hess.log
++```
++
++### Step 6: Deliver the two visuals
++
++**IRC energy profile** — `plot_irc.py` reads gfn/charge/mult/solvent from `pipeline.yaml` and
++recomputes each IRC frame's energy at that exact level (the `*_irc.trj` comment lines carry
++none). Override with `--charge/--mult/--alpb/--gfn` only if you edited the pipeline after running.
++
++```bash
++python3 plot_irc.py               # -> irc_energy_profile.png
++```
++
++**TS imaginary-mode animation** — produced by the **molecular-visualization-3dmol** skill, not
++here. Read that skill and run its `mol_viewer.py` on the `ts_imaginary_mode_000.trj` that
++`tsopt: do_hess: True` wrote (grab the frequency from `check_result.py` for the label):
++
++```bash
++# after materializing mol_viewer.py per the molecular-visualization-3dmol skill
++python3 mol_viewer.py ts_imaginary_mode_000.trj --mode trajectory \
++    --title "Transition-state mode" --subtitle "imaginary mode -621.8 cm-1" --out ts_imaginary_mode.html
++```
++
++## Key Parameters
++
++Set in `pipeline.yaml` unless noted.
++
++| Parameter | Section | Default | Range / Options | Effect |
++|-----------|---------|---------|-----------------|--------|
++| `gfn` | `calc` | `2` | `0`, `1`, `2` | GFN parametrization; `2` is the standard choice |
++| `charge` / `mult` | `calc` | `0` / `1` | integers | Set explicitly; wrong values silently give a wrong TS |
++| `alpb` | `calc` | off | solvent name (`water`, ...) | Implicit solvation; changes the barrier |
++| `pal` | `calc` | `1` | physical cores | Threads; xTB parallel efficiency is modest |
++| `between` | `interpol` | `8` | `6`–`12` | Intermediate NEB images (`between`+2 total) |
++| `climb` | `cos` | `True` | `True`/`False` | Climbing image; gives a usable TS guess |
++| `max_cycles` | `opt` | `80` | `80`–`200` | Raise above ~50 atoms |
++| `do_hess` | `tsopt` | `True` | `True`/`False` | Required — the imaginary-frequency gate depends on it |
++
++## Key Concepts
++
++**The three verification gates** and what a failure means:
++
++| Gate | Failure | Meaning and fix |
++|---|---|---|
++| Imaginary frequencies | 0 found | Optimizer fell into a minimum; perturb along the NEB tangent and rerun tsopt |
++| Imaginary frequencies | ≥2 found | Higher-order saddle; displace along the lowest non-reactive mode and reoptimize |
++| Imaginary frequencies | 1, wrong mode | Confirm it is the bonds breaking/forming — a methyl rotation also shows exactly one |
++| IRC endpoints | mismatch | TS connects other species; may be a real TS for a different reaction — do not report |
++| NEB profile | multiple maxima | Not an elementary step; split at the intervening minimum and run each segment |
++
++**Barrier definitions** differ by reference and corrections: ΔE‡ (electronic), ΔE‡+ZPE, ΔH‡,
++ΔG‡ (for kinetics). For bimolecular reactions the reference state (separated reactants vs
++pre-reaction complex) shifts the number — record which was used. Full table in
++`references/energetics.md`.
++
++**Submerged barriers.** For an ion + neutral in the gas phase (e.g. anionic SN2) the TS can
++sit *below* the separated reactants — a negative barrier against separated reactants is real,
++not a bug. Reference to the pre-reaction complex (the pipeline's endpoint) and/or add `alpb`
++solvation, which lifts it to a positive, experiment-comparable value.
++
++## Common Recipes
++
++### Recipe: Split a multi-step reaction into elementary steps
++
++When to use: `check_result.py` reports multiple NEB maxima — it names the intermediate image
++index(es). Extract that image from the NEB path and run the pipeline on each half.
++
++```python
++from pathlib import Path
++
++N = 5   # interior-minimum image index reported by check_result.py's NEB profile gate
++lines = Path("final_geometries.trj").read_text().splitlines()   # one frame per NEB image
++n = int(lines[0].split()[0])
++Path("intermediate.xyz").write_text("\n".join(lines[N * (n + 2):(N + 1) * (n + 2)]) + "\n")
++# then: pipeline on reactant.xyz + intermediate.xyz, and intermediate.xyz + product.xyz
++```
++
++### Recipe: Refine the electronic energy with a DFT single point
++
++When to use: the xTB geometry is fine but you need a better barrier. Keep the xTB geometry and
++thermal corrections; replace only the electronic energy on 3 structures (≤30 atoms).
++
++```python
++from pyscf import gto, dft
++
++def electronic_energy(xyz_fn, basis="def2-svp", xc="b3lyp"):
++    mol = gto.M(atom=xyz_fn, basis=basis)     # xyz file path accepted directly
++    mf = dft.RKS(mol); mf.xc = xc
++    return mf.kernel()                          # Hartree
++
++dE = (electronic_energy("ts_final_geometry.xyz") - electronic_energy("reactant.xyz")) * 2625.4996
++print(f"DFT dE‡ = {dE:.1f} kJ/mol (add xTB G_corr for dG‡)")
++```
++
++## Expected Outputs
++
++- `pipeline.log` — full run log; parsed by `check_result.py`
++- `ts_final_geometry.xyz` — the optimized transition state
++- `final_geometries.trj` — the converged NEB path (per-image energies in comment lines)
++- `ts_imaginary_mode_000.trj` — TS displaced along the imaginary mode (input to the animation)
++- `irc_energy_profile.png` — from `plot_irc.py`; `ts_imaginary_mode.html` — from the molecular-visualization-3dmol skill (Step 6)
++- A barrier: ΔE‡ from the BARRIERS block, ΔG‡ after Hessian thermal corrections
++
++## Troubleshooting
++
++| Problem | Cause | Solution |
++|---------|-------|----------|
++| `xtb: command not found` | Env not sourced | `source "${ROOT:-${HOME:-/tmp}/xtbenv}/env.sh"` in every new shell |
++| `scripts/…: No such file` / GitHub 404 | Bundled scripts not copied into the workdir | Read them from this skill's `scripts/` folder with your file tools and save locally (Prerequisites); not on GitHub |
++| `setup_env.sh: HOME: unbound variable` | `HOME` unset under `set -u` | Fixed in the shipped script; if patching, `export HOME="${HOME:-/tmp}"` first |
++| `PermissionError` on a symlink mid-run | pysisyphus symlinks on a mounted/s3fs dir | Run in a local dir (`/tmp/rxn/`), copy results back |
++| ΔG‡ negative or absurd | Hessian charge/solvent ≠ pipeline, or raw input geometry used | Match `--chrg`/`--uhf`/`alpb` to `pipeline.yaml`; use the optimized endpoint geometry (Step 5) |
++| Barrier below separated reactants | Submerged barrier for ion + neutral | Expected in gas phase; reference the pre-reaction complex and/or add `alpb` |
++| NEB profile nearly flat, TS aborts | Endpoints in the same basin | Move the reacting fragment further out (Step 2) |
++| Path is chemically nonsensical | Permuted atom order between endpoints | Rebuild product from a copy of the reactant (Step 1) |
++| Job killed / never finishes | System too large for the budget | Check `references/feasibility.md`; split stages or shrink the model |
++| `qm` optimizer crashes on cycle 1 | QuickMin instability | Use `type: lbfgs` under `opt` (the template default) |
++| `No imaginary-mode trajectory found` | `ts_imaginary_mode_000.trj` absent | Ensure `tsopt: do_hess: True` ran; re-run tsopt |
++| Animation HTML blank | 3Dmol.js blocked (offline / strict CSP) | Open with network access; the viewer loads 3Dmol from a CDN |
++
++## Bundled Resources
++
++- `scripts/setup_env.sh` — installs xtb (GitHub release) + pysisyphus (PyPI), writes `env.sh`
++- `scripts/pipeline.yaml` — full preopt→NEB→TSopt→IRC→endopt template with inline comments
++- `scripts/check_result.py` — verification of the three gates (exit 0 = all pass); prints ΔE‡
++- `scripts/plot_irc.py` — builds `irc_energy_profile.png` (recomputes IRC-frame energies at the pipeline level)
++- `references/feasibility.md` — measured timings, atom-count sizing, what DFT can/can't do here
++- `references/energetics.md` — ΔE‡/ΔH‡/ΔG‡ definitions, thermochemistry, reporting conventions
++
++## Related Skills
++
++- **molecular-visualization-3dmol** — supplies `mol_viewer.py`, which renders the TS imaginary-mode animation and can play back the IRC/NEB path; materialize it alongside this skill's scripts
++- **rdkit-chemdraw-cdxml** — draw the reaction as a 2D scheme figure
++
++## References
++
++- [xtb documentation](https://xtb-docs.readthedocs.io/) — GFN2-xTB methods and CLI
++- [pysisyphus documentation](https://pysisyphus.readthedocs.io/) — COS/NEB, TS optimizers, IRC
++- Bannwarth, Ehlert, Grimme, *J. Chem. Theory Comput.* 2019, 15, 1652 — GFN2-xTB method paper
++- Steinmetzer, Kupfer, Gräfe, *Int. J. Quantum Chem.* 2021, 121, e26550 — pysisyphus paper
++- [ASE](https://wiki.fysik.dtu.dk/ase/) / [PySCF](https://pyscf.org/) — geometry I/O and DFT single points
+diff --git a/skills/scientific-computing/neb-irc-activation-energy/references/energetics.md b/skills/scientific-computing/neb-irc-activation-energy/references/energetics.md
+new file mode 100644
+index 0000000..af1005e
+--- /dev/null
++++ b/skills/scientific-computing/neb-irc-activation-energy/references/energetics.md
+@@ -0,0 +1,109 @@
++# Activation energy definitions and reporting
++
++Several distinct quantities are all called "the barrier", and they differ by amounts large
++enough to change conclusions. Always state which one is reported, at what level of theory, and
++relative to which reference state.
++
++## The quantities
++
++| Quantity | Definition | When it is the right one |
++|---|---|---|
++| ΔE‡ | E(TS) − E(reactant), electronic only | comparing methods, or internal ranking |
++| ΔE‡ + ZPE | ΔE‡ + zero-point energy difference | light-atom transfers, kinetic isotope work |
++| ΔH‡(T) | ΔE‡ + thermal enthalpy correction | calorimetric comparison |
++| ΔG‡(T) | ΔH‡ − TΔS‡ | **comparison against experimental rates** |
++| Arrhenius Ea | ΔH‡ + RT (unimolecular gas phase), ΔH‡ + 2RT (bimolecular) | fitting an Arrhenius plot |
++
++ΔG‡ is the default when comparing with measured kinetics. Entropy matters most for bimolecular
++reactions, where the loss of translational and rotational freedom on association can shift the
++barrier by tens of kJ/mol relative to ΔH‡.
++
++## Getting the corrections
++
++The pipeline's TS Hessian, plus Hessians on the reactant and product, supply everything needed.
++With pysisyphus these come from the `do_hess` output; with xtb directly, **using the same
++charge, spin, and solvent as the pipeline, on the optimized endpoint geometry**:
++
++```bash
++xtb forward_end_final_geometry.xyz --hess --gfn 2 --alpb water --chrg -1 --uhf 0
++```
++
++The thermochemistry block reports ZPE, H(T) − H(0), entropy, and G. Take the differences
++between TS and reactant.
++
++**Consistency is not optional.** ΔG‡ = G(TS) − G(reactant) is only meaningful if both Hessians
++share the level of theory, charge, spin, and solvent used to locate the TS, and if the reactant
++Hessian is on the *relaxed* endpoint the barrier is referenced to — not the raw input geometry.
++A gas-phase Hessian differenced against a solvated barrier, or a Hessian with the wrong
++`--chrg`, is the most common way to produce a physically impossible (often negative) ΔG‡.
++
++Two standard caveats apply to the rigid-rotor harmonic-oscillator treatment every one of these
++codes uses. Low-frequency modes below ~50–100 cm⁻¹ contribute spuriously large entropies, so a
++quasi-harmonic correction is advisable when such modes are present. And gas-phase entropies
++overestimate the association penalty in solution, so a standard-state correction from 1 atm to
++1 mol/L is appropriate for solution-phase reactions.
++
++## Reference state for bimolecular reactions
++
++The barrier depends on what the reactant is taken to be:
++
++- **Separated reactants** gives the barrier relevant to the overall bimolecular rate constant.
++- **Pre-reaction complex** gives the barrier for the chemical step alone, and is usually the
++  smaller number.
++
++Neither is wrong, but they are not interchangeable. Record which was used. NEB converges far
++more reliably from the pre-reaction complex, so that is normally what the pipeline produces by
++default — which makes the distinction easy to lose track of.
++
++For an ion reacting with a neutral (e.g. anionic SN2, F⁻ + CH₃Cl), the gas-phase ion–dipole
++pre-reaction complex is deep enough that the TS lies *below* the separated reactants — a
++**submerged barrier**. Against separated reactants ΔE‡ is then negative; against the
++pre-reaction complex it is positive. Report the pre-complex-referenced value (what the pipeline
++gives), and add implicit solvation, which screens the ion–dipole attraction and lifts the
++barrier to a positive, experiment-comparable number. A negative barrier here is a reference-state
++artifact, not an error — but a negative barrier *after* solvation usually means the Hessian and
++the path used different settings (see the consistency note above).
++
++## Refining the electronic energy
++
++The composite approach separates geometry from energy: optimize and take frequencies at a cheap
++level, then recompute only the electronic energy at a better one.
++
++```
++ΔG‡ = [E_high(TS) − E_high(R)] + [G_corr,low(TS) − G_corr,low(R)]
++```
++
++Realistically the high level here means B3LYP or ωB97X-D with a double-zeta basis on ≤30 atoms,
++applied to three structures. See `feasibility.md` for timing.
++
++## Accuracy expectations for GFN2-xTB
++
++GFN2-xTB barriers are semi-quantitative. Absolute errors of tens of kJ/mol against high-level
++references are routine, and errors are systematically larger for charged species, transition
++metals, and reactions involving substantial charge separation.
++
++What GFN2 is genuinely good for is relative ordering within a series of closely related
++reactions, and for producing geometries and thermal corrections good enough to carry into a
++higher-level single point. Report accordingly: a GFN2 barrier presented without this
++qualification invites the reader to treat it as a predicted rate, which it does not support.
++When the user needs quantitative agreement with experiment, say directly that this level cannot
++deliver it and that DFT or coupled-cluster refinement is required.
++
++## Suggested reporting format
++
++```
++reaction:      <description>
++level:         GFN2-xTB / ALPB(solvent)
++reference:     pre-reaction complex
++
++dE‡        = xx.x kJ/mol
++dE‡ + ZPE  = xx.x kJ/mol
++dG‡(298 K) = xx.x kJ/mol
++
++verification: 1 imaginary frequency (-xxxx cm-1, matches reaction coordinate)
++              IRC endpoints match reactant/product bond matrices
++              NEB profile single maximum
++
++caveat:       GFN2-level semi-quantitative value; DFT re-computation needed for
++              experimental comparison.
++```
+diff --git a/skills/scientific-computing/neb-irc-activation-energy/references/feasibility.md b/skills/scientific-computing/neb-irc-activation-energy/references/feasibility.md
+new file mode 100644
+index 0000000..bb77e6e
+--- /dev/null
++++ b/skills/scientific-computing/neb-irc-activation-energy/references/feasibility.md
+@@ -0,0 +1,81 @@
++# Feasibility and sizing
++
++Use this to decide whether a job fits before starting it. The most common way to waste a run
++is to launch one that could never finish. Timings below were measured on a single Intel Xeon
++2.10 GHz core; scale roughly linearly with clock speed and modestly with core count (xTB
++parallel efficiency is limited).
++
++## Measured timings
++
++**GFN2-xTB with ALPB solvation, single core:**
++
++| Atoms | gradient | full opt | Hessian |
++|---|---|---|---|
++| 20 | 0.04 s | 0.4 s | 0.7 s |
++| 50 | 0.06 s | 2.1 s | 8.5 s |
++| 80 | 0.14 s | 4.9 s | 31.3 s |
++
++**B3LYP via PySCF, single core:**
++
++| System | basis functions | SCF | gradient |
++|---|---|---|---|
++| 9 atoms / def2-SVP | 72 | 5.9 s | 4.7 s |
++| 20 atoms / STO-3G | 44 | 10.2 s | 5.3 s |
++| 20 atoms / def2-SVP | 154 | 46.4 s | 38.2 s |
++
++**Validated end-to-end run.** Malonaldehyde intramolecular proton transfer, 9 atoms, the
++complete pipeline through IRC and endpoint verification: **19 seconds wall clock**, 26 MB of
++scratch, barrier 15.7 kJ/mol against a literature value near 4 kcal/mol.
++
++## Sizing the pipeline
++
++A full run costs roughly 1,000–1,500 gradient calls plus 2–3 Hessians. Applying the measured
++per-call costs (GFN2-xTB, single core):
++
++| Atoms | ideal | with retries | ~60 min budget |
++|---|---|---|---|
++| ~10 | 20 s | 1 min | trivial |
++| ~30 | 1 min | 3–5 min | comfortable |
++| ~50 | 2 min | 5–10 min | comfortable |
++| ~80 | 5 min | 15–25 min | fits |
++| ~150 | 16 min | 40–60 min | borderline, checkpoint |
++| 250+ | Hessian dominates | 2 h+ | split into stages |
++
++Above ~150 atoms the numerical Hessian, not the NEB, becomes the bottleneck. Budget 30–50% of
++runs for a retry: non-convergence and failed verification gates are routine. Charged,
++open-shell, and transition-metal systems fail more often.
++
++## Where DFT fits and where it does not
++
++**DFT NEB is out of reach at any system size.** A 20-atom DFT gradient costs ~85 s, so the
++~1,000 gradient calls a NEB needs is a multi-day job. This is not a convergence-threshold
++tuning problem.
++
++**DFT geometry optimization** is viable only up to ~15–20 atoms — 40–60 cycles at ~85 s each
++already runs long at 20 atoms.
++
++**DFT single-point refinement** is the one place DFT fits comfortably: recompute the electronic
++energy on 3 structures (reactant, TS, product) at ≤30 atoms in minutes. Take xTB-optimized
++geometries and thermal corrections, replace only the electronic energy (see
++`energetics.md` for the composite formula).
++
++**Coupled cluster** (DLPNO-CCSD(T) etc.) needs ORCA and more memory than a small node has;
++treat it as off-box.
++
++## Method availability constraints
++
++The install route (`setup_env.sh`) uses GitHub-release binaries and PyPI, not conda-forge.
++That combination gives xtb, pysisyphus, PySCF, ASE, and geomeTRIC. It does **not** give ORCA,
++Psi4, or CREST, which are distributed through conda-forge or require a Fortran compiler. If a
++job needs those, run it on a node where they are installed rather than trying to build them.
++
++**Conformer ensemble search** without CREST: ASE-driven random torsion sampling followed by
++xtb optimization, or RDKit ETKDG embedding. Neither matches CREST's metadynamics coverage.
++
++## Recommended division of labour
++
++Treat the xTB pipeline as development and screening: lock down geometries, verification gates,
++and thermal corrections cheaply, then hand DFT refinement (single points on 3 structures) to a
++multi-core node. Requesting 16–32 cores per DFT job is the right granularity — parallel
++efficiency falls off beyond that, so throughput comes from many independent jobs, not one wide
++one.
+diff --git a/skills/scientific-computing/neb-irc-activation-energy/scripts/check_result.py b/skills/scientific-computing/neb-irc-activation-energy/scripts/check_result.py
+new file mode 100755
+index 0000000..95747ba
+--- /dev/null
++++ b/skills/scientific-computing/neb-irc-activation-energy/scripts/check_result.py
+@@ -0,0 +1,174 @@
++#!/usr/bin/env python3
++"""Verify a pysisyphus reaction-path run before its barrier is reported.
++
++Applies three gates:
++  1. The transition state Hessian has exactly one imaginary frequency.
++  2. The IRC endpoints relax to two distinct species matching reactant and product.
++  3. The NEB profile has a single maximum (the step is elementary).
++
++Exit code 0 if every gate passes, 1 otherwise.
++
++Usage:  python3 check_result.py pipeline.log [--trj final_geometries.trj]
++"""
++import argparse
++import re
++import sys
++from pathlib import Path
++
++HARTREE_KJ = 2625.4996
++
++
++def imaginary_frequencies(log):
++    """Return the list of imaginary wavenumbers reported for the optimized TS."""
++    hits = re.findall(r"Imaginary frequencies:\s*\[([^\]]*)\]", log)
++    if not hits:
++        return None
++    return [float(x) for x in re.findall(r"-?\d+\.?\d*", hits[-1])]
++
++
++def irc_endpoint_matches(log):
++    """Return the set of end-geometry indices that matched an input structure."""
++    block = re.split(r"RMSDS AFTER END OPTIMIZATIONS", log)
++    if len(block) < 2:
++        return None
++    return {
++        int(i)
++        for i, line in re.findall(r"end geom\s+(\d+)\s*\(([^\n]*)", block[-1])
++        if "bond matrices match" in line
++    }
++
++
++def profile_maxima(trj, prominence_kj=2.0):
++    """Locate intervening minima (i.e. intermediates) in the .trj comment-line energies.
++
++    Counting local maxima directly is unreliable: a single barrier whose top falls
++    between two images gives a flat two-point summit that neighbour comparison misses.
++    An elementary step is better defined by the absence of any interior minimum that
++    sits below a real peak on both sides.
++    """
++    energies = [
++        float(m)
++        for m in re.findall(r"^\s*(-?\d+\.\d+)\s*,?\s*$", trj, re.M)
++    ]
++    if len(energies) < 3:
++        return None, energies
++    thr = prominence_kj / HARTREE_KJ
++    wells = [
++        i
++        for i in range(1, len(energies) - 1)
++        if energies[i] <= energies[i - 1]
++        and energies[i] <= energies[i + 1]
++        and max(energies[:i]) - energies[i] > thr
++        and max(energies[i + 1:]) - energies[i] > thr
++    ]
++    return wells, energies
++
++
++def barrier_kj(log):
++    """Fallback: barrier of the TS above the first COS image (not endpoint-referenced)."""
++    m = re.findall(r"Barrier between TS and first COS image:\s*(-?\d+\.?\d*)", log)
++    return float(m[-1]) if m else None
++
++
++def endpoint_barriers_kj(log):
++    """Parse pysisyphus's final BARRIERS block (Left / TS / Right, relative to the
++    global minimum). Returns (dE_forward, dE_reaction) in kJ/mol, both referenced to
++    the reactant endpoint — the numbers to actually report. None if the block is absent.
++
++    Preferred over barrier_kj(): "TS vs first COS image" ignores the endpoint
++    reoptimization and typically understates the true dE-double-dagger.
++    """
++    def _val(label):
++        m = re.findall(rf"\b{label}:\s*(-?\d+\.\d+)\s*kJ", log)
++        return float(m[-1]) if m else None
++
++    left, ts, right = _val("Left"), _val("TS"), _val("Right")
++    if left is None or ts is None:
++        return None
++    d_fwd = ts - left
++    d_rxn = (right - left) if right is not None else None
++    return d_fwd, d_rxn
++
++
++def main():
++    p = argparse.ArgumentParser()
++    p.add_argument("log")
++    p.add_argument("--trj", default=None, help="NEB path .trj (default: sibling final_geometries.trj)")
++    a = p.parse_args()
++
++    logpath = Path(a.log)
++    log = logpath.read_text(errors="ignore")
++
++    # pysisyphus writes energies into the comment line of the NEB path .trj, but
++    # final_geometries.trj only carries the first one. Take the first candidate
++    # that actually has a full profile.
++    candidates = [Path(a.trj)] if a.trj else [
++        logpath.parent / n for n in ("current_geometries.trj", "final_geometries.trj", "cos_hei.trj")
++    ]
++    trjpath = next(
++        (c for c in candidates if c.exists() and len(profile_maxima(c.read_text(errors="ignore"))[1]) >= 3),
++        next((c for c in candidates if c.exists()), candidates[0]),
++    )
++
++    rows, ok = [], True
++
++    freqs = imaginary_frequencies(log)
++    if freqs is None:
++        rows.append(("FAIL", "imaginary frequencies", "no Hessian output found; did tsopt run with do_hess?"))
++        ok = False
++    elif len(freqs) == 1:
++        rows.append(("PASS", "imaginary frequencies", f"exactly 1 at {freqs[0]:.1f} cm-1"))
++    elif len(freqs) == 0:
++        rows.append(("FAIL", "imaginary frequencies", "0 found; optimizer landed on a minimum"))
++        ok = False
++    else:
++        rows.append(("FAIL", "imaginary frequencies", f"{len(freqs)} found {freqs}; higher-order saddle"))
++        ok = False
++
++    matched = irc_endpoint_matches(log)
++    if matched is None:
++        rows.append(("FAIL", "IRC endpoints", "no endopt comparison found; did endopt run?"))
++        ok = False
++    elif len(matched) >= 2:
++        rows.append(("PASS", "IRC endpoints", "forward and backward matched distinct inputs"))
++    else:
++        rows.append(("FAIL", "IRC endpoints", f"only {len(matched)} distinct match(es); TS may connect other species"))
++        ok = False
++
++    if trjpath.exists():
++        wells, energies = profile_maxima(trjpath.read_text(errors="ignore"))
++        if wells is None:
++            rows.append(("WARN", "NEB profile", "too few images to assess"))
++        elif not wells:
++            span = (max(energies) - min(energies)) * HARTREE_KJ
++            rows.append(("PASS", "NEB profile", f"elementary, single barrier, span {span:.1f} kJ/mol"))
++        else:
++            rows.append(("FAIL", "NEB profile",
++                         f"{len(wells)} intermediate(s) at image(s) {wells}; split into elementary steps"))
++            ok = False
++    else:
++        rows.append(("WARN", "NEB profile", f"{trjpath.name} not found; skipped"))
++
++    width = max(len(r[1]) for r in rows)
++    print()
++    for status, name, detail in rows:
++        print(f"  [{status}] {name:<{width}}  {detail}")
++
++    eb = endpoint_barriers_kj(log)
++    if eb is not None:
++        d_fwd, d_rxn = eb
++        print(f"\n  electronic barrier dE‡ (GFN2-xTB): {d_fwd:.1f} kJ/mol = {d_fwd / 4.184:.2f} kcal/mol")
++        if d_rxn is not None:
++            print(f"  reaction energy dE_rxn:            {d_rxn:.1f} kJ/mol = {d_rxn / 4.184:.2f} kcal/mol")
++        print("  (referenced to the reactant endpoint; add Hessian thermal corrections for dG‡)")
++    else:
++        b = barrier_kj(log)
++        if b is not None:
++            print(f"\n  barrier vs first COS image (GFN2-xTB): {b:.1f} kJ/mol = {b / 4.184:.2f} kcal/mol")
++            print("  (no endpoint BARRIERS block found; this understates dE‡ if endopt ran)")
++    print(f"\n  => {'all gates passed' if ok else 'VERIFICATION FAILED, do not report this barrier'}\n")
++    return 0 if ok else 1
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/skills/scientific-computing/neb-irc-activation-energy/scripts/pipeline.yaml b/skills/scientific-computing/neb-irc-activation-energy/scripts/pipeline.yaml
+new file mode 100644
+index 0000000..a4733fc
+--- /dev/null
++++ b/skills/scientific-computing/neb-irc-activation-energy/scripts/pipeline.yaml
+@@ -0,0 +1,43 @@
++# Full reaction-path pipeline: preopt -> IDPP -> CI-NEB -> TS opt -> IRC -> endpoint check.
++# Place alongside reactant.xyz and product.xyz, then:  pysis pipeline.yaml > pipeline.log 2>&1
++#
++# reactant.xyz and product.xyz MUST share an identical atom ordering. Build the product by
++# editing a copy of the reactant, never independently.
++
++geom:
++ type: cart
++ fn: [reactant.xyz, product.xyz]
++
++preopt:                    # relax both endpoints before interpolating
++
++interpol:
++ type: idpp               # linear interpolation causes atom clashes the NEB must then undo
++ between: 8               # 8 intermediate images -> 10 total
++
++calc:
++ type: xtb
++ pal: 1                   # match to physical cores; xtb parallel efficiency is modest
++ gfn: 2
++ charge: 0                # set explicitly, do not rely on the default
++ mult: 1
++ # alpb: water            # uncomment for implicit solvation (any xtb solvent name)
++
++cos:
++ type: neb
++ climb: True              # climbing image, gives a usable TS guess
++
++opt:
++ type: lbfgs             # 'qm' (QuickMin) can crash on the first cycle; lbfgs is robust
++ align: True
++ max_cycles: 80           # raise to 150-200 above ~50 atoms
++
++tsopt:
++ type: rsirfo             # eigenvector-following saddle point search
++ do_hess: True            # required: the imaginary frequency check depends on it
++ thresh: gau
++
++irc:
++ type: eulerpc
++ rms_grad_thresh: 0.001
++
++endopt:                    # relaxes IRC endpoints and compares them back to the inputs
+diff --git a/skills/scientific-computing/neb-irc-activation-energy/scripts/plot_irc.py b/skills/scientific-computing/neb-irc-activation-energy/scripts/plot_irc.py
+new file mode 100755
+index 0000000..cc36260
+--- /dev/null
++++ b/skills/scientific-computing/neb-irc-activation-energy/scripts/plot_irc.py
+@@ -0,0 +1,201 @@
++#!/usr/bin/env python3
++"""Plot the IRC energy profile from a finished pysisyphus reaction-path run.
++
++Output: irc_energy_profile.png  — IRC step vs relative energy, TS marked (kcal + kJ axes).
++
++Run it in the directory holding the pipeline output, after `pysis pipeline.yaml` and
++`check_result.py` have passed. gfn/charge/mult/solvent are read from pipeline.yaml so the IRC
++single-point energies are recomputed at exactly the pipeline's level of theory (override with
++flags if needed).
++
++Why recompute the energies: pysisyphus writes forward_irc.trj / backward_irc.trj with plain
++"step N" comment lines that carry no energy, so the energies come from single-point xtb calls
++on each frame. This is level-consistent and independent of log formatting.
++
++The other deliverable — the TS imaginary-mode animation — is produced by the
++molecular-visualization-3dmol skill (its mol_viewer.py on ts_imaginary_mode_000.trj); it is
++intentionally not handled here.
++
++Usage:
++  python3 plot_irc.py                                   # auto-detect pipeline.yaml in cwd
++  python3 plot_irc.py --pipeline pipeline.yaml --outdir plots
++  python3 plot_irc.py --charge -1 --alpb water          # override detected settings
++"""
++import argparse
++import glob
++import re
++import subprocess
++import sys
++import tempfile
++from pathlib import Path
++
++HARTREE_KCAL = 627.5094740631
++
++
++# ---------------------------------------------------------------- pipeline settings
++
++def load_calc(pipeline_yaml):
++    """Read gfn/charge/mult/alpb from the `calc:` block of pipeline.yaml (minimal parser,
++    no yaml dependency needed)."""
++    calc = {"gfn": 2, "charge": 0, "mult": 1, "alpb": None}
++    p = Path(pipeline_yaml)
++    if not p.exists():
++        return calc
++    in_calc = False
++    for line in p.read_text().splitlines():
++        stripped = line.strip()
++        if re.match(r"^\w[\w ]*:\s*$", line) and not line[0].isspace():
++            in_calc = stripped.startswith("calc")
++            continue
++        if not in_calc or stripped.startswith("#") or ":" not in stripped:
++            continue
++        key, _, val = stripped.partition(":")
++        key, val = key.strip(), val.split("#")[0].strip()
++        if key in ("gfn", "charge", "mult") and re.match(r"-?\d+$", val):
++            calc[key] = int(val)
++        elif key == "alpb" and val:
++            calc["alpb"] = val
++    return calc
++
++
++# ---------------------------------------------------------------- xyz / xtb helpers
++
++def read_frames(path):
++    """Return [(comment, [(sym, x, y, z), ...]), ...] for a (multi-frame) xyz/trj file."""
++    lines = Path(path).read_text().splitlines()
++    frames, i = [], 0
++    while i < len(lines):
++        if not lines[i].strip():
++            i += 1
++            continue
++        n = int(lines[i].split()[0])
++        comment = lines[i + 1] if i + 1 < len(lines) else ""
++        atoms = [tuple(lines[i + 2 + k].split()[:4]) for k in range(n)]
++        frames.append((comment, atoms))
++        i += n + 2
++    return frames
++
++
++def frame_to_xyz(comment, atoms):
++    body = "\n".join(f"{s} {x} {y} {z}" for s, x, y, z in atoms)
++    return f"{len(atoms)}\n{comment}\n{body}\n"
++
++
++def xtb_energy(comment, atoms, calc):
++    """Single-point energy (Hartree) at the pipeline's level of theory."""
++    import os
++    cmd = ["xtb", "frame.xyz", "--gfn", str(calc["gfn"]),
++           "--chrg", str(calc["charge"]), "--uhf", str(calc["mult"] - 1)]
++    if calc["alpb"]:
++        cmd += ["--alpb", calc["alpb"]]
++    with tempfile.TemporaryDirectory() as d:
++        (Path(d) / "frame.xyz").write_text(frame_to_xyz(comment, atoms))
++        out = subprocess.run(cmd, cwd=d, capture_output=True, text=True,
++                             env={"OMP_NUM_THREADS": "1", "PATH": os.environ.get("PATH", "")}).stdout
++    m = re.findall(r"TOTAL ENERGY\s+(-?\d+\.\d+)", out)
++    if not m:
++        raise RuntimeError("xtb single point produced no TOTAL ENERGY; is xtb on PATH "
++                           "and the env sourced? Check charge/mult.")
++    return float(m[-1])
++
++
++def centered_rmsd(a, b):
++    import statistics
++    ca = [[float(r[k]) for r in a] for k in (1, 2, 3)]
++    cb = [[float(r[k]) for r in b] for k in (1, 2, 3)]
++    for c in (ca, cb):
++        for axis in c:
++            m = statistics.fmean(axis)
++            axis[:] = [v - m for v in axis]
++    return sum((ca[k][i] - cb[k][i]) ** 2 for k in range(3) for i in range(len(a))) ** 0.5
++
++
++def _first(patterns):
++    for pat in patterns:
++        hits = sorted(glob.glob(pat))
++        if hits:
++            return hits[0]
++    return None
++
++
++# ---------------------------------------------------------------- IRC profile
++
++def build_irc_profile(calc, outdir):
++    import matplotlib
++    matplotlib.use("Agg")
++    import matplotlib.pyplot as plt
++
++    fwd = _first(["forward_irc.trj", "*forward*irc*.trj"])
++    bwd = _first(["backward_irc.trj", "*backward*irc*.trj"])
++    ts = _first(["ts_final_geometry.xyz", "*ts_final*.xyz"])
++    if not (fwd and bwd and ts):
++        combined = _first(["finished_irc.trj", "*finished*irc*.trj"])
++        if not combined:
++            raise FileNotFoundError("No IRC trajectories found (forward_irc.trj / "
++                                    "backward_irc.trj or finished_irc.trj).")
++        frames = read_frames(combined)
++    else:
++        # reverse(backward) + TS + forward -> a continuous endpoint -> TS -> endpoint path
++        frames = read_frames(bwd)[::-1] + read_frames(ts) + read_frames(fwd)
++
++    # Orient so the reactant-matching endpoint is at index 0 (label only; energies unaffected).
++    react = _first(["reactant.xyz"])
++    reactant_left = True
++    if react:
++        r0 = read_frames(react)[0][1]
++        if centered_rmsd(frames[0][1], r0) > centered_rmsd(frames[-1][1], r0):
++            frames = frames[::-1]
++    print(f"recomputing {len(frames)} single-point energies "
++          f"(gfn{calc['gfn']}, chrg {calc['charge']}, uhf {calc['mult']-1}, "
++          f"alpb {calc['alpb'] or 'none'}) ...")
++    e = [xtb_energy(c, a, calc) for c, a in frames]
++
++    ref = e[0]                                   # reactant endpoint = 0
++    rel_kcal = [(x - ref) * HARTREE_KCAL for x in e]
++    ts_i = max(range(len(e)), key=lambda i: e[i])
++    barrier = rel_kcal[ts_i]
++    rxn = rel_kcal[-1]
++
++    fig, ax = plt.subplots(figsize=(7, 5))
++    ax.plot(range(len(e)), rel_kcal, marker="o", ms=4, lw=2)
++    ax.scatter([ts_i], [barrier], color="C3", s=90, zorder=5, label="TS")
++    ax.annotate(f"{barrier:.1f} kcal/mol", (ts_i, barrier),
++                xytext=(0, 12), textcoords="offset points", ha="center", color="C3")
++    lo, hi = min(rel_kcal), max(rel_kcal)
++    ax.set_ylim(lo - 0.06 * (hi - lo), hi + 0.16 * (hi - lo))   # headroom for the TS label
++    ax.set_xlabel("IRC step" + ("  (reactant → product)" if reactant_left else ""))
++    ax.set_ylabel("relative energy (kcal/mol)")
++    ax.set_title("Energy profile along the IRC")
++    sec = ax.secondary_yaxis("right", functions=(lambda v: v * 4.184, lambda v: v / 4.184))
++    sec.set_ylabel("relative energy (kJ/mol)")
++    ax.legend()
++    fig.tight_layout()
++    out = Path(outdir) / "irc_energy_profile.png"
++    fig.savefig(out, dpi=200)
++    plt.close(fig)
++    print(f"wrote {out}  (dE‡ = {barrier:.1f} kcal/mol = {barrier*4.184:.1f} kJ/mol, "
++          f"dE_rxn = {rxn:.1f} kcal/mol)")
++    return out
++
++
++def main():
++    ap = argparse.ArgumentParser(description=__doc__,
++                                 formatter_class=argparse.RawDescriptionHelpFormatter)
++    ap.add_argument("--pipeline", default="pipeline.yaml")
++    ap.add_argument("--outdir", default=".")
++    ap.add_argument("--charge", type=int)
++    ap.add_argument("--mult", type=int)
++    ap.add_argument("--gfn", type=int)
++    ap.add_argument("--alpb")
++    a = ap.parse_args()
++
++    Path(a.outdir).mkdir(parents=True, exist_ok=True)
++    calc = load_calc(a.pipeline)
++    for k in ("charge", "mult", "gfn", "alpb"):
++        if getattr(a, k) is not None:
++            calc[k] = getattr(a, k)
++    build_irc_profile(calc, a.outdir)
++
++
++if __name__ == "__main__":
++    sys.exit(main())
+diff --git a/skills/scientific-computing/neb-irc-activation-energy/scripts/setup_env.sh b/skills/scientific-computing/neb-irc-activation-energy/scripts/setup_env.sh
+new file mode 100755
+index 0000000..fe928ee
+--- /dev/null
++++ b/skills/scientific-computing/neb-irc-activation-energy/scripts/setup_env.sh
+@@ -0,0 +1,46 @@
++#!/usr/bin/env bash
++# Install GFN2-xTB and pysisyphus without conda or a Fortran compiler.
++# Usage:  bash setup_env.sh   then   source "$ROOT/env.sh"
++#
++# xtb ships prebuilt Linux x86_64 binaries on GitHub releases (no compiler needed).
++# pysisyphus installs from PyPI. Neither route needs conda-forge, so this works in
++# minimal or network-restricted environments where ORCA/Psi4/CREST are unavailable.
++# Runs in 2-3 minutes. Re-run per session if the filesystem does not persist.
++set -euo pipefail
++
++# Some sandboxes leave HOME unset; guard it so `set -u` does not abort here, and
++# so pip has a cache dir to write to.
++export HOME="${HOME:-/tmp}"
++ROOT="${ROOT:-$HOME/xtbenv}"        # override with ROOT=/path bash setup_env.sh
++XTB_VERSION="${XTB_VERSION:-6.7.1}"
++mkdir -p "$ROOT" && cd "$ROOT"
++
++if [ ! -d xtb-dist ]; then
++  echo "fetching xtb ${XTB_VERSION} ..."
++  curl -sfL -o xtb.tar.xz \
++    "https://github.com/grimme-lab/xtb/releases/download/v${XTB_VERSION}/xtb-${XTB_VERSION}-linux-x86_64.tar.xz"
++  tar xf xtb.tar.xz && rm xtb.tar.xz
++  mv "xtb-${XTB_VERSION}" xtb-dist 2>/dev/null || true
++fi
++
++python3 -c "import pysisyphus" 2>/dev/null || pip install --quiet --break-system-packages pysisyphus
++
++cat > "$ROOT/env.sh" <<EOF
++export XTBHOME=$ROOT/xtb-dist
++export PATH=\$XTBHOME/bin:\$PATH
++export LD_LIBRARY_PATH=\$XTBHOME/lib:\${LD_LIBRARY_PATH:-}
++export XTBPATH=\$XTBHOME/share/xtb
++# Match to physical cores. On a single core keep this at 1: oversubscription
++# makes xtb slower, not faster. xtb's parallel efficiency is modest, so gains
++# taper off past a handful of cores.
++export OMP_NUM_THREADS=${OMP_NUM_THREADS:-1}
++export MKL_NUM_THREADS=${MKL_NUM_THREADS:-1}
++export OMP_STACKSIZE=1G
++EOF
++
++# shellcheck disable=SC1091
++source "$ROOT/env.sh"
++echo "xtb: $(xtb --version 2>&1 | grep -ioP 'version \S+' | head -1)"
++echo "pysisyphus: $(python3 -c 'from importlib.metadata import version; print(version("pysisyphus"))')"
++echo
++echo "run 'source $ROOT/env.sh' in every new shell"

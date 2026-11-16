@@ -1,0 +1,298 @@
+diff --git a/pypdb/clients/pdb/__init__.py b/pypdb/clients/pdb/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/pypdb/clients/pdb/pdb_client.py b/pypdb/clients/pdb/pdb_client.py
+new file mode 100644
+index 0000000..1c4a90f
+--- /dev/null
++++ b/pypdb/clients/pdb/pdb_client.py
+@@ -0,0 +1,85 @@
++"""File containing logic to download PDB file entries from the RCSB Database."""
++
++from enum import Enum
++import gzip
++from typing import Optional
++import warnings
++
++from pypdb.util import http_requests
++
++PDB_DOWNLOAD_BASE_URL = "https://files.rcsb.org/download/"
++
++class PDBFileType(Enum):
++    PDB = "pdb" # Older file format.
++    CIF = "cif" # Newer file format (replacing PDB file type)
++    XML = "xml" # Another alternative representation.
++    STRUCTFACT = "structfact" # For structural factors (only populated for some entries)
++
++
++def get_pdb_file(pdb_id: str, filetype=PDBFileType.PDB, compression=False) -> Optional[str]:
++    '''Get the full PDB file associated with a PDB_ID
++
++    Parameters
++    ----------
++
++    pdb_id : A 4 character string giving a pdb entry of interest
++
++    filetype: The file type.
++        PDB is the older file format,
++        CIF is the newer replacement.
++        XML an also be obtained and parsed using the various xml tools included in PyPDB
++        STRUCTFACT retrieves structure factors (only available for certain PDB entries)
++
++    compression : Whether or not to request the data as a compressed (gz) version of the file
++        (note that the compression is undone by this function)
++
++    Returns
++    -------
++
++    result : string
++        The string representing the full PDB file as an uncompressed string.
++        (returns None if the request to RCSB failed)
++
++    Examples
++    --------
++    >>> pdb_file = get_pdb_file('4lza', filetype='cif', compression=True)
++    >>> print(pdb_file[:200])
++    data_4LZA
++    #
++    _entry.id   4LZA
++    #
++    _audit_conform.dict_name       mmcif_pdbx.dic
++    _audit_conform.dict_version    4.032
++    _audit_conform.dict_location   http://mmcif.pdb.org/dictionaries/ascii/mmcif_pdbx
++
++    '''
++
++    if filetype is PDBFileType.CIF and not compression:
++        warnings.warn("Consider using `get_pdb_file` with compression=True "
++                      "for CIF files (it makes the file download faster!)")
++
++    pdb_url_builder = [PDB_DOWNLOAD_BASE_URL, pdb_id]
++
++    if filetype is PDBFileType.STRUCTFACT:
++        pdb_url_builder.append("-sf.cif")
++    else:
++        pdb_url_builder += [".", filetype.value]
++
++    if compression:
++        pdb_url_builder += ".gz"
++
++    pdb_url = "".join(pdb_url_builder)
++
++    print("Sending GET request to {} to fetch {}'s {} file as a string.".format(
++        pdb_url, pdb_id, filetype.value
++    ))
++
++    response = http_requests.request_limited(pdb_url)
++
++    if response is None or not response.ok:
++        warnings.warn("Retrieval failed, returning None")
++        return None
++
++    if compression:
++        return gzip.decompress(response.content)
++    return response.text
+diff --git a/pypdb/clients/pdb/pdb_client_test.py b/pypdb/clients/pdb/pdb_client_test.py
+new file mode 100644
+index 0000000..1cfa25f
+--- /dev/null
++++ b/pypdb/clients/pdb/pdb_client_test.py
+@@ -0,0 +1,87 @@
++import unittest
++from unittest import mock
++
++from pypdb.clients.pdb import pdb_client
++from pypdb.util import http_requests
++
++
++class TestPDBFileDownloading(unittest.TestCase):
++
++    @mock.patch.object(http_requests, "request_limited", autospec=True)
++    def test_unsuccessful_test_returns_none(self, mock_http_requests):
++
++        mock_return_value = mock.Mock()
++        mock_return_value.ok = False
++        mock_http_requests.return_value = mock_return_value
++
++        self.assertIsNone(pdb_client.get_pdb_file("5TML"))
++        mock_http_requests.assert_called_once_with(
++            "https://files.rcsb.org/download/5TML.pdb"
++        )
++
++    @mock.patch.object(http_requests, "request_limited", autospec=True)
++    def test_compressed_cif_file(self, mock_http_requests):
++        mock_return_value_cif = mock.Mock()
++        mock_return_value_cif.ok = True
++        mock_return_value_cif.content = "fake_compressed_cif"
++        mock_http_requests.return_value = mock_return_value_cif
++
++        self.assertEqual(
++            "fake_compressed_cif",
++            pdb_client.get_pdb_file("1A2B", pdb_client.PDBFileType.CIF,
++            compression=True)
++        )
++        mock_http_requests.assert_called_once_with(
++            "https://files.rcsb.org/download/1A2B.cif.gz"
++        )
++
++    @mock.patch.object(http_requests, "request_limited", autospec=True)
++    def test_umcompressed_pdb(self, mock_http_requests):
++        mock_return_value_pdb = mock.Mock()
++        mock_return_value_pdb.text = "fake_uncompressed_pdb"
++        mock_return_value_pdb.ok = True
++        mock_http_requests.return_value = mock_return_value_pdb
++
++        self.assertEqual(
++            "fake_uncompressed_pdb",
++            pdb_client.get_pdb_file("1234")
++        )
++        mock_http_requests.assert_called_once_with(
++            "https://files.rcsb.org/download/1234.pdb"
++        )
++
++    @mock.patch.object(http_requests, "request_limited", autospec=True)
++    def test_compressed_structfact(self, mock_http_requests):
++        mock_return_value_pdb = mock.Mock()
++        mock_return_value_pdb.content = "fake_compressed_structfact"
++        mock_return_value_pdb.ok = True
++        mock_http_requests.return_value = mock_return_value_pdb
++
++        self.assertEqual(
++            "fake_compressed_structfact",
++            pdb_client.get_pdb_file("HK97", pdb_client.PDBFileType.STRUCTFACT,
++                                    compression=True)
++        )
++        mock_http_requests.assert_called_once_with(
++            "https://files.rcsb.org/download/HK97-sf.cif.gz"
++        )
++
++    @mock.patch.object(http_requests, "request_limited", autospec=True)
++    def test_uncompressed_xml(self, mock_http_requests):
++        mock_return_value_pdb = mock.Mock()
++        mock_return_value_pdb.text = "fake_uncompressed_xml"
++        mock_return_value_pdb.ok = True
++        mock_http_requests.return_value = mock_return_value_pdb
++
++        self.assertEqual(
++            "fake_uncompressed_xml",
++            pdb_client.get_pdb_file("MI17", pdb_client.PDBFileType.XML,
++            compression=False)
++        )
++        mock_http_requests.assert_called_once_with(
++            "https://files.rcsb.org/download/MI17.xml"
++        )
++
++
++if __name__ == '__main__':
++    unittest.main()
+diff --git a/pypdb/pypdb.py b/pypdb/pypdb.py
+index d389080..3a083c8 100755
+--- a/pypdb/pypdb.py
++++ b/pypdb/pypdb.py
+@@ -25,6 +25,7 @@
+ 
+ from pypdb.util import http_requests
+ from pypdb.clients.fasta import fasta_client
++from pypdb.clients.pdb import pdb_client
+ from pypdb.clients.search import search_client
+ from pypdb.clients.search.operators import sequence_operators
+ 
+@@ -446,80 +447,28 @@ def get_info(pdb_id, url_root='https://data.rcsb.org/rest/v1/core/entry/'):
+ describe_pdb = get_info # Alias for now; eve tually make this point to the Graph search https://data.rcsb.org/migration-guide.html#pdb-file-description
+ get_entity_info = get_info # Alias
+ 
+-def get_pdb_file(pdb_id, filetype='pdb', compression=False):
+-    '''Get the full PDB file associated with a PDB_ID
++def get_pdb_file(pdb_id: str, filetype='pdb', compression=False):
++    """Deprecated wrapper for fetching PDB files from RCSB Database.
+ 
+-    Parameters
+-    ----------
+-
+-    pdb_id : string
+-        A 4 character string giving a pdb entry of interest
+-
+-    filetype: string
+-        The file type.
+-        'pdb' is the older file format,
+-        'cif' is the newer replacement.
+-        'xml' an also be obtained and parsed using the various xml tools included in PyPDB
+-        'structfact' retrieves structure factors (only available for certain PDB entries)
+-
+-    compression : bool
+-        Retrieve a compressed (gz) version of the file
+-
+-    Returns
+-    -------
+-
+-    result : string
+-        The string representing the full PDB file in the given format
+-
+-    Examples
+-    --------
+-    >>> pdb_file = get_pdb_file('4lza', filetype='cif', compression=True)
+-    >>> print(pdb_file[:200])
+-    data_4LZA
+-    #
+-    _entry.id   4LZA
+-    #
+-    _audit_conform.dict_name       mmcif_pdbx.dic
+-    _audit_conform.dict_version    4.032
+-    _audit_conform.dict_location   http://mmcif.pdb.org/dictionaries/ascii/mmcif_pdbx
+-
+-    '''
+-
+-    full_url = "https://files.rcsb.org/download/"
+-
+-    full_url += pdb_id
+-
+-    if (filetype == 'structfact'):
+-        full_url += "-sf.cif"
+-    else:
+-        full_url += "." + filetype
+-
+-    if compression:
+-        full_url += ".gz"
+-    else:
+-        pass
+-
+-    #response = requests.get(full_url)
+-    response = http_requests.request_limited(full_url)
+-
+-    if response.status_code == 200:
+-        pass
+-    else:
+-        warnings.warn("Retrieval failed, returning None")
+-        return None
++    For new uses, please use `pypdb/clients/pdb/pdb_client.py`
++    """
+ 
+-    if compression:
+-        result  = response.content
++    warnings.warn("The `get_pdb_file` function within pypdb.py is deprecated."
++                  "See `pypdb/clients/pdb/pdb_client.py` for a near-identical "
++                  "function to use", DeprecationWarning)
++
++    if filetype is 'pdb':
++        filetype_enum = pdb_client.PDBFileType.PDB
++    elif filetype is 'cif':
++        filetype_enum = pdb_client.PDBFileType.CIF
++    elif filetype is 'xml':
++        filetype_enum = pdb_client.PDBFileType.XML
++    elif filetype is 'structfact':
++        filetype_enum = pdb_client.PDBFileType.STRUCTFACT
+     else:
+-        result = response.text
+-
+-    ## return raw file only
+-    # if compression:
+-    #     result = result.decode('utf-8')
+-    # else:
+-    #     pass
++        warnings.warn("Filetype specified to `get_pdb_file` appears to be invalid")
+ 
+-    return result
++    return pdb_client.get_pdb_file(pdb_id, filetype_enum, compression)
+ 
+ # https://data.rcsb.org/migration-guide.html#chem-comp-description
+ # def describe_chemical(chem_id):

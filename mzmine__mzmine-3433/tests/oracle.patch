@@ -1,0 +1,637 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/annotation_modules/LipidAnnotationTask.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/annotation_modules/LipidAnnotationTask.java
+index 4264c0aa9f1..10ad3a086c7 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/annotation_modules/LipidAnnotationTask.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/annotation_modules/LipidAnnotationTask.java
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright (c) 2004-2026 The mzmine Development Team
++ *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+  * files (the "Software"), to deal in the Software without
+@@ -57,6 +58,7 @@
+ import java.util.HashSet;
+ import java.util.List;
+ import java.util.Set;
++import java.util.concurrent.atomic.AtomicLong;
+ import java.util.logging.Logger;
+ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+@@ -70,8 +72,8 @@ public class LipidAnnotationTask extends AbstractTask {
+ 
+   private static final Logger logger = Logger.getLogger(LipidAnnotationTask.class.getName());
+ 
+-  private double finishedSteps;
+-  private double totalSteps;
++  private final AtomicLong finishedSteps = new AtomicLong();
++  private long totalSteps;
+   private final FeatureList featureList;
+   private ILipidClass[] selectedLipids;
+   private CustomLipidClass[] selectedCustomLipidClasses;
+@@ -179,7 +181,7 @@ public double getFinishedPercentage() {
+     if (totalSteps == 0) {
+       return 0;
+     }
+-    return (finishedSteps) / totalSteps;
++    return (double) finishedSteps.get() / totalSteps;
+   }
+ 
+   /**
+@@ -199,31 +201,32 @@ public void run() {
+ 
+     logger.finest("Starting lipid annotation in " + featureList);
+ 
+-    List<FeatureListRow> rows = featureList.getRows();
++    final List<FeatureListRow> rows = featureList.getRows();
+     if (featureList instanceof ModularFeatureList) {
+       featureList.addRowType(new LipidMatchListType());
+     }
+     totalSteps = rows.size();
+-    Set<PolarityType> polarityTypes = getPolarityTypes();
++    finishedSteps.set(0L);
++    final Set<PolarityType> polarityTypes = getPolarityTypes();
+ 
+     // build lipid species database
+-    List<LipidIon> lipidDatabase = LipidAnnotationUtils.buildLipidDatabase(selectedLipids,
++    final List<LipidIon> lipidDatabase = LipidAnnotationUtils.buildLipidDatabase(selectedLipids,
+         minChainLength, maxChainLength, minDoubleBonds, maxDoubleBonds, onlySearchForEvenChains,
+         ionizationTypesToIgnore, polarityTypes);
+-    List<LipidIon> sortedLipidDatabase = lipidDatabase.stream()
++    final List<LipidIon> sortedLipidDatabase = lipidDatabase.stream()
+         .sorted(Comparator.comparingDouble(LipidIon::mz)).toList();
+ 
+-    rows.parallelStream().forEach(row -> {
++    final long completedSteps = rows.parallelStream().mapToLong(row -> {
+       final Set<MatchedLipid> possibleRowAnnotations = new HashSet<>();
+-      Range<Double> mzTolRange = mzTolerance.getToleranceRange(row.getAverageMZ());
+-      double lowerEdge = mzTolRange.lowerEndpoint();
+-      double upperEdge = mzTolRange.upperEndpoint();
+-      int index = BinarySearch.binarySearch(lowerEdge, DefaultTo.GREATER_EQUALS,
++      final Range<Double> mzTolRange = mzTolerance.getToleranceRange(row.getAverageMZ());
++      final double lowerEdge = mzTolRange.lowerEndpoint();
++      final double upperEdge = mzTolRange.upperEndpoint();
++      final int index = BinarySearch.binarySearch(lowerEdge, DefaultTo.GREATER_EQUALS,
+           sortedLipidDatabase.size(), i -> sortedLipidDatabase.get(i).mz());
+       if (index >= 0) {
+         for (int i = index; i < sortedLipidDatabase.size(); i++) {
+           if (isCanceled()) {
+-            return;
++            return 0L;
+           }
+ 
+           LipidAnnotationUtils.findPossibleLipid(sortedLipidDatabase.get(i), row, parameters,
+@@ -237,12 +240,18 @@ public void run() {
+         }
+       }
+       if (!possibleRowAnnotations.isEmpty()) {
+-        LipidAnnotationUtils.addAnnotationsToFeatureList(row, possibleRowAnnotations,
+-            lipidAnalysisType, searchForMSMSFragments, minimumOverallQualityScore, customQcWeights,
+-            mzTolerance);
++        // Context-dependent QC scores must not be evaluated while rows are processed in parallel.
++        // Apply the configured threshold after all rows have been annotated and scored.
++        LipidAnnotationUtils.addCandidateAnnotationsToFeatureList(row, possibleRowAnnotations,
++            searchForMSMSFragments, mzTolerance);
+       }
+-      finishedSteps++;
+-    });
++      finishedSteps.incrementAndGet();
++      return 1L;
++    }).sum();
++    finishedSteps.set(completedSteps);
++    if (isCanceled()) {
++      return;
++    }
+ 
+     // Compute and store overall quality scores after all rows are processed
+     // Done here (not per-row) so context-dependent scores (elution order, interference) are correct
+@@ -251,7 +260,11 @@ public void run() {
+     LipidQcScoringUtils.computeAndStoreOverallQualityScores((ModularFeatureList) featureList,
+         searchForMSMSFragments, lipidAnalysisType.hasRetentionTimePattern(), lipidAnalysisType,
+         customQcWeights, mzTolerance);
+-    featureList.getRows().forEach(LipidQcScoringUtils::sortLipidAnnotationsByOverallScore);
++    featureList.getRows().forEach(row -> {
++      LipidQcScoringUtils.filterLipidAnnotationsByOverallQualityScore(row,
++          minimumOverallQualityScore);
++      LipidQcScoringUtils.sortLipidAnnotationsByOverallScore(row);
++    });
+ 
+     // Add task description to featureList
+     (featureList).addDescriptionOfAppliedTask(
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/annotation_modules/LipidAnnotationUtils.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/annotation_modules/LipidAnnotationUtils.java
+index 82f1059b4f9..d7db8cc9208 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/annotation_modules/LipidAnnotationUtils.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/annotation_modules/LipidAnnotationUtils.java
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright (c) 2004-2026 The mzmine Development Team
++ *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+  * files (the "Software"), to deal in the Software without
+@@ -52,7 +53,6 @@
+ import io.github.mzmine.modules.dataprocessing.id_lipidid.common.lipids.LipidCategories;
+ import io.github.mzmine.modules.dataprocessing.id_lipidid.common.lipids.LipidFragment;
+ import io.github.mzmine.modules.dataprocessing.id_lipidid.common.lipids.LipidIon;
+-import io.github.mzmine.modules.dataprocessing.id_lipidid.scoring.LipidQcScoringUtils.ComponentWeights;
+ import io.github.mzmine.modules.dataprocessing.id_lipidid.utils.LipidAnnotationResolver;
+ import io.github.mzmine.modules.dataprocessing.id_lipidid.utils.LipidFactory;
+ import io.github.mzmine.parameters.ParameterSet;
+@@ -71,8 +71,6 @@
+ import java.util.stream.Collectors;
+ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+-import org.openscience.cdk.tools.manipulator.AtomContainerManipulator;
+-import org.openscience.cdk.tools.manipulator.MolecularFormulaManipulator;
+ 
+ public class LipidAnnotationUtils {
+ 
+@@ -356,20 +354,16 @@ private static void onlyKeepBestAnnotations(final @NotNull FeatureListRow row,
+     }
+   }
+ 
+-  public static void addAnnotationsToFeatureList(final @NotNull FeatureListRow row,
+-      final @NotNull Set<MatchedLipid> possibleRowAnnotations,
+-      final @NotNull LipidAnalysisType lipidAnalysisType, final boolean includeMs2Score,
+-      final double minimumOverallQualityScore,
+-      final @Nullable ComponentWeights customQcWeights,
++  public static void addCandidateAnnotationsToFeatureList(final @NotNull FeatureListRow row,
++      final @NotNull Set<MatchedLipid> possibleRowAnnotations, final boolean includeMs2Score,
+       final @Nullable MZTolerance mzToleranceMS1) {
+     //consider previous annotations
+     final List<MatchedLipid> previousLipidMatches = row.getLipidMatches();
+     if (!previousLipidMatches.isEmpty()) {
+       possibleRowAnnotations.addAll(previousLipidMatches);
+     }
+-    final LipidAnnotationResolver lipidAnnotationResolver = new LipidAnnotationResolver(true, true,
+-        includeMs2Score, lipidAnalysisType.hasRetentionTimePattern(),
+-        minimumOverallQualityScore, lipidAnalysisType, customQcWeights, mzToleranceMS1);
++    final LipidAnnotationResolver lipidAnnotationResolver = LipidAnnotationResolver.forCandidateCollection(
++        includeMs2Score, mzToleranceMS1);
+     List<MatchedLipid> finalResults = lipidAnnotationResolver.resolveFeatureListRowMatchedLipids(
+         row, possibleRowAnnotations);
+ 
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/common/identification/MSMSLipidTools.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/common/identification/MSMSLipidTools.java
+index 6f619dfbd55..936c8ac994c 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/common/identification/MSMSLipidTools.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/common/identification/MSMSLipidTools.java
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright (c) 2004-2026 The mzmine Development Team
++ *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+  * files (the "Software"), to deal in the Software without
+@@ -28,7 +29,10 @@
+ import io.github.mzmine.modules.dataprocessing.id_lipidid.common.lipids.LipidFragment;
+ import io.github.mzmine.parameters.parametertypes.tolerances.MZTolerance;
+ import java.util.Arrays;
++import java.util.Map;
+ import java.util.Set;
++import java.util.stream.Collectors;
++import org.jetbrains.annotations.NotNull;
+ 
+ /**
+  * This class contains methods for MS/MS lipid identifications
+@@ -40,21 +44,25 @@ public class MSMSLipidTools {
+   /**
+    * Calculate the explained intensity of MS/MS signals by lipid fragmentation rules in %
+    */
+-  public Double calculateMsMsScore(DataPoint[] massList, Set<LipidFragment> annotatedFragments,
+-      Double precursor, MZTolerance mzTolRangeMSMS) {
+-    Double intensityAllSignals = null;
+-    boolean includePrecursor = annotatedFragments.stream().anyMatch(
+-        lipidFragment -> lipidFragment.getRuleType().equals(LipidFragmentationRuleType.PRECURSOR));
+-    if (includePrecursor) {
+-      intensityAllSignals = Arrays.stream(massList).mapToDouble(DataPoint::getIntensity).sum();
+-    } else {
+-      intensityAllSignals = Arrays.stream(massList)
+-          .filter(dp -> !mzTolRangeMSMS.checkWithinTolerance(dp.getMZ(), precursor))
+-          .mapToDouble(DataPoint::getIntensity).sum();
+-    }
+-    Double intensityMatchedSignals = annotatedFragments.stream().map(LipidFragment::getDataPoint)
+-        .mapToDouble(DataPoint::getIntensity).sum();
+-    return (intensityMatchedSignals / intensityAllSignals);
++  public @NotNull Double calculateMsMsScore(final DataPoint @NotNull [] massList,
++      final @NotNull Set<LipidFragment> annotatedFragments, final @NotNull Double precursor,
++      final @NotNull MZTolerance mzTolRangeMSMS) {
++    final boolean includePrecursor = annotatedFragments.stream().anyMatch(
++        lipidFragment -> lipidFragment.getRuleType() == LipidFragmentationRuleType.PRECURSOR);
++    final double intensityAllSignals =
++        includePrecursor ? Arrays.stream(massList).mapToDouble(DataPoint::getIntensity).sum()
++            : Arrays.stream(massList)
++                .filter(dp -> !mzTolRangeMSMS.checkWithinTolerance(dp.getMZ(), precursor))
++                .mapToDouble(DataPoint::getIntensity).sum();
++
++    // Multiple fragmentation rules may annotate the same observed data point. Explained intensity
++    // describes spectrum signals, so each observed m/z must only contribute once to the score.
++    final Map<Double, Double> matchedIntensityByMz = annotatedFragments.stream()
++        .map(LipidFragment::getDataPoint)
++        .collect(Collectors.toMap(DataPoint::getMZ, DataPoint::getIntensity, Double::max));
++    final double intensityMatchedSignals = matchedIntensityByMz.values().stream()
++        .mapToDouble(Double::doubleValue).sum();
++    return intensityMatchedSignals / intensityAllSignals;
+   }
+ 
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/common/identification/fragmentation/LipidFragmentFactory.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/common/identification/fragmentation/LipidFragmentFactory.java
+index b8533bfcd1e..6781e7ba3e8 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/common/identification/fragmentation/LipidFragmentFactory.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/common/identification/fragmentation/LipidFragmentFactory.java
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright (c) 2004-2026 The mzmine Development Team
++ *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+  * files (the "Software"), to deal in the Software without
+@@ -32,7 +33,6 @@
+ import io.github.mzmine.datamodel.impl.SimpleDataPoint;
+ import io.github.mzmine.modules.dataprocessing.id_lipidid.annotation_modules.LipidAnnotationChainParameters;
+ import io.github.mzmine.modules.dataprocessing.id_lipidid.common.identification.ILipidAnnotation;
+-import io.github.mzmine.modules.dataprocessing.id_lipidid.annotation_modules.LipidAnnotationChainParameters;
+ import io.github.mzmine.modules.dataprocessing.id_lipidid.common.identification.LipidFragmentationRule;
+ import io.github.mzmine.modules.dataprocessing.id_lipidid.common.identification.LipidFragmentationRuleType;
+ import io.github.mzmine.modules.dataprocessing.id_lipidid.common.lipids.LipidFragment;
+@@ -44,6 +44,7 @@
+ import io.github.mzmine.util.collections.BinarySearch.DefaultTo;
+ import java.util.ArrayList;
+ import java.util.List;
++import java.util.Optional;
+ import org.jetbrains.annotations.NotNull;
+ import org.openscience.cdk.interfaces.IMolecularFormula;
+ 
+@@ -234,11 +235,12 @@ private List<LipidFragment> checkForHeadgroupFragmentNL(LipidFragmentationRule r
+       throw new RuntimeException(e);
+     }
+     rule.getIonizationType().ionizeFormula(lipidFormula);
+-    if (!FormulaUtils.canSubtractFormula(lipidFormula, formulaNL)) {
++    final Optional<IMolecularFormula> fragmentFormula = FormulaUtils.subtractFormulaIfPossible(
++        lipidFormula, formulaNL);
++    if (fragmentFormula.isEmpty()) {
+       return List.of();
+     }
+-    final IMolecularFormula fragmentFormula = FormulaUtils.subtractFormula(lipidFormula, formulaNL);
+-    return findLipidFragmentFromIonFormula(rule, lipidAnnotation, msMsScan, fragmentFormula);
++    return findLipidFragmentFromIonFormula(rule, lipidAnnotation, msMsScan, fragmentFormula.get());
+   }
+ 
+   private List<LipidFragment> checkForAcylChainFragment(LipidFragmentationRule rule,
+@@ -295,20 +297,22 @@ private List<LipidFragment> findLipidFragmentFromIonFormula(LipidFragmentationRu
+   }
+ 
+   @NotNull
+-  protected List<LipidFragment> findChainMinusFormulaFragment(LipidFragmentationRule rule,
+-      ILipidAnnotation lipidAnnotation, Scan msMsScan, LipidChainType chainType) {
+-    IMolecularFormula modificationFormula = FormulaUtils.createMajorIsotopeMolFormulaWithCharge(
++  protected List<LipidFragment> findChainMinusFormulaFragment(
++      final @NotNull LipidFragmentationRule rule, final @NotNull ILipidAnnotation lipidAnnotation,
++      final @NotNull Scan msMsScan, final @NotNull LipidChainType chainType) {
++    final IMolecularFormula modificationFormula = FormulaUtils.createMajorIsotopeMolFormulaWithCharge(
+         rule.getMolecularFormula());
+     final List<ILipidChain> chains = LIPID_CHAIN_FACTORY.buildLipidChainsInRange(chainType,
+         minChainLength, maxChainLength, minDoubleBonds, maxDoubleBonds, onlySearchForEvenChains);
+     final List<LipidFragment> matchedFragments = new ArrayList<>();
+     for (final ILipidChain lipidChain : chains) {
+-      final IMolecularFormula lipidChainFormula = FormulaUtils.cloneFormula(
+-          lipidChain.getChainMolecularFormula());
+-      final IMolecularFormula fragmentFormula = FormulaUtils.subtractFormula(lipidChainFormula,
+-          modificationFormula);
++      final Optional<IMolecularFormula> fragmentFormula = FormulaUtils.subtractFormulaIfPossible(
++          lipidChain.getChainMolecularFormula(), modificationFormula);
++      if (fragmentFormula.isEmpty()) {
++        continue;
++      }
+       final IMolecularFormula ionizedFragmentFormula = ionizeFragmentBasedOnPolarity(
+-          fragmentFormula,
++          fragmentFormula.get(),
+           rule.getPolarityType());
+       addMatchedChainFragment(rule, lipidAnnotation, msMsScan, matchedFragments, lipidChain,
+           ionizedFragmentFormula);
+@@ -335,9 +339,10 @@ private void addMatchedChainFragment(LipidFragmentationRule rule,
+   }
+ 
+   @NotNull
+-  protected List<LipidFragment> findChainMinusFormulaFragmentNL(LipidFragmentationRule rule,
+-      ILipidAnnotation lipidAnnotation, Scan msMsScan, LipidChainType chainType) {
+-    IMolecularFormula modificationFormula = FormulaUtils.createMajorIsotopeMolFormulaWithCharge(
++  protected List<LipidFragment> findChainMinusFormulaFragmentNL(
++      final @NotNull LipidFragmentationRule rule, final @NotNull ILipidAnnotation lipidAnnotation,
++      final @NotNull Scan msMsScan, final @NotNull LipidChainType chainType) {
++    final IMolecularFormula modificationFormula = FormulaUtils.createMajorIsotopeMolFormulaWithCharge(
+         rule.getMolecularFormula());
+     final List<ILipidChain> chains = LIPID_CHAIN_FACTORY.buildLipidChainsInRange(chainType,
+         minChainLength, maxChainLength, minDoubleBonds, maxDoubleBonds, onlySearchForEvenChains);
+@@ -350,14 +355,18 @@ protected List<LipidFragment> findChainMinusFormulaFragmentNL(LipidFragmentation
+         throw new RuntimeException(e);
+       }
+       rule.getIonizationType().ionizeFormula(lipidFormula);
+-      final IMolecularFormula lipidChainFormula = FormulaUtils.cloneFormula(
+-          lipidChain.getChainMolecularFormula());
+-      final IMolecularFormula fragmentFormula = FormulaUtils.subtractFormula(lipidChainFormula,
+-          modificationFormula);
+-      final IMolecularFormula lipidMinusFragmentFormula = FormulaUtils.subtractFormula(lipidFormula,
+-          fragmentFormula);
++      final Optional<IMolecularFormula> fragmentFormula = FormulaUtils.subtractFormulaIfPossible(
++          lipidChain.getChainMolecularFormula(), modificationFormula);
++      if (fragmentFormula.isEmpty()) {
++        continue;
++      }
++      final Optional<IMolecularFormula> lipidMinusFragmentFormula = FormulaUtils.subtractFormulaIfPossible(
++          lipidFormula, fragmentFormula.get());
++      if (lipidMinusFragmentFormula.isEmpty()) {
++        continue;
++      }
+       addMatchedChainFragment(rule, lipidAnnotation, msMsScan, matchedFragments, lipidChain,
+-          lipidMinusFragmentFormula);
++          lipidMinusFragmentFormula.get());
+     }
+     return matchedFragments;
+   }
+@@ -444,22 +453,22 @@ protected List<LipidFragment> findChainFragmentNL(LipidFragmentationRule rule,
+         throw new RuntimeException(e);
+       }
+       rule.getIonizationType().ionizeFormula(lipidFormula);
+-      final IMolecularFormula lipidChainFormula = lipidChain.getChainMolecularFormula();
+-      if (!FormulaUtils.canSubtractFormula(lipidFormula, lipidChainFormula)) {
++      final Optional<IMolecularFormula> fragmentFormula = FormulaUtils.subtractFormulaIfPossible(
++          lipidFormula, lipidChain.getChainMolecularFormula());
++      if (fragmentFormula.isEmpty()) {
+         continue;
+       }
+-      final IMolecularFormula fragmentFormula = FormulaUtils.subtractFormula(lipidFormula,
+-          lipidChainFormula);
+       addMatchedChainFragment(rule, lipidAnnotation, msMsScan, matchedFragments, lipidChain,
+-          fragmentFormula);
++          fragmentFormula.get());
+     }
+     return matchedFragments;
+   }
+ 
+   @NotNull
+-  protected List<LipidFragment> findChainPlusFormulaFragmentNL(LipidFragmentationRule rule,
+-      ILipidAnnotation lipidAnnotation, Scan msMsScan, LipidChainType lipidChainType) {
+-    IMolecularFormula modificationFormula = FormulaUtils.createMajorIsotopeMolFormulaWithCharge(
++  protected List<LipidFragment> findChainPlusFormulaFragmentNL(
++      final @NotNull LipidFragmentationRule rule, final @NotNull ILipidAnnotation lipidAnnotation,
++      final @NotNull Scan msMsScan, final @NotNull LipidChainType lipidChainType) {
++    final IMolecularFormula modificationFormula = FormulaUtils.createMajorIsotopeMolFormulaWithCharge(
+         rule.getMolecularFormula());
+     final List<ILipidChain> chains = LIPID_CHAIN_FACTORY.buildLipidChainsInRange(lipidChainType,
+         minChainLength, maxChainLength, minDoubleBonds, maxDoubleBonds, onlySearchForEvenChains);
+@@ -476,12 +485,13 @@ protected List<LipidFragment> findChainPlusFormulaFragmentNL(LipidFragmentationR
+           lipidChain.getChainMolecularFormula());
+       final IMolecularFormula fragmentFormula = FormulaUtils.addFormula(lipidChainFormula,
+           modificationFormula);
+-      // Keep legacy behavior for plus-formula neutral-loss rules:
+-      // subtracting an over-specified loss formula is allowed and clipped by subtractFormula.
+-      final IMolecularFormula lipidMinusFragmentFormula = FormulaUtils.subtractFormula(lipidFormula,
+-          fragmentFormula);
++      final Optional<IMolecularFormula> lipidMinusFragmentFormula = FormulaUtils.subtractFormulaIfPossible(
++          lipidFormula, fragmentFormula);
++      if (lipidMinusFragmentFormula.isEmpty()) {
++        continue;
++      }
+       addMatchedChainFragment(rule, lipidAnnotation, msMsScan, matchedFragments, lipidChain,
+-          lipidMinusFragmentFormula);
++          lipidMinusFragmentFormula.get());
+     }
+     return matchedFragments;
+   }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/scoring/LipidQcScoringUtils.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/scoring/LipidQcScoringUtils.java
+index 60a9a44efd6..bcd7359f846 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/scoring/LipidQcScoringUtils.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/scoring/LipidQcScoringUtils.java
+@@ -1064,6 +1064,25 @@ public static void computeAndStoreOverallQualityScores(
+     }
+   }
+ 
++  /**
++   * Removes lipid annotations below a previously computed overall quality score threshold.
++   * <p>
++   * This method must only be called after scores for the complete feature list have been computed.
++   * Context-dependent scores such as elution order must be frozen before any annotations are
++   * removed, otherwise the result depends on row processing order.
++   */
++  public static void filterLipidAnnotationsByOverallQualityScore(
++      final @NotNull FeatureListRow row, final double minimumOverallQualityScore) {
++    final float minimumScore = (float) clampToUnit(minimumOverallQualityScore);
++    if (minimumScore <= 0f) {
++      return;
++    }
++    row.setLipidAnnotations(row.getLipidMatches().stream().filter(match -> {
++      final Float score = match.getOverallQualityScore();
++      return score != null && Float.compare(score, minimumScore) >= 0;
++    }).toList());
++  }
++
+   public static void sortLipidAnnotationsByOverallScore(@NotNull final FeatureListRow row) {
+     row.setLipidAnnotations(row.getLipidMatches().stream().sorted(
+             Comparator.comparing(MatchedLipid::getOverallQualityScore, Comparators.scoreDescending()))
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/utils/LipidAnnotationResolver.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/utils/LipidAnnotationResolver.java
+index 61473ae71b7..3a40676687c 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/utils/LipidAnnotationResolver.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/utils/LipidAnnotationResolver.java
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright (c) 2004-2026 The mzmine Development Team
++ *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+  * files (the "Software"), to deal in the Software without
+@@ -62,6 +63,8 @@
+  */
+ public class LipidAnnotationResolver {
+ 
++  private static final double NO_MINIMUM_QUALITY_FILTER = 0d;
++
+   private final boolean keepIsobars;
+   private final boolean keepIsomers;
+   private final boolean includeMs2Score;
+@@ -79,7 +82,14 @@ public LipidAnnotationResolver(final boolean keepIsobars, final boolean keepIsom
+ 
+   public LipidAnnotationResolver(final boolean keepIsobars, final boolean keepIsomers,
+       final boolean includeMs2Score, final boolean includeElutionOrderScore) {
+-    this(keepIsobars, keepIsomers, includeMs2Score, includeElutionOrderScore, 0d, null);
++    this(keepIsobars, keepIsomers, includeMs2Score, includeElutionOrderScore,
++        NO_MINIMUM_QUALITY_FILTER, null);
++  }
++
++  public static @NotNull LipidAnnotationResolver forCandidateCollection(
++      final boolean includeMs2Score, final @Nullable MZTolerance mzToleranceMS1) {
++    return new LipidAnnotationResolver(true, true, includeMs2Score, false,
++        NO_MINIMUM_QUALITY_FILTER, null, null, mzToleranceMS1);
+   }
+ 
+   public LipidAnnotationResolver(final boolean keepIsobars, final boolean keepIsomers,
+@@ -129,7 +139,8 @@ public LipidAnnotationResolver(final boolean keepIsobars, final boolean keepIsom
+   public LipidAnnotationResolver(final boolean keepIsobars, final boolean keepIsomers,
+       final int maximumIdNumber, final boolean includeMs2Score,
+       final boolean includeElutionOrderScore) {
+-    this(keepIsobars, keepIsomers, includeMs2Score, includeElutionOrderScore, 0d, null);
++    this(keepIsobars, keepIsomers, includeMs2Score, includeElutionOrderScore,
++        NO_MINIMUM_QUALITY_FILTER, null);
+     this.maximumIdNumber = maximumIdNumber;
+   }
+ 
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/dash_lipidqc/quality/AnnotationQualityInteractor.java b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/dash_lipidqc/quality/AnnotationQualityInteractor.java
+index 8803fcfa1e0..74dfcce1f06 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/dash_lipidqc/quality/AnnotationQualityInteractor.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/dash_lipidqc/quality/AnnotationQualityInteractor.java
+@@ -106,11 +106,8 @@ void addFalseNegativeCandidate(final @NotNull KendrickFalseNegativeCandidate can
+     final @NotNull ModularFeatureList featureList = model.getFeatureList();
+     final Set<MatchedLipid> annotationsToAdd = new HashSet<>();
+     annotationsToAdd.add(candidate.match());
+-    final LipidAnalysisType analysisType = Objects.requireNonNullElse(
+-        LipidQcScoringUtils.detectLipidAnalysisType(featureList),
+-        LipidAnalysisType.LC_REVERSED_PHASE);
+-    LipidAnnotationUtils.addAnnotationsToFeatureList(row, annotationsToAdd, analysisType, false, 0d,
+-        null, LipidQcScoringUtils.detectMs1Tolerance(featureList));
++    LipidAnnotationUtils.addCandidateAnnotationsToFeatureList(row, annotationsToAdd, false,
++        LipidQcScoringUtils.detectMs1Tolerance(featureList));
+     controller.refreshAfterAnnotationDelete(row);
+   }
+ 
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/util/FormulaUtils.java b/mzmine-community/src/main/java/io/github/mzmine/util/FormulaUtils.java
+index 68adeeba4b6..dbea3075d64 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/util/FormulaUtils.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/util/FormulaUtils.java
+@@ -49,10 +49,9 @@
+ import java.util.ArrayList;
+ import java.util.Arrays;
+ import java.util.Comparator;
+-import java.util.HashSet;
+ import java.util.List;
+ import java.util.Objects;
+-import java.util.Set;
++import java.util.Optional;
+ import java.util.logging.Level;
+ import java.util.logging.Logger;
+ import org.jetbrains.annotations.NotNull;
+@@ -706,6 +705,29 @@ public static IMolecularFormula subtractFormula(IMolecularFormula result, IMolec
+     return result;
+   }
+ 
++  /**
++   * Subtracts {@code sub} from a clone of {@code result}, or returns an empty optional if the
++   * subtraction would require more atoms of an element than are available.
++   * <p>
++   * Isotope removal follows the same rules as {@link #subtractFormula(IMolecularFormula,
++   * IMolecularFormula)}: an isotope with a defined mass number is removed exactly first and then
++   * falls back to another isotope of the same element. Neither input formula is modified.
++   */
++  public static @NotNull Optional<IMolecularFormula> subtractFormulaIfPossible(
++      final @Nullable IMolecularFormula result, final @Nullable IMolecularFormula sub) {
++    if (result == null || sub == null) {
++      return Optional.empty();
++    }
++
++    for (final IIsotope isotopeToRemove : sub.isotopes()) {
++      final String element = isotopeToRemove.getSymbol();
++      if (countElement(result, element) < countElement(sub, element)) {
++        return Optional.empty();
++      }
++    }
++    return Optional.of(subtractFormula(result, sub, 1, true));
++  }
++
+   /**
+    *
+    * @param result                        the resulting formula
+@@ -838,31 +860,6 @@ public static IMolecularFormula addFormula(IMolecularFormula result, IMolecularF
+     return result;
+   }
+ 
+-  /**
+-   * Checks if {@code sub} can be subtracted from {@code result} without creating negative element
+-   * counts.
+-   */
+-  public static boolean canSubtractFormula(@Nullable final IMolecularFormula result,
+-      @Nullable final IMolecularFormula sub) {
+-    if (result == null || sub == null) {
+-      return false;
+-    }
+-
+-    final Set<String> handledSymbols = new HashSet<>();
+-    for (final IIsotope isotope : sub.isotopes()) {
+-      final String symbol = isotope.getSymbol();
+-      if (!handledSymbols.add(symbol)) {
+-        continue;
+-      }
+-      final int required = countElement(sub, symbol);
+-      final int available = countElement(result, symbol);
+-      if (available < required) {
+-        return false;
+-      }
+-    }
+-    return true;
+-  }
+-
+   /**
+    * Compare to IIsotope only by element symbol. If they are the same element even if different
+    * massNumbers (isotopes) then still true.
+diff --git a/mzmine-community/src/test/java/util/lipidannotationtest/LipidAnnotationMsMsTestSpectra.java b/mzmine-community/src/test/java/util/lipidannotationtest/LipidAnnotationMsMsTestSpectra.java
+index 91e32d1e40e..6484ac6d7b2 100644
+--- a/mzmine-community/src/test/java/util/lipidannotationtest/LipidAnnotationMsMsTestSpectra.java
++++ b/mzmine-community/src/test/java/util/lipidannotationtest/LipidAnnotationMsMsTestSpectra.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2022 The MZmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -120,6 +120,16 @@ public LipidAnnotationMsMsTestResource getTG_16_O_18_2_22_6MPlusNH4() {
+     return TG_16_O_18_2_22_6MPlusNH4;
+   }
+ 
++  private final LipidAnnotationMsMsTestResource TG_18_1_18_2_22_0MPlusNH4 = new LipidAnnotationMsMsTestResource(
++      new double[]{958.8790173626105, 601.5175701185358, 661.6125261487455, 659.5964404653499}, //
++      IonizationType.AMMONIUM, //
++      LIPID_FACTORY.buildMolecularSpeciesLevelLipid(LipidClasses.TRIACYLGLYCEROLS,
++          new int[]{18, 18, 22}, new int[]{1, 2, 0}, new int[]{0, 0, 0}));
++
++  public LipidAnnotationMsMsTestResource getTG_18_1_18_2_22_0MPlusNH4() {
++    return TG_18_1_18_2_22_0MPlusNH4;
++  }
++
+   private final LipidAnnotationMsMsTestResource TG_16_O_18_2_22_6MPlusNa = new LipidAnnotationMsMsTestResource(
+       new double[]{669.485, 645.477, 597.485}, //
+       IonizationType.SODIUM, //
+diff --git a/mzmine-community/src/test/java/util/lipidannotationtest/LipidAnnotationTest.java b/mzmine-community/src/test/java/util/lipidannotationtest/LipidAnnotationTest.java
+index d0642b7e735..2830aeca5b3 100644
+--- a/mzmine-community/src/test/java/util/lipidannotationtest/LipidAnnotationTest.java
++++ b/mzmine-community/src/test/java/util/lipidannotationtest/LipidAnnotationTest.java
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright (c) 2004-2026 The mzmine Development Team
++ *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+  * files (the "Software"), to deal in the Software without
+@@ -169,6 +170,26 @@ void msMsRuleTestTG_NH4() {
+     checkLipidAnnotation(testSpectrum);
+   }
+ 
++  @Test
++  void msMsRuleTestTG_18_1_18_2_22_0_NH4() {
++    final LipidAnnotationMsMsTestResource testSpectrum = MSMS_TEST_SPECTRA.getTG_18_1_18_2_22_0MPlusNH4();
++    checkLipidAnnotation(testSpectrum);
++
++    final MolecularSpeciesLevelAnnotation expected = (MolecularSpeciesLevelAnnotation) testSpectrum.getTestLipid();
++    final SpeciesLevelAnnotation speciesLevel = convertMolecularSpeciesLevelToSpeciesLevel(
++        expected);
++    final Set<LipidFragment> fragments = findAnnotatedFragments(testSpectrum, speciesLevel);
++    final MassList massList = convertTestSpectrumToDataPoints(testSpectrum);
++    final MZTolerance mzTolerance = new MZTolerance(0.01, 5);
++    final Set<MatchedLipid> matches = new GlyceroAndPhosphoMolecularSpeciesLevelMatchedLipidFactory().predictMolecularSpeciesLevelMatches(
++        fragments, speciesLevel, 958.8790173626105, massList.getDataPoints(), 0d, mzTolerance,
++        testSpectrum.getIonizationType());
++
++    Assertions.assertTrue(matches.stream().anyMatch(
++            match -> match.getLipidAnnotation().getAnnotation().equals(expected.getAnnotation())),
++        "The valid TG 18:1_18:2_22:0 neutral-loss fragments must retain the target annotation.");
++  }
++
+   @Test
+   void msMsRuleTestTG_Na() {
+     LipidAnnotationMsMsTestResource testSpectrum = MSMS_TEST_SPECTRA.getTG_16_O_18_2_22_6MPlusNa();

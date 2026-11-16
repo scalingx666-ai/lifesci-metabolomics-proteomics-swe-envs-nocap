@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-784"
+description = "Remove custom chain method"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "0569be08cc80883b5a1ea453ffe52525cc534b35"
+reference = "https://github.com/matchms/matchms/pull/784"
+source_access = "auto"
+built_at = "2026-11-16T12:55:00.164217+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e5bf76653b6a6176a86445ff951dc1b7709c39541edb6343b8ca26ec49a905c6"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-03-27T11:32:37Z"
+diff_format = "unified"
+context_files = [
+    "matchms/importing/load_spectra.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 9
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

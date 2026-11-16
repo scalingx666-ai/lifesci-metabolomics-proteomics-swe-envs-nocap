@@ -1,0 +1,73 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-1016"
+description = "expand topk implementation to Cosine"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "e007f4a597305d86bc15f751a66a1276143994c7"
+reference = "https://github.com/matchms/matchms/pull/1016"
+source_access = "auto"
+built_at = "2026-11-16T12:51:04.367770+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:4c9a1f9d205199ac63c3d8639ab4072af9ce8189fa7f5672dff170d696ab2ae7"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-09T16:54:01Z"
+diff_format = "unified"
+context_files = [
+    "matchms/similarity/_entropy_search_topk.py",
+    "matchms/similarity/_flash_cosine.py",
+    "matchms/similarity/_flash_cosine_topk.py",
+    "matchms/similarity/_flash_entropy.py",
+    "matchms/similarity/_flash_entropy_topk.py",
+    "matchms/similarity/_flash_prepared.py",
+    "matchms/similarity/_flash_tolerance.py",
+    "matchms/similarity/_flash_topk_common.py",
+    "matchms/similarity/flash_similarity.py",
+    "matchms/similarity/topk_results.py",
+    "tests/similarity/test_flash_cosine_topk.py",
+    "tests/similarity/test_flash_entropy_topk.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 2502
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

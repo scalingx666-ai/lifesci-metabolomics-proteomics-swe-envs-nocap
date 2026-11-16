@@ -1,0 +1,490 @@
+diff --git a/gget/__init__.py b/gget/__init__.py
+index f51f68dd5..1146df318 100644
+--- a/gget/__init__.py
++++ b/gget/__init__.py
+@@ -18,6 +18,6 @@
+ # Mute numexpr threads info
+ logging.getLogger("numexpr").setLevel(logging.WARNING)
+ 
+-__version__ = "0.2.5"
++__version__ = "0.2.6"
+ __author__ = "Laura Luebbert"
+ __email__ = "lauraluebbert@caltech.edu"
+diff --git a/gget/constants.py b/gget/constants.py
+index c6469beaf..6b2b18aa3 100644
+--- a/gget/constants.py
++++ b/gget/constants.py
+@@ -3,6 +3,7 @@
+ # Ensembl REST API server for gget seq and info
+ ENSEMBL_REST_API = "http://rest.ensembl.org/"
+ ENSEMBL_FTP_URL = "http://ftp.ensembl.org/pub/"
++ENSEMBL_FTP_URL_PLANT = "http://ftp.ensemblgenomes.org/pub/plants/"
+ 
+ # NCBI URL for gget info
+ NCBI_URL = "https://www.ncbi.nlm.nih.gov"
+diff --git a/gget/gget_ref.py b/gget/gget_ref.py
+index e989186bc..c7ad9df97 100644
+--- a/gget/gget_ref.py
++++ b/gget/gget_ref.py
+@@ -17,12 +17,12 @@
+ # Custom functions
+ from .utils import ref_species_options, find_latest_ens_rel
+ 
+-from .constants import ENSEMBL_FTP_URL
++from .constants import ENSEMBL_FTP_URL, ENSEMBL_FTP_URL_PLANT
+ 
+ 
+ def ref(species, which="all", release=None, ftp=False, save=False, list_species=False):
+     """
+-    Fetch FTPs for reference genomes and annotations by species.
++    Fetch FTPs for reference genomes and annotations by species from Ensembl.
+ 
+     Args:
+     - species       Defines the species for which the reference should be fetched in the format "<genus>_<species>",
+@@ -42,7 +42,8 @@ def ref(species, which="all", release=None, ftp=False, save=False, list_species=
+     - ftp           Return only the requested FTP links in a list (default: False).
+     - save          Save the results in the local directory (default: False).
+ 
+-    - list_species  If True and `species=None`, returns a list of all available species (default: False).
++    - list_species  If True and `species=None`, returns a list of all available species from the Ensembl database for large genomes
++                    (not including plants/bacteria) (default: False).
+                     (Can be combined with `release` to get the available species from a specific Ensembl release.)
+ 
+     Returns a dictionary containing the requested URLs with their respective Ensembl version and release date and time.
+@@ -81,26 +82,17 @@ def ref(species, which="all", release=None, ftp=False, save=False, list_species=
+     # In case species was passed with upper case letters
+     species = species.lower()
+ 
+-    ## Find latest Ensembl release
+-    url = ENSEMBL_FTP_URL
+-    html = requests.get(url)
+-
+-    # Raise error if status code not "OK" Response
+-    if html.status_code != 200:
+-        raise RuntimeError(
+-            f"Ensembl FTP site returned error status code {html.status_code}. Please try again."
+-        )
+-
+-    soup = BeautifulSoup(html.text, "html.parser")
+-    # Find all releases
+-    releases = soup.body.findAll(text=re.compile("release-"))
+-    # Get release numbers
+-    rels = []
+-    for rel in releases:
+-        rels.append(rel.split("/")[0].split("-")[-1])
++    ## For plants and bacteria, switch to other databases
++    # Check if species in plant or bacteria Ensembl database
++    if species in ref_species_options(
++        "dna", database=ENSEMBL_FTP_URL_PLANT, release=None
++    ):
++        database = ENSEMBL_FTP_URL_PLANT
++    else:
++        database = ENSEMBL_FTP_URL
+ 
+-    # Find highest release number (= latest release)
+-    ENS_rel = np.array(rels).astype(int).max()
++    ## Find latest Ensembl release
++    ENS_rel = find_latest_ens_rel(database)
+ 
+     # If release != None, use user-defined Ensembl release
+     if release != None:
+@@ -114,9 +106,9 @@ def ref(species, which="all", release=None, ftp=False, save=False, list_species=
+ 
+     ## Raise error if species not found
+     # Find all available species for GTFs for this Ensembl release
+-    species_list_gtf = ref_species_options("gtf", release=ENS_rel)
++    species_list_gtf = ref_species_options("gtf", database=database, release=ENS_rel)
+     # Find all available species for FASTAs for this Ensembl release
+-    species_list_dna = ref_species_options("dna", release=ENS_rel)
++    species_list_dna = ref_species_options("dna", database=database, release=ENS_rel)
+ 
+     # Find intersection of the two lists
+     # (Only species which have GTF and FASTAs available can continue)
+@@ -126,12 +118,12 @@ def ref(species, which="all", release=None, ftp=False, save=False, list_species=
+         raise ValueError(
+             f"Species does not match any available species for Ensembl release {ENS_rel}.\n"
+             "Please double-check spelling.\n"
+-            "'gget ref --list' -> lists out all available species (Python: 'gget.ref(None, list_species=True)').\n"
++            "'gget ref --list_species' -> lists out all available species (Python: 'gget.ref(None, list_species=True)').\n"
+             "Combine with `release` argument to define specific Ensembl release (default: latest).\n"
+         )
+ 
+     ## Get GTF link for this species and release
+-    url = ENSEMBL_FTP_URL + f"release-{ENS_rel}/gtf/{species}/"
++    url = database + f"release-{ENS_rel}/gtf/{species}/"
+     html = requests.get(url)
+ 
+     # Raise error if status code not "OK" Response
+@@ -160,13 +152,13 @@ def ref(species, which="all", release=None, ftp=False, save=False, list_species=
+             # Get release date and time from <None> elements (since there are twice as many, 2x and +1 to move from string to date)
+             gtf_date_size = nones[i * 2 + 1]
+ 
+-    gtf_url = ENSEMBL_FTP_URL + f"release-{ENS_rel}/gtf/{species}/{gtf_str['href']}"
++    gtf_url = database + f"release-{ENS_rel}/gtf/{species}/{gtf_str['href']}"
+ 
+     gtf_date = gtf_date_size.strip().split("  ")[0]
+     gtf_size = gtf_date_size.strip().split("  ")[-1]
+ 
+     ## Get cDNA FASTA link for this species and release
+-    url = ENSEMBL_FTP_URL + f"release-{ENS_rel}/fasta/{species}/cdna"
++    url = database + f"release-{ENS_rel}/fasta/{species}/cdna"
+     html = requests.get(url)
+ 
+     # Raise error if status code not "OK" Response
+@@ -195,15 +187,13 @@ def ref(species, which="all", release=None, ftp=False, save=False, list_species=
+             # Get release date and time from <None> elements (since there are twice as many, 2x and +1 to move from string to date)
+             cdna_date_size = nones[i * 2 + 1]
+ 
+-    cdna_url = (
+-        ENSEMBL_FTP_URL + f"release-{ENS_rel}/fasta/{species}/cdna/{cdna_str['href']}"
+-    )
++    cdna_url = database + f"release-{ENS_rel}/fasta/{species}/cdna/{cdna_str['href']}"
+ 
+     cdna_date = cdna_date_size.strip().split("  ")[0]
+     cdna_size = cdna_date_size.strip().split("  ")[-1]
+ 
+     ## Get DNA FASTA link for this species and release
+-    url = ENSEMBL_FTP_URL + f"release-{ENS_rel}/fasta/{species}/dna"
++    url = database + f"release-{ENS_rel}/fasta/{species}/dna"
+     html = requests.get(url)
+ 
+     # Raise error if status code not "OK" Response
+@@ -242,9 +232,7 @@ def ref(species, which="all", release=None, ftp=False, save=False, list_species=
+                 # Get date from non-assigned values (since there are twice as many, 2x and +1 to move from string to date)
+                 dna_date_size = nones[i * 2 + 1]
+ 
+-    dna_url = (
+-        ENSEMBL_FTP_URL + f"release-{ENS_rel}/fasta/{species}/dna/{dna_str['href']}"
+-    )
++    dna_url = database + f"release-{ENS_rel}/fasta/{species}/dna/{dna_str['href']}"
+ 
+     dna_date = dna_date_size.strip().split("  ")[0]
+     dna_size = dna_date_size.strip().split("  ")[-1]
+@@ -253,7 +241,7 @@ def ref(species, which="all", release=None, ftp=False, save=False, list_species=
+     dna_size = dna_size.strip()
+ 
+     ## Get CDS FASTA link for this species and release
+-    url = ENSEMBL_FTP_URL + f"release-{ENS_rel}/fasta/{species}/cds"
++    url = database + f"release-{ENS_rel}/fasta/{species}/cds"
+     html = requests.get(url)
+ 
+     # Raise error if status code not "OK" Response
+@@ -282,52 +270,52 @@ def ref(species, which="all", release=None, ftp=False, save=False, list_species=
+             # Get release date and time from <None> elements (since there are twice as many, 2x and +1 to move from string to date)
+             cds_date_size = nones[i * 2 + 1]
+ 
+-    cds_url = (
+-        ENSEMBL_FTP_URL + f"release-{ENS_rel}/fasta/{species}/cds/{cds_str['href']}"
+-    )
++    cds_url = database + f"release-{ENS_rel}/fasta/{species}/cds/{cds_str['href']}"
+ 
+     cds_date = cds_date_size.strip().split("  ")[0]
+     cds_size = cds_date_size.strip().split("  ")[-1]
+ 
+-    ## Get ncRNA FASTA link for this species and release
+-    url = ENSEMBL_FTP_URL + f"release-{ENS_rel}/fasta/{species}/ncrna"
++    ## Get ncRNA FASTA link for this species and release (if available)
++    url = database + f"release-{ENS_rel}/fasta/{species}/ncrna"
+     html = requests.get(url)
+ 
+-    # Raise error if status code not "OK" Response
+-    if html.status_code != 200:
+-        raise RuntimeError(
+-            f"HTTP response status code {html.status_code}. Please try again.\n"
+-        )
+-
+-    soup = BeautifulSoup(html.text, "html.parser")
+-
+-    # The url can be found under an <a> object tag in the html,
+-    # but the date and size do not have an object tag (element=None)
+-    nones = []
+-    a_elements = []
+-    pre = soup.find("pre")
+-    for element in pre.descendants:
+-        if element.name == "a":
+-            a_elements.append(element)
+-        elif element.name != "a":
+-            nones.append(element)
++    # If ncRNA data is not available, HTML requests returns an error code (!= 200)
++    if html.status_code == 200:
++        soup = BeautifulSoup(html.text, "html.parser")
++
++        # The url can be found under an <a> object tag in the html,
++        # but the date and size do not have an object tag (element=None)
++        nones = []
++        a_elements = []
++        pre = soup.find("pre")
++        for element in pre.descendants:
++            if element.name == "a":
++                a_elements.append(element)
++            elif element.name != "a":
++                nones.append(element)
++
++        # Find the <a> element containing the url
++        for i, string in enumerate(a_elements):
++            if ".ncrna.fa" in string["href"]:
++                ncrna_str = string
++                # Get release date and time from <None> elements (since there are twice as many, 2x and +1 to move from string to date)
++                ncrna_date_size = nones[i * 2 + 1]
+ 
+-    # Find the <a> element containing the url
+-    for i, string in enumerate(a_elements):
+-        if ".ncrna.fa" in string["href"]:
+-            ncrna_str = string
+-            # Get release date and time from <None> elements (since there are twice as many, 2x and +1 to move from string to date)
+-            ncrna_date_size = nones[i * 2 + 1]
++        ncrna_url = (
++            database + f"release-{ENS_rel}/fasta/{species}/ncrna/{ncrna_str['href']}"
++        )
+ 
+-    ncrna_url = (
+-        ENSEMBL_FTP_URL + f"release-{ENS_rel}/fasta/{species}/ncrna/{ncrna_str['href']}"
+-    )
++        ncrna_date = ncrna_date_size.strip().split("  ")[0]
++        ncrna_size = ncrna_date_size.strip().split("  ")[-1]
+ 
+-    ncrna_date = ncrna_date_size.strip().split("  ")[0]
+-    ncrna_size = ncrna_date_size.strip().split("  ")[-1]
++    # If the HTML request returned an error code here, I will assume that ncRNA data is not available
++    else:
++        ncrna_url = ""
++        ncrna_date = " "
++        ncrna_size = ""
+ 
+     ## Get pep FASTA link for this species and release
+-    url = ENSEMBL_FTP_URL + f"release-{ENS_rel}/fasta/{species}/pep"
++    url = database + f"release-{ENS_rel}/fasta/{species}/pep"
+     html = requests.get(url)
+ 
+     # Raise error if status code not "OK" Response
+@@ -356,9 +344,7 @@ def ref(species, which="all", release=None, ftp=False, save=False, list_species=
+             # Get release date and time from <None> elements (since there are twice as many, 2x and +1 to move from string to date)
+             pep_date_size = nones[i * 2 + 1]
+ 
+-    pep_url = (
+-        ENSEMBL_FTP_URL + f"release-{ENS_rel}/fasta/{species}/pep/{pep_str['href']}"
+-    )
++    pep_url = database + f"release-{ENS_rel}/fasta/{species}/pep/{pep_str['href']}"
+ 
+     pep_date = pep_date_size.strip().split("  ")[0]
+     pep_size = pep_date_size.strip().split("  ")[-1]
+diff --git a/gget/main.py b/gget/main.py
+index 682ce60d1..5049dc371 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -72,7 +72,7 @@ def main():
+         required=False,
+         help=(
+             """
+-            List all available species. 
++            List all available species from the Ensembl database for large genomes (not including plants/bacteria). 
+             (Combine with `--release` to get the available species from a specific Ensembl release.)
+             """
+         ),
+diff --git a/gget/utils.py b/gget/utils.py
+index cfaf9b628..5c4ab3345 100644
+--- a/gget/utils.py
++++ b/gget/utils.py
+@@ -409,12 +409,14 @@ def rest_query(server, query, content_type):
+         return r.text
+ 
+ 
+-def find_latest_ens_rel():
++def find_latest_ens_rel(database=ENSEMBL_FTP_URL):
+     """
+     Returns the latest Ensembl release number.
++
++    Args:
++    - database    Link to Ensembl database.
+     """
+-    url = ENSEMBL_FTP_URL
+-    html = requests.get(url)
++    html = requests.get(database)
+ 
+     # Raise error if status code not "OK" Response
+     if html.status_code != 200:
+@@ -480,18 +482,19 @@ def gget_species_options(release=None):
+     return databases
+ 
+ 
+-def ref_species_options(which, release=None):
++def ref_species_options(which, database=ENSEMBL_FTP_URL, release=None):
+     """
+     Function to find all available species for gget ref.
+ 
+     Args:
+     - which     Which type of FTP. Possible entries: 'dna', 'cdna', 'gtf'.
++    - database  Link to Ensembl database.
+     - release   Ensembl release for which available species should be fetched.
+ 
+     Returns list of available species.
+     """
+     # Find latest Ensembl release
+-    ENS_rel = find_latest_ens_rel()
++    ENS_rel = find_latest_ens_rel(database)
+ 
+     # If release != None, use user-defined Ensembl release
+     if release != None:
+@@ -505,9 +508,9 @@ def ref_species_options(which, release=None):
+ 
+     # Find all available species for this release and FTP type
+     if which == "gtf":
+-        url = ENSEMBL_FTP_URL + f"release-{ENS_rel}/gtf/"
++        url = database + f"release-{ENS_rel}/gtf/"
+     if which == "dna" or which == "cdna":
+-        url = ENSEMBL_FTP_URL + f"release-{ENS_rel}/fasta/"
++        url = database + f"release-{ENS_rel}/fasta/"
+     html = requests.get(url)
+ 
+     # Raise error if status code not "OK" Response
+diff --git a/tests/test_gget_ref.py b/tests/test_gget_ref.py
+index 0d4053580..6f6e9cc01 100644
+--- a/tests/test_gget_ref.py
++++ b/tests/test_gget_ref.py
+@@ -144,6 +144,133 @@ def test_ref_ftp(self):
+ 
+         self.assertEqual(result_to_test, expected_result)
+ 
++    def test_ref_plant(self):
++        result_to_test = ref("actinidia_chinensis", which="all", release=53, ftp=False)
++        expected_result = {
++            "actinidia_chinensis": {
++                "transcriptome_cdna": {
++                    "ftp": "http://ftp.ensemblgenomes.org/pub/plants/release-53/fasta/actinidia_chinensis/cdna/Actinidia_chinensis.Red5_PS1_1.69.0.cdna.all.fa.gz",
++                    "ensembl_release": 53,
++                    "release_date": "15-Feb-2022",
++                    "release_time": "12:53",
++                    "bytes": "24825822",
++                },
++                "genome_dna": {
++                    "ftp": "http://ftp.ensemblgenomes.org/pub/plants/release-53/fasta/actinidia_chinensis/dna/Actinidia_chinensis.Red5_PS1_1.69.0.dna.toplevel.fa.gz",
++                    "ensembl_release": 53,
++                    "release_date": "21-Feb-2022",
++                    "release_time": "10:52",
++                    "bytes": "162674673",
++                },
++                "annotation_gtf": {
++                    "ftp": "http://ftp.ensemblgenomes.org/pub/plants/release-53/gtf/actinidia_chinensis/Actinidia_chinensis.Red5_PS1_1.69.0.53.gtf.gz",
++                    "ensembl_release": 53,
++                    "release_date": "17-Feb-2022",
++                    "release_time": "09:13",
++                    "bytes": " 6995087",
++                },
++                "coding_seq_cds": {
++                    "ftp": "http://ftp.ensemblgenomes.org/pub/plants/release-53/fasta/actinidia_chinensis/cds/Actinidia_chinensis.Red5_PS1_1.69.0.cds.all.fa.gz",
++                    "ensembl_release": 53,
++                    "release_date": "15-Feb-2022",
++                    "release_time": "12:53",
++                    "bytes": "15057218",
++                },
++                "non-coding_seq_ncRNA": {
++                    "ftp": "",
++                    "ensembl_release": 53,
++                    "release_date": "",
++                    "release_time": "",
++                    "bytes": "",
++                },
++                "protein_translation_pep": {
++                    "ftp": "http://ftp.ensemblgenomes.org/pub/plants/release-53/fasta/actinidia_chinensis/pep/Actinidia_chinensis.Red5_PS1_1.69.0.pep.all.fa.gz",
++                    "ensembl_release": 53,
++                    "release_date": "15-Feb-2022",
++                    "release_time": "12:53",
++                    "bytes": "10198608",
++                },
++            }
++        }
++
++        self.assertEqual(result_to_test, expected_result)
++
++    def test_ref_which_plant(self):
++        result_to_test = ref(
++            "aegilops_tauschii", which=["gtf", "dna", "pep"], release=53, ftp=False
++        )
++        expected_result = {
++            "aegilops_tauschii": {
++                "annotation_gtf": {
++                    "ftp": "http://ftp.ensemblgenomes.org/pub/plants/release-53/gtf/aegilops_tauschii/Aegilops_tauschii.Aet_v4.0.53.gtf.gz",
++                    "ensembl_release": 53,
++                    "release_date": "27-Feb-2022",
++                    "release_time": "00:58",
++                    "bytes": "41947892",
++                },
++                "genome_dna": {
++                    "ftp": "http://ftp.ensemblgenomes.org/pub/plants/release-53/fasta/aegilops_tauschii/dna/Aegilops_tauschii.Aet_v4.0.dna.toplevel.fa.gz",
++                    "ensembl_release": 53,
++                    "release_date": "21-Feb-2022",
++                    "release_time": "12:17",
++                    "bytes": "1232556912",
++                },
++                "protein_translation_pep": {
++                    "ftp": "http://ftp.ensemblgenomes.org/pub/plants/release-53/fasta/aegilops_tauschii/pep/Aegilops_tauschii.Aet_v4.0.pep.all.fa.gz",
++                    "ensembl_release": 53,
++                    "release_date": "17-Feb-2022",
++                    "release_time": "06:03",
++                    "bytes": "21467359",
++                },
++            }
++        }
++
++        self.assertEqual(result_to_test, expected_result)
++
++    def test_ref_rel_plant(self):
++        result_to_test = ref(
++            "zea_mays", which=["cdna", "dna", "cds"], release=48, ftp=False
++        )
++        expected_result = {
++            "zea_mays": {
++                "transcriptome_cdna": {
++                    "ftp": "http://ftp.ensemblgenomes.org/pub/plants/release-48/fasta/zea_mays/cdna/Zea_mays.B73_RefGen_v4.cdna.all.fa.gz",
++                    "ensembl_release": 48,
++                    "release_date": "10-Jul-2020",
++                    "release_time": "21:24",
++                    "bytes": "55164473",
++                },
++                "genome_dna": {
++                    "ftp": "http://ftp.ensemblgenomes.org/pub/plants/release-48/fasta/zea_mays/dna/Zea_mays.B73_RefGen_v4.dna.toplevel.fa.gz",
++                    "ensembl_release": 48,
++                    "release_date": "10-Jul-2020",
++                    "release_time": "16:48",
++                    "bytes": "631370070",
++                },
++                "coding_seq_cds": {
++                    "ftp": "http://ftp.ensemblgenomes.org/pub/plants/release-48/fasta/zea_mays/cds/Zea_mays.B73_RefGen_v4.cds.all.fa.gz",
++                    "ensembl_release": 48,
++                    "release_date": "10-Jul-2020",
++                    "release_time": "21:24",
++                    "bytes": "26313145",
++                },
++            }
++        }
++
++        self.assertEqual(result_to_test, expected_result)
++
++    def test_ref_rel_ftp_plant(self):
++        result_to_test = ref(
++            "brassica_rapa", which=["gtf", "dna", "pep"], release=51, ftp=True
++        )
++        expected_result = [
++            "http://ftp.ensemblgenomes.org/pub/plants/release-51/gtf/brassica_rapa/Brassica_rapa.Brapa_1.0.51.gtf.gz",
++            "http://ftp.ensemblgenomes.org/pub/plants/release-51/fasta/brassica_rapa/dna/Brassica_rapa.Brapa_1.0.dna.toplevel.fa.gz",
++            "http://ftp.ensemblgenomes.org/pub/plants/release-51/fasta/brassica_rapa/pep/Brassica_rapa.Brapa_1.0.pep.all.fa.gz",
++        ]
++
++        self.assertEqual(result_to_test, expected_result)
++
+     ## Test bad input errors
+     def test_ref_bad_species(self):
+         with self.assertRaises(ValueError):
+diff --git a/tests/test_utils.py b/tests/test_utils.py
+index 980a3920b..9230bea7b 100644
+--- a/tests/test_utils.py
++++ b/tests/test_utils.py
+@@ -141,7 +141,7 @@ def test_gget_species_options_bad_type(self):
+             result = gget_species_options(release=2000)
+ 
+     def test_ref_species_options(self):
+-        result_to_test = ref_species_options("gtf", 105)
++        result_to_test = ref_species_options("gtf", release=105)
+         expected_result = REF_SPECIES_OPTIONS
+ 
+         self.assertEqual(result_to_test, expected_result)

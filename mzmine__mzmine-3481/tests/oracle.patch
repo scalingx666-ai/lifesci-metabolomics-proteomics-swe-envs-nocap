@@ -1,0 +1,250 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_targeted/TargetedFeatureDetectionModuleTask.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_targeted/TargetedFeatureDetectionModuleTask.java
+index 993bf32e150..1ee6d350dbc 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_targeted/TargetedFeatureDetectionModuleTask.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_targeted/TargetedFeatureDetectionModuleTask.java
+@@ -25,6 +25,7 @@
+ package io.github.mzmine.modules.dataprocessing.featdet_targeted;
+ 
+ import com.google.common.collect.Range;
++import io.github.mzmine.datamodel.FeatureStatus;
+ import io.github.mzmine.datamodel.Frame;
+ import io.github.mzmine.datamodel.IMSRawDataFile;
+ import io.github.mzmine.datamodel.MZmineProject;
+@@ -39,10 +40,12 @@
+ import io.github.mzmine.datamodel.data_access.ScanDataAccess;
+ import io.github.mzmine.datamodel.features.FeatureList;
+ import io.github.mzmine.datamodel.features.FeatureListRow;
++import io.github.mzmine.datamodel.features.ModularFeature;
+ import io.github.mzmine.datamodel.features.ModularFeatureList;
+ import io.github.mzmine.datamodel.features.ModularFeatureListRow;
+ import io.github.mzmine.datamodel.features.SimpleFeatureListAppliedMethod;
+ import io.github.mzmine.datamodel.features.compoundannotations.CompoundDBAnnotation;
++import io.github.mzmine.datamodel.features.types.DetectionType;
+ import io.github.mzmine.datamodel.features.types.numbers.MzPpmDifferenceType;
+ import io.github.mzmine.datamodel.features.types.numbers.RtRelativeErrorType;
+ import io.github.mzmine.datamodel.identities.iontype.IonLibrary;
+@@ -153,11 +156,11 @@ public static List<OverlappingCompoundAnnotation> findAndMergeOverlaps(
+         mzTol.getPpmTolerance() * 2);
+ 
+     final List<OverlappingCompoundAnnotation> overlappingCompoundAnnotations = new ArrayList<>();
+-    final List<CompoundDBAnnotation> sortedAnnotations = new ArrayList(annotations);
++    final List<CompoundDBAnnotation> sortedAnnotations = new ArrayList<>(annotations);
+     sortedAnnotations.sort(Comparator.comparingDouble(CompoundDBAnnotation::getPrecursorMZ));
+ 
+     while (!sortedAnnotations.isEmpty()) {
+-      final CompoundDBAnnotation annotation = sortedAnnotations.remove(0);
++      final CompoundDBAnnotation annotation = sortedAnnotations.removeFirst();
+ 
+       final Range<Double> doubleToleranceRange = doubleTolerance.getToleranceRange(
+           annotation.getPrecursorMZ());
+@@ -167,10 +170,6 @@ public static List<OverlappingCompoundAnnotation> findAndMergeOverlaps(
+       final OverlappingCompoundAnnotation overlappingAnnotation = new OverlappingCompoundAnnotation(
+           annotation, mzTol, rtTol, mobTol);
+ 
+-      // check against all remaining annotations
+-      if (sortedAnnotations.isEmpty()) {
+-        continue;
+-      }
+       for (Iterator<CompoundDBAnnotation> iterator = sortedAnnotations.iterator();
+           iterator.hasNext(); ) {
+         final CompoundDBAnnotation sortedAnnotation = iterator.next();
+@@ -287,10 +286,11 @@ public void run() {
+           .sort(Comparator.comparingDouble(a -> a.getScore() != null ? a.getScore() : 0f));
+     }
+ 
++    dataFile.getAppliedMethods().forEach(m -> processedFeatureList.getAppliedMethods().add(m));
++
+     // Append processed feature list to the project
+     project.addFeatureList(processedFeatureList);
+ 
+-    dataFile.getAppliedMethods().forEach(m -> processedFeatureList.getAppliedMethods().add(m));
+     // Add task description to peakList
+     processedFeatureList.addDescriptionOfAppliedTask(
+         new SimpleFeatureListAppliedMethod("Targeted feature detection ",
+@@ -319,13 +319,19 @@ private boolean processImsFile(List<? extends Gap> gaps, IMSRawDataFile imsFile)
+       processedScans++;
+     }
+ 
++    finalizeFeatures(gaps);
++    return true;
++  }
++
++  private void finalizeFeatures(List<? extends Gap> gaps) {
+     for (Gap gap : gaps) {
+       final FeatureListRow row = gap.getFeatureListRow();
+       if (gap.noMoreOffers(minDataPoints)) {
++        ((ModularFeature) row.getFeature(gap.getRawDataFile())).set(DetectionType.class,
++            FeatureStatus.DETECTED);
+         processedFeatureList.addRow(row);
+       }
+     }
+-    return true;
+   }
+ 
+   private boolean processLcmsFile(List<Gap> gaps) {
+@@ -347,13 +353,7 @@ private boolean processLcmsFile(List<Gap> gaps) {
+       processedScans++;
+     }
+ 
+-    for (Gap gap : gaps) {
+-      // Finalize gaps
+-      final FeatureListRow row = gap.getFeatureListRow();
+-      if (gap.noMoreOffers()) {
+-        processedFeatureList.addRow(row);
+-      }
+-    }
++    finalizeFeatures(gaps);
+     return true;
+   }
+ 
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/gapfill_peakfinder/Gap.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/gapfill_peakfinder/Gap.java
+index 9928b5b200e..df8c839dae7 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/gapfill_peakfinder/Gap.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/gapfill_peakfinder/Gap.java
+@@ -352,4 +352,8 @@ protected void checkCurrentPeak() {
+   public FeatureListRow getFeatureListRow() {
+     return featureListRow;
+   }
++
++  public RawDataFile getRawDataFile() {
++    return rawDataFile;
++  }
+ }
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/featdet_targeted/TargetedFeatureDetectionMergeTest.java b/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/featdet_targeted/TargetedFeatureDetectionMergeTest.java
+new file mode 100644
+index 00000000000..9d3aacd6ebf
+--- /dev/null
++++ b/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/featdet_targeted/TargetedFeatureDetectionMergeTest.java
+@@ -0,0 +1,132 @@
++/*
++ * Copyright (c) 2004-2025 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataprocessing.featdet_targeted;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++import static org.junit.jupiter.api.Assertions.assertTrue;
++
++import io.github.mzmine.datamodel.features.compoundannotations.CompoundDBAnnotation;
++import io.github.mzmine.datamodel.features.compoundannotations.SimpleCompoundDBAnnotation;
++import io.github.mzmine.datamodel.features.types.annotations.CompoundNameType;
++import io.github.mzmine.datamodel.features.types.numbers.PrecursorMZType;
++import io.github.mzmine.datamodel.features.types.numbers.RTType;
++import io.github.mzmine.parameters.parametertypes.tolerances.MZTolerance;
++import io.github.mzmine.parameters.parametertypes.tolerances.RTTolerance;
++import io.github.mzmine.parameters.parametertypes.tolerances.RTTolerance.Unit;
++import java.util.List;
++import java.util.stream.Collectors;
++import org.junit.jupiter.api.Test;
++
++class TargetedFeatureDetectionMergeTest {
++
++  private static final MZTolerance MZ_TOL = new MZTolerance(0.005, 5);
++  private static final RTTolerance RT_TOL = new RTTolerance(0.2f, Unit.MINUTES);
++
++  private static CompoundDBAnnotation annotation(String name, double mz, float rt) {
++    final var annotation = new SimpleCompoundDBAnnotation();
++    annotation.put(CompoundNameType.class, name);
++    annotation.put(PrecursorMZType.class, mz);
++    annotation.put(RTType.class, rt);
++    return annotation;
++  }
++
++  private static List<String> names(OverlappingCompoundAnnotation merged) {
++    return merged.getAnnotations().stream().map(CompoundDBAnnotation::getCompoundName)
++        .collect(Collectors.toList());
++  }
++
++  /**
++   * Regression test for issue #3479: a CSV with a single target was dropped during merging, so the
++   * targeted feature detection reported "no annotations remaining" instead of detecting the target.
++   */
++  @Test
++  void singleTargetIsNotDropped() {
++    final List<CompoundDBAnnotation> input = List.of(annotation("ID1", 418.2238, 0.518f));
++
++    final var merged = TargetedFeatureDetectionModuleTask.findAndMergeOverlaps(input, MZ_TOL, RT_TOL,
++        null);
++
++    assertEquals(1, merged.size(), "The single target must be kept.");
++    assertEquals(List.of("ID1"), names(merged.get(0)));
++  }
++
++  /**
++   * The last distinct target of any input list must survive the merge (this was the general form of
++   * the #3479 bug, masked by duplicating the row).
++   */
++  @Test
++  void lastDistinctTargetIsNotDropped() {
++    final List<CompoundDBAnnotation> input = List.of(annotation("low", 200.1000, 1.0f),
++        annotation("mid", 300.1000, 1.0f), annotation("high", 418.2238, 0.518f));
++
++    final var merged = TargetedFeatureDetectionModuleTask.findAndMergeOverlaps(input, MZ_TOL, RT_TOL,
++        null);
++
++    assertEquals(3, merged.size(), "All distinct targets must be kept.");
++    final List<String> keptNames = merged.stream().flatMap(m -> m.getAnnotations().stream())
++        .map(CompoundDBAnnotation::getCompoundName).collect(Collectors.toList());
++    assertTrue(keptNames.containsAll(List.of("low", "mid", "high")));
++  }
++
++  /**
++   * Two targets at the same m/z and RT (the "duplicate" work-around from the bug report) collapse
++   * into a single merged annotation carrying both.
++   */
++  @Test
++  void duplicateTargetsAreMergedIntoOne() {
++    final List<CompoundDBAnnotation> input = List.of(annotation("ID1", 418.2238, 0.518f),
++        annotation("ID1_duplicate", 418.2238, 0.518f));
++
++    final var merged = TargetedFeatureDetectionModuleTask.findAndMergeOverlaps(input, MZ_TOL, RT_TOL,
++        null);
++
++    assertEquals(1, merged.size(), "Overlapping targets must merge into one.");
++    assertEquals(2, merged.get(0).getAnnotations().size(),
++        "Both annotations must be retained in the merged entry.");
++  }
++
++  /**
++   * Targets that share an m/z but are separated in RT beyond the tolerance must stay separate.
++   */
++  @Test
++  void sameMzDifferentRtStaySeparate() {
++    final List<CompoundDBAnnotation> input = List.of(annotation("early", 418.2238, 0.5f),
++        annotation("late", 418.2238, 5.0f));
++
++    final var merged = TargetedFeatureDetectionModuleTask.findAndMergeOverlaps(input, MZ_TOL, RT_TOL,
++        null);
++
++    assertEquals(2, merged.size(), "Targets separated in RT must not be merged.");
++  }
++
++  @Test
++  void emptyInputYieldsEmptyResult() {
++    final var merged = TargetedFeatureDetectionModuleTask.findAndMergeOverlaps(List.of(), MZ_TOL,
++        RT_TOL, null);
++
++    assertTrue(merged.isEmpty());
++  }
++}

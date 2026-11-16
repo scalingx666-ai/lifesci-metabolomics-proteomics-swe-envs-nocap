@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3422"
+description = "fix: mass calculation (#3419)"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "d0b1d783a7010bcba816694740f7863ecd9cdab9"
+reference = "https://github.com/mzmine/mzmine/pull/3422"
+source_access = "auto"
+built_at = "2026-11-16T08:45:53.686835+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:5c174dc594809fc772de065bf25e1cb4c31e8b99f616283ebeb1ab6517a3591b"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-04T17:02:42Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/tools/mzrangecalculator/MzRangeFormulaCalculatorModule.java",
+    "mzmine-community/src/test/java/modules/MzRangeFormulaCalculatorModuleTest.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 14
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,775 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/MsPepSearchCommand.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/MsPepSearchCommand.java
+index efb2a9b840a..47a2d716294 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/MsPepSearchCommand.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/MsPepSearchCommand.java
+@@ -25,6 +25,7 @@
+ 
+ package io.github.mzmine.modules.dataprocessing.id_nist_mspepsearch;
+ 
++import io.github.mzmine.datamodel.PolarityType;
+ import io.github.mzmine.parameters.parametertypes.tolerances.MZTolerance;
+ import io.github.mzmine.parameters.parametertypes.tolerances.SingleMzToleranceParameter;
+ import java.io.File;
+@@ -36,14 +37,24 @@
+ /**
+  * Builds MSPepSearch command lines.
+  * <p>
+- * Two things were established by probing MSPepSearch 0.9.7.5 against a NIST 26 installation and are
+- * load bearing here:
++ * Three things were established by probing MSPepSearch 0.9.7.5 against a NIST 26 installation and
++ * are load bearing here:
+  * <ul>
+  *   <li>{@code /PATH} does not work - combining it with a library name fails with
+  *       "MS Library initiation error -10". Libraries are therefore always passed as absolute
+  *       paths and {@code /PATH} is never emitted.</li>
+  *   <li>The main and replicate libraries only work behind {@code /MAIN} and {@code /REPL}; passing
+  *       either as {@code /LIB} fails with the same error. See {@link NistLibraryKind}.</li>
++ *   <li>{@code /MatchPolarity} needs every query of a run to have the same polarity. A query
++ *       without polarity counts as positive, so queries of unknown polarity are searched without
++ *       the option. And within one query file the polarity of a negative query carries over to the
++ *       positive queries that follow it: with {@code Precursor_type} or {@code Charge}, every
++ *       positive query after the first negative one lost all of its hits, with {@code Ion_mode}
++ *       about half of them. Searched one polarity per run, positive queries keep all their
++ *       same-polarity hits and negative ones lose only those of the other polarity. The EI
++ *       searches behave alike: positive queries keep exactly the hits of an unfiltered search of
++ *       mainlib and replib, which hold only a few negative ion spectra. How the polarity is
++ *       written is in {@link MsPepSearchQueryWriter}.</li>
+  * </ul>
+  * The search options form a single concatenated leading token, in the order the MSPepSearch help
+  * declares them: {@code [{sdfmk}][aijnopqrvx][{uyz}][{leh}][{IQSHLMPGD}]}. Only the presets mzmine
+@@ -91,12 +102,15 @@ private MsPepSearchCommand() {
+    * @param workDir    the MSPepSearch work folder.
+    * @param mwForLoss  the nominal molecular weight for {@code /MwForLoss}, required by the hybrid
+    *                   search and ignored otherwise.
++   * @param polarity   the polarity all queries of this run share. A positive or negative run only
++   *                   returns hits of that polarity; anything else is searched unfiltered.
+    * @return the command, ready for {@link ProcessBuilder}. Every path is a separate element, so
+    * paths containing spaces need no quoting.
+    */
+   static @NotNull List<String> build(@NotNull final NistSearchConfig config,
+       @NotNull final File executable, @NotNull final File queryFile, @NotNull final File outputFile,
+-      @NotNull final File workDir, @Nullable final Integer mwForLoss) {
++      @NotNull final File workDir, @Nullable final Integer mwForLoss,
++      @Nullable final PolarityType polarity) {
+ 
+     final NistSearchMode mode = config.mode();
+ 
+@@ -104,12 +118,17 @@ private MsPepSearchCommand() {
+     command.add(executable.getAbsolutePath());
+     command.add(buildOptionToken(mode));
+ 
+-    // search parameters. The EI searches take none: /RI is never emitted because retention indices
+-    // are not used for matching, and everything else the mode implies is in the option token.
++    // search parameters. /RI is never emitted because retention indices are not used for matching,
++    // and everything else an EI search implies is in the option token.
+     if (mode.isHighResolution()) {
+       addTolerance(command, "/Z", config.precursorTolerance());
+       addTolerance(command, "/M", config.fragmentTolerance());
+     }
++    // otherwise a library spectrum of the other polarity is a hit like any other, e.g. one whose
++    // precursor m/z falls into the MS/MS window
++    if (PolarityType.isDefined(polarity)) {
++      command.add("/MatchPolarity");
++    }
+     if (mode.needsMolecularWeight() && mwForLoss != null) {
+       command.add("/MwForLoss");
+       command.add(String.valueOf(mwForLoss));
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/MsPepSearchQueryWriter.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/MsPepSearchQueryWriter.java
+new file mode 100644
+index 00000000000..031a05f315f
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/MsPepSearchQueryWriter.java
+@@ -0,0 +1,130 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataprocessing.id_nist_mspepsearch;
++
++import io.github.mzmine.datamodel.DataPoint;
++import io.github.mzmine.datamodel.PolarityType;
++import java.io.BufferedWriter;
++import java.io.File;
++import java.io.IOException;
++import java.nio.charset.StandardCharsets;
++import java.nio.file.Files;
++import java.util.List;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++
++/**
++ * Writes the query spectra of one MSPepSearch run as an MSP file.
++ * <p>
++ * The ion polarity goes in as {@code Ion_mode: P} or {@code Ion_mode: N}. Probed against
++ * MSPepSearch 0.9.7.5 and the NIST 26 tandem libraries with {@code /MatchPolarity}: the single
++ * letters, a {@code Precursor_type} ending in + or - and a signed {@code Charge: -1} are all read,
++ * while {@code Ion_mode: NEGATIVE} and {@code Charge: 1-} are silently ignored and leave the
++ * spectrum positive. See {@link MsPepSearchCommand} for why a run must not mix polarities.
++ */
++final class MsPepSearchQueryWriter {
++
++  private MsPepSearchQueryWriter() {
++  }
++
++  /**
++   * Writes the spectra in the given order, which is the order MSPepSearch numbers them in.
++   */
++  static void write(@NotNull final File file, @NotNull final List<MspSpectrum> spectra)
++      throws IOException {
++
++    try (BufferedWriter writer = Files.newBufferedWriter(file.toPath(), StandardCharsets.UTF_8)) {
++
++      for (final MspSpectrum spectrum : spectra) {
++
++        writer.write("Name: " + spectrum.name());
++        writer.newLine();
++
++        if (spectrum.precursorMz() != null) {
++          writer.write("PrecursorMZ: " + spectrum.precursorMz());
++          writer.newLine();
++        }
++
++        final String ionMode = ionMode(spectrum.polarity());
++        if (ionMode != null) {
++          writer.write("Ion_mode: " + ionMode);
++          writer.newLine();
++        }
++
++        if (spectrum.nominalMw() != null) {
++          writer.write("MW: " + spectrum.nominalMw());
++          writer.newLine();
++        }
++
++        if (spectrum.rt() != null) {
++          writer.write("RT: " + spectrum.rt());
++          writer.newLine();
++        }
++
++        writer.write("Num Peaks: " + spectrum.dataPoints().length);
++        writer.newLine();
++
++        for (final DataPoint dataPoint : spectrum.dataPoints()) {
++          writer.write(dataPoint.getMZ() + "\t" + dataPoint.getIntensity());
++          writer.newLine();
++        }
++
++        writer.newLine();
++      }
++    }
++  }
++
++  /**
++   * @return the {@code Ion_mode} value MSPepSearch reads, or null if the polarity is unknown and
++   * the field must be left out.
++   */
++  private static @Nullable String ionMode(@Nullable final PolarityType polarity) {
++    if (polarity == null) {
++      return null;
++    }
++    return switch (polarity) {
++      case POSITIVE -> "P";
++      case NEGATIVE -> "N";
++      case NEUTRAL, ANY, UNKNOWN -> null;
++    };
++  }
++
++  /**
++   * One spectrum of the query file.
++   *
++   * @param name        the {@code Name:}, which MSPepSearch echoes in its {@code Unknown} column.
++   * @param precursorMz the precursor m/z, only written for the accurate mass MS/MS searches.
++   * @param polarity    the ion polarity, written only if positive or negative.
++   * @param nominalMw   the nominal molecular weight, only needed by the hybrid search.
++   * @param rt          the retention time in minutes, informational only.
++   * @param dataPoints  the peaks.
++   */
++  record MspSpectrum(@NotNull String name, @Nullable Double precursorMz,
++                     @Nullable PolarityType polarity, @Nullable Integer nominalMw,
++                     @Nullable Float rt, @NotNull DataPoint[] dataPoints) {
++
++  }
++}
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/NistPepSearchTask.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/NistPepSearchTask.java
+index c07e2d91f87..e2861be2fc1 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/NistPepSearchTask.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/NistPepSearchTask.java
+@@ -26,6 +26,7 @@
+ package io.github.mzmine.modules.dataprocessing.id_nist_mspepsearch;
+ 
+ import io.github.mzmine.datamodel.DataPoint;
++import io.github.mzmine.datamodel.PolarityType;
+ import io.github.mzmine.datamodel.Scan;
+ import io.github.mzmine.datamodel.features.FeatureList;
+ import io.github.mzmine.datamodel.features.FeatureListRow;
+@@ -36,6 +37,7 @@
+ import io.github.mzmine.modules.MZmineModule;
+ import io.github.mzmine.modules.dataprocessing.filter_scan_merge_select.SpectraMergeSelectParameter;
+ import io.github.mzmine.modules.dataprocessing.id_nist.NistMsSearchModule;
++import io.github.mzmine.modules.dataprocessing.id_nist_mspepsearch.MsPepSearchQueryWriter.MspSpectrum;
+ import io.github.mzmine.modules.dataprocessing.id_spectral_match_sort.SortSpectralMatchesTask;
+ import io.github.mzmine.parameters.ParameterSet;
+ import io.github.mzmine.taskcontrol.AbstractTask;
+@@ -51,13 +53,11 @@
+ import io.github.mzmine.util.spectraldb.entry.SpectralDBEntry;
+ import io.github.mzmine.util.spectraldb.entry.SpectralLibraryEntry;
+ import java.io.BufferedReader;
+-import java.io.BufferedWriter;
+ import java.io.File;
+ import java.io.IOException;
+ import java.io.InputStream;
+ import java.io.InputStreamReader;
+ import java.nio.charset.StandardCharsets;
+-import java.nio.file.Files;
+ import java.time.Instant;
+ import java.util.ArrayList;
+ import java.util.HashMap;
+@@ -77,10 +77,11 @@
+ /**
+  * Searches feature list rows against NIST libraries with NIST's command line program MSPepSearch.
+  * <p>
+- * All query spectra go into a single MSP file and are searched in one run of the executable, which
+- * is what MSPepSearch is designed for: it reports one block of hits per submitted spectrum. Results
+- * are mapped back to the query by the 1-based ordinal MSPepSearch echoes in its {@code Num} column,
+- * falling back to the {@code Name:} of the MSP entry.
++ * The query spectra go into a single MSP file and are searched in one run of the executable, which
++ * is what MSPepSearch is designed for: it reports one block of hits per submitted spectrum. Only
++ * queries that cannot share the run's options are split into several runs, see
++ * {@link #groupQueries}. Results are mapped back to the query by the 1-based ordinal MSPepSearch
++ * echoes in its {@code Num} column, falling back to the {@code Name:} of the MSP entry.
+  * <p>
+  * Currently this task is only here for internal testing and referencing, it has too many parameters
+  * and we have a simpler alternative in the {@link NistMsSearchModule} which now also uses
+@@ -291,13 +292,11 @@ private void search() throws IOException, InterruptedException {
+ 
+     featureList.addRowType(DataTypes.get(SpectralLibraryMatchesType.class));
+ 
+-    // The hybrid search needs the nominal molecular weight of the unknown, and MSPepSearch only
+-    // accepts it as a single global /MwForLoss value, so those queries have to be grouped by
+-    // molecular weight and searched one group at a time. Every other mode is a single run.
+     completedQueries = 0;
+     progressMax = queries.size();
+ 
+-    for (final Map.Entry<Integer, List<QuerySpectrum>> group : groupQueries(queries).entrySet()) {
++    for (final Map.Entry<SearchRun, List<QuerySpectrum>> group : groupQueries(queries,
++        mode).entrySet()) {
+ 
+       if (isCanceled()) {
+         return;
+@@ -318,26 +317,35 @@ private void search() throws IOException, InterruptedException {
+   }
+ 
+   /**
+-   * Groups the queries for the {@code /MwForLoss} constraint of the hybrid search. Every other mode
+-   * returns a single group with a null key.
++   * Splits the queries into the runs MSPepSearch has to search separately, each in the order of
++   * the queries.
++   * <p>
++   * Every search runs once per query polarity, because {@code /MatchPolarity} only works on a
++   * query file of a single polarity (see {@link MsPepSearchCommand}); the queries of unknown
++   * polarity share a run without it. The hybrid search needs the nominal molecular weight of the
++   * unknown, and MSPepSearch only accepts it as a single global {@code /MwForLoss} value, so its
++   * queries are also grouped by molecular weight.
+    */
+-  private Map<Integer, List<QuerySpectrum>> groupQueries(final List<QuerySpectrum> queries) {
+-
+-    if (!mode.needsMolecularWeight()) {
+-      final Map<Integer, List<QuerySpectrum>> single = new LinkedHashMap<>();
+-      single.put(null, queries);
+-      return single;
+-    }
++  static @NotNull Map<SearchRun, List<QuerySpectrum>> groupQueries(
++      @NotNull final List<QuerySpectrum> queries, @NotNull final NistSearchMode mode) {
+ 
+-    final Map<Integer, List<QuerySpectrum>> grouped = new LinkedHashMap<>();
++    final Map<SearchRun, List<QuerySpectrum>> grouped = new LinkedHashMap<>();
+     int withoutMw = 0;
++    int withoutPolarity = 0;
+ 
+     for (final QuerySpectrum query : queries) {
+-      if (query.nominalMw() == null) {
++
++      final Integer mwForLoss = mode.needsMolecularWeight() ? query.nominalMw() : null;
++      if (mode.needsMolecularWeight() && mwForLoss == null) {
+         withoutMw++;
+         continue;
+       }
+-      grouped.computeIfAbsent(query.nominalMw(), _ -> new ArrayList<>()).add(query);
++      if (query.polarity() == PolarityType.UNKNOWN) {
++        withoutPolarity++;
++      }
++
++      grouped.computeIfAbsent(new SearchRun(mwForLoss, query.polarity()), _ -> new ArrayList<>())
++          .add(query);
+     }
+ 
+     if (withoutMw > 0) {
+@@ -346,14 +354,28 @@ private Map<Integer, List<QuerySpectrum>> groupQueries(final List<QuerySpectrum>
+           + " spectra were skipped: the hybrid search needs the molecular weight of the unknown, "
+           + "which requires an annotation or a known neutral mass on the row.");
+     }
++    if (withoutPolarity > 0) {
++      final int unfiltered = withoutPolarity;
++      logger.warning(() -> unfiltered
++          + " spectra have no ion polarity and were matched against library spectra of both "
++          + "polarities.");
++    }
+ 
+     return grouped;
+   }
+ 
++  /**
++   * The polarity a query is searched with: that of its scan if positive or negative, and
++   * {@link PolarityType#UNKNOWN} otherwise.
++   */
++  static @NotNull PolarityType queryPolarity(@Nullable final PolarityType scanPolarity) {
++    return PolarityType.isDefined(scanPolarity) ? scanPolarity : PolarityType.UNKNOWN;
++  }
++
+   /**
+    * Writes one query file, runs MSPepSearch once and applies the hits.
+    */
+-  private void runSearch(final List<QuerySpectrum> queries, @Nullable final Integer mwForLoss)
++  private void runSearch(final List<QuerySpectrum> queries, final SearchRun run)
+       throws IOException, InterruptedException {
+ 
+     final File queryFile = FileAndPathUtil.createTempFile("mzmine_mspepsearch_", ".msp");
+@@ -362,10 +384,10 @@ private void runSearch(final List<QuerySpectrum> queries, @Nullable final Intege
+     outputFile.deleteOnExit();
+ 
+     try {
+-      writeQueryFile(queryFile, queries);
++      MsPepSearchQueryWriter.write(queryFile, queries.stream().map(this::toMspSpectrum).toList());
+ 
+       final List<String> command = MsPepSearchCommand.build(config, executable, queryFile,
+-          outputFile, FileAndPathUtil.getTempDir(), mwForLoss);
++          outputFile, FileAndPathUtil.getTempDir(), run.mwForLoss(), run.polarity());
+ 
+       execute(command);
+ 
+@@ -502,7 +524,7 @@ private List<QuerySpectrum> collectQueries() {
+         }
+ 
+         queries.add(new QuerySpectrum(queryName(row, queryIndex++), row, scan, dataPoints,
+-            nominalMw(row, dataPoints)));
++            nominalMw(row, dataPoints), queryPolarity(scan.getPolarity())));
+       }
+     }
+ 
+@@ -554,52 +576,20 @@ private static String queryName(final FeatureListRow row, final int queryIndex)
+   }
+ 
+   /**
+-   * Writes the query spectra as one MSP file.
++   * The query as it goes into the MSP file.
+    */
+-  private void writeQueryFile(final File file, final List<QuerySpectrum> queries)
+-      throws IOException {
+-
+-    try (BufferedWriter writer = Files.newBufferedWriter(file.toPath(), StandardCharsets.UTF_8)) {
+-
+-      for (final QuerySpectrum query : queries) {
+-
+-        writer.write("Name: " + query.name());
+-        writer.newLine();
+-
+-        // A precursor m/z only means something for the accurate mass MS/MS searches; the EI
+-        // searches ignore it.
+-        if (mode.isHighResolution()) {
+-          final Double precursorMz =
+-              query.scan().getPrecursorMz() != null ? query.scan().getPrecursorMz().doubleValue()
+-                  : query.row().getAverageMZ();
+-          if (precursorMz != null) {
+-            writer.write("PrecursorMZ: " + precursorMz);
+-            writer.newLine();
+-          }
+-        }
+-
+-        if (query.nominalMw() != null) {
+-          writer.write("MW: " + query.nominalMw());
+-          writer.newLine();
+-        }
+-
+-        final Float rt = query.row().getAverageRT();
+-        if (rt != null) {
+-          writer.write("RT: " + rt);
+-          writer.newLine();
+-        }
+-
+-        writer.write("Num Peaks: " + query.dataPoints().length);
+-        writer.newLine();
+-
+-        for (final DataPoint dataPoint : query.dataPoints()) {
+-          writer.write(dataPoint.getMZ() + "\t" + dataPoint.getIntensity());
+-          writer.newLine();
+-        }
++  private MspSpectrum toMspSpectrum(final QuerySpectrum query) {
+ 
+-        writer.newLine();
+-      }
++    // A precursor m/z only means something for the accurate mass MS/MS searches; the EI searches
++    // ignore it.
++    Double precursorMz = null;
++    if (mode.isHighResolution()) {
++      precursorMz = query.scan().getPrecursorMz() != null ? query.scan().getPrecursorMz()
++          : query.row().getAverageMZ();
+     }
++
++    return new MspSpectrum(query.name(), precursorMz, query.polarity(), query.nominalMw(),
++        query.row().getAverageRT(), query.dataPoints());
+   }
+ 
+   /**
+@@ -765,14 +755,25 @@ private void logSkippedSpectra() {
+   /**
+    * One spectrum submitted to MSPepSearch.
+    * <p>
+-   * The position in the list handed to {@link #runSearch(List, Integer)} is the {@code Num}
++   * The position in the list handed to {@link #runSearch(List, SearchRun)} is the {@code Num}
+    * MSPepSearch echoes, so it is deliberately not stored here - see {@link #applyHits}.
+    *
+    * @param name      the {@code Name:} written to the query file, the fallback mapping key.
+    * @param nominalMw nominal molecular weight, only needed by the hybrid search.
++   * @param polarity  the polarity it is searched with, see {@link #queryPolarity}.
++   */
++  record QuerySpectrum(String name, FeatureListRow row, Scan scan, DataPoint[] dataPoints,
++                       @Nullable Integer nominalMw, @NotNull PolarityType polarity) {
++
++  }
++
++  /**
++   * What the queries of one MSPepSearch run share.
++   *
++   * @param mwForLoss the {@code /MwForLoss} of a hybrid search, null for every other mode.
++   * @param polarity  the polarity of every query in the run, see {@link #queryPolarity}.
+    */
+-  private record QuerySpectrum(String name, FeatureListRow row, Scan scan, DataPoint[] dataPoints,
+-                               @Nullable Integer nominalMw) {
++  record SearchRun(@Nullable Integer mwForLoss, @NotNull PolarityType polarity) {
+ 
+   }
+ }
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/MsPepSearchCommandTest.java b/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/MsPepSearchCommandTest.java
+index 4aa0b3b9729..03ace0b15f1 100644
+--- a/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/MsPepSearchCommandTest.java
++++ b/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/MsPepSearchCommandTest.java
+@@ -29,11 +29,13 @@
+ import static org.junit.jupiter.api.Assertions.assertFalse;
+ import static org.junit.jupiter.api.Assertions.assertTrue;
+ 
++import io.github.mzmine.datamodel.PolarityType;
+ import io.github.mzmine.parameters.parametertypes.tolerances.MZTolerance;
+ import java.io.File;
+ import java.io.IOException;
+ import java.nio.file.Files;
+ import java.nio.file.Path;
++import java.util.Arrays;
+ import java.util.List;
+ import org.junit.jupiter.api.BeforeEach;
+ import org.junit.jupiter.api.DisplayName;
+@@ -90,8 +92,13 @@ private NistSearchConfig config(final NistSearchMode mode) {
+   }
+ 
+   private List<String> build(final NistSearchConfig config, final Integer mwForLoss) {
++    return build(config, mwForLoss, PolarityType.UNKNOWN);
++  }
++
++  private List<String> build(final NistSearchConfig config, final Integer mwForLoss,
++      final PolarityType polarity) {
+     return MsPepSearchCommand.build(config, executable, queryFile, outputFile, root.toFile(),
+-        mwForLoss);
++        mwForLoss, polarity);
+   }
+ 
+   /**
+@@ -172,6 +179,34 @@ void msmsHiRes() {
+     assertFalse(command.contains("/OutMW"));
+   }
+ 
++  @Test
++  @DisplayName("A positive or negative run only returns hits of its polarity, in every search type")
++  void knownPolarityIsMatched() {
++
++    for (final NistSearchMode mode : NistSearchMode.searchTypes()) {
++      for (final PolarityType polarity : List.of(PolarityType.POSITIVE, PolarityType.NEGATIVE)) {
++        final List<String> command = build(config(mode), 278, polarity);
++        assertTrue(command.contains("/MatchPolarity"),
++            () -> mode + ", " + polarity + ": " + command);
++      }
++    }
++  }
++
++  @Test
++  @DisplayName("A run of unknown polarity is unfiltered - MSPepSearch would treat it as positive")
++  void unknownPolarityIsNotMatched() {
++
++    final List<PolarityType> unknown = Arrays.asList(PolarityType.UNKNOWN, PolarityType.NEUTRAL,
++        PolarityType.ANY, null);
++    for (final NistSearchMode mode : NistSearchMode.searchTypes()) {
++      for (final PolarityType polarity : unknown) {
++        final List<String> command = build(config(mode), 278, polarity);
++        assertFalse(command.contains("/MatchPolarity"),
++            () -> mode + ", " + polarity + ": " + command);
++      }
++    }
++  }
++
+   @Test
+   @DisplayName("An absolute tolerance uses /Z and /M instead of the ppm form")
+   void absoluteTolerances() {
+@@ -258,7 +293,7 @@ void pathsWithSpacesAreSeparateElements() throws IOException {
+     final File spacedQuery = new File(spaced, "query file.msp");
+ 
+     final List<String> command = MsPepSearchCommand.build(config(NistSearchMode.GC_EI_IDENTITY),
+-        executable, spacedQuery, outputFile, spaced, null);
++        executable, spacedQuery, outputFile, spaced, null, null);
+ 
+     assertTrue(command.contains(spacedQuery.getAbsolutePath()));
+     assertEquals(spacedQuery.getAbsolutePath(), valueAfter(command, "/INP"));
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/MsPepSearchQueryWriterTest.java b/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/MsPepSearchQueryWriterTest.java
+new file mode 100644
+index 00000000000..54896130740
+--- /dev/null
++++ b/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/MsPepSearchQueryWriterTest.java
+@@ -0,0 +1,105 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataprocessing.id_nist_mspepsearch;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++
++import io.github.mzmine.datamodel.DataPoint;
++import io.github.mzmine.datamodel.PolarityType;
++import io.github.mzmine.datamodel.impl.SimpleDataPoint;
++import io.github.mzmine.modules.dataprocessing.id_nist_mspepsearch.MsPepSearchQueryWriter.MspSpectrum;
++import java.io.File;
++import java.io.IOException;
++import java.nio.charset.StandardCharsets;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import java.util.List;
++import org.junit.jupiter.api.DisplayName;
++import org.junit.jupiter.api.Test;
++import org.junit.jupiter.api.io.TempDir;
++
++/**
++ * Tests the MSP query file written by {@link MsPepSearchQueryWriter}.
++ */
++class MsPepSearchQueryWriterTest {
++
++  private static final DataPoint[] PEAKS = {new SimpleDataPoint(57.07, 100),
++      new SimpleDataPoint(85.0284, 12.5)};
++
++  @TempDir
++  Path root;
++
++  private List<String> write(final MspSpectrum... spectra) throws IOException {
++
++    final File file = root.resolve("query.msp").toFile();
++    MsPepSearchQueryWriter.write(file, List.of(spectra));
++    return Files.readAllLines(file.toPath(), StandardCharsets.UTF_8);
++  }
++
++  private static MspSpectrum msms(final String name, final PolarityType polarity) {
++    return new MspSpectrum(name, 195.0877, polarity, null, 1.5f, PEAKS);
++  }
++
++  @Test
++  @DisplayName("An MS/MS query carries its precursor m/z and polarity in the fields MSPepSearch reads")
++  void msmsQuery() throws IOException {
++
++    assertEquals(List.of("Name: mzmine_1_0", "PrecursorMZ: 195.0877", "Ion_mode: N", "RT: 1.5",
++            "Num Peaks: 2", "57.07\t100.0", "85.0284\t12.5", ""),
++        write(msms("mzmine_1_0", PolarityType.NEGATIVE)));
++  }
++
++  @Test
++  @DisplayName("Positive is written as P - MSPepSearch ignores the spelled out POSITIVE/NEGATIVE")
++  void polarityIsASingleLetter() throws IOException {
++
++    final List<String> lines = write(msms("pos", PolarityType.POSITIVE),
++        msms("neg", PolarityType.NEGATIVE));
++
++    assertEquals(List.of("Ion_mode: P", "Ion_mode: N"),
++        lines.stream().filter(line -> line.startsWith("Ion_mode")).toList());
++  }
++
++  @Test
++  @DisplayName("A query of unknown polarity has no Ion_mode field")
++  void unknownPolarityIsLeftOut() throws IOException {
++
++    final List<String> lines = write(msms("unknown", PolarityType.UNKNOWN),
++        msms("neutral", PolarityType.NEUTRAL), msms("any", PolarityType.ANY), msms("null", null));
++
++    assertEquals(4, lines.stream().filter(line -> line.startsWith("Name: ")).count());
++    assertEquals(List.of(), lines.stream().filter(line -> line.startsWith("Ion_mode")).toList());
++  }
++
++  @Test
++  @DisplayName("An EI query has the nominal mass for the hybrid search and no precursor m/z")
++  void eiQuery() throws IOException {
++
++    assertEquals(
++        List.of("Name: mzmine_7_0", "MW: 278", "Num Peaks: 2", "57.07\t100.0", "85.0284\t12.5", ""),
++        write(new MspSpectrum("mzmine_7_0", null, PolarityType.UNKNOWN, 278, null, PEAKS)));
++  }
++}
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/NistPepSearchTaskTest.java b/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/NistPepSearchTaskTest.java
+index 7a4f25b0b50..c1f0ad5b5e8 100644
+--- a/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/NistPepSearchTaskTest.java
++++ b/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/NistPepSearchTaskTest.java
+@@ -27,16 +27,110 @@
+ 
+ import static org.junit.jupiter.api.Assertions.assertEquals;
+ 
++import io.github.mzmine.datamodel.DataPoint;
++import io.github.mzmine.datamodel.PolarityType;
++import io.github.mzmine.modules.dataprocessing.id_nist_mspepsearch.NistPepSearchTask.QuerySpectrum;
++import io.github.mzmine.modules.dataprocessing.id_nist_mspepsearch.NistPepSearchTask.SearchRun;
++import java.util.Arrays;
++import java.util.LinkedHashMap;
++import java.util.List;
+ import java.util.Map;
+ import org.junit.jupiter.api.DisplayName;
+ import org.junit.jupiter.api.Test;
+ 
+ /**
+  * Tests {@link NistPepSearchTask#resolveQueryPosition(int, String, int, Map)}, which decides on
+- * which row a hit lands.
++ * which row a hit lands, and how the queries are split into MSPepSearch runs.
+  */
+ class NistPepSearchTaskTest {
+ 
++  private static final PolarityType POS = PolarityType.POSITIVE;
++  private static final PolarityType NEG = PolarityType.NEGATIVE;
++  private static final PolarityType UNKNOWN = PolarityType.UNKNOWN;
++
++  /**
++   * A query as far as the grouping looks at it: the row and scan are not needed.
++   */
++  private static QuerySpectrum query(final String name, final Integer nominalMw,
++      final PolarityType polarity) {
++    return new QuerySpectrum(name, null, null, new DataPoint[0], nominalMw, polarity);
++  }
++
++  /**
++   * The names of the queries per run, in run order.
++   */
++  private static Map<SearchRun, List<String>> names(
++      final Map<SearchRun, List<QuerySpectrum>> runs) {
++
++    final Map<SearchRun, List<String>> names = new LinkedHashMap<>();
++    runs.forEach(
++        (run, queries) -> names.put(run, queries.stream().map(QuerySpectrum::name).toList()));
++    return names;
++  }
++
++  @Test
++  @DisplayName("MS/MS queries are searched once per polarity, unknown polarity in a run of its own")
++  void msmsRunsPerPolarity() {
++
++    final List<QuerySpectrum> queries = List.of(query("p1", 194, POS), query("n1", 194, NEG),
++        query("p2", 300, POS), query("u1", 120, UNKNOWN), query("n2", 88, NEG));
++
++    final Map<SearchRun, List<QuerySpectrum>> runs = NistPepSearchTask.groupQueries(queries,
++        NistSearchMode.MSMS_HIRES);
++
++    // first seen order, and the query order within each run; no /MwForLoss outside the hybrid
++    assertEquals(
++        List.of(new SearchRun(null, POS), new SearchRun(null, NEG), new SearchRun(null, UNKNOWN)),
++        List.copyOf(runs.keySet()));
++    assertEquals(Map.of(new SearchRun(null, POS), List.of("p1", "p2"), new SearchRun(null, NEG),
++        List.of("n1", "n2"), new SearchRun(null, UNKNOWN), List.of("u1")), names(runs));
++  }
++
++  @Test
++  @DisplayName("Queries of one polarity are a single run")
++  void singlePolarityIsOneRun() {
++
++    final List<QuerySpectrum> queries = List.of(query("n1", null, NEG), query("n2", null, NEG));
++
++    assertEquals(Map.of(new SearchRun(null, NEG), List.of("n1", "n2")),
++        names(NistPepSearchTask.groupQueries(queries, NistSearchMode.MSMS_HIRES)));
++  }
++
++  @Test
++  @DisplayName("The hybrid search groups by molecular weight and skips queries without one")
++  void hybridRunsPerMolecularWeight() {
++
++    final List<QuerySpectrum> queries = List.of(query("a", 278, UNKNOWN), query("b", 150, UNKNOWN),
++        query("none", null, UNKNOWN), query("c", 278, UNKNOWN));
++
++    assertEquals(Map.of(new SearchRun(278, UNKNOWN), List.of("a", "c"), new SearchRun(150, UNKNOWN),
++        List.of("b")), names(NistPepSearchTask.groupQueries(queries, NistSearchMode.GC_EI_HYBRID)));
++  }
++
++  @Test
++  @DisplayName("The other EI searches run once per polarity without /MwForLoss")
++  void eiRunsPerPolarity() {
++
++    final List<QuerySpectrum> queries = List.of(query("a", 278, POS), query("b", 150, POS),
++        query("c", 150, NEG));
++
++    assertEquals(
++        Map.of(new SearchRun(null, POS), List.of("a", "b"), new SearchRun(null, NEG), List.of("c")),
++        names(NistPepSearchTask.groupQueries(queries, NistSearchMode.GC_EI_IDENTITY)));
++  }
++
++  @Test
++  @DisplayName("Only a positive or negative scan gives a query a polarity")
++  void queryPolarity() {
++
++    assertEquals(POS, NistPepSearchTask.queryPolarity(POS));
++    assertEquals(NEG, NistPepSearchTask.queryPolarity(NEG));
++    for (final PolarityType undefined : Arrays.asList(PolarityType.NEUTRAL, PolarityType.ANY,
++        UNKNOWN, null)) {
++      assertEquals(UNKNOWN, NistPepSearchTask.queryPolarity(undefined));
++    }
++  }
++
+   /**
+    * Three queries submitted to one run, as NistPepSearchTask#applyHits builds the lookup.
+    */

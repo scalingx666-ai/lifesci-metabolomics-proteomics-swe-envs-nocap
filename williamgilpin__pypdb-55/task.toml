@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/williamgilpin__pypdb-55"
+description = "Adapt the describe_chemical function to the new api"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "pypdb",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "williamgilpin/pypdb"
+ref = "f05bd1eb3aca9647f829dc2aec24cd860f2eb944"
+reference = "https://github.com/williamgilpin/pypdb/pull/55"
+source_access = "auto"
+built_at = "2026-11-16T00:16:35.893390+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:c66259417f6def84405f246a6c4a574713b73c1304c39d6ed1cd6f70a8469127"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2023-02-21T17:56:04Z"
+diff_format = "unified"
+context_files = [
+    "pypdb/pypdb.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 22
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

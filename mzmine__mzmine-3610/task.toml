@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3610"
+description = "fix boxplot header name"
+
+[metadata]
+difficulty = "easy"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "216cf1f737c3e845a045f1f514e81b58df68c504"
+reference = "https://github.com/mzmine/mzmine/pull/3610"
+source_access = "auto"
+built_at = "2026-11-16T08:42:37.129057+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:874d09412239dc8cf4ee19aa1c9d669e435d7fd245839c4d2302e68d5beac137"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-09T11:51:55Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/fx/MetadataHeaderColumn.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 4
+difficulty = "trivial"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

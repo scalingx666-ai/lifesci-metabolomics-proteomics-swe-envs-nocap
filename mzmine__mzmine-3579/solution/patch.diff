@@ -1,0 +1,46 @@
+diff --git a/javafx-framework/src/main/java/io/github/mzmine/javafx/dialogs/DialogLoggerUtil.java b/javafx-framework/src/main/java/io/github/mzmine/javafx/dialogs/DialogLoggerUtil.java
+index 870bc5ffb39..a7aa067b689 100644
+--- a/javafx-framework/src/main/java/io/github/mzmine/javafx/dialogs/DialogLoggerUtil.java
++++ b/javafx-framework/src/main/java/io/github/mzmine/javafx/dialogs/DialogLoggerUtil.java
+@@ -313,7 +313,6 @@ public static Optional<ButtonType> showDialog(AlertType type, final @Nullable Wi
+ 
+     // inner method will automatically wrap TextFlow in ScrollPane
+     final TextFlow node = FxTextFlows.newTextFlow(FxTexts.text(message));
+-    node.setPadding(FxLayout.DEFAULT_PADDING_INSETS);
+ 
+     return createAlert(type, owner, title, node, buttons);
+   }
+@@ -324,9 +323,14 @@ public static Optional<ButtonType> showDialog(AlertType type, final @Nullable Wi
+    * This method will wrap TextFlow and TextArea content nodes into a scroll pane to ensure it fits
+    * the maximum sizes
+    */
+-  public static @NotNull Alert createAlert(final AlertType type, final @Nullable Window owner,
+-      final String title, final Node content, @Nullable final ButtonType... buttons) {
+-    Alert alert = new Alert(type, "", buttons);
++  public static @NotNull Alert createAlert(final @NotNull AlertType type,
++      final @Nullable Window owner, final @NotNull String title, final @NotNull Node content,
++      @Nullable final ButtonType... buttons) {
++    if (content instanceof TextFlow textFlow && Insets.EMPTY.equals(textFlow.getPadding())) {
++      textFlow.setPadding(FxLayout.DEFAULT_PADDING_INSETS);
++    }
++
++    final Alert alert = new Alert(type, "", buttons);
+     if (owner == null) {
+       applyFocusedWindowStyle(alert);
+     } else {
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/gui/MZmineGUI.java b/mzmine-community/src/main/java/io/github/mzmine/gui/MZmineGUI.java
+index b2c06c47fc2..0455757068d 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/gui/MZmineGUI.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/gui/MZmineGUI.java
+@@ -781,8 +781,9 @@ public void displayMessage(String title, String msg, @Nullable String url) {
+   }
+ 
+   @Override
+-  public void displayErrorMessage(String msg) {
+-    displayMessage("Error", msg);
++  public void displayErrorMessage(final @NotNull String msg) {
++    logger.severe(msg);
++    DialogLoggerUtil.showErrorDialog("Error", msg);
+   }
+ 
+   @Override

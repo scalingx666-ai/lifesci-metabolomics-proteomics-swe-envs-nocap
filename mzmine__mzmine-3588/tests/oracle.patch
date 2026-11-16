@@ -1,0 +1,123 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/NistSearchConfig.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/NistSearchConfig.java
+index aeb2f8bfac..2bbcac34e5 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/NistSearchConfig.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/NistSearchConfig.java
+@@ -46,7 +46,8 @@
+  * and hands it to {@link NistPepSearchTask}, so that nothing else of the engine has to be visible.
+  * The libraries are not part of it - they follow from the search type, see {@link #libraries()}.
+  *
+- * @param nistDirectory      the NIST installation directory, e.g. {@code D:\NIST26}.
++ * @param nistDirectory      the NIST installation directory, e.g. {@code D:\NIST26}. MSPepSearch
++ *                           may sit directly below it or below its MSSEARCH directory.
+  * @param mode               the search type, which also decides which libraries are searched.
+  *                           {@link NistSearchMode#AUTO} has to be resolved against the feature
+  *                           list before the search runs, see {@link #resolveMode(FeatureList)}.
+@@ -82,11 +83,16 @@ public record NistSearchConfig(@Nullable File nistDirectory, @NotNull NistSearch
+   public static final int MAX_MATCH_FACTOR = 999;
+ 
+   /**
+-   * Relative location of the search executable inside a NIST installation. The 64 bit build is
+-   * preferred; the 32 bit build is the fallback for older installations.
++   * Relative location of the search executable inside a NIST installation. The default install
++   * puts it below MSSEARCH ({@code NIST26\MSSEARCH\MSPepSearch}), an install to a custom directory
++   * directly below the installation ({@code NIST26\MSPepSearch}) and has no MSSEARCH directory.
++   * In both layouts the libraries are siblings of the MSPepSearch directory, see
++   * {@link #libraryDirectory()}. The 64 bit build is preferred; the 32 bit build is the fallback
++   * for older installations.
+    */
+   private static final String[] EXECUTABLES = {"MSPepSearch/MSPepSearch64.exe",
+-      "MSPepSearch/MSPepSearch.exe"};
++      "MSSEARCH/MSPepSearch/MSPepSearch64.exe", "MSPepSearch/MSPepSearch.exe",
++      "MSSEARCH/MSPepSearch/MSPepSearch.exe"};
+ 
+   /**
+    * The search types {@link NistSearchMode#AUTO} resolves to. Validation has to accept an
+@@ -194,6 +200,11 @@ private static int installationVersion(@NotNull final File directory) {
+     // MSSEARCH sits one level below the installation, allow one more for unusual layouts
+     for (int level = 0; level <= 2 && directory != null; level++) {
+       if (findExecutable(directory) != null) {
++        // a default install has MSPepSearch inside MSSEARCH, report the installation above it
++        final File parent = directory.getParentFile();
++        if (directory.getName().equalsIgnoreCase("MSSEARCH") && findExecutable(parent) != null) {
++          return parent;
++        }
+         return directory;
+       }
+       directory = directory.getParentFile();
+@@ -223,8 +234,8 @@ private static int installationVersion(@NotNull final File directory) {
+ 
+     if (findExecutable(nistDirectory) == null) {
+       return List.of(
+-          "MSPepSearch was not found in " + nistDirectory + ". Expected " + EXECUTABLES[0]
+-              + " inside the NIST installation directory.");
++          "MSPepSearch was not found in " + nistDirectory + ". Expected " + EXECUTABLES[0] + " or "
++              + EXECUTABLES[1] + " inside the NIST installation directory.");
+     }
+ 
+     // the automatic type is only decided once the feature list is known, so the installation is
+@@ -242,7 +253,7 @@ private static int installationVersion(@NotNull final File directory) {
+     if (libraries().isEmpty()) {
+       return List.of(
+           "No %s library was found in %s. The %s search needs a library such as %s.".formatted(
+-              mode.requiredLibraryContent(), nistDirectory, mode,
++              mode.requiredLibraryContent(), libraryDirectory(), mode,
+               mode.isHighResolution() ? "hr_msms_nist" : "mainlib"));
+     }
+ 
+@@ -275,6 +286,17 @@ private static int installationVersion(@NotNull final File directory) {
+     return findExecutable(nistDirectory);
+   }
+ 
++  /**
++   * @return the directory holding the libraries: the one that contains the MSPepSearch directory,
++   * which is MSSEARCH in a default install and the installation itself in a custom one. Falls back
++   * to the installation directory if MSPepSearch cannot be found.
++   */
++  @Nullable File libraryDirectory() {
++
++    final File executable = executable();
++    return executable == null ? nistDirectory : executable.getParentFile().getParentFile();
++  }
++
+   /**
+    * The libraries of the installation that fit the search type, reduced to what MSPepSearch
+    * accepts: at most one main library, at most one replicate library and at most
+@@ -291,7 +313,7 @@ private static int installationVersion(@NotNull final File directory) {
+     boolean mainUsed = false;
+     boolean replicateUsed = false;
+ 
+-    for (final NistLibrary library : NistLibrary.discover(nistDirectory)) {
++    for (final NistLibrary library : NistLibrary.discover(libraryDirectory())) {
+ 
+       if (library.content() != required) {
+         continue;
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/NistSearchConfigTest.java b/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/NistSearchConfigTest.java
+index 90aa09ab88..9e5338f97e 100644
+--- a/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/NistSearchConfigTest.java
++++ b/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/NistSearchConfigTest.java
+@@ -216,6 +216,25 @@ void automaticModeValidatesAgainstBothWorkflows() throws IOException {
+         () -> "unexpected problems: " + problems);
+   }
+ 
++  @Test
++  @DisplayName("A default install keeps MSPepSearch and the libraries below MSSEARCH")
++  void defaultInstallLayout() throws IOException {
++
++    final Path install = Files.createDirectory(root.resolve("NIST26"));
++    final Path mssearch = Files.createDirectory(install.resolve("MSSEARCH"));
++    Files.createDirectories(mssearch.resolve("MSPepSearch"));
++    Files.createFile(mssearch.resolve("MSPepSearch/MSPepSearch64.exe"));
++    Files.createDirectory(mssearch.resolve("mainlib"));
++    Files.createFile(mssearch.resolve("mainlib/alphanam.in6"));
++
++    final NistSearchConfig config = config(install.toFile(), NistSearchMode.GC_EI_IDENTITY);
++    assertTrue(config.validate().isEmpty(), () -> "unexpected problems: " + config.validate());
++    assertEquals(List.of("mainlib"), config.libraryNames());
++
++    // a path saved for MS Search points at MSSEARCH and is mapped to the installation
++    assertEquals(install.toFile(), NistSearchConfig.toInstallation(mssearch.toFile()));
++  }
++
+   @Test
+   @DisplayName("The retention index library is never searched - it holds no spectra")
+   void retentionIndexLibraryIsNeverSearched() {

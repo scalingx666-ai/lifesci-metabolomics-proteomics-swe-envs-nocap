@@ -1,0 +1,208 @@
+diff --git a/skills/lab-automation/opentrons-integration/SKILL.md b/legacy/opentrons-integration/SKILL.md
+similarity index 100%
+rename from skills/lab-automation/opentrons-integration/SKILL.md
+rename to legacy/opentrons-integration/SKILL.md
+diff --git a/skills/data-visualization/plotly-interactive-visualization/SKILL.md b/legacy/plotly-interactive-visualization/SKILL.md
+similarity index 100%
+rename from skills/data-visualization/plotly-interactive-visualization/SKILL.md
+rename to legacy/plotly-interactive-visualization/SKILL.md
+diff --git a/skills/data-visualization/seaborn-statistical-visualization/SKILL.md b/legacy/seaborn-statistical-visualization/SKILL.md
+similarity index 100%
+rename from skills/data-visualization/seaborn-statistical-visualization/SKILL.md
+rename to legacy/seaborn-statistical-visualization/SKILL.md
+diff --git a/skills/cell-biology/single-cell-annotation/SKILL.md b/legacy/single-cell-annotation/SKILL.md
+similarity index 100%
+rename from skills/cell-biology/single-cell-annotation/SKILL.md
+rename to legacy/single-cell-annotation/SKILL.md
+diff --git a/registry.yaml b/registry.yaml
+index 5f085f3..86553a0 100644
+--- a/registry.yaml
++++ b/registry.yaml
+@@ -115,13 +115,6 @@ entries:
+     path: "skills/biostatistics/hypothesis-generation/SKILL.md"
+     description: "Structured hypothesis formulation from observations: competing hypotheses, quality criteria (testability, falsifiability, parsimony), experimental design, testable predictions. Follows scientific method framework."
+     date_added: "2026-02-17"
+-  - name: "plotly-interactive-visualization"
+-    type: skill
+-    sub_type: toolkit
+-    category: "data-visualization"
+-    path: "skills/data-visualization/plotly-interactive-visualization/SKILL.md"
+-    description: "Interactive visualization with Plotly. 40+ chart types with hover, zoom, pan. Plotly Express (quick, DataFrame-oriented) and Graph Objects (fine-grained control). HTML, PNG/PDF/SVG export."
+-    date_added: "2026-02-17"
+   - name: "esm-protein-language-model"
+     type: skill
+     sub_type: toolkit
+@@ -136,13 +129,6 @@ entries:
+     path: "skills/genomics-bioinformatics/cellxgene-census/SKILL.md"
+     description: "Query CELLxGENE Census (61M+ cells) programmatically. Search by cell type, tissue, disease. Expression matrices as AnnData, out-of-core streaming, PyTorch ML integration."
+     date_added: "2026-02-17"
+-  - name: "seaborn-statistical-visualization"
+-    type: skill
+-    sub_type: toolkit
+-    category: "data-visualization"
+-    path: "skills/data-visualization/seaborn-statistical-visualization/SKILL.md"
+-    description: "Statistical visualization with pandas integration. Distribution, categorical, relational, regression, and matrix plots with automatic aggregation and CI."
+-    date_added: "2026-02-17"
+   - name: "pysam-genomic-files"
+     type: skill
+     sub_type: toolkit
+@@ -178,13 +164,6 @@ entries:
+     path: "skills/scientific-writing/peer-review-methodology/SKILL.md"
+     description: "Structured peer review of scientific manuscripts and grants. 7-stage evaluation workflow, CONSORT/STROBE/PRISMA compliance, review report structure (major/minor comments). For evidence evaluation use scientific-critical-thinking."
+     date_added: "2026-02-17"
+-  - name: "opentrons-integration"
+-    type: skill
+-    sub_type: toolkit
+-    category: "lab-automation"
+-    path: "skills/lab-automation/opentrons-integration/SKILL.md"
+-    description: "Opentrons Protocol API v2 for OT-2 and Flex liquid handling robots. Automated pipetting, serial dilutions, PCR setup, plate replication. Hardware module control (thermocycler, heater-shaker, magnetic, temperature)."
+-    date_added: "2026-02-17"
+   - name: "scvi-tools-single-cell"
+     type: skill
+     sub_type: toolkit
+@@ -672,7 +651,7 @@ entries:
+     sub_type: database
+     category: "lab-automation"
+     path: "skills/lab-automation/protocolsio-integration/SKILL.md"
+-    description: "Access protocols.io public library via REST API. Search and retrieve experimental protocols (wet-lab, bioinformatics, clinical) by keyword, DOI, or category. Download step-by-step protocol content including reagents, materials, equipment, and timing. Free public access; authentication needed for private protocols or publishing. Use alongside opentrons-integration or benchling-integration to programmatically execute downloaded protocols."
++    description: "Access protocols.io public library via REST API. Search and retrieve experimental protocols (wet-lab, bioinformatics, clinical) by keyword, DOI, or category. Download step-by-step protocol content including reagents, materials, equipment, and timing. Free public access; authentication needed for private protocols or publishing. Use alongside opentrons-protocol-api or benchling-integration to programmatically execute downloaded protocols."
+     date_added: "2026-02-18"
+ 
+   - name: "omero-integration"
+@@ -1395,14 +1374,6 @@ entries:
+     description: "Per-feature NaN-safe Spearman/Pearson correlation computation. Covers why bulk matrix shortcuts fail with missing data, correct pairwise deletion, degenerate input filtering, and performance optimization for large datasets."
+     date_added: "2026-03-31"
+ 
+-  - name: "single-cell-annotation"
+-    type: skill
+-    sub_type: guide
+-    category: "cell-biology"
+-    path: "skills/cell-biology/single-cell-annotation/SKILL.md"
+-    description: "Guide to annotating cell types in single-cell RNA-seq data. Covers manual marker-based, automated (CellTypist, scAnnotate), and reference-based (scArches, Azimuth, SingleR) approaches with decision framework for tool selection."
+-    date_added: "2026-03-31"
+-
+   - name: "busco-status-interpretation"
+     type: skill
+     sub_type: guide
+diff --git a/skills/data-visualization/seaborn-statistical-plots/SKILL.md b/skills/data-visualization/seaborn-statistical-plots/SKILL.md
+index 4ce38c7..3564a31 100644
+--- a/skills/data-visualization/seaborn-statistical-plots/SKILL.md
++++ b/skills/data-visualization/seaborn-statistical-plots/SKILL.md
+@@ -806,7 +806,7 @@ print("Saved clustermap_annotated.png")
+ ## Related Skills
+ 
+ - **matplotlib-scientific-plotting** — low-level figure building, custom annotations, non-statistical plot types, and multi-panel layouts that mix seaborn with raw matplotlib
+-- **plotly-interactive-visualization** — interactive charts with hover, zoom, and HTML/Dash export
++- **plotly-interactive-plots** — interactive charts with hover, zoom, and HTML/Dash export
+ - **pydeseq2-differential-expression** — produces the log2FC and p-values that feed into volcano-style scatter plots
+ - **scikit-image-processing** — generates cell morphology measurements visualized with seaborn categorical/distribution plots
+ - **scientific-visualization** — decision guide for selecting the right chart type and color scheme before coding
+diff --git a/skills/lab-automation/benchling-integration/SKILL.md b/skills/lab-automation/benchling-integration/SKILL.md
+index b66a3f5..3cd6a8c 100644
+--- a/skills/lab-automation/benchling-integration/SKILL.md
++++ b/skills/lab-automation/benchling-integration/SKILL.md
+@@ -502,7 +502,7 @@ print(f"Total archived: {len(to_archive)}")
+ ## Related Skills
+ 
+ - **biopython-molecular-biology** — local sequence analysis (BLAST, alignment) before uploading to Benchling
+-- **opentrons-integration** — automate lab protocols that feed samples into Benchling inventory
++- **opentrons-protocol-api** — automate lab protocols that feed samples into Benchling inventory
+ 
+ ## References
+ 
+diff --git a/skills/lab-automation/protocolsio-integration/SKILL.md b/skills/lab-automation/protocolsio-integration/SKILL.md
+index b8cc0d6..edba002 100644
+--- a/skills/lab-automation/protocolsio-integration/SKILL.md
++++ b/skills/lab-automation/protocolsio-integration/SKILL.md
+@@ -1,6 +1,6 @@
+ ---
+ name: "protocolsio-integration"
+-description: "protocols.io REST API: search and fetch wet-lab, bioinformatics, and clinical protocols by keyword, DOI, or category, with steps, reagents, materials, equipment, timing. Public access free; auth needed for private or publishing. Pair with opentrons-integration or benchling-integration to execute."
++description: "protocols.io REST API: search and fetch wet-lab, bioinformatics, and clinical protocols by keyword, DOI, or category, with steps, reagents, materials, equipment, timing. Public access free; auth needed for private or publishing. Pair with opentrons-protocol-api or benchling-integration to execute."
+ license: "CC-BY-4.0"
+ ---
+ 
+@@ -18,7 +18,7 @@ protocols.io is the leading protocol repository for life sciences with 90,000+ o
+ - Building lab automation workflows by extracting protocol steps and reagent lists programmatically
+ - Verifying protocol versions and citing the correct DOI for methods sections
+ - Discovering community-validated protocols as alternatives to proprietary methods
+-- Use alongside `opentrons-integration` or `benchling-integration` to implement downloaded protocols in automated workflows
++- Use alongside `opentrons-protocol-api` or `benchling-integration` to implement downloaded protocols in automated workflows
+ 
+ ## Prerequisites
+ 
+@@ -437,7 +437,7 @@ print(df.sort_values("forks", ascending=False).head(5).to_string(index=False))
+ 
+ ## Related Skills
+ 
+-- `opentrons-integration` — Execute protocols on Opentrons liquid handling robots using steps extracted via this skill
++- `opentrons-protocol-api` — Execute protocols on Opentrons liquid handling robots using steps extracted via this skill
+ - `benchling-integration` — Store retrieved protocols in Benchling ELN with reagent tracking
+ - `scientific-manuscript-writing` — Reference protocols correctly in methods sections using protocols.io DOIs
+ 
+diff --git a/skills/scientific-computing/networkx-graph-analysis/SKILL.md b/skills/scientific-computing/networkx-graph-analysis/SKILL.md
+index 0f81d3c..18919a7 100644
+--- a/skills/scientific-computing/networkx-graph-analysis/SKILL.md
++++ b/skills/scientific-computing/networkx-graph-analysis/SKILL.md
+@@ -540,7 +540,7 @@ Omitted: `write_gpickle`/`read_gpickle` (deprecated), `read_shp`/`write_shp` (re
+ 
+ - **torch-geometric-graph-neural-networks** -- graph neural networks (GCN, GAT, GraphSAGE) for node/graph classification and link prediction on graph-structured data
+ - **matplotlib-scientific-plotting** -- advanced figure customization beyond NetworkX's built-in `nx.draw`
+-- **plotly-interactive-visualization** -- interactive network plots with hover, zoom, and pan
++- **plotly-interactive-plots** -- interactive network plots with hover, zoom, and pan
+ - **pandas** (planned) -- DataFrame operations for preparing edge/node data before graph construction
+ - **scipy** (planned) -- sparse matrix operations and numerical algorithms used by NetworkX internally
+ 
+diff --git a/skills/scientific-writing/latex-research-posters/SKILL.md b/skills/scientific-writing/latex-research-posters/SKILL.md
+index 00725a7..2098a68 100644
+--- a/skills/scientific-writing/latex-research-posters/SKILL.md
++++ b/skills/scientific-writing/latex-research-posters/SKILL.md
+@@ -1,6 +1,6 @@
+ ---
+ name: latex-research-posters
+-description: "Research posters in LaTeX using beamerposter, tikzposter, or baposter. Layout, typography, color schemes, figure integration, accessibility, and QA for conferences. Includes templates. For figure generation use matplotlib-scientific-plotting or plotly-interactive-visualization."
++description: "Research posters in LaTeX using beamerposter, tikzposter, or baposter. Layout, typography, color schemes, figure integration, accessibility, and QA for conferences. Includes templates. For figure generation use matplotlib-scientific-plotting or plotly-interactive-plots."
+ license: CC-BY-4.0
+ ---
+ 
+@@ -241,8 +241,8 @@ tlmgr install beamerposter tikzposter baposter qrcode subcaption tcolorbox
+ ## Related Skills
+ 
+ - **matplotlib-scientific-plotting** — generate publication-quality figures (bar charts, heatmaps, scatter plots) for poster content
+-- **plotly-interactive-visualization** — create interactive figures exportable as static PNG/PDF for posters
+-- **seaborn-statistical-visualization** — statistical plots with automatic aggregation for results figures
++- **plotly-interactive-plots** — create interactive figures exportable as static PNG/PDF for posters
++- **seaborn-statistical-plots** — statistical plots with automatic aggregation for results figures
+ 
+ ## Companion Assets
+ 
+diff --git a/skills/scientific-writing/scientific-manuscript-writing/SKILL.md b/skills/scientific-writing/scientific-manuscript-writing/SKILL.md
+index 69334bf..2688be7 100644
+--- a/skills/scientific-writing/scientific-manuscript-writing/SKILL.md
++++ b/skills/scientific-writing/scientific-manuscript-writing/SKILL.md
+@@ -237,8 +237,8 @@ What type of scientific document are you writing?
+ ## Related Skills
+ 
+ - `matplotlib-scientific-plotting` -- Create publication-quality figures for manuscripts
+-- `seaborn-statistical-visualization` -- Statistical visualizations with automatic CI and aggregation
+-- `plotly-interactive-visualization` -- Interactive figures for supplementary materials
++- `seaborn-statistical-plots` -- Statistical visualizations with automatic CI and aggregation
++- `plotly-interactive-plots` -- Interactive figures for supplementary materials
+ - `statsmodels-statistical-modeling` -- Statistical models whose outputs you report in manuscripts
+ - `pymc-bayesian-modeling` -- Bayesian analysis results for reporting
+ - `peer-review-methodology` -- Structured peer review of manuscripts (complements this entry)
+diff --git a/skills/scientific-writing/scientific-slides/SKILL.md b/skills/scientific-writing/scientific-slides/SKILL.md
+index 056bb83..07bdcca 100644
+--- a/skills/scientific-writing/scientific-slides/SKILL.md
++++ b/skills/scientific-writing/scientific-slides/SKILL.md
+@@ -237,8 +237,8 @@ Detailed reference files in `references/`:
+ ## Related Skills
+ 
+ - **matplotlib-scientific-plotting** — generate publication-quality figures adapted for slide presentation (larger fonts, simplified panels)
+-- **plotly-interactive-visualization** — create interactive figures exportable as static images for slides
+-- **seaborn-statistical-visualization** — statistical plots with automatic aggregation for results slides
++- **plotly-interactive-plots** — create interactive figures exportable as static images for slides
++- **seaborn-statistical-plots** — statistical plots with automatic aggregation for results slides
+ - **latex-research-posters** — poster-specific design guidance; shares typography and color principles with slides
+ 
+ ## Companion Assets

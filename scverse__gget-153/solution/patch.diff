@@ -1,0 +1,1143 @@
+diff --git a/README.md b/README.md
+index 522350000..b504705c5 100644
+--- a/README.md
++++ b/README.md
+@@ -29,6 +29,7 @@ conda install -c bioconda gget
+ 
+ For use in Jupyter Lab / Google Colab:
+ ```python
++# Python
+ import gget
+ ```
+ # [🔗 Manual](https://pachterlab.github.io/gget) 
+diff --git a/docs/src/en/cbio.md b/docs/src/en/cbio.md
+index 9e7bf75fb..b74b15672 100644
+--- a/docs/src/en/cbio.md
++++ b/docs/src/en/cbio.md
+@@ -104,6 +104,7 @@ gget.cbio_search('esophag', 'ovary', 'ovarian')
+ gget cbio plot -s msk_impact_2017 -g AKT1 ALK FLT4 MAP3K1 MLL2 MLL3 NOTCH3 NOTCH4 PDCD1 RNF43 -st tissue -vt mutation_occurrences -dpi 200 -y
+ ```
+ ```python
++# Python
+ import gget
+ gget.cbio_plot(
+     ['msk_impact_2017'],
+@@ -125,6 +126,7 @@ gget.cbio_plot(
+ gget cbio plot -s msk_impact_2017 -g AKT1 ALK FLT4 MAP3K1 MLL2 MLL3 NOTCH3 NOTCH4 PDCD1 RNF43 -st sample -vt Consequence -dpi 200 -y
+ ```
+ ```python
++# Python
+ import gget
+ gget.cbio_plot(
+     ['msk_impact_2017'],
+@@ -146,6 +148,7 @@ gget.cbio_plot(
+ gget cbio plot -s msk_impact_2017 -g AKT1 ALK FLT4 MAP3K1 MLL2 MLL3 NOTCH3 NOTCH4 PDCD1 RNF43 -st sample -vt Consequence -f tissue:intestine -dpi 200 -y
+ ```
+ ```python
++# Python
+ import gget
+ gget.cbio_plot(
+     ['msk_impact_2017'],
+@@ -168,6 +171,7 @@ gget.cbio_plot(
+ gget cbio plot -s msk_impact_2017 -g AKT1 ALK FLT4 MAP3K1 MLL2 MLL3 NOTCH3 NOTCH4 PDCD1 RNF43 -st sample -vt Consequence -f tissue:intestine -dpi 200 -y -t "Intestinal Mutations" -fn intestinal_mutations.png
+ ```
+ ```python
++# Python
+ import gget
+ gget.cbio_plot(
+     ['msk_impact_2017'],
+diff --git a/docs/src/en/enrichr.md b/docs/src/en/enrichr.md
+index 66448cdb8..3a7d59a42 100644
+--- a/docs/src/en/enrichr.md
++++ b/docs/src/en/enrichr.md
+@@ -1,6 +1,6 @@
+ > Python arguments are equivalent to long-option arguments (`--arg`), unless otherwise specified. Flags are True/False arguments in Python. The manual for any gget tool can be called from the command-line using the `-h` `--help` flag.  
+ ## gget enrichr 💰
+-Perform an enrichment analysis on a list of genes using [Enrichr](https://maayanlab.cloud/Enrichr/).  
++Perform an enrichment analysis on a list of genes using [Enrichr](https://maayanlab.cloud/Enrichr/) or [modEnrichr](https://maayanlab.cloud/modEnrichr/).  
+ Return format: JSON (command-line) or data frame/CSV (Python).
+   
+ **Positional argument**  
+@@ -18,8 +18,22 @@ Supports any database listed [here](https://maayanlab.cloud/Enrichr/#libraries)
+ 'diseases_drugs'   (GWAS_Catalog_2019)   
+ 'celltypes'      (PanglaoDB_Augmented_2021)  
+ 'kinase_interactions'   (KEA_2015)  
++Note: database shortcuts are not supported for species other than 'human' or 'mouse'.  
+   
+ **Optional arguments**  
++`-s` `--species`  
++Species to use as reference for the enrichment analysis. (Default: human)
++Options:
++
++| Species  | Database list                                                     |
++|----------|-------------------------------------------------------------------|
++| `human`  | [Enrichr](https://maayanlab.cloud/Enrichr/#libraries)             |
++| `mouse`  | [Equivalent to human](https://maayanlab.cloud/Enrichr/#libraries) |
++| `fly`    | [FlyEnrichr](https://maayanlab.cloud/FlyEnrichr/#libraries)       |
++| `yeast`  | [YeastEnrichr](https://maayanlab.cloud/YeastEnrichr/#libraries)   |
++| `worm`   | [WormEnrichr](https://maayanlab.cloud/WormEnrichr/#libraries)     |
++| `fish`   | [FishEnrichr](https://maayanlab.cloud/FishEnrichr/#libraries)     |
++
+ `-bkg_l` `--background_list`  
+ Short names (gene symbols) of background genes to perform enrichment analysis on, e.g. NSUN3 POLRMT NLRX1.  
+ Alternatively: use flag `--ensembl_background` to input a list of Ensembl gene IDs.  
+diff --git a/docs/src/en/opentargets.md b/docs/src/en/opentargets.md
+index 1ae701224..145b6ee3a 100644
+--- a/docs/src/en/opentargets.md
++++ b/docs/src/en/opentargets.md
+@@ -106,6 +106,7 @@ gget.opentargets('ENSG00000169194', resource='diseases', limit=1)
+ gget opentargets ENSG00000169194 -r drugs -l 2
+ ```
+ ```python
++# Python
+ import gget
+ gget.opentargets('ENSG00000169194', resource='drugs', limit=2)
+ ```
+@@ -126,6 +127,7 @@ gget.opentargets('ENSG00000169194', resource='drugs', limit=2)
+ gget opentargets ENSG00000169194 -r tractability
+ ```
+ ```python
++# Python
+ import gget
+ gget.opentargets('ENSG00000169194', resource='tractability')
+ ```
+@@ -147,6 +149,7 @@ gget.opentargets('ENSG00000169194', resource='tractability')
+ gget opentargets ENSG00000169194 -r pharmacogenetics -l 1
+ ```
+ ```python
++# Python
+ import gget
+ gget.opentargets('ENSG00000169194', resource='pharmacogenetics', limit=1)
+ ```
+@@ -166,6 +169,7 @@ gget.opentargets('ENSG00000169194', resource='pharmacogenetics', limit=1)
+ gget opentargets ENSG00000169194 -r expression -l 2
+ ```
+ ```python
++# Python
+ import gget
+ gget.opentargets('ENSG00000169194', resource='expression', limit=2)
+ ```
+@@ -184,6 +188,7 @@ gget.opentargets('ENSG00000169194', resource='expression', limit=2)
+ gget opentargets ENSG00000169194 -r depmap
+ ```
+ ```python
++# Python
+ import gget
+ gget.opentargets('ENSG00000169194', resource='depmap')
+ ```
+@@ -201,6 +206,7 @@ gget.opentargets('ENSG00000169194', resource='depmap')
+ gget opentargets ENSG00000169194 -r interactions -l 2
+ ```
+ ```python
++# Python
+ import gget
+ gget.opentargets('ENSG00000169194', resource='interactions', limit=2)
+ ```
+@@ -219,6 +225,7 @@ gget.opentargets('ENSG00000169194', resource='interactions', limit=2)
+ gget opentargets ENSG00000169194 -r interactions -fpa P35225 --filter_gene_b ENSG00000077238
+ ```
+ ```python
++# Python
+ import gget
+ gget.opentargets('ENSG00000169194', resource='interactions', filters={'protein_a_id': 'P35225', 'gene_b_id': 'ENSG00000077238'})
+ ```
+@@ -237,6 +244,7 @@ gget.opentargets('ENSG00000169194', resource='interactions', filters={'protein_a
+ gget opentargets ENSG00000169194 -r interactions -fpa P35225 --filter_gene_b ENSG00000077238 ENSG00000111537 --or -l 5
+ ```
+ ```python
++# Python
+ import gget
+ gget.opentargets(
+     'ENSG00000169194',
+diff --git a/gget/constants.py b/gget/constants.py
+index 77aab0bca..00327c060 100644
+--- a/gget/constants.py
++++ b/gget/constants.py
+@@ -34,6 +34,17 @@
+ POST_BACKGROUND_ID_ENRICHR_URL = "https://maayanlab.cloud/speedrichr/api/addbackground"
+ GET_BACKGROUND_ENRICHR_URL = "https://maayanlab.cloud/speedrichr/api/backgroundenrich"
+ 
++POST_ENRICHR_URLS = {
++    f"{typ}": f"https://maayanlab.cloud/{typ.capitalize()}Enrichr/addList"
++    for typ in ["fly", "yeast", "worm", "fish"]
++}
++POST_ENRICHR_URLS["human"] = POST_ENRICHR_URL
++GET_ENRICHR_URLS = {
++    f"{typ}": f"https://maayanlab.cloud/{typ.capitalize()}Enrichr/enrich"
++    for typ in ["fly", "yeast", "worm", "fish"]
++}
++GET_ENRICHR_URLS["human"] = GET_ENRICHR_URL
++
+ # ARCHS4 API endpoints
+ GENECORR_URL = "https://maayanlab.cloud/matrixapi/coltop"
+ EXPRESSION_URL = "https://maayanlab.cloud/archs4/search/loadExpressionTissue.php?"
+diff --git a/gget/gget_enrichr.py b/gget/gget_enrichr.py
+index 5a7c409b3..16dee108c 100644
+--- a/gget/gget_enrichr.py
++++ b/gget/gget_enrichr.py
+@@ -2,6 +2,7 @@
+ import pandas as pd
+ import json as json_package
+ import numpy as np
++from typing import Optional, Literal
+ 
+ # Plotting packages
+ import matplotlib.pyplot as plt
+@@ -9,8 +10,8 @@
+ import textwrap
+ 
+ from .constants import (
+-    POST_ENRICHR_URL,
+-    GET_ENRICHR_URL,
++    POST_ENRICHR_URLS,
++    GET_ENRICHR_URLS,
+     POST_BACKGROUND_ID_ENRICHR_URL,
+     GET_BACKGROUND_ENRICHR_URL,
+ )
+@@ -18,22 +19,24 @@
+ from .gget_info import info
+ 
+ from .utils import set_up_logger
++
+ logger = set_up_logger()
+ 
++
+ def ensembl_to_gene_names(ensembl_ids):
+     """
+     Function to fetch gene names from a list of Ensembl IDs using gget info.
+     """
+     genes_v2 = []
+ 
+-    for gene_id in ensembl_ids:
+-        # Remove version number if passed
+-        gene_id = gene_id.split(".")[0]
++    # Remove version number if passed
++    ensembl_ids = [gene_id.split(".")[0] for gene_id in ensembl_ids]
+ 
+-        info_df = info(gene_id, pdb=False, ncbi=False, uniprot=False, verbose=False)
++    info_df = info(ensembl_ids, pdb=False, ncbi=False, uniprot=False, verbose=False)
+ 
++    for gene_id in ensembl_ids:
+         # Check if Ensembl ID was found
+-        if isinstance(info_df, type(None)):
++        if gene_id not in info_df.index:
+             logger.warning(
+                 f"ID '{gene_id}' not found. Please double-check spelling/arguments."
+             )
+@@ -49,30 +52,32 @@ def ensembl_to_gene_names(ensembl_ids):
+ 
+     return genes_v2
+ 
++
+ def clean_genes_list(genes_list):
+     # Remove any NaNs/Nones from the gene list
+     genes_clean = []
+     for gene in genes_list:
+-        if not isinstance(gene, float) and not gene is None and not gene == "nan":
++        if not isinstance(gene, float) and gene is not None and gene != "nan":
+             genes_clean.append(gene)
+     return genes_clean
+ 
+ 
+ def enrichr(
+-    genes,
+-    database,
+-    background_list=None,
+-    background=False,
+-    ensembl=False,
+-    ensembl_bkg=False,
+-    plot=False,
+-    figsize=(10, 10),
+-    ax=None,
+-    kegg_out=None,
+-    kegg_rank=1,
+-    json=False,
+-    save=False,
+-    verbose=True,
++    genes: list[str],
++    database: str,
++    species: Literal["human", "mouse", "fly", "yeast", "worm", "fish"] = "human",
++    background_list: Optional[list[str]] = None,
++    background: bool = False,
++    ensembl: bool = False,
++    ensembl_bkg: bool = False,
++    plot: bool = False,
++    figsize: tuple[int, int] = (10, 10),
++    ax: plt.Axes = None,
++    kegg_out: Optional[str] = None,
++    kegg_rank: int = 1,
++    json: bool = False,
++    save: bool = False,
++    verbose: bool = True,
+ ):
+     """
+     Perform an enrichment analysis on a list of genes using Enrichr (https://maayanlab.cloud/Enrichr/).
+@@ -81,17 +86,24 @@ def enrichr(
+     - genes             List of Entrez gene symbols to perform enrichment analysis on, passed as a list of strings, e.g. ['PHF14', 'RBM3', 'MSL1', 'PHF21A'].
+                         Set 'ensembl = True' to input a list of Ensembl gene IDs, e.g. ['ENSG00000106443', 'ENSG00000102317', 'ENSG00000188895'].
+     - database          Database to use as reference for the enrichment analysis.
+-                        Supported shortcuts (and their default database):
++                        Supported shortcuts (and their default database), ONLY SUPPORTED FOR HUMAN/MOUSE SPECIES (other species must specify the full database name):
+                         'pathway' (KEGG_2021_Human)
+                         'transcription' (ChEA_2016)
+                         'ontology' (GO_Biological_Process_2021)
+                         'diseases_drugs' (GWAS_Catalog_2019)
+                         'celltypes' (PanglaoDB_Augmented_2021)
+                         'kinase_interactions' (KEA_2015)
+-                        or any database listed under Gene-set Library at: https://maayanlab.cloud/Enrichr/#libraries
+-    - background_list   List of gene names/Ensembl IDs to be used as background genes. (Default: None)
++                        or any database listed under Gene-set Library at: https://maayanlab.cloud/Enrichr/#libraries or the species-specific libraries listed below
++    - species           Enrichr variant to query. Options:
++                        'human' (default) [H. sapiens] - https://maayanlab.cloud/Enrichr/#libraries
++                        'mouse' [M. musculus] - equivalent to 'human'
++                        'fly' [D. melanogaster] - https://maayanlab.cloud/FlyEnrichr/#libraries
++                        'yeast' [S. cerevisiae] - https://maayanlab.cloud/YeastEnrichr/#libraries
++                        'worm' [C. elegans] - https://maayanlab.cloud/WormEnrichr/#libraries
++                        'fish' [D. rerio] - https://maayanlab.cloud/FishEnrichr/#libraries
++    - background_list   List of gene names/Ensembl IDs to be used as background genes. ONLY SUPPORTED FOR HUMAN/MOUSE SPECIES (Default: None)
+     - background        If True, use set of > 20,000 default background genes listed here: https://github.com/pachterlab/gget/blob/main/gget/constants/enrichr_bkg_genes.txt.
+-                        (Default: False)
++                        ONLY SUPPORTED FOR HUMAN/MOUSE SPECIES (Default: False)
+     - ensembl           Define as 'True' if 'genes' is a list of Ensembl gene IDs. (Default: False)
+     - ensembl_bkg       Define as 'True' if 'background_list' is a list of Ensembl gene IDs. (Default: False)
+     - plot              True/False whether to provide a graphical overview of the first 15 results. (Default: False)
+@@ -106,13 +118,52 @@ def enrichr(
+     Returns a data frame with the Enrichr results.
+     """
+ 
++    if species not in ["human", "mouse", "fly", "yeast", "worm", "fish"]:
++        raise ValueError(
++            f"Argument 'species' must be one of 'human', 'mouse', 'fly', 'yeast', 'worm', or 'fish'."
++        )
++
++    if species == "mouse":
++        species = "human"
++
++    species_enrichr = f"{species.capitalize()}Enrichr"
++    if species == "human":
++        species_enrichr = "Enrichr"
++
++    if species != "human":
++        if database in [
++            "pathway",
++            "transcription",
++            "ontology",
++            "diseases_drugs",
++            "celltypes",
++            "kinase_interactions",
++        ]:
++            raise ValueError(
++                f"Database '{database}' is not supported for species '{species}'."
++                f" Please select a database from the species-specific libraries listed at:"
++                f" https://maayanlab.cloud/{species_enrichr}/#libraries."
++            )
++
++        if background:
++            raise ValueError(
++                f"Background genes are only supported for species 'human' and 'mouse', not for species '{species}'."
++                f" Please set 'background=False' or leave it unspecified."
++            )
++
++        if background_list:
++            raise ValueError(
++                f"Background genes are only supported for species 'human' and 'mouse', not for species '{species}'."
++                f" Please do not provide a value for 'background_list'."
++            )
++
+     # Define database
+     # All available libraries: https://maayanlab.cloud/Enrichr/#libraries
+     db_message = f"""
+     Please note that there might be a more appropriate database for your application. 
+-    Go to https://maayanlab.cloud/Enrichr/#libraries for a full list of supported databases.
++    Go to https://maayanlab.cloud/{species_enrichr}/#libraries for a full list of supported databases.
+     """
+-    if not (type(background) == bool):
++    if not isinstance(background, bool):
+         raise ValueError(
+             f"Argument`background` must be a boolean True/False. If you are adding a background list, use the argument `background_list` instead."
+         )
+@@ -181,7 +232,7 @@ def enrichr(
+             return
+ 
+     # If single gene passed as string, convert to list
+-    if type(genes) == str:
++    if isinstance(genes, str):
+         genes = [genes]
+ 
+     ## Transform Ensembl IDs to gene symbols
+@@ -202,7 +253,7 @@ def enrichr(
+     if background_list and ensembl_bkg:
+         background_list = ensembl_to_gene_names(background_list)
+ 
+-    if not isinstance(background_list, type(None)):
++    if background_list is not None:
+         if len(background_list) == 0 and ensembl:
+             logger.error("No background gene symbols found for given Ensembl IDs.")
+             return
+@@ -228,7 +279,7 @@ def enrichr(
+         "description": (None, "gget client gene list"),
+     }
+ 
+-    r1 = requests.post(POST_ENRICHR_URL, files=args_dict)
++    r1 = requests.post(POST_ENRICHR_URLS[species], files=args_dict)
+ 
+     if not r1.ok:
+         raise RuntimeError(
+@@ -290,11 +341,19 @@ def enrichr(
+ 
+     # Submit query to Enrich using gene list and background genes list
+     if not background_final:
+-        query_string = f"?userListId={userListId}&backgroundType={database}"
+-        r2 = requests.get(GET_ENRICHR_URL + query_string)
++        r2 = requests.get(
++            GET_ENRICHR_URLS[species],
++            params={"userListId": userListId, "backgroundType": database},
++        )
+     else:
+-        query_string = f"?userListId={userListId}&backgroundid={background_list_id}&backgroundType={database}"
+-        r2 = requests.post(GET_BACKGROUND_ENRICHR_URL + query_string)
++        r2 = requests.post(
++            GET_BACKGROUND_ENRICHR_URL,
++            params={
++                "userListId": userListId,
++                "backgroundid": background_list_id,
++                "backgroundType": database,
++            },
++        )
+ 
+     if not r2.ok:
+         if background_final:
+@@ -337,7 +396,7 @@ def enrichr(
+     except KeyError:
+         logger.error(
+             f"""
+-            Database {database} not found. Go to https://maayanlab.cloud/Enrichr/#libraries 
++            Database {database} not found. Go to https://maayanlab.cloud/{species_enrichr}/#libraries 
+             for a full list of supported databases.
+             """
+         )
+@@ -478,7 +537,7 @@ def enrichr(
+         plt.tight_layout()
+ 
+         if save:
+-            fig.savefig(
++            plt.savefig(
+                 "gget_enrichr_results.png",
+                 dpi=300,
+                 bbox_inches="tight",
+diff --git a/gget/main.py b/gget/main.py
+index 8eadc1ea4..1576b41e7 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -983,8 +983,18 @@ def main():
+         help=(
+             "'pathway', 'transcription', 'ontology', 'diseases_drugs', 'celltypes', 'kinase_interactions'"
+             "or any database listed at: https://maayanlab.cloud/Enrichr/#libraries"
++            " or the species-specific libraries listed in the documentation"
+         ),
+     )
++    parser_enrichr.add_argument(
++        "-s",
++        "--species",
++        type=str,
++        choices=["human", "mouse", "fly", "yeast", "worm", "fish"],
++        default="human",
++        required=False,
++        help="Enrichr variant to query. Default: 'human'.",
++    )
+     parser_enrichr.add_argument(
+         "-bkg_l",
+         "--background_list",
+@@ -992,7 +1002,7 @@ def main():
+         nargs="*",
+         default=None,
+         required=False,
+-        help="List of gene names/Ensembl IDs to be used as background genes.",
++        help="List of gene names/Ensembl IDs to be used as background genes. ONLY SUPPORTED FOR HUMAN/MOUSE SPECIES",
+     )
+     parser_enrichr.add_argument(
+         "-bkg",
+@@ -1000,7 +1010,7 @@ def main():
+         default=False,
+         action="store_true",
+         required=False,
+-        help="If True, use set of >20,000 default background genes listed here: https://github.com/pachterlab/gget/blob/main/gget/constants/enrichr_bkg_genes.txt.",
++        help="If True, use set of >20,000 default background genes listed here: https://github.com/pachterlab/gget/blob/main/gget/constants/enrichr_bkg_genes.txt. ONLY SUPPORTED FOR HUMAN/MOUSE SPECIES",
+     )
+     parser_enrichr.add_argument(
+         "-e",
+@@ -2872,6 +2882,7 @@ def main():
+         # Submit Enrichr query
+         enrichr_results = enrichr(
+             genes=genes_clean_final,
++            species=args.species,
+             background=args.background,
+             background_list=bkg_genes_clean_final,
+             database=args.database,
+@@ -2884,7 +2895,7 @@ def main():
+         )
+ 
+         # Check if the function returned something
+-        if not isinstance(enrichr_results, type(None)):
++        if enrichr_results is not None:
+             # Save enrichr results if args.out specified
+             if args.out and not args.csv:
+                 # Create saving directory
+diff --git a/tests/fixtures/test_enrichr.json b/tests/fixtures/test_enrichr.json
+index ca6d474ea..df2c03d7b 100644
+--- a/tests/fixtures/test_enrichr.json
++++ b/tests/fixtures/test_enrichr.json
+@@ -88,6 +88,53 @@
+             }
+         ]
+     },
++    "test_enrichr_mouse_is_human": {
++        "type": "assert_equal",
++        "args": {
++            "genes": "ACE2",
++            "species": "mouse",
++            "database": "KEGG_2021_Human",
++            "json": true
++        },
++        "expected_result": [
++            {
++                "rank": 1,
++                "path_name": "Renin-angiotensin system",
++                "p_val": 0.0011499749,
++                "z_score": 19977.0,
++                "combined_score": 135204.6392226724,
++                "overlapping_genes": [
++                    "ACE2"
++                ],
++                "adj_p_val": 0.0034499246,
++                "database": "KEGG_2021_Human"
++            },
++            {
++                "rank": 2,
++                "path_name": "Protein digestion and absorption",
++                "p_val": 0.0051499318,
++                "z_score": 19897.0,
++                "combined_score": 104832.7525292024,
++                "overlapping_genes": [
++                    "ACE2"
++                ],
++                "adj_p_val": 0.0077248977,
++                "database": "KEGG_2021_Human"
++            },
++            {
++                "rank": 3,
++                "path_name": "Coronavirus disease",
++                "p_val": 0.0115998901,
++                "z_score": 19768.0,
++                "combined_score": 88101.2248015025,
++                "overlapping_genes": [
++                    "ACE2"
++                ],
++                "adj_p_val": 0.0115998901,
++                "database": "KEGG_2021_Human"
++            }
++        ]
++    },
+     "test_enrichr_none": {
+         "type": "assert_equal",
+         "args": {
+@@ -5387,6 +5434,429 @@
+             ]
+         ]
+     },
++
++
++    "test_enrichr_fly": {
++        "type": "assert_equal",
++        "args": {
++            "species": "fly",
++            "genes": [
++                "Atu",
++                "Arp10",
++                "14-3-3epsilon",
++                "CG14715",
++                "AGO1",
++                "Akt1",
++                "Aats-thr",
++                "Amph",
++                "Buffy"
++            ],
++            "database": "KEGG_2019"
++        },
++        "expected_result": [
++            [
++                1,
++                "AGE-RAGE signaling pathway in diabetic complications",
++                0.013866578448356225,
++                -71.70990840432587,
++                306.79461962321056,
++                [
++                    "Akt1"
++                ],
++                0.04844354198078241,
++                "KEGG_2019"
++            ],
++            [
++                2,
++                "Longevity regulating pathway",
++                0.024484333254890283,
++                -74.67869191692976,
++                277.03717326344616,
++                [
++                    "Akt1"
++                ],
++                0.04844354198078241,
++                "KEGG_2019"
++            ],
++            [
++                3,
++                "FoxO signaling pathway",
++                0.028878320773539124,
++                -34.65497149188862,
++                122.84023373611505,
++                [
++                    "Akt1"
++                ],
++                0.04844354198078241,
++                "KEGG_2019"
++            ],
++            [
++                4,
++                "Hippo signaling pathway",
++                0.028000933364347887,
++                -7.653509902619876,
++                27.36525809516185,
++                [
++                    "14-3-3epsilon"
++                ],
++                0.04844354198078241,
++                "KEGG_2019"
++            ],
++            [
++                5,
++                "Apoptosis",
++                0.03063098391468958,
++                -1.4461493848642943,
++                5.040905436639352,
++                [
++                    "Buffy"
++                ],
++                0.04844354198078241,
++                "KEGG_2019"
++            ],
++            [
++                6,
++                "Endocytosis",
++                0.05316112044067067,
++                -0.721972272636934,
++                2.118575629377468,
++                [
++                    "Amph"
++                ],
++                0.05316112044067067,
++                "KEGG_2019"
++            ],
++            [
++                7,
++                "mTOR signaling pathway",
++                0.04238809923318461,
++                -0.25864570811488513,
++                0.8175500205238455,
++                [
++                    "Akt1"
++                ],
++                0.04844354198078241,
++                "KEGG_2019"
++            ],
++            [
++                8,
++                "Autophagy",
++                0.04195492135229644,
++                -0.2430235804590055,
++                0.770666545188524,
++                [
++                    "Akt1"
++                ],
++                0.04844354198078241,
++                "KEGG_2019"
++            ]
++        ]
++    },
++    "test_enrichr_yeast": {
++        "type": "assert_equal",
++        "args": {
++            "species": "yeast",
++            "genes": [
++                "OST6",
++                "UGO1",
++                "ICE2",
++                "RLI1",
++                "VPS75",
++                "YBL010C",
++                "FLO5",
++                "TIM18"
++            ],
++            "database": "KEGG_2019"
++        },
++        "expected_result": [
++            [
++                1,
++                "Various types of N-glycan biosynthesis",
++                0.011939267213322538,
++                -1.7200637726637844,
++                7.616309158365445,
++                [
++                    "OST6"
++                ],
++                0.01790890081998381,
++                "KEGG_2019"
++            ],
++            [
++                2,
++                "N-Glycan biosynthesis",
++                0.011939267213322538,
++                -1.6633575843321016,
++                7.365218548592448,
++                [
++                    "OST6"
++                ],
++                0.01790890081998381,
++                "KEGG_2019"
++            ],
++            [
++                3,
++                "Protein processing in endoplasmic reticulum",
++                0.034668638399731576,
++                -1.5542294494115034,
++                5.2251947491679225,
++                [
++                    "OST6"
++                ],
++                0.034668638399731576,
++                "KEGG_2019"
++            ]
++        ]
++    },
++    "test_enrichr_worm": {
++        "type": "assert_equal",
++        "args": {
++            "species": "worm",
++            "genes": [
++                "hop-1",
++                "C49C8",
++                "mom-4",
++                "ggtb-1",
++                "atg-5",
++                "lsm-8",
++                "mrps-6",
++                "acr-7"
++            ],
++            "database": "KEGG_2019"
++        },
++        "expected_result": [
++            [
++                1,
++                "Wnt signaling pathway",
++                0.00039315413604505114,
++                -1.7002729688381644,
++                13.332365425784747,
++                [
++                    "hop-1",
++                    "mom-4"
++                ],
++                0.0022121576616973802,
++                "KEGG_2019"
++            ],
++            [
++                2,
++                "Autophagy",
++                0.0004915905914883068,
++                -1.488674839512249,
++                11.340522942523213,
++                [
++                    "atg-5",
++                    "mom-4"
++                ],
++                0.0022121576616973802,
++                "KEGG_2019"
++            ],
++            [
++                3,
++                "Notch signaling pathway",
++                0.0075760994669518055,
++                -2.1016367079310982,
++                10.261780914101102,
++                [
++                    "hop-1"
++                ],
++                0.022728298400855416,
++                "KEGG_2019"
++            ],
++            [
++                4,
++                "Mitophagy",
++                0.011543310400553262,
++                -1.890764643162447,
++                8.435928549814511,
++                [
++                    "atg-5"
++                ],
++                0.025972448401244838,
++                "KEGG_2019"
++            ],
++            [
++                5,
++                "RNA degradation",
++                0.019436123470595184,
++                -1.956731941412363,
++                7.710740759902681,
++                [
++                    "lsm-8"
++                ],
++                0.034985022247071326,
++                "KEGG_2019"
++            ],
++            [
++                6,
++                "MAPK signaling pathway",
++                0.030393398104287924,
++                -1.0786817155918655,
++                3.768406784772349,
++                [
++                    "mom-4"
++                ],
++                0.045590097156431884,
++                "KEGG_2019"
++            ],
++            [
++                7,
++                "Spliceosome",
++                0.04355451225469591,
++                -1.153689460317217,
++                3.615365082316738,
++                [
++                    "lsm-8"
++                ],
++                0.0489988262865329,
++                "KEGG_2019"
++            ],
++            [
++                8,
++                "Longevity regulating pathway",
++                0.03660647048462186,
++                -1.082994681603428,
++                3.582037686240481,
++                [
++                    "atg-5"
++                ],
++                0.047065462051656674,
++                "KEGG_2019"
++            ],
++            [
++                9,
++                "Ribosome",
++                0.058078771800230945,
++                -0.9614498070377168,
++                2.736242938832567,
++                [
++                    "mrps-6"
++                ],
++                0.058078771800230945,
++                "KEGG_2019"
++            ]
++        ]
++    },
++    "test_enrichr_fish": {
++        "type": "assert_equal",
++        "args": {
++            "species": "fish",
++            "genes": [
++                "si:dkeyp-110e4",
++                "myog",
++                "rpl6",
++                "zfp36l1b",
++                "ptp4a2a",
++                "cby1",
++                "snx16",
++                "chata"
++            ],
++            "database": "KEGG_2019"
++        },
++        "expected_result": [
++            [
++                1,
++                "Ribosome",
++                0.052368733453294354,
++                -8.37978531263129,
++                24.715720546954245,
++                [
++                    "rpl6"
++                ],
++                0.07128526475645196,
++                "KEGG_2019"
++            ],
++            [
++                2,
++                "Glycerophospholipid metabolism",
++                0.03854089792131061,
++                -3.6734364035533082,
++                11.960838667816189,
++                [
++                    "chata"
++                ],
++                0.07128526475645196,
++                "KEGG_2019"
++            ],
++            [
++                3,
++                "Cellular senescence",
++                0.07128526475645196,
++                -1.7042650657646372,
++                4.501075903792993,
++                [
++                    "zfp36l1b"
++                ],
++                0.07128526475645196,
++                "KEGG_2019"
++            ]
++        ]
++    },
++
++
++    "test_enrichr_bad_species": {
++        "type": "error",
++        "args": {
++            "genes": [
++                "HAND1",
++                "HAND2",
++                "HEG1",
++                "HRAT17"
++            ],
++            "database": "KEGG_2019",
++            "species": "chocolate"
++        },
++        "expected_result": "ValueError",
++        "expected_msg": "Argument 'species' must be one of 'human', 'mouse', 'fly', 'yeast', 'worm', or 'fish'."
++    },
++    "test_enrichr_bad_database_shortcut": {
++        "type": "error",
++        "args": {
++            "genes": [
++                "HAND1",
++                "HAND2",
++                "HEG1",
++                "HRAT17"
++            ],
++            "database": "pathway",
++            "species": "fish"
++        },
++        "expected_result": "ValueError",
++        "expected_msg": "Database 'pathway' is not supported for species 'fish'. Please select a database from the species-specific libraries listed at: https://maayanlab.cloud/FishEnrichr/#libraries."
++    },
++    "test_enrichr_bad_background": {
++        "type": "error",
++        "args": {
++            "genes": [
++                "HAND1",
++                "HAND2",
++                "HEG1",
++                "HRAT17"
++            ],
++            "database": "KEGG_2019",
++            "species": "fly",
++            "background": true
++        },
++        "expected_result": "ValueError",
++        "expected_msg": "Background genes are only supported for species 'human' and 'mouse', not for species 'fly'. Please set 'background=False' or leave it unspecified."
++    },
++    "test_enrichr_bad_background_list": {
++        "type": "error",
++        "args": {
++            "genes": [
++                "HAND1",
++                "HAND2",
++                "HEG1",
++                "HRAT17"
++            ],
++            "database": "KEGG_2019",
++            "species": "fly",
++            "background_list": ["banana"]
++        },
++        "expected_result": "ValueError",
++        "expected_msg": "Background genes are only supported for species 'human' and 'mouse', not for species 'fly'. Please do not provide a value for 'background_list'."
++    },
++
++
+     "test_enrichr_bad_gene": {
+         "type": "code_defined",
+         "args": {
+diff --git a/tests/from_json.py b/tests/from_json.py
+index 89094e81d..2268d2fea 100644
+--- a/tests/from_json.py
++++ b/tests/from_json.py
+@@ -66,10 +66,13 @@ def assert_equal(self: unittest.TestCase):
+             result_to_test = result_to_test.dropna(axis=1).values.tolist()
+ 
+         self.assertEqual(result_to_test, expected_result)
++
+     return assert_equal
+ 
+ 
+-def _assert_equal_na(name: str, td: dict[str, dict[str, ...]], func: Callable) -> Callable:
++def _assert_equal_na(
++    name: str, td: dict[str, dict[str, ...]], func: Callable
++) -> Callable:
+     def assert_equal_na(self: unittest.TestCase):
+         test = name
+         expected_result = td[test]["expected_result"]
+@@ -79,6 +82,7 @@ def assert_equal_na(self: unittest.TestCase):
+             result_to_test = result_to_test.values.tolist()
+ 
+         self.assertEqual(result_to_test, expected_result)
++
+     return assert_equal_na
+ 
+ 
+@@ -89,12 +93,18 @@ def assert_none(self: unittest.TestCase):
+         msg = td[test].get("msg", None)
+         result_to_test = do_call(func, td[test]["args"])
+ 
+-        self.assertIsNone(expected_result, "assert_none test must not have a non-null expected_result key.")
++        self.assertIsNone(
++            expected_result,
++            "assert_none test must not have a non-null expected_result key.",
++        )
+         self.assertIsNone(result_to_test, msg=msg)
++
+     return assert_none
+ 
+ 
+-def _assert_equal_json_hash(name: str, td: dict[str, dict[str, ...]], func: Callable) -> Callable:
++def _assert_equal_json_hash(
++    name: str, td: dict[str, dict[str, ...]], func: Callable
++) -> Callable:
+     def assert_equal_json_hash(self: unittest.TestCase):
+         test = name
+         expected_result = td[test]["expected_result"]
+@@ -107,10 +117,13 @@ def assert_equal_json_hash(self: unittest.TestCase):
+         result_to_test = hashlib.md5(result_to_test.encode()).hexdigest()
+ 
+         self.assertEqual(result_to_test, expected_result)
++
+     return assert_equal_json_hash
+ 
+ 
+-def _assert_equal_nested(name: str, td: dict[str, dict[str, ...]], func: Callable) -> Callable:
++def _assert_equal_nested(
++    name: str, td: dict[str, dict[str, ...]], func: Callable
++) -> Callable:
+     def assert_equal_nested(self: unittest.TestCase):
+         test = name
+         expected_result = td[test]["expected_result"]
+@@ -122,10 +135,13 @@ def assert_equal_nested(self: unittest.TestCase):
+             )
+ 
+         self.assertEqual(result_to_test, expected_result)
++
+     return assert_equal_nested
+ 
+ 
+-def _assert_equal_json_hash_nested(name: str, td: dict[str, dict[str, ...]], func: Callable) -> Callable:
++def _assert_equal_json_hash_nested(
++    name: str, td: dict[str, dict[str, ...]], func: Callable
++) -> Callable:
+     def assert_equal_json_hash_nested(self: unittest.TestCase):
+         test = name
+         expected_result = td[test]["expected_result"]
+@@ -140,6 +156,7 @@ def assert_equal_json_hash_nested(self: unittest.TestCase):
+         result_to_test = hashlib.md5(result_to_test.encode()).hexdigest()
+ 
+         self.assertEqual(result_to_test, expected_result)
++
+     return assert_equal_json_hash_nested
+ 
+ 
+@@ -156,10 +173,22 @@ def _error(name: str, td: dict[str, dict[str, ...]], func: Callable) -> Callable
+     # noinspection PyPep8Naming
+     Error = _KNOWN_ERRORS[Error]
+ 
++    if "expected_msg" not in td[name]:
++        print(
++            f"^ Warning: 'error' test should have an 'expected_msg' key, but test '{name}' lacks one."
++        )
++
+     def error(self: unittest.TestCase):
+         test = name
+-        with self.assertRaises(Error):
++        with self.assertRaises(Error) as cm:
+             do_call(func, td[test]["args"])
++        the_exception = cm.exception
++
++        if "expected_msg" in td[test]:
++            self.assertEqual(
++                td[test]["expected_msg"], str(the_exception), f"Error message mismatch"
++            )
++
+     return error
+ 
+ 
+@@ -171,11 +200,16 @@ def error(self: unittest.TestCase):
+     "assert_equal_json_hash": _assert_equal_json_hash,
+     "assert_equal_nested": _assert_equal_nested,
+     "assert_equal_json_hash_nested": _assert_equal_json_hash_nested,
+-    "error": _error
++    "error": _error,
+ }
+ 
+ 
+-def from_json(test_dict: dict[str, dict[str, ...]], func: Callable, custom_types: Optional[dict[str, _test_constructor]] = None, pre_test: Optional[Callable[[], None]] = None) -> type:
++def from_json(
++    test_dict: dict[str, dict[str, ...]],
++    func: Callable,
++    custom_types: Optional[dict[str, _test_constructor]] = None,
++    pre_test: Optional[Callable[[], None]] = None,
++) -> type:
+     """
+     Create a metaclass that will generate test methods from a (json-loaded) dictionary.
+     """
+@@ -186,12 +220,16 @@ def from_json(test_dict: dict[str, dict[str, ...]], func: Callable, custom_types
+ 
+     class C(type):
+         def __new__(cls, name: str, bases: tuple[type, ...], dct: dict[str, ...]):
+-            assert unittest.TestCase in bases, "from_json should only be applied to unittest.TestCase subclasses."
++            assert (
++                unittest.TestCase in bases
++            ), "from_json should only be applied to unittest.TestCase subclasses."
+             for k, v in test_dict.items():
+                 type_ = v["type"]
+                 if type_ == "code_defined":
+                     if k not in dct:
+-                        raise ValueError(f"Test {k} is not defined in code, despite being of type 'code_defined'.")
++                        raise ValueError(
++                            f"Test {k} is not defined in code, despite being of type 'code_defined'."
++                        )
+                     continue
+                 if type_ in local_types:
+                     if not k.startswith("test_"):
+@@ -211,15 +249,20 @@ def wrap(tf):
+                             def inner(*args, **kwargs):
+                                 pre_test()
+                                 tf(*args, **kwargs)
++
+                             return inner
++
+                         test_func = wrap(test_func)
+ 
+                     dct[k] = test_func
+                     print(f"Loaded test {k} of type {type_} from json.")
+                 else:
+                     if k not in dct:
+-                        raise ValueError(f"Unknown test type: {type_} and no test method defined.")
++                        raise ValueError(
++                            f"Unknown test type: {type_} and no test method defined."
++                        )
+                     print(f"Unknown test type: {type_}", file=sys.stderr)
+ 
+             return super().__new__(cls, name, bases, dct)
++
+     return C

@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/jaechang-hits__SciAgent-Skills-20"
+description = "feat: add know-how skills migrated from omics-horizon-agent"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "SciAgent-Skills",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "jaechang-hits/SciAgent-Skills"
+ref = "86e11b73be7f967ac14fc4765abe8fa5f1d3aabe"
+reference = "https://github.com/jaechang-hits/SciAgent-Skills/pull/20"
+source_access = "auto"
+built_at = "2026-11-15T15:25:01.491598+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:a27e9e5b7e8cca6195ad42476055dd926d3f3f080d9d03854018c7c1e879e736"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-05-02T06:14:47Z"
+diff_format = "unified"
+context_files = [
+    "skills/cell-biology/single-cell-annotation/SKILL.md",
+    "skills/lab-automation/western-blot-quantification/SKILL.md",
+    "skills/molecular-biology/sgrna-design-guide/SKILL.md",
+    "skills/molecular-biology/sgrna-design-guide/resource/CRISPick_download_links.txt",
+    "skills/molecular-biology/sgrna-design-guide/resource/addgene_grna_sequences.csv",
+    "skills/structural-biology-drug-discovery/sar-analysis/SKILL.md",
+    "skills/systems-biology-multiomics/omics-analysis-guide/SKILL.md",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 3385
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

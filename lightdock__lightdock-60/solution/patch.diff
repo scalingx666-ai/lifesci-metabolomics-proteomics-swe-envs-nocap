@@ -1,0 +1,797 @@
+diff --git a/lightdock/scoring/tobia1/__init__.py b/lightdock/scoring/tobia1/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/lightdock/scoring/tobia1/data/TOBI_A1_step1 b/lightdock/scoring/tobia1/data/TOBI_A1_step1
+new file mode 100755
+index 0000000..93e299d
+--- /dev/null
++++ b/lightdock/scoring/tobia1/data/TOBI_A1_step1
+@@ -0,0 +1,19 @@
++# N Ca C O GCa Cb KNz KCd DOd RNh NNd RNe SOg HNe YCz FCz LCd CSg
++1.72 3.49 -4.60 0.26 1.05 -1.06 0.00 -1.06 -1.46 0.87 2.46 3.89 0.86 0.22 1.93 0.00 1.21 -1.15
++3.49 4.96 0.86 -2.58 5.42 0.61 2.05 1.96 1.02 3.61 -0.53 3.77 1.30 0.99 -0.85 1.72 0.92 4.18
++-4.60 0.86 6.27 1.16 3.92 2.30 2.44 2.21 1.40 -4.25 1.98 -1.82 1.04 1.88 2.06 1.29 0.70 7.05
++0.26 -2.58 1.16 3.42 -4.88 -0.17 -2.39 -1.94 0.82 1.63 -2.09 -1.73 -1.46 -0.40 -0.99 0.66 -0.59 6.48
++1.05 5.42 3.92 -4.88 0.71 2.47 4.83 -0.69 -0.08 5.26 -1.88 4.36 1.05 2.79 -3.50 0.38 1.44 -0.02
++-1.06 0.61 2.30 -0.17 2.47 2.23 -0.46 1.44 1.20 0.59 1.02 0.97 1.78 0.89 -0.12 -0.31 1.59 -0.26
++0.00 2.05 2.44 -2.39 4.83 -0.46 -3.14 10.00 -1.10 -0.52 2.45 2.36 0.53 0.74 -0.70 1.68 0.91 2.98
++-1.06 1.96 2.21 -1.94 -0.69 1.44 10.00 10.00 1.72 -0.71 -1.80 0.15 0.44 -1.31 1.42 -1.01 -0.60 1.55
++-1.46 1.02 1.40 0.82 -0.08 1.20 -1.10 1.72 0.38 -1.12 -0.17 0.79 -1.30 0.46 0.13 0.66 0.25 10.00
++0.87 3.61 -4.25 1.63 5.26 0.59 -0.52 -0.71 -1.12 -0.70 -0.08 3.07 1.63 0.97 -1.42 1.88 0.27 -2.73
++2.46 -0.53 1.98 -2.09 -1.88 1.02 2.45 -1.80 -0.17 -0.08 0.21 2.80 0.85 0.95 2.92 0.54 1.06 2.82
++3.89 3.77 -1.82 -1.73 4.36 0.97 2.36 0.15 0.79 3.07 2.80 0.94 -1.49 -0.62 1.64 -0.56 2.37 2.07
++0.86 1.30 1.04 -1.46 1.05 1.78 0.53 0.44 -1.30 1.63 0.85 -1.49 2.17 1.37 -0.08 0.86 0.86 5.69
++0.22 0.99 1.88 -0.40 2.79 0.89 0.74 -1.31 0.46 0.97 0.95 -0.62 1.37 3.38 0.39 0.83 0.07 1.36
++1.93 -0.85 2.06 -0.99 -3.50 -0.12 -0.70 1.42 0.13 -1.42 2.92 1.64 -0.08 0.39 5.24 0.45 2.27 4.27
++0.00 1.72 1.29 0.66 0.38 -0.31 1.68 -1.01 0.66 1.88 0.54 -0.56 0.86 0.83 0.45 1.31 0.94 2.19
++1.21 0.92 0.70 -0.59 1.44 1.59 0.91 -0.60 0.25 0.27 1.06 2.37 0.86 0.07 2.27 0.94 2.88 0.44
++-1.15 4.18 7.05 6.48 -0.02 -0.26 2.98 1.55 10.00 -2.73 2.82 2.07 5.69 1.36 4.27 2.19 0.44 0.00 
+diff --git a/lightdock/scoring/tobia1/data/TOBI_A1_step2 b/lightdock/scoring/tobia1/data/TOBI_A1_step2
+new file mode 100755
+index 0000000..406672e
+--- /dev/null
++++ b/lightdock/scoring/tobia1/data/TOBI_A1_step2
+@@ -0,0 +1,19 @@
++# N Ca C O GCa Cb KNz KCd DOd RNh NNd RNe SOg HNe YCz FCz LCd CSg
++0.29 -0.17 0.32 0.28 -0.23 -0.08 0.24 0.50 0.41 -0.85 0.85 0.60 0.13 0.73 1.46 -0.15 0.41 -2.72
++-0.17 0.03 -0.97 -0.23 -1.46 -0.53 -0.32 -0.79 0.46 1.52 -0.58 0.56 0.35 -0.63 -2.06 -0.85 -1.10 1.06
++0.32 -0.97 -0.64 -0.28 -0.29 0.30 0.04 -0.25 -0.87 -1.17 -0.80 0.30 -0.49 -0.42 0.53 0.26 -0.25 -3.73
++0.28 -0.23 -0.28 0.87 0.50 0.40 0.38 1.29 -0.10 -0.20 -0.05 -1.54 -0.81 0.27 -0.32 -0.24 0.43 0.45
++-0.23 -1.46 -0.29 0.50 -2.41 -0.28 -0.19 -0.71 0.82 1.10 0.06 1.15 2.35 -0.97 -1.63 -0.98 -1.99 -0.34
++-0.08 -0.53 0.30 0.40 -0.28 -0.93 0.32 1.16 0.46 -0.65 -0.12 0.10 0.19 0.03 -0.67 -0.10 -0.32 0.75
++0.24 -0.32 0.04 0.38 -0.19 0.32 -1.33 1.88 -0.66 -0.27 0.05 1.84 0.99 0.82 -1.30 -0.22 -0.88 1.37
++0.50 -0.79 -0.25 1.29 -0.71 1.16 1.88 -1.81 -0.97 -0.42 -1.00 1.66 -1.20 -0.49 1.32 -0.46 1.50 -2.08
++0.41 0.46 -0.87 -0.10 0.82 0.46 -0.66 -0.97 -0.17 -0.08 -0.38 -0.27 -0.06 -0.46 0.22 0.12 -0.03 -1.41
++-0.85 1.52 -1.17 -0.20 1.10 -0.65 -0.27 -0.42 -0.08 0.43 -0.20 -0.05 -0.43 0.37 -0.45 0.12 -0.05 0.30
++0.85 -0.58 -0.80 -0.05 0.06 -0.12 0.05 -1.00 -0.38 -0.20 0.05 0.77 -0.20 -0.28 -0.65 -0.02 0.55 0.55
++0.60 0.56 0.30 -1.54 1.15 0.10 1.84 1.66 -0.27 -0.05 0.77 -0.82 1.58 0.06 0.35 -1.06 0.87 0.37
++0.13 0.35 -0.49 -0.81 2.35 0.19 0.99 -1.20 -0.06 -0.43 -0.20 1.58 0.16 -0.48 0.12 -0.52 -0.07 -0.17
++0.73 -0.63 -0.42 0.27 -0.97 0.03 0.82 -0.49 -0.46 0.37 -0.28 0.06 -0.48 1.18 -0.33 -0.48 -0.57 -1.62
++1.46 -2.06 0.53 -0.32 -1.63 -0.67 -1.30 1.32 0.22 -0.45 -0.65 0.35 0.12 -0.33 -1.26 -0.02 -0.43 2.69
++-0.15 -0.85 0.26 -0.24 -0.98 -0.10 -0.22 -0.46 0.12 0.12 -0.02 -1.06 -0.52 -0.48 -0.02 -0.38 -0.50 0.17
++0.41 -1.10 -0.25 0.43 -1.99 -0.32 -0.88 1.50 -0.03 -0.05 0.55 0.87 -0.07 -0.57 -0.43 -0.50 -1.08 1.95
++-2.72 1.06 -3.73 0.45 -0.34 0.75 1.37 -2.08 -1.41 0.30 0.55 0.37 -0.17 -1.62 2.69 0.17 1.95 10.00
+diff --git a/lightdock/scoring/tobia1/driver.py b/lightdock/scoring/tobia1/driver.py
+new file mode 100644
+index 0000000..b1df523
+--- /dev/null
++++ b/lightdock/scoring/tobia1/driver.py
+@@ -0,0 +1,219 @@
++"""
++TOBI atom-based docking potentials-I (ADPs-I), step 1 & 2 as described in:
++
++Tobi, D. Designing coarse grained-and atom based-potentials for protein-protein docking.
++BMC Struct Biol 10, 40 (2010). https://doi.org/10.1186/1472-6807-10-40
++"""
++
++from pathlib import Path
++import numpy as np
++import scipy.spatial
++
++from lightdock.structure.model import DockingModel
++from lightdock.scoring.functions import ModelAdapter, ScoringFunction
++from lightdock.constants import DEFAULT_CONTACT_RESTRAINTS_CUTOFF
++
++
++class TOBIA1Potential(object):
++    """Loads TOBIA1 potentials information"""
++
++    recognized_residues = [
++        "ALA",
++        "ARG",
++        "ASN",
++        "ASP",
++        "CYS",
++        "GLN",
++        "GLU",
++        "GLY",
++        "HIS",
++        "ILE",
++        "LEU",
++        "LYS",
++        "MET",
++        "PHE",
++        "PRO",
++        "SER",
++        "THR",
++        "TRP",
++        "TYR",
++        "VAL",
++    ]
++
++    # N, CA, C, O and GLYCA are special
++    atom_types = [
++        [res + "N" for res in recognized_residues],
++        [res + "CA" for res in recognized_residues if res != "GLY"],
++        [res + "C" for res in recognized_residues],
++        [res + "O" for res in recognized_residues],
++        ["GLYCA"],
++        [
++            "ALACB",
++            "ARGCB",
++            "ASNCB",
++            "ASPCB",
++            "CYSCB",
++            "GLNCB",
++            "GLUCB",
++            "HISCB",
++            "ILECB",
++            "LEUCB",
++            "LYSCB",
++            "METCB",
++            "PHECB",
++            "PROCB",
++            "PROCG",
++            "PROCD",
++            "THRCB",
++            "TRPCB",
++            "TYRCB",
++            "VALCB",
++        ],
++        ["LYSCE", "LYSNZ"],
++        ["LYSCD"],
++        ["ASPCG", "ASPOD1", "ASPOD2", "GLUCD", "GLUOE1", "GLUOE2"],
++        ["ARGCZ", "ARGNH1", "ARGNH2"],
++        ["ASNCG", "ASNOD1", "ASNND2", "GLNCD", "GLNOE1", "GLNNE2"],
++        ["ARGCD", "ARGNE"],
++        ["SERCB", "SEROG", "THROG1", "TYROH"],
++        ["HISCG", "HISND1", "HISCD2", "HISCE1", "HISNE2", "TRPNE1"],
++        ["TYRCE1", "TYRCE2", "TYRCZ"],
++        [
++            "ARGCG",
++            "GLNCG",
++            "GLUCG",
++            "ILECG1",
++            "LEUCG",
++            "LYSCG",
++            "METCG",
++            "METSD",
++            "PHECG",
++            "PHECD1",
++            "PHECD2",
++            "PHECE1",
++            "PHECE2",
++            "PHECZ",
++            "THRCG2",
++            "TRPCG",
++            "TRPCD1",
++            "TRPCD2",
++            "TRPCE2",
++            "TRPCE3",
++            "TRPCZ2",
++            "TRPCZ3",
++            "TRPCH2",
++            "TYRCG",
++            "TYRCD1",
++            "TYRCD2",
++        ],
++        ["ILECG2", "ILECD1", "ILECD", "LEUCD1", "LEUCD2", "METCE", "VALCG1", "VALCG2"],
++        ["CYSSG"],
++    ]
++
++    atom_indice = {at: idx for idx, ats in enumerate(atom_types) for at in ats}
++
++    def __init__(self):
++        data_path = Path(__file__).parent.resolve() / "data"
++        self.tobi_a_1 = self._read_potentials(data_path / "TOBI_A1_step1")
++        self.tobi_a_2 = self._read_potentials(data_path / "TOBI_A1_step2")
++
++    def _read_potentials(self, data_file_name):
++        """Reads TOBIA2 data potentials"""
++        return np.loadtxt(data_file_name, dtype=float)
++
++
++class TOBIA1Adapter(ModelAdapter):
++    """Adapts a given Complex to a DockingModel object suitable for this
++    TOBIA1 scoring function.
++    """
++
++    def _get_docking_model(self, molecule, restraints):
++        """Builds a suitable docking model for this scoring function"""
++        list_of_coordinates = molecule.atom_coordinates
++        parsed_restraints = {}
++        for chain in molecule.chains:
++            for residue in chain.residues:
++                for atom in residue.atoms:
++                    atom.index = TOBIA1Potential.atom_indice[
++                        f"{atom.residue_name}{atom.name}"
++                    ]
++                res_id = (
++                    f"{chain.cid}.{residue.name}.{residue.number}{residue.insertion}"
++                )
++                if restraints and res_id in restraints:
++                    parsed_restraints[res_id] = []
++
++        return DockingModel(molecule, list_of_coordinates, parsed_restraints)
++
++
++class TOBIA1(ScoringFunction):
++    """Implements TOBIA1 potential"""
++
++    def __init__(self, weight=1.0):
++        super(TOBIA1, self).__init__(weight, anm_support=False)
++        self.function = self._default
++        self.potential = TOBIA1Potential()
++        self.cutoff = DEFAULT_CONTACT_RESTRAINTS_CUTOFF
++
++    def __call__(self, receptor, receptor_coordinates, ligand, ligand_coordinates):
++        return self.function(receptor, receptor_coordinates, ligand, ligand_coordinates)
++
++    def _default(self, receptor, receptor_coordinates, ligand, ligand_coordinates):
++        energy = 0.0
++
++        dist_matrix_atom = scipy.spatial.distance.cdist(
++            receptor_coordinates, ligand_coordinates
++        )  # shape:len(rec.atoms)*len(lig.atoms)
++        rec_tobi_atom_types = np.array(
++            [atom.index for atom in receptor.objects.atoms]
++        )  # shape:len(rec.atoms)*1,aij in [0,17]
++        lig_tobi_atom_types = np.array(
++            [atom.index for atom in ligand.objects.atoms]
++        )  # shape:len(lig.atoms)*1,aij in [0,17]
++        searched_indice = tuple(
++            np.array(
++                np.meshgrid(rec_tobi_atom_types, lig_tobi_atom_types, indexing="ij")
++            ).reshape((2, -1))
++        )  # generate (array[idxx],array[idxy]) for fancy indexing
++        tobi_pot1_matrix = self.potential.tobi_a_1[searched_indice].reshape(
++            dist_matrix_atom.shape
++        )
++        tobi_pot2_matrix = self.potential.tobi_a_2[searched_indice].reshape(
++            dist_matrix_atom.shape
++        )
++        mask1 = dist_matrix_atom <= 4.0
++        mask2 = np.logical_and(dist_matrix_atom <= 6.0, dist_matrix_atom > 4.0)
++        energy = np.sum(tobi_pot1_matrix, where=mask1) + np.sum(
++            tobi_pot2_matrix, where=mask2
++        )
++        rec_coms = np.array(
++            [res.get_central_coordinate() for res in receptor.objects.residues]
++        )
++        lig_coms = np.array(
++            [lig.get_central_coordinate() for lig in ligand.objects.residues]
++        )
++        dist_matrix_residue = scipy.spatial.distance.cdist(rec_coms, lig_coms)
++        res_cutoff_indice = dist_matrix_residue[
++            dist_matrix_residue <= self.cutoff
++        ].nonzero()
++        interface_receptor = set(res_cutoff_indice[0])
++        interface_ligand = set()
++        # nonzero returns ([],) if res_cutoff_indice only contains 0,
++        # else returns (idxx,idxy) for 2D-matrix
++        if len(res_cutoff_indice) == 2:
++            interface_ligand = set(res_cutoff_indice[1])
++        energy *= -1.0
++        perc_receptor_restraints = ScoringFunction.restraints_satisfied(
++            receptor.restraints, interface_receptor
++        )
++        perc_ligand_restraints = ScoringFunction.restraints_satisfied(
++            ligand.restraints, interface_ligand
++        )
++        return (
++            energy + perc_receptor_restraints * energy + perc_ligand_restraints * energy
++        ) * self.weight
++
++
++# Needed to dynamically load the scoring functions from command line
++DefinedScoringFunction = TOBIA1
++DefinedModelAdapter = TOBIA1Adapter
+diff --git a/lightdock/scoring/tobia2/__init__.py b/lightdock/scoring/tobia2/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/lightdock/scoring/tobia2/data/TOBI_A2_step1 b/lightdock/scoring/tobia2/data/TOBI_A2_step1
+new file mode 100755
+index 0000000..54226ec
+--- /dev/null
++++ b/lightdock/scoring/tobia2/data/TOBI_A2_step1
+@@ -0,0 +1,19 @@
++# N Ca C O GCa Cb KNz KCd DOd RNh NNd RNe SOg HNe YCz FCz LCd CSg 
++-1.02 1.31 -2.88 0.57 5.54 -0.20 0.16 1.66 -1.27 0.08 0.19 3.23 1.37 0.94 -0.08 -0.12 0.58 -2.59 
++1.31 2.97 1.67 -1.70 0.91 1.04 1.70 1.66 1.22 2.50 -0.54 0.55 0.60 -0.23 -0.68 0.56 2.10 2.73 
++-2.88 1.67 2.97 0.41 3.28 1.19 0.69 1.15 0.14 -0.44 1.53 1.04 0.22 0.60 3.51 0.86 0.26 3.90 
++0.57 -1.70 0.41 1.53 -4.17 0.19 -2.09 -1.04 1.30 -0.87 -1.03 -0.33 -0.34 -0.11 -0.52 0.57 -0.32 1.06 
++5.54 0.91 3.28 -4.17 -5.90 1.12 4.10 4.68 0.39 1.99 -0.52 -1.48 1.69 0.26 -2.30 -0.57 1.36 0.76 
++-0.20 1.04 1.19 0.19 1.12 1.27 0.61 0.06 0.06 0.19 0.67 1.10 0.49 0.80 0.31 0.19 0.52 -0.43 
++0.16 1.70 0.69 -2.09 4.10 0.61 2.63 0.67 -0.68 0.21 1.77 2.75 0.30 1.22 -0.01 1.45 1.26 5.73 
++1.66 1.66 1.15 -1.04 4.68 0.06 0.67 -1.02 1.07 -0.71 -1.43 -0.08 0.96 -1.25 0.89 0.63 -1.38 9.84 
++-1.27 1.22 0.14 1.30 0.39 0.06 -0.68 1.07 0.11 -0.51 0.08 0.59 -0.56 -0.09 0.31 0.35 0.49 10.00 
++0.08 2.50 -0.44 -0.87 1.99 0.19 0.21 -0.71 -0.51 -0.45 0.11 1.53 0.54 0.11 -0.12 0.29 0.50 -1.09 
++0.19 -0.54 1.53 -1.03 -0.52 0.67 1.77 -1.43 0.08 0.11 -0.12 2.15 0.49 0.02 0.84 0.51 -0.08 0.57 
++3.23 0.55 1.04 -0.33 -1.48 1.10 2.75 -0.08 0.59 1.53 2.15 -2.54 -0.05 0.32 0.33 -0.13 0.82 4.87 
++1.37 0.60 0.22 -0.34 1.69 0.49 0.30 0.96 -0.56 0.54 0.49 -0.05 0.36 0.60 0.49 0.49 0.34 1.26 
++0.94 -0.23 0.60 -0.11 0.26 0.80 1.22 -1.25 -0.09 0.11 0.02 0.32 0.60 1.34 0.39 1.01 0.13 -0.59 
++-0.08 -0.68 3.51 -0.52 -2.30 0.31 -0.01 0.89 0.31 -0.12 0.84 0.33 0.49 0.39 3.61 0.66 2.03 2.90 
++-0.12 0.56 0.86 0.57 -0.57 0.19 1.45 0.63 0.35 0.29 0.51 -0.13 0.49 1.01 0.66 0.60 0.73 2.94 
++0.58 2.10 0.26 -0.32 1.36 0.52 1.26 -1.38 0.49 0.50 -0.08 0.82 0.34 0.13 2.03 0.73 0.74 -2.03 
++-2.59 2.73 3.90 1.06 0.76 -0.43 5.73 9.84 10.00 -1.09 0.57 4.87 1.26 -0.59 2.90 2.94 -2.03 10.00 
+diff --git a/lightdock/scoring/tobia2/data/TOBI_A2_step2 b/lightdock/scoring/tobia2/data/TOBI_A2_step2
+new file mode 100755
+index 0000000..220ebdb
+--- /dev/null
++++ b/lightdock/scoring/tobia2/data/TOBI_A2_step2
+@@ -0,0 +1,19 @@
++# N Ca C O GCa Cb KNz KCd DOd RNh NNd RNe SOg HNe YCz FCz LCd CSg 
++0.10 -0.34 0.31 0.25 -0.60 0.00 0.07 -0.18 0.22 0.04 0.47 0.03 0.15 -0.48 0.45 0.26 -0.07 0.47 
++-0.34 0.04 -0.31 0.03 -0.60 -0.52 -0.19 0.20 0.51 0.33 -0.33 -0.24 0.07 0.19 -1.38 -0.34 -0.27 -0.97 
++0.31 -0.31 -0.16 -0.39 0.68 0.07 0.19 0.30 -0.48 -0.38 -0.28 0.08 -0.22 -0.28 0.39 -0.29 0.02 -0.64 
++0.25 0.03 -0.39 0.45 0.29 0.36 -0.13 -0.10 -0.09 -0.17 0.11 -0.30 -0.32 0.23 0.13 -0.01 0.00 1.66 
++-0.60 -0.60 0.68 0.29 -0.13 0.01 -0.39 0.84 0.45 0.42 -0.09 -0.27 0.29 0.53 -1.42 -0.37 -1.19 -2.88 
++0.00 -0.52 0.07 0.36 0.01 -0.29 0.17 1.08 0.10 -0.19 -0.07 0.12 -0.26 -0.14 -0.16 -0.24 -0.16 -0.72 
++0.07 -0.19 0.19 -0.13 -0.39 0.17 -0.91 1.23 -0.43 0.52 -0.23 0.72 0.66 0.56 -0.49 -0.05 -0.12 -0.13 
++-0.18 0.20 0.30 -0.10 0.84 1.08 1.23 1.05 -0.23 -0.43 -0.55 0.46 -0.48 -0.57 -0.57 -0.35 -0.93 2.73 
++0.22 0.51 -0.48 -0.09 0.45 0.10 -0.43 -0.23 -0.02 -0.05 -0.03 -0.30 0.01 -0.06 0.23 -0.09 -0.06 -0.24 
++0.04 0.33 -0.38 -0.17 0.42 -0.19 0.52 -0.43 -0.05 -0.01 -0.30 0.23 0.13 0.48 -0.07 -0.06 0.15 -0.07 
++0.47 -0.33 -0.28 0.11 -0.09 -0.07 -0.23 -0.55 -0.03 -0.30 -0.05 0.16 -0.09 0.24 -0.21 -0.03 0.41 -0.04 
++0.03 -0.24 0.08 -0.30 -0.27 0.12 0.72 0.46 -0.30 0.23 0.16 -0.60 -0.53 -0.36 -0.17 -0.01 -0.48 1.10 
++0.15 0.07 -0.22 -0.32 0.29 -0.26 0.66 -0.48 0.01 0.13 -0.09 -0.53 0.29 -0.28 -0.11 -0.10 0.01 -0.49 
++-0.48 0.19 -0.28 0.23 0.53 -0.14 0.56 -0.57 -0.06 0.48 0.24 -0.36 -0.28 0.25 -0.15 -0.24 -0.16 1.98 
++0.45 -1.38 0.39 0.13 -1.42 -0.16 -0.49 -0.57 0.23 -0.07 -0.21 -0.17 -0.11 -0.15 -0.49 -0.15 -0.19 0.52 
++0.26 -0.34 -0.29 -0.01 -0.37 -0.24 -0.05 -0.35 -0.09 -0.06 -0.03 -0.01 -0.10 -0.24 -0.15 -0.21 -0.28 -0.55 
++-0.07 -0.27 0.02 0.00 -1.19 -0.16 -0.12 -0.93 -0.06 0.15 0.41 -0.48 0.01 -0.16 -0.19 -0.28 -0.65 1.17 
++0.47 -0.97 -0.64 1.66 -2.88 -0.72 -0.13 2.73 -0.24 -0.07 -0.04 1.10 -0.49 1.98 0.52 -0.55 1.17 10.00 
+diff --git a/lightdock/scoring/tobia2/driver.py b/lightdock/scoring/tobia2/driver.py
+new file mode 100644
+index 0000000..6dc8f64
+--- /dev/null
++++ b/lightdock/scoring/tobia2/driver.py
+@@ -0,0 +1,219 @@
++"""
++TOBI atom-based docking potentials-II (ADPs-II), step 1 & 2 as described in:
++
++Tobi, D. Designing coarse grained-and atom based-potentials for protein-protein docking.
++BMC Struct Biol 10, 40 (2010). https://doi.org/10.1186/1472-6807-10-40
++"""
++
++from pathlib import Path
++import numpy as np
++import scipy.spatial
++
++from lightdock.structure.model import DockingModel
++from lightdock.scoring.functions import ModelAdapter, ScoringFunction
++from lightdock.constants import DEFAULT_CONTACT_RESTRAINTS_CUTOFF
++
++
++class TOBIA2Potential(object):
++    """Loads TOBIA2 potentials information"""
++
++    recognized_residues = [
++        "ALA",
++        "ARG",
++        "ASN",
++        "ASP",
++        "CYS",
++        "GLN",
++        "GLU",
++        "GLY",
++        "HIS",
++        "ILE",
++        "LEU",
++        "LYS",
++        "MET",
++        "PHE",
++        "PRO",
++        "SER",
++        "THR",
++        "TRP",
++        "TYR",
++        "VAL",
++    ]
++
++    # N, CA, C, O and GLYCA are special
++    atom_types = [
++        [res + "N" for res in recognized_residues],
++        [res + "CA" for res in recognized_residues if res != "GLY"],
++        [res + "C" for res in recognized_residues],
++        [res + "O" for res in recognized_residues],
++        ["GLYCA"],
++        [
++            "ALACB",
++            "ARGCB",
++            "ASNCB",
++            "ASPCB",
++            "CYSCB",
++            "GLNCB",
++            "GLUCB",
++            "HISCB",
++            "ILECB",
++            "LEUCB",
++            "LYSCB",
++            "METCB",
++            "PHECB",
++            "PROCB",
++            "PROCG",
++            "PROCD",
++            "THRCB",
++            "TRPCB",
++            "TYRCB",
++            "VALCB",
++        ],
++        ["LYSCE", "LYSNZ"],
++        ["LYSCD"],
++        ["ASPCG", "ASPOD1", "ASPOD2", "GLUCD", "GLUOE1", "GLUOE2"],
++        ["ARGCZ", "ARGNH1", "ARGNH2"],
++        ["ASNCG", "ASNOD1", "ASNND2", "GLNCD", "GLNOE1", "GLNNE2"],
++        ["ARGCD", "ARGNE"],
++        ["SERCB", "SEROG", "THROG1", "TYROH"],
++        ["HISCG", "HISND1", "HISCD2", "HISCE1", "HISNE2", "TRPNE1"],
++        ["TYRCE1", "TYRCE2", "TYRCZ"],
++        [
++            "ARGCG",
++            "GLNCG",
++            "GLUCG",
++            "ILECG1",
++            "LEUCG",
++            "LYSCG",
++            "METCG",
++            "METSD",
++            "PHECG",
++            "PHECD1",
++            "PHECD2",
++            "PHECE1",
++            "PHECE2",
++            "PHECZ",
++            "THRCG2",
++            "TRPCG",
++            "TRPCD1",
++            "TRPCD2",
++            "TRPCE2",
++            "TRPCE3",
++            "TRPCZ2",
++            "TRPCZ3",
++            "TRPCH2",
++            "TYRCG",
++            "TYRCD1",
++            "TYRCD2",
++        ],
++        ["ILECG2", "ILECD1", "ILECD", "LEUCD1", "LEUCD2", "METCE", "VALCG1", "VALCG2"],
++        ["CYSSG"],
++    ]
++
++    atom_indice = {at: idx for idx, ats in enumerate(atom_types) for at in ats}
++
++    def __init__(self):
++        data_path = Path(__file__).parent.resolve() / "data"
++        self.tobi_a_1 = self._read_potentials(data_path / "TOBI_A2_step1")
++        self.tobi_a_2 = self._read_potentials(data_path / "TOBI_A2_step2")
++
++    def _read_potentials(self, data_file_name):
++        """Reads TOBIA2 data potentials"""
++        return np.loadtxt(data_file_name, dtype=float)
++
++
++class TOBIA2Adapter(ModelAdapter):
++    """Adapts a given Complex to a DockingModel object suitable for this
++    TOBIA2 scoring function.
++    """
++
++    def _get_docking_model(self, molecule, restraints):
++        """Builds a suitable docking model for this scoring function"""
++        list_of_coordinates = molecule.atom_coordinates
++        parsed_restraints = {}
++        for chain in molecule.chains:
++            for residue in chain.residues:
++                for atom in residue.atoms:
++                    atom.index = TOBIA2Potential.atom_indice[
++                        f"{atom.residue_name}{atom.name}"
++                    ]
++                res_id = (
++                    f"{chain.cid}.{residue.name}.{residue.number}{residue.insertion}"
++                )
++                if restraints and res_id in restraints:
++                    parsed_restraints[res_id] = []
++
++        return DockingModel(molecule, list_of_coordinates, parsed_restraints)
++
++
++class TOBIA2(ScoringFunction):
++    """Implements TOBIA2 potential"""
++
++    def __init__(self, weight=1.0):
++        super(TOBIA2, self).__init__(weight, anm_support=False)
++        self.function = self._default
++        self.potential = TOBIA2Potential()
++        self.cutoff = DEFAULT_CONTACT_RESTRAINTS_CUTOFF
++
++    def __call__(self, receptor, receptor_coordinates, ligand, ligand_coordinates):
++        return self.function(receptor, receptor_coordinates, ligand, ligand_coordinates)
++
++    def _default(self, receptor, receptor_coordinates, ligand, ligand_coordinates):
++        energy = 0.0
++
++        dist_matrix_atom = scipy.spatial.distance.cdist(
++            receptor_coordinates, ligand_coordinates
++        )  # shape:len(rec.atoms)*len(lig.atoms)
++        rec_tobi_atom_types = np.array(
++            [atom.index for atom in receptor.objects.atoms]
++        )  # shape:len(rec.atoms)*1,aij in [0,17]
++        lig_tobi_atom_types = np.array(
++            [atom.index for atom in ligand.objects.atoms]
++        )  # shape:len(lig.atoms)*1,aij in [0,17]
++        searched_indice = tuple(
++            np.array(
++                np.meshgrid(rec_tobi_atom_types, lig_tobi_atom_types, indexing="ij")
++            ).reshape((2, -1))
++        )  # generate (array[idxx],array[idxy]) for fancy indexing
++        tobi_pot1_matrix = self.potential.tobi_a_1[searched_indice].reshape(
++            dist_matrix_atom.shape
++        )
++        tobi_pot2_matrix = self.potential.tobi_a_2[searched_indice].reshape(
++            dist_matrix_atom.shape
++        )
++        mask1 = dist_matrix_atom <= 4.0
++        mask2 = np.logical_and(dist_matrix_atom <= 6.0, dist_matrix_atom > 4.0)
++        energy = np.sum(tobi_pot1_matrix, where=mask1) + np.sum(
++            tobi_pot2_matrix, where=mask2
++        )
++        rec_coms = np.array(
++            [res.get_central_coordinate() for res in receptor.objects.residues]
++        )
++        lig_coms = np.array(
++            [lig.get_central_coordinate() for lig in ligand.objects.residues]
++        )
++        dist_matrix_residue = scipy.spatial.distance.cdist(rec_coms, lig_coms)
++        res_cutoff_indice = dist_matrix_residue[
++            dist_matrix_residue <= self.cutoff
++        ].nonzero()
++        interface_receptor = set(res_cutoff_indice[0])
++        # nonzero returns ([],) if res_cutoff_indice only contains 0,
++        # else returns (idxx,idxy) for 2D-matrix
++        interface_ligand = set()
++        if len(res_cutoff_indice) == 2:
++            interface_ligand = set(res_cutoff_indice[1])
++        energy *= -1.0
++        perc_receptor_restraints = ScoringFunction.restraints_satisfied(
++            receptor.restraints, interface_receptor
++        )
++        perc_ligand_restraints = ScoringFunction.restraints_satisfied(
++            ligand.restraints, interface_ligand
++        )
++        return (
++            energy + perc_receptor_restraints * energy + perc_ligand_restraints * energy
++        ) * self.weight
++
++
++# Needed to dynamically load the scoring functions from command line
++DefinedScoringFunction = TOBIA2
++DefinedModelAdapter = TOBIA2Adapter
+diff --git a/lightdock/structure/residue.py b/lightdock/structure/residue.py
+index fced968..c4fca99 100755
+--- a/lightdock/structure/residue.py
++++ b/lightdock/structure/residue.py
+@@ -190,6 +190,11 @@ def get_calpha(self):
+         """Get the Calpha atom"""
+         return self.get_atom("CA")
+ 
++    def get_central_coordinate(self):
++        """Calculates center of coordiantes of residue"""
++        coordinates = np.array([[atom.x, atom.y, atom.z] for atom in self.atoms])
++        return coordinates.mean(axis=0)
++
+     def get_central_atom(self):
+         """Calculates center of coordiantes of residue and returns closest atom"""
+         coordinates = np.array([[atom.x, atom.y, atom.z] for atom in self.atoms])
+diff --git a/lightdock/test/scoring/test_tobia1_function.py b/lightdock/test/scoring/test_tobia1_function.py
+new file mode 100644
+index 0000000..accb0e5
+--- /dev/null
++++ b/lightdock/test/scoring/test_tobia1_function.py
+@@ -0,0 +1,106 @@
++"""Tests for TOBIA1 scoring function module"""
++
++import pytest
++from pathlib import Path
++from lightdock.scoring.tobia1.driver import TOBIA1Potential, TOBIA1, TOBIA1Adapter
++from lightdock.pdbutil.PDBIO import parse_complex_from_file
++from lightdock.structure.complex import Complex
++
++
++class TestTOBISCPotential:
++    def test_create_TOBIA1Potential_interface(self):
++        potential = TOBIA1Potential()
++
++        assert len(potential.tobi_a_1) == 18
++        assert len(potential.tobi_a_2) == 18
++
++        assert 1.72 == pytest.approx(potential.tobi_a_1[0][0])
++        assert 0.00 == pytest.approx(potential.tobi_a_1[-1][-1])
++        assert 4.18 == pytest.approx(potential.tobi_a_1[1][17])
++
++        assert 0.29 == pytest.approx(potential.tobi_a_2[0][0])
++        assert 10.00 == pytest.approx(potential.tobi_a_2[-1][-1])
++        assert 0.45 == pytest.approx(potential.tobi_a_2[3][17])
++
++
++class TestTOBIA1:
++    def setup_class(self):
++        self.path = Path(__file__).absolute().parent
++        self.golden_data_path = self.path / "golden_data"
++        self.tobia1 = TOBIA1()
++
++    def test_calculate_TOBIA1_1PPE(self):
++        atoms, _, chains = parse_complex_from_file(
++            self.golden_data_path / "1PPErec.pdb"
++        )
++        receptor = Complex(chains, atoms)
++        atoms, _, chains = parse_complex_from_file(
++            self.golden_data_path / "1PPElig.pdb"
++        )
++        ligand = Complex(chains, atoms)
++        adapter = TOBIA1Adapter(receptor, ligand)
++        assert -470.14 == pytest.approx(
++            self.tobia1(
++                adapter.receptor_model,
++                adapter.receptor_model.coordinates[0],
++                adapter.ligand_model,
++                adapter.ligand_model.coordinates[0],
++            )
++        )
++
++    def test_calculate_TOBIA1_1EAW(self):
++        atoms, _, chains = parse_complex_from_file(
++            self.golden_data_path / "1EAWrec.pdb"
++        )
++        receptor = Complex(chains, atoms)
++        atoms, _, chains = parse_complex_from_file(
++            self.golden_data_path / "1EAWlig.pdb"
++        )
++        ligand = Complex(chains, atoms)
++        adapter = TOBIA1Adapter(receptor, ligand)
++        assert -350.12 == pytest.approx(
++            self.tobia1(
++                adapter.receptor_model,
++                adapter.receptor_model.coordinates[0],
++                adapter.ligand_model,
++                adapter.ligand_model.coordinates[0],
++            )
++        )
++
++    def test_calculate_TOBIA1_1AY7(self):
++        atoms, _, chains = parse_complex_from_file(
++            self.golden_data_path / "1AY7rec.pdb"
++        )
++        receptor = Complex(chains, atoms)
++        atoms, _, chains = parse_complex_from_file(
++            self.golden_data_path / "1AY7lig.pdb"
++        )
++        ligand = Complex(chains, atoms)
++        adapter = TOBIA1Adapter(receptor, ligand)
++        assert -358.04 == pytest.approx(
++            self.tobia1(
++                adapter.receptor_model,
++                adapter.receptor_model.coordinates[0],
++                adapter.ligand_model,
++                adapter.ligand_model.coordinates[0],
++            )
++        )
++
++    def test_calculate_TOBIA1_1CZY(self):
++        atoms, _, chains = parse_complex_from_file(
++            self.golden_data_path / "1czy_protein.pdb"
++        )
++        receptor = Complex(chains, atoms)
++        atoms, _, chains = parse_complex_from_file(
++            self.golden_data_path / "1czy_peptide.pdb"
++        )
++        ligand = Complex(chains, atoms)
++        adapter = TOBIA1Adapter(receptor, ligand)
++        assert 54.24 == pytest.approx(
++            self.tobia1(
++                adapter.receptor_model,
++                adapter.receptor_model.coordinates[0],
++                adapter.ligand_model,
++                adapter.ligand_model.coordinates[0],
++            )
++        )
+diff --git a/lightdock/test/scoring/test_tobia2_function.py b/lightdock/test/scoring/test_tobia2_function.py
+new file mode 100644
+index 0000000..19ce961
+--- /dev/null
++++ b/lightdock/test/scoring/test_tobia2_function.py
+@@ -0,0 +1,106 @@
++"""Tests for TOBIA2 scoring function module"""
++
++import pytest
++from pathlib import Path
++from lightdock.scoring.tobia2.driver import TOBIA2Potential, TOBIA2, TOBIA2Adapter
++from lightdock.pdbutil.PDBIO import parse_complex_from_file
++from lightdock.structure.complex import Complex
++
++
++class TestTOBIA2Potential:
++    def test_create_TOBIA2Potential_interface(self):
++        potential = TOBIA2Potential()
++
++        assert len(potential.tobi_a_1) == 18
++        assert len(potential.tobi_a_2) == 18
++
++        assert -1.02 == pytest.approx(potential.tobi_a_1[0][0])
++        assert 10.00 == pytest.approx(potential.tobi_a_1[-1][-1])
++        assert 2.73 == pytest.approx(potential.tobi_a_1[1][17])
++
++        assert 0.10 == pytest.approx(potential.tobi_a_2[0][0])
++        assert 10.00 == pytest.approx(potential.tobi_a_2[-1][-1])
++        assert 1.66 == pytest.approx(potential.tobi_a_2[3][17])
++
++
++class TestTOBIA2:
++    def setup_class(self):
++        self.path = Path(__file__).absolute().parent
++        self.golden_data_path = self.path / "golden_data"
++        self.tobiA2 = TOBIA2()
++
++    def test_calculate_TOBIA2_1PPE(self):
++        atoms, _, chains = parse_complex_from_file(
++            self.golden_data_path / "1PPErec.pdb"
++        )
++        receptor = Complex(chains, atoms)
++        atoms, _, chains = parse_complex_from_file(
++            self.golden_data_path / "1PPElig.pdb"
++        )
++        ligand = Complex(chains, atoms)
++        adapter = TOBIA2Adapter(receptor, ligand)
++        assert -358.14 == pytest.approx(
++            self.tobiA2(
++                adapter.receptor_model,
++                adapter.receptor_model.coordinates[0],
++                adapter.ligand_model,
++                adapter.ligand_model.coordinates[0],
++            )
++        )
++
++    def test_calculate_TOBIA2_1EAW(self):
++        atoms, _, chains = parse_complex_from_file(
++            self.golden_data_path / "1EAWrec.pdb"
++        )
++        receptor = Complex(chains, atoms)
++        atoms, _, chains = parse_complex_from_file(
++            self.golden_data_path / "1EAWlig.pdb"
++        )
++        ligand = Complex(chains, atoms)
++        adapter = TOBIA2Adapter(receptor, ligand)
++        assert -280.54 == pytest.approx(
++            self.tobiA2(
++                adapter.receptor_model,
++                adapter.receptor_model.coordinates[0],
++                adapter.ligand_model,
++                adapter.ligand_model.coordinates[0],
++            )
++        )
++
++    def test_calculate_TOBIA2_1AY7(self):
++        atoms, _, chains = parse_complex_from_file(
++            self.golden_data_path / "1AY7rec.pdb"
++        )
++        receptor = Complex(chains, atoms)
++        atoms, _, chains = parse_complex_from_file(
++            self.golden_data_path / "1AY7lig.pdb"
++        )
++        ligand = Complex(chains, atoms)
++        adapter = TOBIA2Adapter(receptor, ligand)
++        assert -230.36 == pytest.approx(
++            self.tobiA2(
++                adapter.receptor_model,
++                adapter.receptor_model.coordinates[0],
++                adapter.ligand_model,
++                adapter.ligand_model.coordinates[0],
++            )
++        )
++
++    def test_calculate_TOBIA2_1CZY(self):
++        atoms, _, chains = parse_complex_from_file(
++            self.golden_data_path / "1czy_protein.pdb"
++        )
++        receptor = Complex(chains, atoms)
++        atoms, _, chains = parse_complex_from_file(
++            self.golden_data_path / "1czy_peptide.pdb"
++        )
++        ligand = Complex(chains, atoms)
++        adapter = TOBIA2Adapter(receptor, ligand)
++        assert 43.23 == pytest.approx(
++            self.tobiA2(
++                adapter.receptor_model,
++                adapter.receptor_model.coordinates[0],
++                adapter.ligand_model,
++                adapter.ligand_model.coordinates[0],
++            )
++        )
+\ No newline at end of file

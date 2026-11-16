@@ -1,0 +1,70 @@
+version = "1.0"
+
+[task]
+name = "default/scverse__gget-153"
+description = "Add modEnrichr support to gget enrichr"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "gget",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "scverse/gget"
+ref = "15214fef04918b76f5309e5bafa30e96ca255b77"
+reference = "https://github.com/scverse/gget/pull/153"
+source_access = "auto"
+built_at = "2026-11-15T21:05:34.813743+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:5753adc737934c17e8202440f0e15c00190de073989042496dab150e30336a48"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2024-07-10T04:32:41Z"
+diff_format = "unified"
+context_files = [
+    "README.md",
+    "docs/src/en/cbio.md",
+    "docs/src/en/enrichr.md",
+    "docs/src/en/opentargets.md",
+    "gget/constants.py",
+    "gget/gget_enrichr.py",
+    "gget/main.py",
+    "tests/fixtures/test_enrichr.json",
+    "tests/from_json.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 725
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

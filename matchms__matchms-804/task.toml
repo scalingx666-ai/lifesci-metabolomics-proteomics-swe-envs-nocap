@@ -1,0 +1,65 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-804"
+description = "Migrate/python 313"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "d8386466767e4e799338d9441cc7662c84bb11cc"
+reference = "https://github.com/matchms/matchms/pull/804"
+source_access = "auto"
+built_at = "2026-11-16T12:54:48.722296+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:60d02cc7c58dd76a2612e7d06ef9c09ab8855feb6b50bbc90dc1ac4ae3c3269e"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-05-26T15:47:34Z"
+diff_format = "unified"
+context_files = [
+    ".github/workflows/CI_build.yml",
+    "CHANGELOG.md",
+    "README.rst",
+    "pyproject.toml",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 30
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

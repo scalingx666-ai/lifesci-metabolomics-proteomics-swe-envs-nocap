@@ -1,0 +1,64 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3604"
+description = "Remove auto param from modules list, fix advanced param application"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "3c1a28f9c701b5522d4b4e3b97772ecbd9c8db99"
+reference = "https://github.com/mzmine/mzmine/pull/3604"
+source_access = "auto"
+built_at = "2026-11-16T08:42:41.181097+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:fbdc9c33427b7e6a781b0ec9fff2ffabdd9a5b2148d7c41c67bc17dc8b38f862"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-03T11:36:02Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/BatchModeModulesList.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/tools/batchwizard/BatchWizardTab.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/tools/tools_autoparam/optimizer/OptimizerParameters.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 29
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

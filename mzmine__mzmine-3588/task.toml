@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3588"
+description = "mspepsearch: fix discovery and library path"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "befbfb48b161ab89efa7b77995546a99ee1e125d"
+reference = "https://github.com/mzmine/mzmine/pull/3588"
+source_access = "auto"
+built_at = "2026-11-16T08:42:51.106695+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:8647f3fcd1e12d666249ba4426121c055bd7d0efaa9950a82159655221f7644f"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-27T10:34:58Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/NistSearchConfig.java",
+    "mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/NistSearchConfigTest.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 57
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

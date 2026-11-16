@@ -1,0 +1,202 @@
+diff --git a/lightdock/prep/poses.py b/lightdock/prep/poses.py
+index bff28d78..266f25a8 100644
+--- a/lightdock/prep/poses.py
++++ b/lightdock/prep/poses.py
+@@ -19,7 +19,11 @@
+ )
+ from lightdock.prep.geometry import create_bild_file
+ from lightdock.structure.residue import Residue
+-from lightdock.error.lightdock_errors import LightDockWarning, MembraneSetupError
++from lightdock.error.lightdock_errors import (
++    LightDockWarning,
++    MembraneSetupError,
++    StructureError,
++)
+ from scipy.spatial.transform import Rotation
+ 
+ 
+@@ -83,10 +87,21 @@ def get_quaternion_for_restraint(
+     # Deal with possible DNA nucleotides
+     if not r_ca:
+         r_ca = rec_residue.get_atom("P")
++        if not r_ca:
++            # In case of HETATM
++            r_ca = rec_residue.get_central_atom()
++    if not r_ca:
++        raise StructureError(f"Cannot find a central atom for receptor restraint {rec_residue.full_name()}")
++
+     l_ca = lig_residue.get_calpha()
+     # Deal with possible DNA nucleotides
+     if not l_ca:
+         l_ca = lig_residue.get_atom("P")
++        if not l_ca:
++            # In case of HETATM
++            l_ca = lig_residue.get_central_atom()
++    if not l_ca:
++        raise StructureError(f"Cannot find a central atom for ligand restraint {lig_residue.full_name()}")
+ 
+     # Center restraints pair at origin
+     rx = r_ca.x + rt[0]
+@@ -152,6 +167,11 @@ def populate_poses(
+             ca = residue.get_calpha()
+             if not ca:
+                 ca = residue.get_atom("P")
++                if not ca:
++                    ca = residue.get_central_atom()
++                    if not ca:
++                        raise StructureError(f"Cannot find a central atom for residue {residue.full_name()}")
++
+             distances.append(
+                 (i, cdistance(ca.x, ca.y, ca.z, center[0], center[1], center[2]))
+             )
+@@ -267,6 +287,11 @@ def apply_restraints(
+         ca = residue.get_calpha()
+         if not ca:
+             ca = residue.get_atom("P")
++            if not ca:
++                ca = residue.get_central_atom()
++                if not ca:
++                    raise StructureError(f"Cannot find a central atom for residue {residue.full_name()}")
++
+         # Calculate the euclidean distance between swarm center and given atom/bead
+         for swarm_id, center in enumerate(swarm_centers):
+             distances[swarm_id] = cdistance(
+@@ -313,6 +338,12 @@ def apply_restraints(
+             ca = residue.get_calpha()
+             if not ca:
+                 ca = residue.get_atom("P")
++                if not ca:
++                    # In case of HETATM
++                    ca = residue.get_central_atom()
++                    if not ca:
++                        raise StructureError(f"Cannot find a central atom for residue {residue.full_name()}")
++
+             to_remove = []
+             for center_id, center in enumerate(centers_list):
+                 d = cdistance(
+diff --git a/lightdock/prep/starting_points.py b/lightdock/prep/starting_points.py
+index a38a4072..436ffc99 100644
+--- a/lightdock/prep/starting_points.py
++++ b/lightdock/prep/starting_points.py
+@@ -57,14 +57,14 @@ def calculate_surface_points(
+ 
+     # Surface
+     pdb_file_name = Path(receptor.structure_file_names[receptor.representative_id])
+-    molecule = parsePDB(pdb_file_name).select("protein or nucleic")
++    molecule = parsePDB(pdb_file_name).select("protein or nucleic or (hetero and not water and not resname MMB)")
+     if has_membrane:
+         pdb_no_membrane = str(
+             pdb_file_name.absolute().parent
+             / f"{pdb_file_name.stem}_no_membrane{pdb_file_name.suffix}"
+         )
+         writePDB(pdb_no_membrane, molecule)
+-    surface = molecule.select("protein and surface or nucleic and name P")
++    surface = molecule.select("protein and surface or nucleic and name P or (hetero and not water and not resname MMB)")
+     coords = surface.getCoords()
+ 
+     # SASA
+diff --git a/lightdock/structure/atom.py b/lightdock/structure/atom.py
+index 70d0ffad..8cee0910 100755
+--- a/lightdock/structure/atom.py
++++ b/lightdock/structure/atom.py
+@@ -8,10 +8,11 @@ class Atom(object):
+     """Represents a chemical atom"""
+ 
+     BACKBONE_ATOMS = ["CA", "C", "N", "O"]
+-    RECOGNIZED_ELEMENTS = ["C", "N", "O", "H", "S", "P", "CL", "MG", "FE", "PB", "SE"]
++    RECOGNIZED_ELEMENTS = ["C", "N", "O", "H", "S", "P", "CL", "MG", "FE", "PB", "SE", "F"]
+     MASSES = {
+         "H": 1.007825,
+         "C": 12.01,
++        "F": 18.9984,
+         "O": 15.9994,
+         "N": 14.0067,
+         "S": 31.972071,
+diff --git a/lightdock/structure/residue.py b/lightdock/structure/residue.py
+index f6a704ae..8be3f8b1 100755
+--- a/lightdock/structure/residue.py
++++ b/lightdock/structure/residue.py
+@@ -1,5 +1,7 @@
+ """Module to package a complex residue representation and operations"""
+ 
++import numpy as np
++from scipy.spatial import cKDTree
+ from lightdock.error.lightdock_errors import (
+     ResidueNonStandardError,
+     SideChainError,
+@@ -183,11 +185,19 @@ def get_calpha(self):
+         """Get the Calpha atom"""
+         return self.get_atom("CA")
+ 
++    def get_central_atom(self):
++        """Calculates center of coordiantes of residue and returns closest atom"""
++        coordinates = np.array([[atom.x, atom.y, atom.z] for atom in self.atoms])
++        centroid = coordinates.mean(axis=0)
++        min_dist, min_dist_idx = cKDTree(coordinates).query(centroid, 1)
++        return self.atoms[min_dist_idx]
++
+     def get_non_hydrogen_atoms(self):
+         return [atom for atom in self.atoms if not atom.is_hydrogen()]
+ 
+     @staticmethod
+     def dummy(x=0.0, y=0.0, z=0.0):
++        """Creates a dummy residue with DUM residue name"""
+         atom = Atom(atom_name="CA", residue_name="DUM", x=x, y=y, z=z)
+         return Residue(residue_name="DUM", residue_number=0, atoms=[atom])
+ 
+@@ -203,6 +213,11 @@ def __str__(self):
+             return f"{self.name}.{self.number}{self.insertion}"
+ 
+ 
++    def full_name(self):
++        """Get the full id of this residue"""
++        return f"{self.name}.{self.number}{self.insertion}"
++
++
+ class AminoAcid(Residue):
+     """Amino acid residue type"""
+ 
+diff --git a/lightdock/test/prep/golden_data/3p0g/receptor_membrane_no_membrane.pdb b/lightdock/test/prep/golden_data/3p0g/receptor_membrane_no_membrane.pdb
+index 7a642889..58dfc57a 100644
+--- a/lightdock/test/prep/golden_data/3p0g/receptor_membrane_no_membrane.pdb
++++ b/lightdock/test/prep/golden_data/3p0g/receptor_membrane_no_membrane.pdb
+@@ -1,4 +1,4 @@
+-REMARK Selection 'protein or nucleic'
++REMARK Selection 'protein or nucl...ot resname MMB)'
+ ATOM      1  N   GLU A  30      50.375  81.175  42.811  1.00139.27           N  
+ ATOM      2  CA  GLU A  30      49.159  81.210  43.608  1.00142.33           C  
+ ATOM      3  C   GLU A  30      49.401  81.877  44.956  1.00149.17           C  
+diff --git a/lightdock/test/structure/test_residue.py b/lightdock/test/structure/test_residue.py
+index 205f6f31..93a42560 100644
+--- a/lightdock/test/structure/test_residue.py
++++ b/lightdock/test/structure/test_residue.py
+@@ -120,6 +120,29 @@ def test_dummy_residue(self):
+         assert dummy.atoms[0].name == "CA"
+         assert str(dummy.atoms[0]) == "  CA   1.000   2.000   3.000"
+ 
++    def test_full_name(self):
++        residue = Residue("ALA", 1)
++        assert residue.full_name() == "ALA.1"
++
++    def test_full_name_with_insertion(self):
++        residue = Residue("ALA", 1, residue_insertion="A")
++        assert residue.full_name() == "ALA.1A"
++
++    def test_get_centra_atom(self):
++        atoms = [
++            Atom(1, "N", "", "A", "CYS", 3, x=2.496, y=13.096, z=10.611),
++            Atom(2, "CA", "", "A", "CYS", 3, x=2.787, y=12.161, z=9.557),
++            Atom(3, "C", "", "A", "CYS", 3, x=4.052, y=11.431, z=9.896),
++            Atom(4, "O", "", "A", "CYS", 3, x=5.120, y=12.044, z=9.912),
++            Atom(5, "CB", "", "A", "CYS", 3, x=2.879, y=12.853, z=8.246),
++            Atom(6, "SG", "", "A", "CYS", 3, x=3.492, y=11.911, z=6.838),
++        ]
++        residue = Residue("CYS", 1, atoms=atoms)
++
++        central_atom = residue.get_central_atom()
++
++        assert central_atom.name == "CA"
++
+ 
+ class TestAminoAcid:
+     def test_create_amino_acid(self):

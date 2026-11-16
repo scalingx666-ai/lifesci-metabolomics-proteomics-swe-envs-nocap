@@ -1,0 +1,129 @@
+diff --git a/LICENSE b/LICENSE
+index 4d7fe1f..5a68103 100644
+--- a/LICENSE
++++ b/LICENSE
+@@ -15,3 +15,9 @@ No additional restrictions — You may not apply legal terms or technological
+ measures that legally restrict others from doing anything the license permits.
+ 
+ Full license text: https://creativecommons.org/licenses/by/4.0/legalcode
++
++---
++
++This project references claude-scientific-skills
++(https://github.com/K-Dense-AI/claude-scientific-skills),
++Copyright (c) 2025 K-Dense-AI, licensed under the MIT License.
+diff --git a/skills/genomics-bioinformatics/gget-genomic-databases/SKILL.md b/skills/genomics-bioinformatics/gget-genomic-databases/SKILL.md
+index 8666a78..97dccdd 100644
+--- a/skills/genomics-bioinformatics/gget-genomic-databases/SKILL.md
++++ b/skills/genomics-bioinformatics/gget-genomic-databases/SKILL.md
+@@ -533,8 +533,7 @@ gget ref -w dna -d homo_sapiens
+ 
+ 1. **`references/module_parameters.md`** — Consolidates module_reference.md (468 lines). Covers: detailed parameter tables for all 15+ modules with types, defaults, and return value descriptions; CLI vs Python interface differences; setup requirements per module. Relocated inline: most-used module parameters (Core API code blocks), output format summary (Key Concepts table). Omitted: gget gpt module details — trivial OpenAI wrapper, not genomics-specific.
+ 
+-2. **`references/databases_workflows.md`** — Consolidates database_info.md (301 lines) and workflows.md (815 lines). Covers: complete database directory with update frequencies and citation info, extended workflow examples (building reference indices, disease-drug pipeline, multi-species comparative analysis), data consistency and reproducibility guidance. Relocated inline: core database overview (Key Concepts table), top 3 workflows (Common Workflows), reproducibility patterns (Key Concepts). Omitted: scripts/ content (3 files, 590 lines total) — thin wrappers around gget API calls for CLI automation; core patterns absorbed into Core API and Common Workflows. Promotional/vendor content stripped per migration rule 4.
+-
++2. **`references/databases_workflows.md`** — Consolidates database_info.md (301 lines) and workflows.md (815 lines). Covers: complete database directory with update frequencies and citation info, extended workflow examples (building reference indices, disease-drug pipeline, multi-species comparative analysis), data consistency and reproducibility guidance. Relocated inline: core database overview (Key Concepts table), top 3 workflows (Common Workflows), reproducibility patterns (Key Concepts). Omitted: scripts/ content (3 files, 590 lines total) — thin wrappers around gget API calls for CLI automation; core patterns absorbed into Core API and Common Workflows. 
+ ## Related Skills
+ 
+ - **biopython** — advanced BLAST parameters, batch sequence processing, GenBank record parsing
+diff --git a/skills/genomics-bioinformatics/gget-genomic-databases/references/databases_workflows.md b/skills/genomics-bioinformatics/gget-genomic-databases/references/databases_workflows.md
+index db8e089..749c408 100644
+--- a/skills/genomics-bioinformatics/gget-genomic-databases/references/databases_workflows.md
++++ b/skills/genomics-bioinformatics/gget-genomic-databases/references/databases_workflows.md
+@@ -332,4 +332,4 @@ When publishing results obtained through gget, cite:
+ 
+ Always check individual database citation policies before publication. COSMIC data redistribution is restricted by license.
+ 
+-*Condensed from database_info.md (301 lines) and workflows.md (815 lines) — 1,116 total. Retained: complete database directory, 3 extended workflows, reproducibility guide. Omitted: scripts/ content (3 files, 590 lines — thin CLI wrappers absorbed into Core API), promotional content (stripped per migration rule 4). Relocated to SKILL.md: core database overview table, top 3 workflows, basic best practices, reproducibility patterns.*
++*Condensed from database_info.md (301 lines) and workflows.md (815 lines) — 1,116 total. Retained: complete database directory, 3 extended workflows, reproducibility guide. Omitted: scripts/ content (3 files, 590 lines — thin CLI wrappers absorbed into Core API). Relocated to SKILL.md: core database overview table, top 3 workflows, basic best practices, reproducibility patterns.*
+diff --git a/skills/proteomics-protein-engineering/hmdb-database/SKILL.md b/skills/proteomics-protein-engineering/hmdb-database/SKILL.md
+index 4ae87a8..ac4a669 100644
+--- a/skills/proteomics-protein-engineering/hmdb-database/SKILL.md
++++ b/skills/proteomics-protein-engineering/hmdb-database/SKILL.md
+@@ -536,7 +536,7 @@ print(dict(class_counts.most_common(10)))
+ 
+ ## Bundled Resources
+ 
+-Self-contained entry. The original reference file `hmdb_data_fields.md` (268 lines, field catalog with XML element names and descriptions) is consolidated into the Key Concepts "HMDB XML Entry Structure" table and the "Data Field Completeness" table above. The field catalog's per-element XML tag names are demonstrated in Core API code blocks. Omitted from original: web interface descriptions (not programmatic), promotional content.
++Self-contained entry. The original reference file `hmdb_data_fields.md` (268 lines, field catalog with XML element names and descriptions) is consolidated into the Key Concepts "HMDB XML Entry Structure" table and the "Data Field Completeness" table above. The field catalog's per-element XML tag names are demonstrated in Core API code blocks. Omitted from original: web interface descriptions (not programmatic).
+ 
+ ## Related Skills
+ 
+diff --git a/skills/structural-biology-drug-discovery/chembl-database-bioactivity/SKILL.md b/skills/structural-biology-drug-discovery/chembl-database-bioactivity/SKILL.md
+index 7e7cabf..16f54c4 100644
+--- a/skills/structural-biology-drug-discovery/chembl-database-bioactivity/SKILL.md
++++ b/skills/structural-biology-drug-discovery/chembl-database-bioactivity/SKILL.md
+@@ -458,7 +458,7 @@ print(f"Exported {len(df)} records")
+ **Self-contained entry** (no `references/` directory). Original total: 662 lines (SKILL.md 389 + api_reference.md 273). Scripts: 279 lines (example_queries.py).
+ 
+ **Original file disposition**:
+-- `SKILL.md` (389 lines) → Core API, Workflows, Quick Start. Promotional section stripped (rule 4). "Common Use Cases" consolidated (rule 7b): Find Kinase Inhibitors → Workflow 1 pattern, Virtual Screening → Recipe, Drug Repurposing → omitted (trivial loop over drug endpoint, not a distinct analytical workflow). "Important Notes" section routed to Best Practices and Troubleshooting (rule 9)
++- `SKILL.md` (389 lines) → Core API, Workflows, Quick Start. "Common Use Cases" consolidated (rule 7b): Find Kinase Inhibitors → Workflow 1 pattern, Virtual Screening → Recipe, Drug Repurposing → omitted (trivial loop over drug endpoint, not a distinct analytical workflow). "Important Notes" section routed to Best Practices and Troubleshooting (rule 9)
+ - `references/api_reference.md` (273 lines) → Consolidated inline. Filter Operators → Key Concepts table. Core Endpoints listing → Key Concepts table (all endpoints). Molecular Properties → Key Concepts table. Bioactivity Data Fields → Key Concepts table. Target Information Fields → Key Concepts table. Configuration/Settings → Common Recipes. Error handling/rate limiting → Troubleshooting + Best Practices. Response formats (JSON/XML/YAML) → omitted (JSON is default and only format used via Python SDK). Advanced query examples already covered in Core API
+ - `scripts/example_queries.py` (279 lines) → Thin-wrapper functions absorbed into Core API modules: `get_molecule_info` / `search_molecules_by_name` / `find_molecules_by_properties` → Module 1 (Molecule Queries); `get_target_info` / `search_targets_by_name` → Module 2 (Target Queries); `get_bioactivity_data` / `get_compound_bioactivities` → Module 3 (Bioactivity Data); `find_similar_compounds` / `substructure_search` → Module 4 (Structure-Based Search); `get_drug_info` → Module 5 (Drug and Mechanism Data); `find_kinase_inhibitors` → Workflow 1; `export_to_dataframe` → Workflow 1 + Recipe (Export)
+ 
+diff --git a/skills/structural-biology-drug-discovery/clinicaltrials-database-search/SKILL.md b/skills/structural-biology-drug-discovery/clinicaltrials-database-search/SKILL.md
+index 325ba8e..b88743b 100644
+--- a/skills/structural-biology-drug-discovery/clinicaltrials-database-search/SKILL.md
++++ b/skills/structural-biology-drug-discovery/clinicaltrials-database-search/SKILL.md
+@@ -460,7 +460,7 @@ enrollment = safe_get(study, 'protocolSection', 'designModule', 'enrollmentInfo'
+ **Self-contained entry**. Original total: 866 lines (SKILL.md 507 + api_reference.md 359). Scripts: 216 lines (query_clinicaltrials.py).
+ 
+ **Original file disposition**:
+-- `SKILL.md` (507 lines) → Core API modules 1-7 (condition, intervention, location, sponsor, details, pagination, CSV export). "Core Capabilities" sections 1-10 consolidated: Search by Condition → Module 1, Search by Intervention → Module 2, Geographic Search → Module 3, Search by Sponsor → Module 4, Retrieve Detailed Study → Module 5, Pagination → Module 6, Data Export → Module 7, Combined Query → Workflow 1, Extract Summary → Recipe. Promotional section stripped (rule 4). "Resources" section stub → removed, content consolidated inline. Per-use-case disposition: Patient Matching → When to Use bullet + Workflow 1; Research Analysis → When to Use + Workflow 2; Drug Tracking → When to Use + Module 2; Geographic Search → Module 3; Sponsor Tracking → Module 4 + Workflow 3; Data Export → Module 7; Trial Monitoring → When to Use bullet; Eligibility Screening → Module 5
++- `SKILL.md` (507 lines) → Core API modules 1-7 (condition, intervention, location, sponsor, details, pagination, CSV export). "Core Capabilities" sections 1-10 consolidated: Search by Condition → Module 1, Search by Intervention → Module 2, Geographic Search → Module 3, Search by Sponsor → Module 4, Retrieve Detailed Study → Module 5, Pagination → Module 6, Data Export → Module 7, Combined Query → Workflow 1, Extract Summary → Recipe. "Resources" section stub → removed, content consolidated inline. Per-use-case disposition: Patient Matching → When to Use bullet + Workflow 1; Research Analysis → When to Use + Workflow 2; Drug Tracking → When to Use + Module 2; Geographic Search → Module 3; Sponsor Tracking → Module 4 + Workflow 3; Data Export → Module 7; Trial Monitoring → When to Use bullet; Eligibility Screening → Module 5
+ - `references/api_reference.md` (359 lines) → Fully consolidated inline: endpoint parameters → Key Concepts "Query Parameters Reference" table; status/phase values → Key Concepts tables; response structure → Key Concepts "Response Data Structure" table; HTTP error codes → Troubleshooting table; rate limit guidance → Prerequisites + Best Practices; use cases → duplicated main SKILL.md examples, absorbed into Core API; data standards (ISO 8601, CommonMark) → Prerequisites note. Error handling patterns → Recipes "Rate-Limited Bulk Search"
+ - `scripts/query_clinicaltrials.py` (216 lines) → Helper function pattern: `search_studies()` → Quick Start `ct_search()` helper; `get_study_details()` → Module 5 inline; `search_with_all_results()` → Module 6 pagination pattern; `extract_study_summary()` → Recipe "Extract Study Summary". Thin-wrapper shortcut applied — each function was a thin wrapper around requests.get()
+ 
+diff --git a/skills/structural-biology-drug-discovery/medchem/SKILL.md b/skills/structural-biology-drug-discovery/medchem/SKILL.md
+index b1ea293..8170f9c 100644
+--- a/skills/structural-biology-drug-discovery/medchem/SKILL.md
++++ b/skills/structural-biology-drug-discovery/medchem/SKILL.md
+@@ -447,7 +447,7 @@ print(f"Covalent warhead candidates: {len(warhead_mols)}")
+ 
+ ### references/rules_catalog.md
+ 
+-Complete catalog of all medicinal chemistry rules and structural alert filters with literature references, threshold criteria, chemical group patterns, custom SMARTS examples, and stage-specific filter selection guidelines. API function signatures were consolidated into Core API code blocks above. Agent meta-instructions and promotional sections omitted per migration rules.
++Complete catalog of all medicinal chemistry rules and structural alert filters with literature references, threshold criteria, chemical group patterns, custom SMARTS examples, and stage-specific filter selection guidelines. API function signatures were consolidated into Core API code blocks above.
+ 
+ ## Related Skills
+ 
+diff --git a/skills/structural-biology-drug-discovery/molfeat-molecular-featurization/SKILL.md b/skills/structural-biology-drug-discovery/molfeat-molecular-featurization/SKILL.md
+index 7b9170b..bc7e6ed 100644
+--- a/skills/structural-biology-drug-discovery/molfeat-molecular-featurization/SKILL.md
++++ b/skills/structural-biology-drug-discovery/molfeat-molecular-featurization/SKILL.md
+@@ -401,7 +401,7 @@ def featurize_chunks(smiles_list, transformer, chunk_size=10000):
+ **references/api_reference.md**: Detailed API reference for `molfeat.calc`, `molfeat.trans`, and `molfeat.store` modules. Covers SerializableCalculator base class, all calculator subclasses with parameters, MoleculeTransformer methods, PretrainedMolTransformer, FeatConcat, ModelStore/ModelCard API, data type control, and PyTorch integration patterns.
+ 
+ **Original file disposition**:
+-- `SKILL.md` (510 lines) → Core API modules 1-6, Key Concepts (architecture, selection guide), Quick Start, Workflows 1-3. "Choosing the Right Featurizer" → Key Concepts selection guide table. "Advanced Features" (custom preprocessing, batch processing, caching) → Recipes + Best Practices. "Common Featurizers Reference" table → Key Concepts selection guide. "Performance Tips" → Best Practices. Promotional section stripped (rule 4). Per-use-case disposition: QSAR Modeling → Workflow 1, Virtual Screening → Workflow 2, Similarity Search → Recipe, Chemical Space → When to Use bullet, scikit-learn Pipeline → Recipe, Featurizer Comparison → Workflow 3
++- `SKILL.md` (510 lines) → Core API modules 1-6, Key Concepts (architecture, selection guide), Quick Start, Workflows 1-3. "Choosing the Right Featurizer" → Key Concepts selection guide table. "Advanced Features" (custom preprocessing, batch processing, caching) → Recipes + Best Practices. "Common Featurizers Reference" table → Key Concepts selection guide. "Performance Tips" → Best Practices. Per-use-case disposition: QSAR Modeling → Workflow 1, Virtual Screening → Workflow 2, Similarity Search → Recipe, Chemical Space → When to Use bullet, scikit-learn Pipeline → Recipe, Featurizer Comparison → Workflow 3
+ - `references/api_reference.md` (429 lines) → Migrated to new `references/api_reference.md`. Core patterns (FPCalculator, MoleculeTransformer, basic ModelStore) relocated to SKILL.md Core API modules 1-6. Detailed class methods, SerializableCalculator base class, PrecomputedMolTransformer, and PyTorch integration retained in reference
+ - `references/available_featurizers.md` (334 lines) → Migrated to new `references/available_featurizers.md`. Top-level summary → Key Concepts selection guide table. Full categorized catalog retained in reference
+ - `references/examples.md` (724 lines) → Fully consolidated inline: installation → Prerequisites; calculator examples → Core API 1-3; transformer examples → Core API 4; pretrained examples → Core API 5; ML integration → Workflows 1-3 + Recipes; advanced patterns (custom preprocessing, caching, chunk processing) → Recipes + Best Practices; troubleshooting → Troubleshooting table. No separate reference file needed — all content absorbed into SKILL.md sections
+diff --git a/skills/structural-biology-drug-discovery/pdb-database/SKILL.md b/skills/structural-biology-drug-discovery/pdb-database/SKILL.md
+index d295386..4da0b86 100644
+--- a/skills/structural-biology-drug-discovery/pdb-database/SKILL.md
++++ b/skills/structural-biology-drug-discovery/pdb-database/SKILL.md
+@@ -533,7 +533,7 @@ for model in structure:
+ 
+ Content from api_reference.md consolidated into: Key Concepts (data hierarchy, fields, query types, operators, return types), Core API Modules 1-7 (search patterns, GraphQL, download helper, rate limiting, batch), Workflows (drug-target, quality filtering), Troubleshooting table.
+ 
+-**Omitted**: ModelServer API, VolumeServer API, Sequence Coordinates API, Alignment API (4 specialized server APIs -- rarely used programmatically; documented at data.rcsb.org). Debugging subprocess/curl tip replaced by `to_dict()` in Best Practices. Promotional K-Dense section stripped.
++**Omitted**: ModelServer API, VolumeServer API, Sequence Coordinates API, Alignment API (4 specialized server APIs -- rarely used programmatically; documented at data.rcsb.org). Debugging subprocess/curl tip replaced by `to_dict()` in Best Practices.
+ 
+ ## Related Skills
+ 
+diff --git a/skills/systems-biology-multiomics/string-database-ppi/SKILL.md b/skills/systems-biology-multiomics/string-database-ppi/SKILL.md
+index dab4b2b..72c7a1e 100644
+--- a/skills/systems-biology-multiomics/string-database-ppi/SKILL.md
++++ b/skills/systems-biology-multiomics/string-database-ppi/SKILL.md
+@@ -421,7 +421,7 @@ print(f"STRING version: {version.strip()}")
+ **references/api_advanced.md**: Advanced API features (values/ranks enrichment, bulk upload, R/Cytoscape integration), output format details, HTTP error codes, data license — content from original string_reference.md that exceeds Core API scope.
+ 
+ **Original file disposition**:
+-- `SKILL.md` (534 lines) → Core API modules 1-7, Workflows 1-3, Quick Start helper function, Key Concepts (species table, score thresholds, network types). Promotional section stripped (rule 4). "Common Use Cases" per-operation subsections consolidated into Core API module descriptions (rule 7b): each operation's "When to use" and "Use cases" → Core API intro text. "Detailed Reference" stub section → removed, content consolidated inline
++- `SKILL.md` (534 lines) → Core API modules 1-7, Workflows 1-3, Quick Start helper function, Key Concepts (species table, score thresholds, network types). "Common Use Cases" per-operation subsections consolidated into Core API module descriptions (rule 7b): each operation's "When to use" and "Use cases" → Core API intro text. "Detailed Reference" stub section → removed, content consolidated inline
+ - `references/string_reference.md` (456 lines) → Partially consolidated inline: API endpoints → Core API modules with code blocks; species table → Key Concepts; confidence scores → Key Concepts; identifier format → Key Concepts. Advanced features (values/ranks enrichment, bulk upload), integration examples (R STRINGdb, Cytoscape), output format details, HTTP error codes, data license → migrated to `references/api_advanced.md`
+ - `scripts/string_api.py` (370 lines) → Helper function pattern absorbed into Quick Start (`string_query` reusable function). Per-function disposition: `string_map_ids` → Core API Module 1; `string_network` → Module 2; `string_network_image` → Module 3; `string_interaction_partners` → Module 4; `string_enrichment` → Module 5; `string_ppi_enrichment` → Module 6; `string_homology` → Module 7; `string_version` → Recipe. All were thin wrappers around urllib; replaced with requests-based `string_query` helper
+ 

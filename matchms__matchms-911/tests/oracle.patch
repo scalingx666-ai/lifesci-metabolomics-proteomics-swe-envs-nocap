@@ -1,0 +1,458 @@
+diff --git a/integration-tests/test_user_workflow.py b/integration-tests/test_user_workflow.py
+index 3c9e29606..9111f7bf7 100644
+--- a/integration-tests/test_user_workflow.py
++++ b/integration-tests/test_user_workflow.py
+@@ -29,7 +29,7 @@ def test_user_workflow():
+             ["select_by_mz", {"mz_from": 0, "mz_to": 1000}],
+             ["require_minimum_number_of_peaks", {"n_required": 5}],
+         ],
+-        score_computations=[["cosinegreedy", {"tolerance": 0.3}]],
++        score_computations=[["cosinegreedy", {"tolerance": 0.3, "noise_cutoff": None}]],
+     )
+ 
+     pipeline = Pipeline(workflow)
+diff --git a/matchms/similarity/Cosine.py b/matchms/similarity/Cosine.py
+index c77466376..f49349e1a 100644
+--- a/matchms/similarity/Cosine.py
++++ b/matchms/similarity/Cosine.py
+@@ -38,6 +38,7 @@ def __init__(
+             tolerance: float = 0.1,
+             intensity_power: float = 1.0,
+             use_hungarian: bool = False,
++            noise_cutoff: float = 0.01,
+             ):
+         """Initialize cosine score class.
+ 
+@@ -52,10 +53,14 @@ def __init__(
+             which means that the greedy algorithm is used to find the best matches.
+             The greedy algorithm is typically faster than the Hungarian algorithm, and for most
+             applications the results are very similar.
++        noise_cutoff:
++            Minimum relative intensity for a peak to be considered. Default is 0.01.
++            Will only be used if use_hungarian is False.
+         """
+         self.tolerance = tolerance
+         self.intensity_power = intensity_power
+         self.use_hungarian = use_hungarian
++        self.noise_cutoff = noise_cutoff
+ 
+     def pair(self, spectrum_1: SpectrumType, spectrum_2: SpectrumType) -> tuple[float, int]:
+         """Calculate approximate modified cosine score between two spectra."""
+@@ -69,6 +74,7 @@ def pair(self, spectrum_1: SpectrumType, spectrum_2: SpectrumType) -> tuple[floa
+             cosine = CosineGreedy(
+                 tolerance=self.tolerance,
+                 intensity_power=self.intensity_power,
++                noise_cutoff=self.noise_cutoff,
+             )
+         return cosine.pair(spectrum_1, spectrum_2)
+ 
+@@ -120,7 +126,8 @@ def matrix(
+             matching_mode="fragment",
+             tolerance=self.tolerance,
+             intensity_power=self.intensity_power,
+-            )
++            noise_cutoff=self.noise_cutoff,
++        )
+         return cosine.matrix(
+             spectra_1=spectra_1,
+             spectra_2=spectra_2,
+diff --git a/matchms/similarity/CosineGreedy.py b/matchms/similarity/CosineGreedy.py
+index a983abb97..ff75dc568 100644
+--- a/matchms/similarity/CosineGreedy.py
++++ b/matchms/similarity/CosineGreedy.py
+@@ -1,7 +1,7 @@
+ import numpy as np
+ from matchms.typing import SpectrumType
+ from .BaseSimilarity import BaseSimilarityWithSparse
+-from .spectrum_similarity_functions import collect_peak_pairs, score_best_matches
++from .spectrum_similarity_functions import collect_peak_pairs, filter_noise, score_best_matches
+ 
+ 
+ class CosineGreedy(BaseSimilarityWithSparse):
+@@ -45,6 +45,11 @@ class CosineGreedy(BaseSimilarityWithSparse):
+ 
+         Cosine score is 0.83 with 1 matched peaks
+ 
++    Unlike in matchms < 1.0, this method also applies a noise filter by default,
++    which removes peaks with intensity below a certain cutoff. This is typically
++    highly beneficial for the performance of the greedy algorithm, and for most
++    applications the results are very similar to the exact assignment variant.
++    If you want to disable this noise filtering, you can set ``noise_cutoff`` to 0 or None.
+     """
+ 
+     # Set key characteristics as class attributes (see BaseSimilarity for details).
+@@ -53,7 +58,12 @@ class CosineGreedy(BaseSimilarityWithSparse):
+     score_fields =("score", "matches")
+ 
+ 
+-    def __init__(self, tolerance: float = 0.1, mz_power: float = 0.0, intensity_power: float = 1.0):
++    def __init__(
++            self, tolerance: float = 0.1,
++            mz_power: float = 0.0,
++            intensity_power: float = 1.0,
++            noise_cutoff: float = 0.01,
++            ):
+         """
+         Parameters
+         ----------
+@@ -64,10 +74,13 @@ def __init__(self, tolerance: float = 0.1, mz_power: float = 0.0, intensity_powe
+             case the peak intensity products will not depend on the m/z ratios.
+         intensity_power:
+             The power to raise intensity to in the cosine function. The default is 1.
++        noise_cutoff:
++            Minimum relative intensity for a peak to be considered. Default is 0.01.
+         """
+         self.tolerance = tolerance
+         self.mz_power = mz_power
+         self.intensity_power = intensity_power
++        self.noise_cutoff = noise_cutoff
+ 
+     def pair(self, spectrum_1: SpectrumType, spectrum_2: SpectrumType) -> tuple[float, int]:
+         """Calculate cosine score between two spectra.
+@@ -99,6 +112,11 @@ def get_matching_pairs():
+ 
+         spec1 = spectrum_1.peaks.to_numpy
+         spec2 = spectrum_2.peaks.to_numpy
++        # Filter noise from spectra by removing peaks with intensity below a certain cutoff.
++        if self.noise_cutoff and self.noise_cutoff > 0.0:
++            spec1 = np.stack(filter_noise(spec1[:, 0], spec1[:, 1], self.noise_cutoff), axis=-1)
++            spec2 = np.stack(filter_noise(spec2[:, 0], spec2[:, 1], self.noise_cutoff), axis=-1)
++
+         matching_pairs = get_matching_pairs()
+         if matching_pairs is None:
+             return np.asarray((float(0), 0), dtype=self.score_datatype)
+diff --git a/matchms/similarity/FlashSimilarity.py b/matchms/similarity/FlashSimilarity.py
+index 15dde2a71..8b4c52885 100644
+--- a/matchms/similarity/FlashSimilarity.py
++++ b/matchms/similarity/FlashSimilarity.py
+@@ -28,7 +28,7 @@ def __init__(
+         remove_precursor: bool = False,
+         precursor_window: float = 1.6,
+         noise_cutoff: float = 0.01,
+-        normalize_to_half: bool = True,
++        normalize_to_half: bool = False,
+         merge_within: float = 0,
+         identity_precursor_tolerance: float | None = None,
+         identity_use_ppm: bool = False,
+@@ -265,6 +265,13 @@ class FlashEntropy(_BaseFlashSimilarity):
+     score_datatype = np.float32
+     score_fields = ("score",)
+ 
++    def __init__(self, *args, normalize_to_half: bool = True, **kwargs):
++        super().__init__(
++            *args,
++            normalize_to_half=normalize_to_half,
++            **kwargs,
++        )
++
+     @property
+     def _weighing_type(self) -> str:
+         return "entropy"
+@@ -410,7 +417,7 @@ class CosineFlash(_BaseFlashSimilarity):
+         Default is 0.01 (1%).
+     normalize_to_half:
+         If True, normalize intensities such that the sum of intensities is 0.5.
+-        Default is True.
++        Default is False.
+     merge_within:
+         If > 0, merge peaks within this distance (in Da) to a single peak.
+         Default is 0.
+diff --git a/matchms/similarity/ModifiedCosine.py b/matchms/similarity/ModifiedCosine.py
+index fd348cf70..eae61fe4e 100644
+--- a/matchms/similarity/ModifiedCosine.py
++++ b/matchms/similarity/ModifiedCosine.py
+@@ -43,6 +43,7 @@ def __init__(
+             tolerance: float = 0.1,
+             intensity_power: float = 1.0,
+             use_hungarian: bool = False,
++            noise_cutoff: float = 0.01,
+             ):
+         """Initialize the modified cosine score class.
+ 
+@@ -57,10 +58,14 @@ def __init__(
+             which means that the greedy algorithm is used to find the best matches.
+             The greedy algorithm is typically faster than the Hungarian algorithm, and for most
+             applications the results are very similar.
++        noise_cutoff:
++            Minimum relative intensity for a peak to be considered. Default is 0.01.
++            Will only be used if use_hungarian is False.
+         """
+         self.tolerance = tolerance
+         self.intensity_power = intensity_power
+         self.use_hungarian = use_hungarian
++        self.noise_cutoff = noise_cutoff
+ 
+     def pair(self, spectrum_1: SpectrumType, spectrum_2: SpectrumType) -> tuple[float, int]:
+         """Calculate approximate modified cosine score between two spectra."""
+@@ -74,6 +79,7 @@ def pair(self, spectrum_1: SpectrumType, spectrum_2: SpectrumType) -> tuple[floa
+             modcos = ModifiedCosineGreedy(
+                 tolerance=self.tolerance,
+                 intensity_power=self.intensity_power,
++                noise_cutoff=self.noise_cutoff,
+             )
+         return modcos.pair(spectrum_1, spectrum_2)
+ 
+@@ -125,7 +131,8 @@ def matrix(
+             matching_mode="hybrid",
+             tolerance=self.tolerance,
+             intensity_power=self.intensity_power,
+-            )
++            noise_cutoff=self.noise_cutoff,
++        )
+ 
+         return modcos.matrix(
+             spectra_1=spectra_1,
+diff --git a/matchms/similarity/ModifiedCosineGreedy.py b/matchms/similarity/ModifiedCosineGreedy.py
+index 6ee626f9a..5e8bde189 100644
+--- a/matchms/similarity/ModifiedCosineGreedy.py
++++ b/matchms/similarity/ModifiedCosineGreedy.py
+@@ -4,7 +4,7 @@
+ from ._precursor_validation import get_valid_precursor_mz
+ from .BaseSimilarity import BaseSimilarityWithSparse
+ from .CosineGreedy import CosineGreedy
+-from .spectrum_similarity_functions import collect_peak_pairs, score_best_matches
++from .spectrum_similarity_functions import collect_peak_pairs, filter_noise, score_best_matches
+ 
+ 
+ logger = logging.getLogger("matchms")
+@@ -25,13 +25,24 @@ class ModifiedCosineGreedy(BaseSimilarityWithSparse):
+ 
+     See Watrous et al. [PNAS, 2012, https://www.pnas.org/content/109/26/E1743]
+     for further details.
++
++    Unlike in matchms < 1.0, this method also applies a noise filter by default,
++    which removes peaks with intensity below a certain cutoff. This is typically
++    highly beneficial for the performance of the greedy algorithm, and for most
++    applications the results are very similar to the exact assignment variant.
++    If you want to disable this noise filtering, you can set ``noise_cutoff`` to 0 or None.
+     """
+ 
+     is_commutative = True
+     score_datatype = [("score", np.float64), ("matches", "int")]
+     score_fields = ("score", "matches")
+ 
+-    def __init__(self, tolerance: float = 0.1, mz_power: float = 0.0, intensity_power: float = 1.0):
++    def __init__(
++            self, tolerance: float = 0.1,
++            mz_power: float = 0.0,
++            intensity_power: float = 1.0,
++            noise_cutoff: float = 0.01,
++            ):
+         """Initialize approximate modified cosine.
+ 
+         Parameters
+@@ -43,10 +54,13 @@ def __init__(self, tolerance: float = 0.1, mz_power: float = 0.0, intensity_powe
+             case the peak intensity products will not depend on the m/z ratios.
+         intensity_power:
+             The power to raise intensity to in the cosine function. The default is 1.
++        noise_cutoff:
++            Minimum relative intensity for a peak to be considered. Default is 0.01.
+         """
+         self.tolerance = tolerance
+         self.mz_power = mz_power
+         self.intensity_power = intensity_power
++        self.noise_cutoff = noise_cutoff
+ 
+     def pair(self, spectrum_1: SpectrumType, spectrum_2: SpectrumType) -> tuple[float, int]:
+         """Calculate approximate modified cosine score between two spectra."""
+@@ -84,6 +98,11 @@ def get_matching_pairs():
+ 
+         spec1 = spectrum_1.peaks.to_numpy
+         spec2 = spectrum_2.peaks.to_numpy
++        # Filter noise from spectra by removing peaks with intensity below a certain cutoff.
++        if self.noise_cutoff and self.noise_cutoff > 0.0:
++            spec1 = np.stack(filter_noise(spec1[:, 0], spec1[:, 1], self.noise_cutoff), axis=-1)
++            spec2 = np.stack(filter_noise(spec2[:, 0], spec2[:, 1], self.noise_cutoff), axis=-1)
++
+         matching_pairs = get_matching_pairs()
+         if matching_pairs.shape[0] == 0:
+             return np.asarray((float(0), 0), dtype=self.score_datatype)
+diff --git a/matchms/similarity/flash_utils.py b/matchms/similarity/flash_utils.py
+index cda1f427e..e51643ef1 100644
+--- a/matchms/similarity/flash_utils.py
++++ b/matchms/similarity/flash_utils.py
+@@ -1,4 +1,5 @@
+ import numpy as np
++from .spectrum_similarity_functions import filter_noise
+ 
+ 
+ # ===================== library index =====================
+@@ -299,9 +300,7 @@ def _clean_and_weight(
+ 
+     # (optional) remove noise peaks below a fraction of max intensity
+     if noise_cutoff and noise_cutoff > 0.0:
+-        thr = intensities.max() * noise_cutoff
+-        mask = intensities >= thr
+-        mz, intensities = mz[mask], intensities[mask]
++        mz, intensities = filter_noise(mz, intensities, noise_cutoff)
+         if mz.size == 0:
+             return np.empty((0, 2), dtype=dtype)
+ 
+diff --git a/matchms/similarity/spectrum_similarity_functions.py b/matchms/similarity/spectrum_similarity_functions.py
+index cd02a91c9..93a885411 100644
+--- a/matchms/similarity/spectrum_similarity_functions.py
++++ b/matchms/similarity/spectrum_similarity_functions.py
+@@ -4,9 +4,14 @@
+ 
+ 
+ @njit
+-def collect_peak_pairs(spec1: np.ndarray, spec2: np.ndarray,
+-                       tolerance: float, shift: float = 0, mz_power: float = 0.0,
+-                       intensity_power: float = 1.0):
++def collect_peak_pairs(
++    spec1: np.ndarray,
++    spec2: np.ndarray,
++    tolerance: float,
++    shift: float = 0,
++    mz_power: float = 0.0,
++    intensity_power: float = 1.0
++    ):
+     """Find matching pairs between two spectra.
+ 
+     Args
+@@ -185,3 +190,24 @@ def number_matching_symmetric_ppm(numbers_1, tolerance_ppm):
+                     rows.append(j)
+                     cols.append(i)
+     return np.array(rows), np.array(cols), np.array(data)
++
++
++def filter_noise(
++        mz: np.ndarray,
++        intensities: np.ndarray,
++        noise_cutoff: float,
++        ) -> np.ndarray:
++    """Filter noise from spectra by removing peaks with intensity below a certain cutoff.
++
++    Parameters
++    ----------
++    mz:
++        Array of m/z values. Must be the same length as intensities.
++    intensities:
++        Array of intensity values. Must be the same length as mz.
++    noise_cutoff:
++        Peaks with intensity below this cutoff (relative to the maximum intensity) will be removed.
++    """
++    thr = intensities.max() * noise_cutoff
++    mask = intensities >= thr
++    return mz[mask], intensities[mask]
+\ No newline at end of file
+diff --git a/tests/similarity/test_spectrum_similarity_functions.py b/tests/similarity/test_spectrum_similarity_functions.py
+index 51dbbde6d..c0cb8d88f 100644
+--- a/tests/similarity/test_spectrum_similarity_functions.py
++++ b/tests/similarity/test_spectrum_similarity_functions.py
+@@ -5,6 +5,7 @@
+ import pytest
+ from matchms.similarity.spectrum_similarity_functions import (
+     collect_peak_pairs,
++    filter_noise,
+     find_matches,
+     number_matching,
+     number_matching_ppm,
+@@ -130,3 +131,32 @@ def test_number_matching_symmetric_ppm(numba_compiled):
+     assert np.all(scores == np.array([True, True, True, True, True])), "Expected different scores."
+     assert np.all(row == np.array([0, 0, 1, 1, 2]))
+     assert np.all(col == np.array([0, 1, 0, 1, 2]))
++
++
++def test_filter_noise_removes_peaks_below_relative_cutoff():
++    mz = np.array([100.0, 150.0, 200.0, 250.0])
++    intensities = np.array([49.0, 50.0, 100.0, 5.0])
++
++    filtered_mz, filtered_intensities = filter_noise(
++        mz,
++        intensities,
++        noise_cutoff=0.5,
++    )
++
++    np.testing.assert_array_equal(filtered_mz, np.array([150.0, 200.0]))
++    np.testing.assert_array_equal(filtered_intensities, np.array([50.0, 100.0]))
++
++
++@pytest.mark.parametrize("cutoff", [0.0, 0.01])
++def test_filter_noise_with_zero_or_low_enough_cutoff_keeps_all_peaks(cutoff):
++    mz = np.array([100.0, 150.0, 200.0])
++    intensities = np.array([1.2, 5.0, 100.0])
++
++    filtered_mz, filtered_intensities = filter_noise(
++        mz,
++        intensities,
++        noise_cutoff=cutoff,
++    )
++
++    np.testing.assert_array_equal(filtered_mz, mz)
++    np.testing.assert_array_equal(filtered_intensities, intensities)
+\ No newline at end of file
+diff --git a/tests/test_pipeline.py b/tests/test_pipeline.py
+index 8883cbd73..153decbbc 100644
+--- a/tests/test_pipeline.py
++++ b/tests/test_pipeline.py
+@@ -71,7 +71,7 @@ def test_pipeline_symmetric():
+     assert pipeline.scores is not None
+     assert pipeline.scores.shape == (5, 5)
+ 
+-    expected = np.array([[1.0, 0.30384404], [0.30384404, 1.0]])
++    expected = np.array([[1.0, 0.30385111], [0.30385111, 1.0]])
+     assert np.allclose(scores[3:, 3:], expected)
+     assert np.allclose(np.diag(scores), 1.0), "Diagonal should all be 1.0"
+ 
+@@ -136,7 +136,7 @@ def test_pipeline_symmetric_masking():
+     assert pipeline.scores is not None
+     assert pipeline.scores.shape == (5, 5)
+ 
+-    expected = np.array([[1.0, 0.30384404], [0.30384404, 1.0]])
++    expected = np.array([[1.0, 0.30385111], [0.30385111, 1.0]])
+     assert np.allclose(scores[3:, 3:], expected)
+     assert np.allclose(np.diag(scores), 1.0), "Diagonal should all be 1.0"
+ 
+@@ -159,7 +159,7 @@ def test_pipeline_symmetric_custom_score():
+     assert pipeline.scores is not None
+     assert pipeline.scores.shape == (5, 5)
+ 
+-    expected = np.array([[1.0, 0.30384404], [0.30384404, 1.0]])
++    expected = np.array([[1.0, 0.30385111], [0.30385111, 1.0]])
+     assert np.allclose(scores[3:, 3:], expected)
+     assert np.allclose(np.diag(scores), 1.0), "Diagonal should all be 1.0"
+ 
+@@ -183,7 +183,7 @@ def test_pipeline_non_symmetric():
+     assert pipeline.scores is not None
+     assert pipeline.scores.shape == (5, 10)
+ 
+-    expected = np.array([[1.0, 0.30384404], [0.30384404, 1.0]])
++    expected = np.array([[1.0, 0.30385111], [0.30385111, 1.0]])
+     assert np.allclose(scores[3:, 8:], expected)
+ 
+ 
+@@ -203,7 +203,7 @@ def test_pipeline_from_yaml():
+     assert pipeline.scores is not None
+     assert pipeline.scores.shape == (5, 5)
+ 
+-    expected = np.array([[1.0, 0.30384404], [0.30384404, 1.0]])
++    expected = np.array([[1.0, 0.30385111], [0.30385111, 1.0]])
+     assert np.allclose(scores[3:, 3:], expected)
+     assert np.allclose(np.diag(scores), 1.0), "Diagonal should all be 1.0"
+ 
+diff --git a/tests/test_version_string_consistency.py b/tests/test_version_string_consistency.py
+deleted file mode 100644
+index 31bc027ba..000000000
+--- a/tests/test_version_string_consistency.py
++++ /dev/null
+@@ -1,19 +0,0 @@
+-import os
+-import re
+-from matchms import __version__ as expected_version
+-
+-
+-def test_version_string_consistency_pyproject_toml():
+-    """Check whether version in pyproject.toml is consistent with that in matchms.__version__"""
+-
+-    repository_root = os.path.join(os.path.dirname(__file__), "..")
+-    fixture = os.path.join(repository_root, "pyproject.toml")
+-
+-    with open(fixture, encoding="utf-8") as f:
+-        contents = f.read()
+-
+-    match = re.search(r"^version = (?P<semver>.*)$", contents, re.MULTILINE)
+-    actual_version = match["semver"].strip('"')
+-
+-    assert expected_version == actual_version, "Expected version string used in pyproject.toml to be consistent with" \
+-                                               " that in matchms.__version__"

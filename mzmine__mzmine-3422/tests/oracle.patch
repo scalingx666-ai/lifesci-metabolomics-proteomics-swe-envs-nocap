@@ -1,0 +1,50 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/tools/mzrangecalculator/MzRangeFormulaCalculatorModule.java b/mzmine-community/src/main/java/io/github/mzmine/modules/tools/mzrangecalculator/MzRangeFormulaCalculatorModule.java
+index eea6faf8997..901cce042f1 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/tools/mzrangecalculator/MzRangeFormulaCalculatorModule.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/tools/mzrangecalculator/MzRangeFormulaCalculatorModule.java
+@@ -35,7 +35,6 @@
+ import io.github.mzmine.util.FormulaUtils;
+ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+-import org.openscience.cdk.interfaces.IMolecularFormula;
+ 
+ /**
+  * m/z range calculator module. Calculates m/z range from a given chemical formula and m/z
+@@ -96,8 +95,10 @@ public static Range<Double> getMzRangeFromFormula(String formula, IonizationType
+       return null;
+     }
+ 
+-    final IMolecularFormula iMolecularFormula = ionType.ionizeFormula(formula);
+-    final double ionizedMass = FormulaUtils.calculateMzRatio(iMolecularFormula);
++    final double neutralMass = FormulaUtils.calculateExactMass(formula);
++    final double ionizedMass = ionType.getCharge() == 0 ? neutralMass
++        : (neutralMass * ionType.getNumMol() + ionType.getAddedMass())
++            / Math.abs(ionType.getCharge());
+ 
+     return mzTolerance.getToleranceRange(ionizedMass);
+   }
+diff --git a/mzmine-community/src/test/java/modules/MzRangeFormulaCalculatorModuleTest.java b/mzmine-community/src/test/java/modules/MzRangeFormulaCalculatorModuleTest.java
+index 6571c89113f..67f313253a4 100644
+--- a/mzmine-community/src/test/java/modules/MzRangeFormulaCalculatorModuleTest.java
++++ b/mzmine-community/src/test/java/modules/MzRangeFormulaCalculatorModuleTest.java
+@@ -31,6 +31,7 @@
+ import io.github.mzmine.datamodel.IonizationType;
+ import io.github.mzmine.modules.tools.mzrangecalculator.MzRangeFormulaCalculatorModule;
+ import io.github.mzmine.parameters.parametertypes.tolerances.MZTolerance;
++import io.github.mzmine.util.FormulaUtils;
+ import org.junit.jupiter.api.Test;
+ 
+ public class MzRangeFormulaCalculatorModuleTest {
+@@ -50,6 +51,12 @@ void getMzRangeFromFormula() {
+     assertEquals(Range.closed(17.02857658009093, 17.048576580090934),
+         MzRangeFormulaCalculatorModule.getMzRangeFromFormula("CH4",
+             IonizationType.POSITIVE_HYDROGEN, tol), tolerance);
++    final double dimerMz = (FormulaUtils.getMonoisotopicMass(FormulaUtils.parse("CH4"))
++        * IonizationType.NAME32.getNumMol() + IonizationType.NAME32.getAddedMass())
++        / Math.abs(IonizationType.NAME32.getCharge());
++    assertEquals(tol.getToleranceRange(dimerMz),
++        MzRangeFormulaCalculatorModule.getMzRangeFromFormula("CH4", IonizationType.NAME32, tol),
++        tolerance);
+     assertEquals(Range.closed(15.014023675909066, 15.034023675909065),
+         MzRangeFormulaCalculatorModule.getMzRangeFromFormula("CH4",
+             IonizationType.NEGATIVE_HYDROGEN, tol), tolerance);

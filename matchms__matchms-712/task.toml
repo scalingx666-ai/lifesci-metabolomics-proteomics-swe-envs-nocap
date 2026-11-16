@@ -1,0 +1,64 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-712"
+description = "Enable metadata  exporting with tab separators"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "b2a8972f0ca2b6d814ee4306a42994d003dd9420"
+reference = "https://github.com/matchms/matchms/pull/712"
+source_access = "auto"
+built_at = "2026-11-16T12:56:14.044253+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:675891ff68f2b553bc3415dd1153bff7279af12d755491c0ca2fd066c35abb6b"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2024-11-06T15:41:45Z"
+diff_format = "unified"
+context_files = [
+    "matchms/exporting/metadata_export.py",
+    "tests/exporting/test_exporting_metadata.py",
+    "tests/testdata/expected_metadata.tsv",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 27
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

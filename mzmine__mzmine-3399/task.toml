@@ -1,0 +1,65 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3399"
+description = "Wizard option to subset files and preload"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "644a28e697ae46d15b51a2d19abc590ac3e2d725"
+reference = "https://github.com/mzmine/mzmine/pull/3399"
+source_access = "auto"
+built_at = "2026-11-16T08:46:04.957921+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:9a8ba0381827fd83d780f20c4ffcf056fa5842f00af14c4c5460c29f308b3b67"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-14T08:57:43Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_all/ImportSubsetDataMenu.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/tools/batchwizard/subparameters/DataImportWizardParameters.java",
+    "mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/filenames/FileNamesComponent.java",
+    "mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/filenames/FileNamesWithSideBarControlsParameter.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 294
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

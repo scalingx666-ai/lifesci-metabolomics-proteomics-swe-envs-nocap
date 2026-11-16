@@ -1,0 +1,14 @@
+diff --git a/scripts/downsample_traingenes.pl b/scripts/downsample_traingenes.pl
+index 13292ee..223df84 100755
+--- a/scripts/downsample_traingenes.pl
++++ b/scripts/downsample_traingenes.pl
+@@ -126,7 +126,8 @@
+ my $single_exon_gene_counter = 0;
+ my %intronNumPrinted;
+ 
+-while (my ($txid, $intronNum) = each %nIntrons ) {
++foreach my $txid (sort(keys %nIntrons)) {
++    my $intronNum = $nIntrons{$txid};
+     if( $intronNum == 0 ) {
+ 	$single_exon_gene_counter++;
+     }

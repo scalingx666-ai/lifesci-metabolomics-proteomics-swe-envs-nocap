@@ -1,0 +1,67 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-814"
+description = "Fixed metadata export"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "fe3a8b393e4aa2ccb1618b4c3d82a3f9cc2c2ba5"
+reference = "https://github.com/matchms/matchms/pull/814"
+source_access = "auto"
+built_at = "2026-11-16T12:54:34.645988+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:be69a870d082517231612efaef37fa4e55fb5957f4a58eb2a3e9de2ebb2662df"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-06-26T16:19:53Z"
+diff_format = "unified"
+context_files = [
+    "CHANGELOG.md",
+    "matchms/exporting/metadata_export.py",
+    "tests/exporting/test_exporting_metadata.py",
+    "tests/testdata/expected_metadata.csv",
+    "tests/testdata/expected_metadata.json",
+    "tests/testdata/expected_metadata.tsv",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 651
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,13 @@
+diff --git a/matchms/typing.py b/matchms/typing.py
+index a305e9c73..7c96d1a32 100644
+--- a/matchms/typing.py
++++ b/matchms/typing.py
+@@ -4,7 +4,7 @@
+ 
+ 
+ if TYPE_CHECKING:
+-    from matchms.spectrum import Spectrum
++    from matchms.Spectrum import Spectrum
+ 
+     SpectrumType: TypeAlias = Spectrum
+ else:

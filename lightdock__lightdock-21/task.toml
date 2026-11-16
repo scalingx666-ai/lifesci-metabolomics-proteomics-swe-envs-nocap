@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/lightdock__lightdock-21"
+description = "Flip 180º 50% of poses during setup"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "lightdock",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "lightdock/lightdock"
+ref = "6b99b5e0887351b12d258ed2dce0d7eda195e568"
+reference = "https://github.com/lightdock/lightdock/pull/21"
+source_access = "auto"
+built_at = "2026-11-15T22:44:57.796864+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e7effde976cae63f577a607af826b0bc9b7ac12d1f3a72d3c2e59a7aa18b6d59"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2021-11-10T10:07:04Z"
+diff_format = "unified"
+context_files = [
+    "lightdock/prep/poses.py",
+    "lightdock/test/prep/test_poses.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 57
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

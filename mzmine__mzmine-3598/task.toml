@@ -1,0 +1,70 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3598"
+description = "fix: use bundled Inter for macOS UI text"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "0437541d303b004d53bcdef55e5eff06476ac19d"
+reference = "https://github.com/mzmine/mzmine/pull/3598"
+source_access = "auto"
+built_at = "2026-11-16T08:42:44.158305+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:66b8d96480507ff7c81a2145833b8f981dc4bb2debd73d9a6931334109ea4c26"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-30T08:49:40Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/build.gradle",
+    "mzmine-community/src/main/java/io/github/mzmine/gui/preferences/Themes.java",
+    "mzmine-community/src/os_specific/macosFonts/resources/fonts/inter/Inter-Bold.otf",
+    "mzmine-community/src/os_specific/macosFonts/resources/fonts/inter/Inter-BoldItalic.otf",
+    "mzmine-community/src/os_specific/macosFonts/resources/fonts/inter/Inter-Italic.otf",
+    "mzmine-community/src/os_specific/macosFonts/resources/fonts/inter/Inter-Regular.otf",
+    "mzmine-community/src/os_specific/macosFonts/resources/fonts/inter/LICENSE.txt",
+    "mzmine-community/src/os_specific/macosFonts/resources/fonts/inter/README.md",
+    "mzmine-community/src/os_specific/macosFonts/resources/themes/fonts_macos.css",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 148
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

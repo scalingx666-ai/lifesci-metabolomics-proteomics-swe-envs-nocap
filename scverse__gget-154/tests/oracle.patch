@@ -1,0 +1,295 @@
+diff --git a/gget/gget_cbio.py b/gget/gget_cbio.py
+index 2d3582619..52054fcbf 100644
+--- a/gget/gget_cbio.py
++++ b/gget/gget_cbio.py
+@@ -4,7 +4,7 @@
+ import math
+ import os
+ import subprocess
+-from typing import Literal, TypeVar, Callable
++from typing import Literal, TypeVar, Callable, Union, Optional
+ 
+ import pandas as pd
+ import numpy as np
+@@ -48,13 +48,13 @@ def _ints_between(
+     else:
+         step = int(math.ceil((end - start) / (max_count - 1)))
+         if verbose:
+-            print(f"Original step: {step}, {(end - start) % step=}")
+-            print(f"{end - start=}")
++            print(f"Original step: {step}, (end - start) % step={(end - start) % step}")
++            print(f"end - start={end - start}")
+         # check if it comes out even
+         while ((end - start) / step) + 1 >= min_count and (end - start) % step != 0:
+             step += 1
+             if verbose:
+-                print(f"New step: {step}, {(end - start) % step=}")
++                print(f"New step: {step}, (end - start) % step={(end - start) % step}")
+         if (end - start) % step != 0:
+             step = int(math.ceil((end - start) / (max_count - 1)))
+             if verbose:
+@@ -67,7 +67,7 @@ def _ints_between(
+             out.append(current)
+         out.append(end)
+         if verbose:
+-            print(f"{out=}")
++            print(f"out={out}")
+         return out
+ 
+ 
+@@ -177,7 +177,7 @@ def download(self) -> bool:
+ def download_cbioportal_data(
+     study_ids: list[str],
+     verbose: bool = False,
+-    out_dir: str | None = None,
++    out_dir: Optional[str] = None,
+     confirm_download: bool = False,
+ ) -> bool:
+     """
+@@ -427,7 +427,7 @@ def _get_valid_ensembl_gene_id(
+ 
+ 
+ def _get_valid_ensembl_gene_id_bulk(df: pd.DataFrame) -> Callable[[pd.Series, str, str], str]:
+-    map_: dict[str, str] | None = None
++    map_: Optional[dict[str, str]] = None
+ 
+     def f(row: pd.Series, transcript_column: str = "seq_ID", gene_column: str = "gene_name"):
+         # logger.info(f"Row: {row}")
+@@ -445,7 +445,7 @@ def f(row: pd.Series, transcript_column: str = "seq_ID", gene_column: str = "gen
+     return f
+ 
+ 
+-def _nested_defaultdict() -> defaultdict[_K, _V | defaultdict[_K]]:
++def _nested_defaultdict() -> defaultdict[_K, Union[_V, defaultdict[_K]]]:
+     return defaultdict(_nested_defaultdict)
+ 
+ 
+@@ -749,8 +749,8 @@ def plot_heatmap(
+         stratification: Literal[
+             "tissue", "cancer_type", "cancer_type_detailed", "study_id", "sample"
+         ] = "tissue",
+-        filter_category: str | None = None,
+-        filter_value: str | None = None,
++        filter_category: Optional[str] = None,
++        filter_value: Optional[str] = None,
+         variation_type: Literal[
+             "mutation_occurrences",
+             "cna_nonbinary",
+@@ -760,8 +760,8 @@ def plot_heatmap(
+         ] = "mutation_occurrences",
+         dpi: int = 100,
+         show: bool = False,
+-        figure_filename: str | None = None,
+-        figure_title: str | None = None
++        figure_filename: Optional[str] = None,
++        figure_title: Optional[str] = None
+     ):
+         if variation_type == "cna_nonbinary" or variation_type == "Consequence":
+             assert (
+@@ -996,7 +996,7 @@ def plot_heatmap(
+             norm = TwoSlopeNorm(vmin=min_value, vcenter=0, vmax=max_value)
+ 
+         elif variation_type == "Consequence":
+-            consequences: list[str | float] = list(
++            consequences: list[Union[str, float]] = list(
+                 self.big_combined_df["Consequence"].unique()
+             )
+ 
+@@ -1024,7 +1024,7 @@ def plot_heatmap(
+             )
+             levels = list(range(min_value, max_value))
+ 
+-            string_to_int: dict[str | float, int] = {
++            string_to_int: dict[Union[str, float], int] = {
+                 consequence: i for i, consequence in enumerate(consequences)
+             }
+ 
+@@ -1073,7 +1073,7 @@ def plot_heatmap(
+ 
+         cbar = plt.colorbar(label=colorbar_label, ticks=levels)
+ 
+-        labels: list[str | int] = levels.copy()
++        labels: list[Union[str, int]] = levels.copy()
+         if nas_present:
+             labels[0] = "NaN"
+ 
+@@ -1150,19 +1150,19 @@ def cbio_plot(
+         "cna_occurrences",
+         "Consequence",
+     ] = "mutation_occurrences",
+-    filter_: tuple[str, str] | None = None,
++    filter_: Optional[tuple[str, str]] = None,
+ 
+     merge_type: Literal["Ensembl", "Symbol"] = "Symbol",
+     remove_non_ensembl_genes: bool = False,
+ 
+     data_dir: str = "gget_cbio_cache",
+     figure_dir: str = "gget_cbio_figures",
+-    figure_filename: str | None = None,
++    figure_filename: Optional[str] = None,
+     verbose: bool = True,
+     confirm_download: bool = False,
+     dpi: int = 100,
+     show: bool = False,
+-    figure_title: str | None = None,
++    figure_title: Optional[str] = None,
+ ) -> bool:
+     """
+     Plot a heatmap of given genes in the given studies.
+diff --git a/gget/gget_mutate.py b/gget/gget_mutate.py
+index f157d1daa..9de48c717 100644
+--- a/gget/gget_mutate.py
++++ b/gget/gget_mutate.py
+@@ -598,7 +598,7 @@ def mutate(
+         (mutations["wt_nucleotides_cosmic"] == mutations["wt_nucleotides_ensembl"]) |
+         mutations[["wt_nucleotides_cosmic", "wt_nucleotides_ensembl"]].isna().any(axis=1)
+     )
+-    
++
+     cosmic_incorrect_wt_base = (~congruent_wt_bases_mask).sum()
+ 
+     mutations = mutations[congruent_wt_bases_mask]
+@@ -805,7 +805,7 @@ def mutate(
+ 
+         mutations = mutations[~mutations['wt_fragment_and_mutant_fragment_share_kmer']]
+ 
+-        
++
+ 
+     # Create full sequences (substitution and non-substitution)
+     mutations["mutant_sequence_full"] = (
+@@ -858,7 +858,7 @@ def mutate(
+ 
+     if remove_overlapping_mutations:
+         good_mutations -= long_duplications - mutations_overlapping_with_wt
+-        summary_log 
++        summary_log
+ 
+     if good_mutations != total_mutations:
+         if remove_overlapping_mutations:
+diff --git a/gget/gget_opentargets.py b/gget/gget_opentargets.py
+index f1a86dda7..4c91a9676 100644
+--- a/gget/gget_opentargets.py
++++ b/gget/gget_opentargets.py
+@@ -1,9 +1,9 @@
+ import json as json_
+ try:
+-    from typing import Literal, Callable, Any, TypeAlias
++    from typing import Literal, Callable, Any, TypeAlias, Union, Optional
+ except ImportError:
+     from typing_extensions import Literal, TypeAlias
+-    from typing import Callable, Any
++    from typing import Callable, Any, Union, Optional
+ 
+ import pandas as pd
+ 
+@@ -24,13 +24,13 @@ def opentargets(
+         "depmap",
+         "interactions",
+     ] = "diseases",
+-    limit: int | None = None,
++    limit: Optional[int] = None,
+     verbose: bool = True,
+     wrap_text: bool = False,
+-    filters: dict[str, str | list[str]] | None = None,
++    filters: Optional[dict[str, Union[str, list[str]]]] = None,
+     filter_mode: Literal["and", "or"] = "and",
+     json: bool = False
+-) -> pd.DataFrame | list[dict[str, ...]]:
++) -> Union[pd.DataFrame, list[dict[str, ...]]]:
+     """
+     Query OpenTargets for data associated with a given Ensembl gene ID.
+ 
+@@ -87,7 +87,7 @@ def _limit_pagination() -> tuple[str, str, callable]:
+     Limit is expressed as (page: {"index": 0, "size": limit}).
+     """
+ 
+-    def f(limit: int | None, is_rows_based_query: bool):
++    def f(limit: Optional[int], is_rows_based_query: bool):
+         if limit is None:
+             # special case because `None` is used to probe the total count
+             if is_rows_based_query:
+@@ -104,7 +104,7 @@ def _limit_size() -> tuple[str, str, callable]:
+     Limit is expressed as (size: limit).
+     """
+ 
+-    def f(limit: int | None, is_rows_based_query: bool):
++    def f(limit: Optional[int], is_rows_based_query: bool):
+         # special case because `None` is used to probe the total count
+         if limit is None and is_rows_based_query:
+             limit = 1
+@@ -118,7 +118,7 @@ def _limit_not_supported() -> tuple[None, None, callable]:
+     Limit is not supported for this resource (it has no GraphQL-support, and it is meaningless).
+     """
+ 
+-    def f(limit: int | None, _is_rows_based_query: bool):
++    def f(limit: Optional[int], _is_rows_based_query: bool):
+         if limit is not None:
+             raise ValueError("Limit is not supported for this resource.")
+         return None
+@@ -131,7 +131,7 @@ def _limit_deferred() -> tuple[None, None, callable]:
+     Limit is handled after fetching the data (it is not supported by the GraphQL query, but does have meaning).
+     """
+ 
+-    def f(_limit: int | None, _is_rows_based_query: bool):
++    def f(_limit: Optional[int], _is_rows_based_query: bool):
+         return None
+ 
+     return None, None, f
+@@ -192,7 +192,7 @@ def f(
+     ) -> bool:
+         for filter_id, filter_values in filters.items():
+             split_key = id_key[filter_id].split(".")
+-            actual_value: dict[str, ...] | list[dict[str, ...]] = row
++            actual_value: Union[dict[str, ...], list[dict[str, ...]]] = row
+             for k in split_key:
+                 if actual_value is None:
+                     break
+@@ -231,11 +231,11 @@ def _make_query_fun(
+     wrap_columns: list[str],
+     limit_func: callable,
+     is_rows_based_query: bool = True,
+-    sorter: Callable[[dict[str, ...]], Any] | None = None,
++    sorter: Optional[Callable[[dict[str, ...]], Any]] = None,
+     sort_reverse: bool = False,
+     filter_: Callable[[dict[str, ...]], bool] = lambda x: True,
+     converter: Callable[[list[dict[str, ...]]], None] = lambda x: None,
+-    user_filter: tuple[set[str], _FilterApplicator] | None = None,
++    user_filter: Optional[tuple[set[str], _FilterApplicator]] = None,
+ ) -> callable:
+     """
+     Make a query function for OpenTargets API.
+@@ -266,10 +266,10 @@ def _make_query_fun(
+ 
+     def fun(
+         ensembl_id: str,
+-        limit: int | None = None,
++        limit: Optional[int] = None,
+         verbose: bool = True,
+         wrap_text: bool = False,
+-        filters: dict[str, list[str]] | None = None,
++        filters: Optional[dict[str, list[str]]] = None,
+         filter_mode: Literal["and", "or"] = "and",
+     ) -> pd.DataFrame:
+         if limit_key is None:
+diff --git a/gget/main.py b/gget/main.py
+index ff5a53822..261e29c75 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -1,6 +1,7 @@
+ import argparse
+ import sys
+ from datetime import datetime
++from typing import Optional
+ 
+ import pandas as pd
+ 
+@@ -3174,7 +3175,7 @@ def main():
+             "filter_protein_b": "protein_b_id",
+             "filter_gene_b": "gene_b_id",
+         }
+-        filters: dict[str, list[str]] | None = {}
++        filters: Optional[dict[str, list[str]]] = {}
+ 
+         for flag, filter_id in flag_to_filter_id.items():
+             if getattr(args, flag) is not None:

@@ -1,0 +1,69 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3464"
+description = "Batch fix step duplication"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "729d46c5cb744f0e659031113deddf4919ba6a02"
+reference = "https://github.com/mzmine/mzmine/pull/3464"
+source_access = "auto"
+built_at = "2026-11-16T08:44:51.295566+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:81b154ddbd7d80c42226ac439aab8218ebf4dfea62c912e2486db912eeb7103a"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-24T13:56:31Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/MZmineProcessingStep.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/BatchQueueParameter.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/BatchUtils.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/impl/MZmineProcessingStepImpl.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/io/projectsave/RawDataSavingUtils.java",
+    "mzmine-community/src/main/java/io/github/mzmine/parameters/ParameterUtils.java",
+    "mzmine-community/src/test/java/io/github/mzmine/modules/MZmineProcessingStepEqualityTest.java",
+    "mzmine-community/src/test/java/io/github/mzmine/modules/io/projectsave/RawDataSavingUtilsTest.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 443
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

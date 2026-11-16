@@ -1,0 +1,175 @@
+diff --git a/README.md b/README.md
+index ba587cee1..c518fd3a5 100644
+--- a/README.md
++++ b/README.md
+@@ -10,6 +10,12 @@
+ 
+ `gget` is a free, open-source command-line tool and Python package that enables efficient querying of genomic databases. `gget`  consists of a collection of separate but interoperable modules, each designed to facilitate one type of database querying in a single line of code.  
+   
++```diff
++! While Ensembl is in the process of updating its database to a new release,
++! you might receive a 404 error from the gget search and ref modules.
++! If this is the case, specify an earlier Ensembl release using the 'release' argument.  
++! Example: 'gget ref -r 110 human' (Python: 'gget.ref("human", release=110)')
++```
+   
+ ![alt text](https://github.com/pachterlab/gget/blob/main/figures/gget_overview.png?raw=true)
+     
+diff --git a/docs/src/en/elm.md b/docs/src/en/elm.md
+index fa3fde14f..58dc581ec 100644
+--- a/docs/src/en/elm.md
++++ b/docs/src/en/elm.md
+@@ -1,14 +1,14 @@
+ > Python arguments are equivalent to long-option arguments (`--arg`), unless otherwise specified. Flags are True/False arguments in Python. The manual for any gget tool can be called from the command-line using the `-h` `--help` flag.  
+ ## gget elm 🎭
+-Locally predict Eukaryotic Linear Motifs from an amino acid sequence or UniProt ID using data from the [ELM database](http://elm.eu.org/). ELM data can be downloaded & distributed for non-commercial use according to the [ELM Software License Agreement](http://elm.eu.org/media/Elm_academic_license.pdf).  
++Locally predict Eukaryotic Linear Motifs from an amino acid sequence or UniProt Acc using data from the [ELM database](http://elm.eu.org/). ELM data can be downloaded & distributed for non-commercial use according to the [ELM Software License Agreement](http://elm.eu.org/media/Elm_academic_license.pdf).  
+ Return format: JSON (command-line) or data frame/CSV (Python). This module returns two data frames (or JSON formatted files) (see examples).     
+ 
+ Before using `gget elm` for the first time, run `gget setup elm` / `gget.setup("elm")` once (also see [`gget setup`](setup.md)).   
+ 
+ **Positional argument**  
+ `sequence`  
+-Amino acid sequence or Uniprot ID (str).  
+-When providing a Uniprot ID, use flag `--uniprot` (Python: `uniprot==True`).  
++Amino acid sequence or Uniprot Acc (str).  
++When providing a Uniprot Acc, use flag `--uniprot` (Python: `uniprot==True`).  
+ 
+ **Optional arguments**  
+ `-s` `--sensitivity`  
+@@ -26,7 +26,7 @@ Path to the folder to save results in (str), e.g. "path/to/directory". Default:
+ 
+ **Flags**  
+ `-u` `--uniprot`  
+-Set to True if `sequence` is a Uniprot ID instead of an amino acid sequence.  
++Set to True if `sequence` is a Uniprot Acc instead of an amino acid sequence.  
+ 
+ `-e` `--expand`   
+ Expand the information returned in the regex data frame to include the protein names, organisms, and references that the motif was orignally validated on. 
+@@ -51,7 +51,7 @@ gget.setup(“elm”)      # Downloads/updates local ELM database
+ ortholog_df, regex_df = gget.elm("LIAQSIGQASFV")
+ ```
+   
+-Find ELMs giving a UniProt ID as input:  
++Find ELMs giving a UniProt Acc as input:  
+ ```bash
+ gget setup elm          # Downloads/updates local ELM database
+ gget elm -o gget_elm_results --uniprot Q02410 -e
+@@ -65,7 +65,7 @@ ortholog_df, regex_df = gget.elm("Q02410", uniprot=True, expand=True)
+ 
+ ortholog_df:  
+   
+-|Ortholog_UniProt_ID|ProteinName|class_accession|ELMIdentifier  |FunctionalSiteName                   |Description                                                                                                                              |Organism    |…  |
++|Ortholog_UniProt_Acc|ProteinName|class_accession|ELMIdentifier  |FunctionalSiteName                   |Description                                                                                                                              |Organism    |…  |
+ |:-----------------:|:---------:|:-------------:|:-------------:|:-----------------------------------:|:---------------------------------------------------------------------------------------------------------------------------------------:|:----------:|:-:|
+ |Q02410             |APBA1_HUMAN|ELME000357     |LIG_CaMK_CASK_1|CASK CaMK domain binding ligand motif|Motif that mediates binding to the calmodulin-dependent protein kinase (CaMK) domain of the peripheral plasma membrane protein CASK/Lin2.|Homo sapiens|…  |
+ |Q02410             |APBA1_HUMAN|ELME000091     |LIG_PDZ_Class_2|PDZ domain ligands                   |The C-terminal class 2 PDZ-binding motif is classically represented by a pattern such as                                                 |Homo sapiens|…  |
+diff --git a/docs/src/en/ref.md b/docs/src/en/ref.md
+index 0248c23db..9062e0ad8 100644
+--- a/docs/src/en/ref.md
++++ b/docs/src/en/ref.md
+@@ -3,6 +3,10 @@
+ Fetch FTPs and their respective metadata (or use flag `ftp` to only return the links) for reference genomes and annotations from [Ensembl](https://www.ensembl.org/) by species.  
+ Return format: dictionary/JSON.
+ 
++**While Ensembl is in the process of updating its database to a new release, you might receive a 404 ERROR.**  
++If this is the case, specify an earlier Ensembl version using the `release` argument.  
++Example: `gget ref -r 110 human` (Python: `gget.ref("human", release=110)`)
++
+ **Positional argument**  
+ `species`  
+ Species for which the FTPs will be fetched in the format genus_species, e.g. homo_sapiens.  
+diff --git a/docs/src/en/search.md b/docs/src/en/search.md
+index bc1ee7166..da993039e 100644
+--- a/docs/src/en/search.md
++++ b/docs/src/en/search.md
+@@ -4,7 +4,11 @@ Fetch genes and transcripts from [Ensembl](https://www.ensembl.org/) using free-
+ Results are matched based on the "gene name" and "description" sections in the Ensembl database. `gget` version >= 0.27.9 also includes results that match the Ensembl "synonym" section.  
+ Return format: JSON (command-line) or data frame/CSV (Python).
+ 
+-**Positional argument**
++**While Ensembl is in the process of updating its database to a new release, you might receive a 404 ERROR.**  
++If this is the case, specify an earlier Ensembl version using the `release` argument.  
++Example: `gget search -r 110 -s human ace2` (Python: `gget.search("ace2", species="human", release=110)`)
++
++**Positional argument**  
+ `searchwords`   
+ One or more free form search words, e.g. gaba nmda. (Note: Search is not case-sensitive.)
+ 
+diff --git a/docs/src/es/ref.md b/docs/src/es/ref.md
+index a286871df..ec0196cff 100644
+--- a/docs/src/es/ref.md
++++ b/docs/src/es/ref.md
+@@ -3,6 +3,10 @@
+ Obtenga enlaces FTP y sus respectivos metadatos (o use la bandera `ftp` para regresar solo los enlaces) para referenciar genomas y anotaciones de [Ensembl](https://www.ensembl.org/).  
+ Regresa: Resultados en formato JSON.  
+ 
++**Mientras Ensembl está en el proceso de actualizar su base de datos a una nueva versión, es posible que reciba un ERROR 404.**   
++Si este es el caso, especifique una versión anterior de Ensembl usando el argumento `release`.  
++Ejemplo: `gget ref -r 110 human` (Python: `gget.ref("human", release=110)`)
++
+ **Parámetro posicional**  
+ `species`  
+ La especie por la cual que se buscará los FTP en el formato género_especies, p. ej. homo_sapiens.  
+diff --git a/docs/src/es/search.md b/docs/src/es/search.md
+index c29d08d0f..390c943d4 100644
+--- a/docs/src/es/search.md
++++ b/docs/src/es/search.md
+@@ -4,6 +4,10 @@ Obtenga genes y transcripciones de [Ensembl](https://www.ensembl.org/) usando t
+ Los resultados se comparan según las secciones "nombre del gen" y "descripción" en la base de datos de Ensembl. `gget` versión >= 0.27.9 también incluye resultados que coinciden con la sección "sinónimo" de Ensembl.    
+ Regresa: Resultados en formato JSON (Terminal) o Dataframe/CSV (Python).  
+ 
++**Mientras Ensembl está en el proceso de actualizar su base de datos a una nueva versión, es posible que reciba un ERROR 404.**    
++Si este es el caso, especifique una versión anterior de Ensembl usando el argumento `release`.  
++Ejemplo: `gget search -r 110 -s human ace2` (Python: `gget.search("ace2", species="human", release=110)`)
++
+ **Parámetro posicional**  
+ `searchwords`   
+ Una o más palabras de búsqueda de forma libre, p. ej. gaba nmda. (Nota: la búsqueda no distingue entre mayúsculas y minúsculas).  
+diff --git a/tests/fixtures.py b/tests/fixtures.py
+index d1ad35309..e7179858d 100644
+--- a/tests/fixtures.py
++++ b/tests/fixtures.py
+@@ -1,5 +1,5 @@
+ # Latest Ensembl release for unittests
+-LATEST_ENS_RELEASE = 110
++LATEST_ENS_RELEASE = 111
+ 
+ # gget search species options for Ensembl release 106
+ SPECIES_OPTIONS = [
+@@ -629,4 +629,4 @@
+     "zalophus_californianus",
+     "zonotrichia_albicollis",
+     "zosterops_lateralis_melanops",
+-]
+\ No newline at end of file
++]
+diff --git a/tests/test_info.py b/tests/test_info.py
+index 5bd7c66a2..024b9937f 100644
+--- a/tests/test_info.py
++++ b/tests/test_info.py
+@@ -71,15 +71,15 @@ def test_info_exon(self):
+ 
+         self.assertListEqual(result_to_test, expected_result)
+ 
+-    def test_info_pdb(self):
+-        test = "test9"
+-        expected_result = info_dict[test]["expected_result"]
+-        result_to_test = info(**info_dict[test]["args"])
+-        # If result is a DataFrame, convert to list
+-        if isinstance(result_to_test, pd.DataFrame):
+-            result_to_test = result_to_test.dropna(axis=1).values.tolist()
+-
+-        self.assertListEqual(result_to_test, expected_result)
++    # def test_info_pdb(self):
++    #     test = "test9"
++    #     expected_result = info_dict[test]["expected_result"]
++    #     result_to_test = info(**info_dict[test]["args"])
++    #     # If result is a DataFrame, convert to list
++    #     if isinstance(result_to_test, pd.DataFrame):
++    #         result_to_test = result_to_test.dropna(axis=1).values.tolist()
++
++    #     self.assertListEqual(result_to_test, expected_result)
+ 
+     def test_info_ncbifalse_uniprottrue(self):
+         test = "test10"

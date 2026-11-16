@@ -1,0 +1,75 @@
+version = "1.0"
+
+[task]
+name = "default/scverse__gget-223"
+description = "fix: clear remaining ruff baseline errors on main"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "gget",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "scverse/gget"
+ref = "c72cc560a38132c20449a3583fcdebd616042762"
+reference = "https://github.com/scverse/gget/pull/223"
+source_access = "auto"
+built_at = "2026-11-15T21:04:47.791458+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:8fcc15bae33a9fa417256604f6c52e9e93978fa6f99b7e2b595e7b67f155e290"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-06-22T18:15:06Z"
+diff_format = "unified"
+context_files = [
+    ".github/badges/tests.json",
+    ".pre-commit-config.yaml",
+    "gget/gget_cbio.py",
+    "gget/gget_g2p.py",
+    "gget/gget_muscle.py",
+    "gget/gget_pdb.py",
+    "gget/gget_search.py",
+    "gget/gget_setup.py",
+    "gget/gget_virus.py",
+    "gget/main.py",
+    "gget/utils.py",
+    "pyproject.toml",
+    "tests/pytest_results.txt",
+    "tests/test_g2p.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 436
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

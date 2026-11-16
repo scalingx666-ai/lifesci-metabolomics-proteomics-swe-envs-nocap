@@ -1,0 +1,158 @@
+diff --git a/gget/utils.py b/gget/utils.py
+index 040730e39..d3e9897d0 100644
+--- a/gget/utils.py
++++ b/gget/utils.py
+@@ -742,6 +742,44 @@ def wrap_cols_func(df: pd.DataFrame, cols: list[str]) -> Any:
+     return display(HTML(df.to_html().replace("\\n", "<br>")))
+ 
+ 
++# Retry the shared REST query helpers on transient upstream errors. Ensembl's REST API (which
++# many gget modules depend on) returns 429 (rate limit, with a Retry-After header) or 5xx under
++# load; a short backoff keeps a transient hiccup from failing the whole call.
++_QUERY_RETRIES = 4
++_QUERY_BACKOFF_SEC = 2
++_RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
++
++
++def _query_with_retry(method: str, url: str, **kwargs: Any) -> requests.Response:
++    """GET/POST with retry on transient errors (429/5xx and connection/timeout errors).
++
++    Honors a Retry-After header when present. Non-retryable client errors (e.g. 404) and the
++    final response after exhausting retries are returned to the caller to handle as before.
++    """
++    kwargs.setdefault("timeout", DEFAULT_REQUESTS_TIMEOUT)
++    last_exc: Exception | None = None
++    response: requests.Response | None = None
++    for attempt in range(1, _QUERY_RETRIES + 1):
++        try:
++            response = requests.request(method, url, **kwargs)
++        except requests.RequestException as e:
++            last_exc = e
++            response = None
++        else:
++            if response.ok or response.status_code not in _RETRYABLE_STATUS:
++                return response
++        if attempt < _QUERY_RETRIES:
++            wait = _QUERY_BACKOFF_SEC * attempt
++            if response is not None:
++                retry_after = response.headers.get("Retry-After", "")
++                if retry_after.isdigit():
++                    wait = min(int(retry_after), 30)
++            time.sleep(wait)
++    if response is not None:
++        return response
++    raise requests.RequestException(f"Request to {url} failed after {_QUERY_RETRIES} attempts: {last_exc}")
++
++
+ def rest_query(server: str, query: str, content_type: str) -> Any:
+     """Function to perform a REST API query.
+ 
+@@ -752,7 +790,7 @@ def rest_query(server: str, query: str, content_type: str) -> Any:
+ 
+     Returns server output.
+     """
+-    r = requests.get(server + query, headers={"Content-Type": content_type})
++    r = _query_with_retry("GET", server + query, headers={"Content-Type": content_type})
+ 
+     if not r.ok:
+         raise RuntimeError(
+@@ -774,7 +812,7 @@ def post_query(server: str, endpoint: str, query: Any) -> Any:
+ 
+     :return: server output
+     """
+-    r = requests.post(server + endpoint, json=query, headers={"Content-Type": "application/json"})
++    r = _query_with_retry("POST", server + endpoint, json=query, headers={"Content-Type": "application/json"})
+ 
+     if not r.ok:
+         raise RuntimeError(
+diff --git a/pyproject.toml b/pyproject.toml
+index f36091db5..a1ed8aed3 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -145,7 +145,7 @@ show_error_codes = true
+ 
+ [tool.pytest]
+ ini_options.testpaths = [ "tests" ]
+-ini_options.addopts = [ "-ra" ]
++ini_options.addopts = [ "-ra", "--durations=25" ]
+ 
+ [tool.coverage]
+ run.omit = [
+diff --git a/tests/test_utils.py b/tests/test_utils.py
+index 1eda8078d..191a407e9 100644
+--- a/tests/test_utils.py
++++ b/tests/test_utils.py
+@@ -1,5 +1,8 @@
+ import unittest
++from unittest.mock import Mock, patch
+ 
++import gget.utils as gget_utils
++import requests
+ from gget.constants import ENSEMBL_FTP_URL_NV, ENSEMBL_REST_API, UNIPROT_REST_API
+ from gget.utils import (
+     aa_colors,
+@@ -182,3 +185,64 @@ def test_ref_iv_species_options(self):
+     def test_ref_species_options_bad_type(self):
+         with self.assertRaises(RuntimeError):
+             ref_species_options("gtf", release=2000)
++
++
++def _resp(status_code, headers=None):
++    """Minimal mock requests.Response with .status_code/.ok/.headers."""
++    m = Mock()
++    m.status_code = status_code
++    m.ok = 200 <= status_code < 300
++    m.headers = headers or {}
++    return m
++
++
++class TestQueryRetry(unittest.TestCase):
++    """Network-free tests for the transient-error retry in the REST query helpers."""
++
++    @patch("gget.utils.time.sleep")
++    @patch("gget.utils.requests.request")
++    def test_retries_on_503_then_succeeds(self, mock_request, _sleep):
++        mock_request.side_effect = [_resp(503), _resp(503), _resp(200)]
++        r = gget_utils._query_with_retry("GET", "http://x")
++        self.assertEqual(r.status_code, 200)
++        self.assertEqual(mock_request.call_count, 3)
++
++    @patch("gget.utils.time.sleep")
++    @patch("gget.utils.requests.request")
++    def test_retries_on_connection_error_then_succeeds(self, mock_request, _sleep):
++        mock_request.side_effect = [requests.ConnectionError("boom"), _resp(200)]
++        r = gget_utils._query_with_retry("GET", "http://x")
++        self.assertEqual(r.status_code, 200)
++        self.assertEqual(mock_request.call_count, 2)
++
++    @patch("gget.utils.time.sleep")
++    @patch("gget.utils.requests.request")
++    def test_no_retry_on_client_error(self, mock_request, _sleep):
++        # A 404 is a real client error, not transient -> returned immediately (caller handles it).
++        mock_request.return_value = _resp(404)
++        r = gget_utils._query_with_retry("GET", "http://x")
++        self.assertEqual(r.status_code, 404)
++        self.assertEqual(mock_request.call_count, 1)
++
++    @patch("gget.utils.time.sleep")
++    @patch("gget.utils.requests.request")
++    def test_exhausts_retries_on_persistent_503(self, mock_request, _sleep):
++        mock_request.return_value = _resp(503)
++        r = gget_utils._query_with_retry("GET", "http://x")
++        # After exhausting retries the last (503) response is returned so the caller raises as before.
++        self.assertEqual(r.status_code, 503)
++        self.assertEqual(mock_request.call_count, gget_utils._QUERY_RETRIES)
++
++    @patch("gget.utils.time.sleep")
++    @patch("gget.utils.requests.request")
++    def test_persistent_connection_error_raises(self, mock_request, _sleep):
++        mock_request.side_effect = requests.ConnectionError("down")
++        with self.assertRaises(requests.RequestException):
++            gget_utils._query_with_retry("GET", "http://x")
++
++    @patch("gget.utils.time.sleep")
++    @patch("gget.utils.requests.request")
++    def test_retry_after_header_used(self, mock_request, mock_sleep):
++        mock_request.side_effect = [_resp(429, headers={"Retry-After": "7"}), _resp(200)]
++        gget_utils._query_with_retry("GET", "http://x")
++        mock_sleep.assert_called_once_with(7)

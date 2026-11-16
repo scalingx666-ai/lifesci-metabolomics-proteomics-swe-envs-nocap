@@ -1,0 +1,2098 @@
+diff --git a/matchms/FragmentCollection.py b/matchms/FragmentCollection.py
+new file mode 100644
+index 000000000..5be282cde
+--- /dev/null
++++ b/matchms/FragmentCollection.py
+@@ -0,0 +1,333 @@
++from abc import ABC, abstractmethod
++from functools import cached_property
++from typing import Generator, Iterable, Tuple
++import numpy as np
++from scipy.sparse import coo_array, csr_array
++from matchms.Spectrum import Spectrum
++from .hashing import spectra_hashes
++from .typing import FragmentCollectionType
++
++
++class FragmentCollection(ABC):
++    @property
++    @abstractmethod
++    def shape(self) -> Tuple[int, int]:
++        """Return (n_spectra, n_bins)."""
++        pass
++
++    @abstractmethod
++    def __len__(self) -> int:
++        pass
++
++    @abstractmethod
++    def copy(self) -> 'FragmentCollection':
++        pass
++
++    @abstractmethod
++    def get_row(self, idx: int) -> Tuple[np.ndarray, np.ndarray]:
++        """Return (mz, intensities) for a single row."""
++        pass
++
++    @abstractmethod
++    def take(self, indices: Iterable[int]) -> 'FragmentCollection':
++        """Return new collection with selected rows."""
++        pass
++
++    @abstractmethod
++    def slice_mz(self, mz_min: float | None = None, mz_max: float | None = None) -> 'FragmentCollection':
++        """Return new collection with restricted m/z range."""
++        pass
++
++    @abstractmethod
++    def sum(self, axis: int = 1) -> np.ndarray:
++        pass
++
++    @abstractmethod
++    def count(self, axis: int = 1) -> np.ndarray:
++        pass
++
++    @abstractmethod
++    def mz_to_bin(self, mz: np.ndarray | float) -> np.ndarray:
++        pass
++
++    @abstractmethod
++    def bin_to_mz(self, bin_idx: np.ndarray | int) -> np.ndarray:
++        pass
++
++
++class CSRFragmentCollection(FragmentCollection):
++    """CSR-backed, binned fragment storage for a spectra dataset.
++
++    Stores all fragments of a dataset in a sparse matrix using CSR format:
++
++    - rows correspond to spectra
++    - columns correspond to discrete m/z bins
++    - values correspond to peak intensities
++
++    The m/z values of input peaks are converted to integer bin indices using
++    :meth:`mz_to_bin`. This means that the original m/z values are not stored
++    directly. When spectra are reconstructed, m/z values are returned as bin
++    centers via :meth:`bin_to_mz`.
++
++    Notes
++    -----
++    This is a binned representation and is therefore not necessarily lossless.
++    If multiple peaks from the same spectrum fall into the same m/z bin, they are
++    stored at the same sparse matrix coordinate. During sparse matrix construction,
++    such duplicate coordinates are combined by summing their intensities.
++
++    For example, two peaks in one spectrum that map to the same m/z bin will be
++    represented as a single peak with the summed intensity when the row is
++    reconstructed.
++
++    The choice of ``bin_size`` therefore controls both mass precision and the
++    likelihood of peak merging. Smaller bin sizes preserve m/z differences more
++    closely but may create very large sparse matrix dimensions. Larger bin sizes
++    reduce the number of bins but increase the chance that neighboring peaks are
++    merged.
++    """
++
++    def __init__(
++        self,
++        spectra: list[Spectrum] | Generator[Spectrum, None, None] | None = None,
++        *,
++        array: csr_array | None = None,
++        bin_size: float = 1e-6,
++        index_dtype: np.dtype = np.int64,
++    ):
++        if bin_size <= 0:
++            raise ValueError("bin_size must be > 0.")
++        self.bin_size = float(bin_size)
++        self.index_dtype = index_dtype
++
++        if array is not None:
++            if spectra is not None:
++                raise ValueError("Pass either spectra or array, not both.")
++            self._array = array.tocsr()
++            return
++
++        if spectra is None:
++            raise ValueError("Either spectra or array must be provided.")
++
++        spectra = list(spectra)
++        if not spectra:
++            raise ValueError("Spectra must contain at least one Spectrum.")
++
++        self._array = self._construct_from_spectra_list(spectra)
++
++    @classmethod
++    def from_array(cls, array: csr_array, *, bin_size: float = 1e-6) -> FragmentCollectionType:
++        return cls(array=array, bin_size=bin_size)
++
++    def _construct_from_spectra_list(self, spectra: list[Spectrum]) -> csr_array:
++        lengths = np.array([len(spec.mz) for spec in spectra])
++
++        if lengths.sum() == 0:
++            return csr_array((len(spectra), 0), dtype=np.float32)
++
++        all_mz = np.concatenate([spec.mz for spec in spectra])
++        all_int = np.concatenate([spec.intensities for spec in spectra])
++
++        bin_idx = self.mz_to_bin(all_mz)
++        n_bins = int(bin_idx.max()) + 1
++
++        row_idx = np.repeat(np.arange(len(spectra), dtype=self.index_dtype), lengths)
++
++        return coo_array(
++            (all_int, (row_idx, bin_idx)),
++            shape=(len(spectra), n_bins),
++        ).tocsr()
++
++    @property
++    def array(self) -> csr_array:
++        return self._array
++
++    @property
++    def shape(self) -> tuple[int, int]:
++        return self._array.shape
++
++    @property
++    def n_spectra(self) -> int:
++        return self._array.shape[0]
++
++    @property
++    def n_bins(self) -> int:
++        return self._array.shape[1]
++
++    def __len__(self) -> int:
++        return self.n_spectra
++
++    def __repr__(self) -> str:
++        return (
++            f"CSRFragmentCollection(n_spectra={self.n_spectra}, "
++            f"n_fragments={self._array.data.shape[0]}, bin_size={self.bin_size})"
++        )
++
++    def copy(self) -> FragmentCollectionType:
++        return self.__class__.from_array(self._array.copy(), bin_size=self.bin_size)
++
++    def mz_to_bin(self, mz: np.ndarray | float) -> np.ndarray:
++        """Convert m/z values to integer bins."""
++        return np.floor(np.asarray(mz) / self.bin_size).astype(self.index_dtype)
++
++    def bin_to_mz(self, bin_idx: np.ndarray | int) -> np.ndarray:
++        """Convert bin indices to bin-center m/z values."""
++        return (bin_idx * self.bin_size) + (self.bin_size / 2)
++
++    def get_row(self, idx: int) -> tuple[np.ndarray, np.ndarray]:
++        """Return one spectrum row as (mz, intensities)."""
++        if idx < 0:
++            idx += len(self)
++        if idx < 0 or idx >= len(self):
++            raise IndexError("row index out of range")
++
++        csr = self._array
++        start, end = csr.indptr[idx], csr.indptr[idx + 1]
++        cols = csr.indices[start:end]
++        intensities = csr.data[start:end]
++        mz = self.bin_to_mz(cols)
++        return mz, intensities.copy()
++
++    def iter_peak_arrays(self):
++        """Yield rows as `(mz, intensities)` tuples."""
++        for i in range(len(self)):
++            yield self.get_row(i)
++
++    def to_peak_arrays(self) -> list[tuple[np.ndarray, np.ndarray]]:
++        """Return all rows as a list of `(mz, intensities)` tuples."""
++        return list(self.iter_peak_arrays())
++
++    def take(self, indices: Iterable[int]) -> FragmentCollectionType:
++        """Return a new collection with selected rows in the given order."""
++        indices = np.asarray(list(indices), dtype=self.index_dtype)
++        return self.__class__.from_array(self._array[indices, :], bin_size=self.bin_size)
++
++    def reorder(self, indices: Iterable[int]) -> FragmentCollectionType:
++        """Alias for take()."""
++        return self.take(indices)
++
++    def filter(self, mask: np.ndarray | list[bool]) -> FragmentCollectionType:
++        """Return a new collection keeping rows where mask is True."""
++        mask = np.asarray(mask, dtype=bool)
++        if mask.shape[0] != len(self):
++            raise ValueError(
++                f"Mask length ({mask.shape[0]}) does not match number of spectra ({len(self)})."
++            )
++        return self.take(np.where(mask)[0])
++
++    def drop(self, indices: Iterable[int]) -> FragmentCollectionType:
++        """Return a new collection with selected rows removed."""
++        indices = np.asarray(list(indices), dtype=self.index_dtype)
++        all_indices = np.arange(len(self))
++        keep_mask = ~np.isin(all_indices, indices)
++        return self.take(all_indices[keep_mask])
++
++    def drop_empty(self) -> FragmentCollectionType:
++        """Return a new collection without rows that have no peaks."""
++        return self.filter(self.count(axis=1) > 0)
++
++    def slice_rows(self, rows) -> FragmentCollectionType:
++        """Return a row-sliced collection."""
++        if isinstance(rows, slice):
++            indices = np.arange(len(self))[rows]
++            return self.take(indices)
++        if isinstance(rows, (list, np.ndarray)):
++            arr = np.asarray(rows)
++            if arr.dtype == bool:
++                return self.filter(arr)
++            return self.take(arr)
++        if isinstance(rows, (int, np.integer)):
++            return self.take([int(rows)])
++        raise TypeError("Unsupported row selector.")
++
++    def slice_mz(self, mz_min: float | None = None, mz_max: float | None = None):
++        """Return a new collection restricted to an m/z window.
++
++        Notes
++        -----
++        This keeps the global bin coordinate system unchanged.
++        Bins outside the requested m/z range are removed from the data, but the
++        matrix shape and column numbering remain unchanged.
++        """
++        start_bin = 0 if mz_min is None else int(self.mz_to_bin(mz_min))
++        stop_bin = self.n_bins if mz_max is None else int(self.mz_to_bin(mz_max)) + 1
++
++        start_bin = max(0, min(self.n_bins, start_bin))
++        stop_bin = max(0, min(self.n_bins, stop_bin))
++
++        if mz_min is not None and mz_max is not None and mz_max < mz_min:
++            raise ValueError("mz_max must be >= mz_min.")
++
++        coo = self._array.tocoo()
++        keep = (coo.col >= start_bin) & (coo.col < stop_bin)
++
++        new_array = coo_array(
++            (coo.data[keep], (coo.row[keep], coo.col[keep])),
++            shape=self._array.shape,
++        ).tocsr()
++
++        return self.__class__.from_array(new_array, bin_size=self.bin_size)
++
++    def __getitem__(self, key):
++        """Support row slicing and optional row/column slicing.
++
++        Examples
++        --------
++        rows only:
++            fragments[:500]
++            fragments[[1, 4, 8]]
++            fragments[mask]
++
++        rows + m/z float slicing:
++            fragments[:500, 100.0:205.5]
++        """
++        if isinstance(key, tuple):
++            if len(key) != 2:
++                raise IndexError("Expected at most two indexers: rows, mz-range")
++            row_sel, col_sel = key
++            row_sliced = self.slice_rows(row_sel)
++
++            if isinstance(col_sel, slice):
++                if (
++                    (col_sel.start is None or isinstance(col_sel.start, (float, int, np.floating, np.integer)))
++                    and (col_sel.stop is None or isinstance(col_sel.stop, (float, int, np.floating, np.integer)))
++                    and (col_sel.step is None)
++                ):
++                    # Interpret m/z axis slicing always as m/z value --> convert to bins
++                    return row_sliced.slice_mz(col_sel.start, col_sel.stop)
++            raise TypeError("Unsupported column selector for CSRFragmentCollection.")
++
++        return self.slice_rows(key)
++
++    def sum(self, axis: int = 1, **kwargs):
++        result = self._array.sum(axis=axis, **kwargs)
++        if axis == 1:
++            return result.A1 if hasattr(result, "A1") else np.asarray(result).ravel()
++        return result
++
++    def max(self, axis: int = 1, **kwargs):
++        return self._array.max(axis=axis, **kwargs)
++
++    def min(self, axis: int = 1, **kwargs):
++        return self._array.min(axis=axis, **kwargs)
++
++    def mean(self, axis: int = 1, **kwargs):
++        return self._array.mean(axis=axis, **kwargs)
++
++    def count(self, axis: int = 1):
++        """Count nonzero peaks per row or per bin."""
++        if axis == 1:
++            return np.diff(self._array.indptr)
++        if axis == 0:
++            return np.bincount(self._array.indices, minlength=self._array.shape[1])
++        raise ValueError("axis must be 0 or 1")
++
++    def row_intensity_sums(self) -> np.ndarray:
++        return self.sum(axis=1)
++
++    def row_peak_counts(self) -> np.ndarray:
++        return self.count(axis=1)
++
++    @cached_property
++    def fragment_hashes(self):
++        return spectra_hashes(self._array, self.bin_to_mz)
+diff --git a/matchms/SpectraCollection.py b/matchms/SpectraCollection.py
+new file mode 100644
+index 000000000..e487a0760
+--- /dev/null
++++ b/matchms/SpectraCollection.py
+@@ -0,0 +1,531 @@
++from __future__ import annotations
++from functools import cached_property
++from typing import Generator
++import numpy as np
++import pandas as pd
++from matchms.Spectrum import Spectrum
++from .FragmentCollection import CSRFragmentCollection, FragmentCollection
++from .hashing import compute_combined_hashes
++from .typing import SpectraCollectionType
++
++
++class SpectraCollection:
++    """Central collection object for matchms spectra datasets.
++
++    A ``SpectraCollection`` stores many spectra in a synchronized, table-like
++    representation. It separates spectrum-level metadata from peak data while
++    preserving a shared row order between both components.
++
++    This class synchronizes:
++
++    - metadata, tabular data kept internally as pandas ``DataFrame``
++    - fragments, stored in a fragment backend, currently ``CSRFragmentCollection``
++
++    Rows correspond to spectra. Metadata row ``i`` and fragment row ``i`` always
++    describe the same spectrum. Operations such as slicing, filtering, sorting,
++    dropping, and deduplication are applied to both metadata and fragments so that
++    this alignment is preserved.
++
++    Compared with a plain ``list[Spectrum]``, this representation is intended to
++    support efficient collection-level operations, including metadata-based
++    filtering, fragment-based filtering, m/z range slicing, sorting, hashing, and
++    summary statistics.
++
++    Individual rows can still be accessed as regular ``Spectrum`` objects. These
++    objects are reconstructed from the stored metadata row and the corresponding
++    fragment row.
++
++    Notes
++    -----
++    The fragment backend may use an internal representation that differs from the
++    original input spectra. In particular, the default CSR backend stores fragments
++    as a binned sparse matrix. Reconstructed spectra therefore contain m/z values
++    derived from the backend representation, for example bin centers, rather than
++    necessarily the exact original input m/z values.
++
++    The central invariant of this class is:
++
++    ``len(metadata) == len(fragments) == n_spectra``
++
++    and for every row index ``i``:
++
++    ``metadata.iloc[i]`` corresponds to ``fragments.get_row(i)``.
++
++    Direct modifications of internal metadata or fragment storage should be avoided.
++    Use collection-level methods such as ``filter``, ``sort``, ``drop``, and
++    ``add_metadata`` to preserve row alignment and invalidate cached values
++    correctly.
++    """
++    def __init__(
++        self,
++        spectra: list[Spectrum] | Generator[Spectrum, None, None],
++        bin_size=0.000001,
++    ):
++        spectra = list(spectra)
++
++        if not spectra:
++            raise ValueError("Spectra must contain at least one Spectrum.")
++
++        self.bin_size = bin_size
++        self._metadata = self._construct_metadata(spectra)
++        self._fragments = self._construct_fragments(spectra)
++
++        if len(self._metadata) != self._fragments.shape[0]:
++            raise ValueError("Spectra Metadata/Fragments mismatch.")
++
++    @classmethod
++    def _from_metadata_and_fragments(
++        cls,
++        metadata: pd.DataFrame | pd.Series,
++        fragments: FragmentCollection,
++        bin_size: float,
++    ) -> SpectraCollectionType:
++        if isinstance(metadata, pd.Series):
++            metadata = metadata.to_frame().T
++
++        obj = cls.__new__(cls)
++        obj.bin_size = bin_size
++        obj._metadata = metadata.reset_index(drop=True)
++        obj._fragments = fragments
++        return obj
++
++    def _construct_fragments(self, spectra: list):
++        return CSRFragmentCollection(spectra, bin_size=self.bin_size)
++
++    def _construct_metadata(self, spectra):
++        # data = defaultdict(list)
++        # [data[k].append(v) for spectrum in spectra for k, v in spectrum.metadata.items()]
++        # TODO: add minimal Matadata harmonization
++
++        # return pd.DataFrame(data)
++        records = [spectrum.metadata for spectrum in spectra]
++        return pd.DataFrame.from_records(records)
++
++    @property
++    def metadata(self) -> pd.DataFrame:
++        return MetadataTable(self._metadata, self)
++
++    @property
++    def fragments(self) -> FragmentCollection:
++        return self._fragments
++
++    @property
++    def n_spectra(self):
++        return self._fragments.shape[0]
++    
++    @property
++    def n_metadata_columns(self):
++        return self._metadata.shape[1]
++
++    @property
++    def n_bins(self):
++        return self._fragments.shape[1]
++
++    def _normalize_row_selection(self, idx):
++        """Normalize row selection to integer indices or a scalar int."""
++        if isinstance(idx, (int, np.integer)):
++            return int(idx)
++
++        if isinstance(idx, slice):
++            return np.arange(len(self))[idx]
++
++        arr = np.asarray(idx)
++        if arr.dtype == bool:
++            if arr.shape[0] != len(self):
++                raise ValueError(
++                    f"Shape of row selector ({arr.shape[0]}) does not fit Items in SpectraCollection ({len(self)})."
++                )
++            return np.where(arr)[0]
++
++        return arr.astype(np.int64)
++
++    def _spectrum_from_row(self, idx: int) -> Spectrum:
++        mz, intensities = self._fragments.get_row(int(idx))
++        return Spectrum(
++            mz=mz,
++            intensities=intensities,
++            metadata=self._metadata.iloc[int(idx)].to_dict(),
++        )
++
++    def __getitem__(self, idx):
++        # 2D slicing: rows + mz-range
++        if isinstance(idx, tuple):
++            if len(idx) != 2:
++                raise IndexError("Expected at most two indexers: rows, mz-range")
++
++            row_sel, mz_sel = idx
++
++            # scalar row + mz slice -> one Spectrum
++            if isinstance(row_sel, (int, np.integer)):
++                row_idx = int(row_sel)
++                new_fragments = self._fragments[[row_idx], mz_sel]
++                mz, intensities = new_fragments.get_row(0)
++                return Spectrum(
++                    mz=mz,
++                    intensities=intensities,
++                    metadata=self._metadata.iloc[row_idx].to_dict(),
++                )
++
++            row_indices = self._normalize_row_selection(row_sel)
++            new_metadata = self._metadata.iloc[row_indices].reset_index(drop=True)
++            new_fragments = self._fragments[row_indices, mz_sel]
++
++            return self.__class__._from_metadata_and_fragments(
++                metadata=new_metadata,
++                fragments=new_fragments,
++                bin_size=self.bin_size,
++            )
++
++        # scalar row -> one Spectrum
++        if isinstance(idx, (int, np.integer)):
++            return self._spectrum_from_row(int(idx))
++
++        # row-only selection -> SpectraCollection
++        indices = self._normalize_row_selection(idx)
++        target = self.copy()
++        return target._reorder(indices)
++
++    def __iter__(self):
++        for i in range(self._fragments.shape[0]):
++            yield self[i]
++
++    def __len__(self):
++        return self._fragments.shape[0]
++
++    def __repr__(self) -> str:
++        return (
++            f"SpectraCollection(n_spectra={len(self)}, "
++            f"n_metadata_columns={self._metadata.shape[1]}, "
++            f"fragments={self._fragments!r})"
++        )
++
++    def __str__(self):
++        return self.__repr__()
++
++    @cached_property
++    def spectra_hashes(self):
++        return compute_combined_hashes(self.fragment_hashes, self.metadata_hashes)
++
++    @cached_property
++    def fragment_hashes(self):
++        return self._fragments.fragment_hashes
++
++    @cached_property
++    def metadata_hashes(self):
++        return pd.util.hash_pandas_object(self._metadata, index=False).tolist()
++
++    def add_metadata(self, data, col_name: str = None, overwrite: bool = False):
++        # TODO: must contain same sorting as present spectra/metadata. Add class bool flag, if data has been sorted?
++        if isinstance(data, pd.DataFrame):
++            new_metadata = data.copy()
++        elif isinstance(data, pd.Series):
++            col_name = col_name or data.name
++            if col_name is None:
++                raise ValueError("Series must have a name or 'col_name' must be provided.")
++            new_metadata = pd.DataFrame({col_name: data})
++        elif isinstance(data, list):
++            if col_name is None:
++                raise ValueError("'col_name' must be provided.")
++            new_metadata = pd.DataFrame({col_name: data})
++        elif isinstance(data, dict):
++            for v in data.values():
++                if not isinstance(v, list):
++                    raise ValueError("When data is a dict, values must be of type list.")
++            new_metadata = pd.DataFrame(data)
++        else:
++            raise TypeError("Data must be pd.DataFrame, pd.Series, list, or dict of lists.")
++
++        if new_metadata.shape[0] != len(self):
++            raise ValueError("New metadata does not match length of existing metadata entries.")
++
++        overlap = self._metadata.columns.intersection(new_metadata.columns)
++        if not overlap.empty:
++            if not overwrite:
++                raise ValueError(f"Columns already exist: {list(overlap)}. Set overwrite to True to replace values.")
++
++            self._metadata = self._metadata.drop(columns=overlap)
++
++        new_metadata = new_metadata.reset_index(drop=True)
++        self._metadata = pd.concat(
++            [self._metadata.reset_index(drop=True), new_metadata],
++            axis=1,
++        )
++        self._clear_cache(["metadata_hashes"])
++
++    def _reorder(self, indices: np.ndarray):
++        self._fragments = self._fragments.take(indices)
++        self._metadata = self._metadata.iloc[indices].reset_index(drop=True)
++        self._clear_cache()
++
++        return self
++
++    def sort(self, by: str | list[str], on: str = "metadata", inplace: bool = False, **kwargs):
++        """
++        Sorts SpectraCollection (fragments AND metadata) by either metadata keyword(s) or fragment function.
++
++        Parameters:
++        -----------
++        by : str | list[str]
++            Either metadata column name or method name in FragmentsProxy (e.g., 'sum').
++        on : str
++            'metadata' (Standard) or 'fragments'.
++        inplace : bool
++            Will return a new, sorted SpectraCollection, if True and the same, sorted if False. Defaults to False.
++        """
++        target = self if inplace else self.copy()
++        ascending = kwargs.get("ascending", True)
++
++        if on == "fragments":
++            if not hasattr(target.fragments, str(by)):
++                raise NotImplementedError(f"'Sorting method {by}' is not implemented in FragmentsProxy.")
++
++            method = getattr(target.fragments, str(by))
++            sort_values = method(axis=1)
++
++            new_indices = np.argsort(sort_values)
++            if not ascending:
++                new_indices = new_indices[::-1]
++
++        elif on == "metadata":
++            sorted_df = target._metadata.sort_values(by=by, **kwargs)
++            new_indices = sorted_df.index.values
++
++        else:
++            raise ValueError("Parameter 'on' must be either 'metadata' or 'fragments'.")
++
++        target._reorder(new_indices)
++
++        return None if inplace else target
++
++    def filter(self, mask: np.ndarray | pd.Series | list[bool], inplace: bool = False):
++        """
++        Filters SpectraCollection by keeping only the spectra where the mask is True.
++
++        This method synchronizes the filtering of both fragments and metadata.
++        It uses boolean indexing from NumPy and Pandas.
++
++        Parameters
++        ----------
++            mask (np.ndarray | pd.Series | list[bool]): A boolean array-like object
++                of the same length as the collection. Rows where the mask is True
++                will be kept; all others will be removed.
++            inplace (bool): If True, modifies the current collection in place and
++                returns None. If False (default), returns a new filtered
++                SpectraCollection instance.
++
++        Returns
++        -------
++            SpectraCollection | None: A new filtered instance if inplace is False,
++                otherwise None.
++
++        Raises
++            ValueError: If the length of the mask does not match the number of spectra in the collection.
++
++        Example:
++            >>> # Filter by metadata
++            >>> filtered_coll = coll.filter(coll.metadata["ms_level"] == 2)
++            >>>
++            >>> # Filter by fragment properties
++            >>> coll.filter(coll.fragments.sum() > 500, inplace=True)
++            >>>
++            >>> # Using an external vectorized filter function
++            >>> mask = filter_min_peaks(coll, n_required=10)
++            >>> coll.filter(mask, inplace=True)
++        """
++        if isinstance(mask, pd.Series):
++            mask = mask.values
++        mask = np.asanyarray(mask, dtype=bool)
++
++        if mask.shape[0] != len(self):
++            raise ValueError(
++                f"Shape of filter mask ({mask.shape[0]}) does not fit Items in SpectraCollection ({len(self)})."
++            )
++
++        target = self if inplace else self.copy()
++
++        keep_indices = np.where(mask)[0]
++        target._reorder(keep_indices)
++
++        return None if inplace else target
++
++    def _clear_cache(self, keys: list[str] = None):
++        if keys is None:
++            keys = ["metadata_hashes", "fragment_hashes", "spectra_hashes"]
++
++        for key in keys:
++            self.__dict__.pop(key, None)
++
++    def drop(self, indices: list[int] | np.ndarray, inplace: bool = False):
++        """
++        Removes specified rows (spectra) from both fragments and metadata.
++
++        Parameters:
++        -----------
++        indices : list[int] | np.ndarray
++            Indices of the rows to remove.
++        inplace : bool
++            Will return a new SpectraCollection, if True and the same if False. Defaults to False.
++        """
++        target = self if inplace else self.copy()
++
++        all_indices = np.arange(len(target))
++        keep_mask = ~np.isin(all_indices, indices)
++
++        target._fragments = target._fragments.filter(keep_mask)
++        target._metadata = target._metadata.iloc[keep_mask].reset_index(drop=True)
++
++        target._clear_cache()
++
++        return None if inplace else target
++
++    def drop_empty_spectra(self, inplace: bool = False):
++        """
++        Removes spectra without peaks.
++
++        Parameters:
++        -----------
++        inplace : bool
++            Will return a new SpectraCollection, if True and the same if False. Defaults to False.
++        """
++        peaks_per_row = self._fragments.count(axis=1)
++        empty_indices = np.where(peaks_per_row == 0)[0]
++
++        if len(empty_indices) > 0:
++            return self.drop(empty_indices, inplace=inplace)
++
++        return self if inplace else self.copy()
++
++    def drop_duplicates(self, inplace: bool = False):
++        """
++        Drops duplicates by spectra hashes.
++
++        Parameters:
++        -----------
++        inplace : bool
++            Will return a new SpectraCollection, if True and the same if False. Defaults to False.
++        """
++        _, unique_indices = np.unique(self.spectra_hashes, return_index=True)
++
++        all_indices = np.arange(len(self.spectra_hashes))
++        duplicate_indices = np.setdiff1d(all_indices, unique_indices)
++
++        return self.drop(duplicate_indices, inplace=inplace)
++
++    def copy(self):
++        new_spec = self.__class__.__new__(self.__class__)
++        new_spec.bin_size = self.bin_size
++        new_spec._metadata = self._metadata.copy()
++        new_spec._fragments = self._fragments.copy()
++
++        return new_spec
++
++    def mz_to_bin(self, mz: np.ndarray | float) -> np.ndarray:
++        """
++        Convert mz values into bins.
++
++        Uses the bin_size of SpectraCollection and maps mz values into integer bins by flooring them.
++
++        Parameters
++        ----------
++        mz
++            The mz values to bin.
++
++        Returns
++        -------
++        np.ndarray
++            Bin indices as np.int64.
++        """
++        return self._fragments.mz_to_bin(mz)
++
++    def bin_to_mz(self, bin_idx: np.ndarray | int) -> np.ndarray:
++        """
++        Convert bin indices to mz values.
++
++        Uses the bin_size of SpectraCollection and calculates the mz value at the center of the bin.
++
++        Parameters
++        ----------
++        bin_idx
++            Bin indices/columns to convert.
++
++        Returns
++        -------
++        np.ndarray
++            The mz values at the center of specified bins.
++        """
++        return self._fragments.bin_to_mz(bin_idx)
++
++    def describe(self) -> pd.DataFrame:
++        """
++        Generate descriptive statistics for the spectra collection.
++
++        Calculates key metrics for spectra collection,
++        including peak counts, total ion intensity, average m/z, and Shannon
++        entropy based on peak intensities. It then computes summary statistics
++        (count, mean, std, min, max, etc.) for the entire collection.
++
++        Returns:
++            pd.DataFrame: A DataFrame containing summary statistics for the
++                following columns:
++                - 'peak_counts': Number of detected peaks per spectrum.
++                - 'intensity_sums': Total ion current (TIC) per spectrum.
++                - 'intensity_entropy': Shannon entropy of peak intensities,
++                    quantifying the spectral complexity/information density.
++        """
++        peak_counts = self._fragments.count(axis=1)
++        intensity_sums = np.asarray(self._fragments.sum(axis=1)).flatten()
++
++        entropies = np.zeros(len(self))
++        for i in range(len(self)):
++            _, row_int = self._fragments.get_row(i)
++            if len(row_int) > 0:
++                # Shannon Entropy: p_i = I_i / sum(I)
++                p = row_int / np.sum(row_int)
++                entropies[i] = -np.sum(p * np.log(p + 1e-12))
++            else:
++                entropies[i] = np.nan
++
++        stats = pd.DataFrame(
++            {
++                "peak_counts": peak_counts,
++                "intensity_sums": intensity_sums,
++                "intensity_entropy": entropies,
++            }
++        ).describe()
++
++        stats.attrs["label"] = "SpectraCollection Describe"
++        stats.attrs["num_spectra"] = len(self)
++
++        # Represent values in Jupyter nicely
++        def _repr_html_():
++            return stats.style.format(
++                {"peak_counts": "{:,.2f}", "intensity_sums": "{:,.0f}", "intensity_entropy": "{:.2f}"}
++            ).to_html()
++
++        stats._repr_html_ = _repr_html_
++
++        return stats
++
++
++class MetadataTable(pd.DataFrame):
++    """
++    Metadata proxy class.
++    Used for filter directly on metadata and synchronize fragments.
++    """
++
++    _metadata = ["_collection"]
++
++    def __init__(self, data, collection=None, *args, **kwargs):
++        super().__init__(data, *args, **kwargs)
++        object.__setattr__(self, "_collection", collection)
++
++    @property
++    def _constructor(self):
++        def _c(*args, **kwargs):
++            return MetadataTable(*args, collection=self._collection, **kwargs)
++
++        return _c
++
++    def sort_values(self, by, inplace=False, **kwargs):
++        result = self._collection.sort(by=by, inplace=inplace, **kwargs)
++        return None if inplace else result.metadata
+diff --git a/matchms/Spectrum.py b/matchms/Spectrum.py
+index 4de9c87d6..1900bfe5b 100644
+--- a/matchms/Spectrum.py
++++ b/matchms/Spectrum.py
+@@ -279,6 +279,23 @@ def peaks(self, value: Fragments):
+             self._reiterate_peak_comments(value)
+         self._peaks = value
+ 
++    @property
++    def fragments(self) -> Fragments:
++        """Return the spectrum fragments.
++
++        Alias for :attr:`peaks`.
++
++        Notes
++        -----
++        ``peaks`` is the historic matchms name and remains fully supported.
++        ``fragments`` is provided for naming consistency with ``SpectraCollection``.
++        """
++        return self.peaks
++
++    @fragments.setter
++    def fragments(self, value: Fragments):
++        self.peaks = value
++
+     @property
+     def peak_comments(self):
+         return self.get("peak_comments")
+diff --git a/matchms/__init__.py b/matchms/__init__.py
+index 7033bc8ca..fb06a12d6 100644
+--- a/matchms/__init__.py
++++ b/matchms/__init__.py
+@@ -8,6 +8,7 @@
+ from .Metadata import Metadata
+ from .Pipeline import Pipeline
+ from .Scores import Scores
++from .SpectraCollection import SpectraCollection
+ from .Spectrum import Spectrum
+ 
+ 
+@@ -48,6 +49,7 @@ def __getattr__(self, key):
+     "Scores",
+     "set_matchms_logger_level",
+     "similarity",
++    "SpectraCollection",
+     "Spectrum",
+     "SpectrumProcessor",
+ ]
+diff --git a/matchms/hashing.py b/matchms/hashing.py
+index 7b2429fb3..d5fe07c59 100644
+--- a/matchms/hashing.py
++++ b/matchms/hashing.py
+@@ -1,34 +1,171 @@
+-"""Helper functions related to hashing.
+-"""
++"""Helper functions related to hashing."""
++
+ import hashlib
+ import json
++import numpy as np
++import pandas as pd
++from scipy.sparse import csr_array
+ from .Fragments import Fragments
+ 
+ 
+-def spectrum_hash(peaks: Fragments, hash_length: int = 20,
+-                  mz_precision: int = 5, intensity_precision: int = 2):
+-    """Compute hash from mz-intensity pairs of all peaks in spectrum.
++def spectrum_hash(peaks: Fragments, hash_length: int = 20, mz_precision: int = 5, intensity_precision: int = 2) -> str:
++    """
++    Compute hash from mz-intensity pairs of all peaks in spectrum.
++
++    Parameters
++    ----------
++    peaks
++        The Fragments object containing mz and intensities.
++    hash_length
++        The length of the hash to be computed.
++    mz_precision
++        The precision of the mz values.
++    intensity_precision
++        The precision of the intensities.
++
++    Returns
++    -------
++    str
++        The hash of the spectrum.
++    """
++    data = peaks.to_numpy
++    return _compute_spectrum_hash(
++        mz_array=data[:, 0],
++        intensity_array=data[:, 1],
++        hash_length=hash_length,
++        mz_precision=mz_precision,
++        intensity_precision=intensity_precision,
++    )
++
++
++def spectrum_hash_arrays(
++    mz: np.ndarray, intensities: np.ndarray, hash_length: int = 20, mz_precision: int = 5, intensity_precision: int = 2
++) -> str:
++    """
++    Compute hash from mz-intensity pairs of all peaks in spectrum.
++
++    Parameters
++    ----------
++    mz
++        mz values as ndarray.
++    intensities
++        intensities as ndarray.
++    hash_length
++        The length of the hash to be computed.
++    mz_precision
++        The precision of the mz values.
++    intensity_precision
++        The precision of the intensities.
++
++    Returns
++    -------
++    str
++        The hash of the spectrum.
++    """
++    return _compute_spectrum_hash(
++        mz_array=mz,
++        intensity_array=intensities,
++        hash_length=hash_length,
++        mz_precision=mz_precision,
++        intensity_precision=intensity_precision,
++    )
++
++
++def _compute_spectrum_hash(
++    mz_array: np.ndarray, intensity_array: np.ndarray, hash_length: int, mz_precision: int, intensity_precision: int
++) -> str:
++    """
++    Compute hash from mz-intensity pairs of all peaks in spectrum.
+     Method is inspired by SPLASH (doi:10.1038/nbt.3689).
++
++    Parameters
++    ----------
++    mz_array
++        mz values as ndarray.
++    intensity_array
++        intensities as ndarray.
++    hash_length
++        The length of the hash to be computed.
++    mz_precision
++        The precision of the mz values.
++    intensity_precision
++        The precision of the intensities.
++
++    Returns
++    -------
++    str
++        The hash of the spectrum.
+     """
+     mz_precision_factor = 10 ** mz_precision
+     intensity_precision_factor = 10 ** intensity_precision
+ 
+-    def format_mz(mz):
+-        return int(mz * mz_precision_factor)
+-
+-    def format_intensity(intensity):
+-        return int(intensity * intensity_precision_factor)
++    mz_int = (mz_array * mz_precision_factor).astype(np.int64)
++    int_int = (intensity_array * intensity_precision_factor).astype(np.int64)
+ 
+-    peak_list = [(format_mz(peak[0]), format_intensity(peak[1])) for peak in peaks.to_numpy]
+     # Sort by increasing m/z and then by decreasing intensity
+-    peak_list.sort(key=lambda x: (x[0], - x[1]))
++    order = np.lexsort((-int_int, mz_int))
++
++    peak_strings = [f"{m}:{i}" for m, i in zip(mz_int[order], int_int[order])]
++    encoded = " ".join(peak_strings).encode("utf-8")
+ 
+-    encoded = " ".join(":".join(map(str, x)) for x in peak_list).encode("utf-8")
+     return hashlib.sha256(encoded).hexdigest()[:hash_length]
+ 
+ 
+-def metadata_hash(metadata: dict, hash_length: int = 20):
+-    """Compute hash from metadata dictionary.
++def spectra_hashes(fragments: csr_array, bin_to_mz_func, hash_length: int = 20, **kwargs) -> np.ndarray:
++    """
++    Compute hashes for a collection of spectra stored in a sparse (CSR) matrix.
++
++    Parameters
++    ----------
++    fragments : csr_array
++        A Scipy sparse matrix in CSR format where each row represents a spectrum
++        and each column represents an m/z bin. Cell values are intensities.
++    bin_to_mz_func : callable
++        A function or method that accepts an array of bin indices (column indices)
++        and returns an array of corresponding m/z values (floats).
++        This is part of SpectraCollection.
++    hash_length : int, optional
++        The desired length of the resulting hash strings. Defaults to 20.
++    **kwargs
++        Additional parameters passed to `spectrum_hash_arrays`,
++        such as `mz_precision` and `intensity_precision`.
++
++    Returns
++    -------
++    np.ndarray
++        A NumPy array of type 'U<hash_length>' containing the calculated
++        hashes for all rows in the input matrix in their original order.
+     """
++    data = fragments.data
++    indices = fragments.indices
++    indptr = fragments.indptr
++
++    n_spectra = fragments.shape[0]
++    hashes = np.empty(n_spectra, dtype="U" + str(hash_length))
++
++    for i in range(n_spectra):
++        start, end = indptr[i], indptr[i + 1]
++
++        row_mz = bin_to_mz_func(indices[start:end])
++        row_int = data[start:end]
++
++        hashes[i] = spectrum_hash_arrays(row_mz, row_int, hash_length, **kwargs)
++
++    return hashes
++
++
++def metadata_hash(metadata: dict, hash_length: int = 20):
++    """Compute hash from metadata dictionary."""
+     encoded = json.dumps(metadata, sort_keys=True).encode()
+     return hashlib.sha256(encoded).hexdigest()[:hash_length]
++
++
++def compute_combined_hashes(fragment_hashes: list[str] | np.ndarray, metadata_hashes: list[str]) -> list[int]:
++    s_frag = pd.Series(fragment_hashes, dtype=str)
++    s_meta = pd.Series(metadata_hashes, dtype=str)
++
++    combined = s_frag + s_meta
++
++    return combined.map(
++        lambda x: int(hashlib.sha1(x.encode()).hexdigest(), 16)
++    ).tolist()
+diff --git a/matchms/typing.py b/matchms/typing.py
+index 7376111bc..8f6bbb42d 100644
+--- a/matchms/typing.py
++++ b/matchms/typing.py
+@@ -4,6 +4,8 @@
+ 
+ SpectrumType = NewType("Spectrum", object)
+ ScoresType = NewType("Scores", object)
++SpectraCollectionType = NewType("SpectraCollection", object)
++FragmentCollectionType = NewType("FragmentCollection", object)
+ ReferencesType = QueriesType = Union[List[object], Tuple[object], np.ndarray]
+ ScoreFilter = Callable[[np.ndarray], bool]
+ 
+diff --git a/tests/networking/test_networking_functions.py b/tests/networking/test_networking_functions.py
+index 01291876f..35a25556c 100644
+--- a/tests/networking/test_networking_functions.py
++++ b/tests/networking/test_networking_functions.py
+@@ -1,4 +1,3 @@
+-import sys
+ import numpy as np
+ from matchms import Spectrum, calculate_scores
+ from matchms.networking.networking_functions import (
+diff --git a/tests/test_fragment_collection.py b/tests/test_fragment_collection.py
+new file mode 100644
+index 000000000..923ef5cdf
+--- /dev/null
++++ b/tests/test_fragment_collection.py
+@@ -0,0 +1,389 @@
++import numpy as np
++import pytest
++from scipy.sparse import csr_array
++from matchms import Spectrum
++from matchms.FragmentCollection import CSRFragmentCollection
++from tests.builder_Spectrum import SpectrumBuilder
++
++
++@pytest.fixture
++def sample_spectra():
++    mz1 = np.array([100.00003, 110.2, 200.581], dtype="float")
++    intensities1 = np.array([0.51, 1.0, 0.011], dtype="float")
++
++    mz2 = np.array([111.00213, 180.2, 332.342], dtype="float")
++    intensities2 = np.array([0.52, 1.0, 0.7], dtype="float")
++
++    mz3 = np.array([111.00213, 200.1, 200.213], dtype="float")
++    intensities3 = np.array([0.52, 0.5, 1.0], dtype="float")
++
++    s1 = SpectrumBuilder().with_mz(mz1).with_intensities(intensities1).build()
++    s2 = SpectrumBuilder().with_mz(mz2).with_intensities(intensities2).build()
++    s3 = SpectrumBuilder().with_mz(mz3).with_intensities(intensities3).build()
++
++    return [s1, s2, s3]
++
++
++@pytest.fixture
++def fragments(sample_spectra):
++    return CSRFragmentCollection(sample_spectra, bin_size=0.01)
++
++
++def test_construct_from_spectra(sample_spectra):
++    fragments = CSRFragmentCollection(sample_spectra, bin_size=0.01)
++
++    assert len(fragments) == 3
++    assert fragments.n_spectra == 3
++    assert fragments.shape[0] == 3
++    assert fragments.n_bins > 0
++    assert isinstance(fragments.array, csr_array)
++
++
++def test_construct_from_array(fragments):
++    cloned = CSRFragmentCollection.from_array(fragments.array, bin_size=fragments.bin_size)
++
++    assert len(cloned) == len(fragments)
++    assert cloned.bin_size == fragments.bin_size
++    np.testing.assert_array_equal(cloned.array.toarray(), fragments.array.toarray())
++
++
++def test_construct_invalid_bin_size_raises(sample_spectra):
++    with pytest.raises(ValueError, match="bin_size must be > 0"):
++        CSRFragmentCollection(sample_spectra, bin_size=0.0)
++
++
++def test_construct_empty_spectra_raises():
++    with pytest.raises(ValueError, match="Spectra must contain at least one Spectrum"):
++        CSRFragmentCollection([], bin_size=0.01)
++
++
++def test_construct_missing_input_raises():
++    with pytest.raises(ValueError, match="Either spectra or array must be provided"):
++        CSRFragmentCollection()
++
++
++def test_construct_array_and_spectra_raises(sample_spectra):
++    dummy = csr_array((2, 3))
++    with pytest.raises(ValueError, match="Pass either spectra or array, not both"):
++        CSRFragmentCollection(sample_spectra, array=dummy, bin_size=0.01)
++
++
++def test_repr(fragments):
++    rep = repr(fragments)
++    assert "CSRFragmentCollection" in rep
++    assert "n_spectra=3" in rep
++    assert "bin_size=0.01" in rep
++
++
++def test_copy(fragments):
++    cloned = fragments.copy()
++
++    assert cloned is not fragments
++    assert cloned.array is not fragments.array
++    np.testing.assert_array_equal(cloned.array.toarray(), fragments.array.toarray())
++
++
++def test_mz_bin_conversion(fragments):
++    mz = 123.456
++    bin_idx = fragments.mz_to_bin(mz)
++    back_mz = fragments.bin_to_mz(bin_idx)
++
++    assert bin_idx == 12345
++    assert back_mz == pytest.approx(123.455)
++
++
++def test_get_row(fragments):
++    mz, intensities = fragments.get_row(0)
++
++    assert len(mz) == 3
++    assert len(intensities) == 3
++    assert np.sum(intensities) == pytest.approx(1.521, abs=1e-6)
++
++
++def test_get_row_negative_index(fragments):
++    mz, intensities = fragments.get_row(-1)
++
++    assert len(mz) == 3
++    assert np.sum(intensities) == pytest.approx(2.02, abs=1e-6)
++
++
++def test_get_row_out_of_range_raises(fragments):
++    with pytest.raises(IndexError, match="row index out of range"):
++        fragments.get_row(3)
++
++
++def test_take(fragments):
++    subset = fragments.take([0, 2])
++
++    assert len(subset) == 2
++    np.testing.assert_allclose(subset.sum(axis=1), [1.521, 2.02], atol=1e-6)
++
++
++def test_reorder_alias(fragments):
++    subset = fragments.reorder([2, 0])
++
++    assert len(subset) == 2
++    np.testing.assert_allclose(subset.sum(axis=1), [2.02, 1.521], atol=1e-6)
++
++
++def test_filter(fragments):
++    subset = fragments.filter([True, False, True])
++
++    assert len(subset) == 2
++    np.testing.assert_allclose(subset.sum(axis=1), [1.521, 2.02], atol=1e-6)
++
++
++def test_filter_invalid_length_raises(fragments):
++    with pytest.raises(ValueError, match="Mask length \\(2\\) does not match number of spectra \\(3\\)"):
++        fragments.filter([True, False])
++
++
++def test_drop(fragments):
++    subset = fragments.drop([1])
++
++    assert len(subset) == 2
++    np.testing.assert_allclose(subset.sum(axis=1), [1.521, 2.02], atol=1e-6)
++
++
++def test_drop_empty(sample_spectra):
++    empty_spec = Spectrum(mz=np.array([]), intensities=np.array([]), metadata={})
++    fragments = CSRFragmentCollection(sample_spectra + [empty_spec], bin_size=0.01)
++
++    assert len(fragments) == 4
++    cleaned = fragments.drop_empty()
++    assert len(cleaned) == 3
++
++
++def test_slice_rows_with_slice(fragments):
++    subset = fragments.slice_rows(slice(0, 2))
++
++    assert len(subset) == 2
++    np.testing.assert_allclose(subset.sum(axis=1), [1.521, 2.22], atol=1e-6)
++
++
++def test_slice_rows_with_int(fragments):
++    subset = fragments.slice_rows(1)
++
++    assert len(subset) == 1
++    np.testing.assert_allclose(subset.sum(axis=1), [2.22], atol=1e-6)
++
++
++def test_slice_rows_with_bool_mask(fragments):
++    subset = fragments.slice_rows(np.array([False, True, True]))
++
++    assert len(subset) == 2
++    np.testing.assert_allclose(subset.sum(axis=1), [2.22, 2.02], atol=1e-6)
++
++
++def test_slice_rows_invalid_selector_raises(fragments):
++    with pytest.raises(TypeError, match="Unsupported row selector"):
++        fragments.slice_rows("invalid")
++
++
++def test_slice_mz(fragments):
++    subset = fragments.slice_mz(100.0, 150.0)
++
++    assert len(subset) == 3
++    assert subset.shape[1] <= fragments.shape[1]
++
++    # First spectrum should keep 100.00003 and 110.2 peaks only
++    mz, intensities = subset.get_row(0)
++    assert len(mz) == 2
++    assert np.sum(intensities) == pytest.approx(1.51, abs=1e-6)
++
++
++def test_slice_mz_invalid_range_raises(fragments):
++    with pytest.raises(ValueError, match="mz_max must be >?= mz_min|mz_max must be >= mz_min"):
++        fragments.slice_mz(200.0, 100.0)
++
++
++def test_getitem_row_slice(fragments):
++    subset = fragments[:2]
++
++    assert isinstance(subset, CSRFragmentCollection)
++    assert len(subset) == 2
++    np.testing.assert_allclose(subset.sum(axis=1), [1.521, 2.22], atol=1e-6)
++
++
++def test_getitem_row_list(fragments):
++    subset = fragments[[0, 2]]
++
++    assert len(subset) == 2
++    np.testing.assert_allclose(subset.sum(axis=1), [1.521, 2.02], atol=1e-6)
++
++
++def test_getitem_tuple_row_and_mz_slice(fragments):
++    subset = fragments[:2, 100.0:200.0]
++
++    assert isinstance(subset, CSRFragmentCollection)
++    assert len(subset) == 2
++
++    mz0, int0 = subset.get_row(0)
++    assert np.all(mz0 < 200.01)
++    assert np.sum(int0) == pytest.approx(1.51, abs=1e-6)
++
++
++def test_getitem_invalid_tuple_length_raises(fragments):
++    with pytest.raises(IndexError, match="Expected at most two indexers"):
++        _ = fragments[0, 1, 2]
++
++
++def test_getitem_invalid_column_selector_raises(fragments):
++    with pytest.raises(TypeError, match="Unsupported column selector"):
++        _ = fragments[:, [1, 2]]
++
++
++def test_sum_axis_1(fragments):
++    sums = fragments.sum(axis=1)
++    np.testing.assert_allclose(sums, [1.521, 2.22, 2.02], atol=1e-6)
++
++
++def test_count_axis_1(fragments):
++    counts = fragments.count(axis=1)
++    np.testing.assert_array_equal(counts, [3, 3, 3])
++
++
++def test_count_axis_0(fragments):
++    counts = fragments.count(axis=0)
++    assert counts.shape[0] == fragments.shape[1]
++    assert counts.sum() == 9
++
++
++def test_count_invalid_axis_raises(fragments):
++    with pytest.raises(ValueError, match="axis must be 0 or 1"):
++        fragments.count(axis=2)
++
++
++def test_row_intensity_sums(fragments):
++    np.testing.assert_allclose(fragments.row_intensity_sums(), [1.521, 2.22, 2.02], atol=1e-6)
++
++
++def test_row_peak_counts(fragments):
++    np.testing.assert_array_equal(fragments.row_peak_counts(), [3, 3, 3])
++
++
++def test_fragment_hashes_cached_property(fragments):
++    hashes_1 = fragments.fragment_hashes
++    hashes_2 = fragments.fragment_hashes
++
++    assert len(hashes_1) == len(fragments)
++    assert hashes_1 is hashes_2
++
++
++def test_fragment_hashes_equal_for_identical_input(sample_spectra):
++    fragments_1 = CSRFragmentCollection(sample_spectra, bin_size=0.01)
++    fragments_2 = CSRFragmentCollection(sample_spectra, bin_size=0.01)
++
++    assert np.all(fragments_1.fragment_hashes == fragments_2.fragment_hashes)
++
++
++def test_slice_mz_preserves_global_bin_shape(fragments):
++    sliced = fragments.slice_mz(100.0, 150.0)
++
++    assert sliced.shape[0] == fragments.shape[0]
++    assert sliced.shape[1] == fragments.shape[1]
++
++
++def test_slice_mz_removes_peaks_outside_range(fragments):
++    sliced = fragments.slice_mz(100.0, 150.0)
++
++    # Spectrum 0 originally has peaks near 100, 110, 200 -> only first two should remain
++    mz0, int0 = sliced.get_row(0)
++    assert len(mz0) == 2
++    assert np.all((mz0 >= 100.0) & (mz0 < 150.01))
++    assert np.sum(int0) == pytest.approx(1.51, abs=1e-6)
++
++    # Spectrum 1 originally has peaks near 111, 180, 332 -> only first should remain
++    mz1, int1 = sliced.get_row(1)
++    assert len(mz1) == 1
++    assert np.all((mz1 >= 100.0) & (mz1 < 150.01))
++    assert np.sum(int1) == pytest.approx(0.52, abs=1e-6)
++
++    # Spectrum 2 originally has peaks near 111, 200, 200 -> only first should remain
++    mz2, int2 = sliced.get_row(2)
++    assert len(mz2) == 1
++    assert np.all((mz2 >= 100.0) & (mz2 < 150.01))
++    assert np.sum(int2) == pytest.approx(0.52, abs=1e-6)
++
++
++def test_slice_mz_lower_bound_only(fragments):
++    sliced = fragments.slice_mz(200.0, None)
++
++    mz0, int0 = sliced.get_row(0)
++    assert len(mz0) == 1
++    assert np.all(mz0 >= 200.0)
++    assert np.sum(int0) == pytest.approx(0.011, abs=1e-6)
++
++    mz1, int1 = sliced.get_row(1)
++    assert len(mz1) == 1
++    assert np.all(mz1 >= 200.0)
++    assert np.sum(int1) == pytest.approx(0.7, abs=1e-6)
++
++    mz2, int2 = sliced.get_row(2)
++    assert len(mz2) == 2
++    assert np.all(mz2 >= 200.0)
++    assert np.sum(int2) == pytest.approx(1.5, abs=1e-6)
++
++
++def test_getitem_tuple_mz_slice_preserves_global_bins(fragments):
++    sliced = fragments[:2, 100.0:150.0]
++
++    assert sliced.shape[0] == 2
++    assert sliced.shape[1] == fragments.shape[1]
++
++    mz0, int0 = sliced.get_row(0)
++    assert np.all((mz0 >= 100.0) & (mz0 < 150.01))
++    assert np.sum(int0) == pytest.approx(1.51, abs=1e-6)
++
++    mz1, int1 = sliced.get_row(1)
++    assert np.all((mz1 >= 100.0) & (mz1 < 150.01))
++    assert np.sum(int1) == pytest.approx(0.52, abs=1e-6)
++
++
++def test_to_peak_arrays_matches_get_row(fragments):
++    peak_rows = fragments.to_peak_arrays()
++
++    assert isinstance(peak_rows, list)
++    assert len(peak_rows) == len(fragments)
++
++    for i, (mz, intensities) in enumerate(peak_rows):
++        mz_row, int_row = fragments.get_row(i)
++        np.testing.assert_allclose(mz, mz_row)
++        np.testing.assert_allclose(intensities, int_row)
++
++
++def test_iter_peak_arrays_matches_to_peak_arrays(fragments):
++    peak_rows_from_list = fragments.to_peak_arrays()
++    peak_rows_from_iter = list(fragments.iter_peak_arrays())
++
++    assert len(peak_rows_from_iter) == len(peak_rows_from_list)
++
++    for (mz_a, int_a), (mz_b, int_b) in zip(peak_rows_from_iter, peak_rows_from_list):
++        np.testing.assert_allclose(mz_a, mz_b)
++        np.testing.assert_allclose(int_a, int_b)
++
++
++def test_to_peak_arrays_after_mz_slice_uses_absolute_mz_coordinates(fragments):
++    sliced = fragments.slice_mz(200.0, None)
++    peak_rows = sliced.to_peak_arrays()
++
++    mz0, _ = peak_rows[0]
++    mz1, _ = peak_rows[1]
++    mz2, _ = peak_rows[2]
++
++    assert np.all(mz0 >= 200.0)
++    assert np.all(mz1 >= 200.0)
++    assert np.all(mz2 >= 200.0)
++
++
++def test_slice_mz_empty_result_keeps_shape_and_returns_empty_rows(fragments):
++    sliced = fragments.slice_mz(1000.0, 1200.0)
++
++    assert sliced.shape[0] == fragments.shape[0]
++    assert sliced.shape[1] == fragments.shape[1]
++    assert np.all(sliced.count(axis=1) == 0)
++
++    for i in range(len(sliced)):
++        mz, intensities = sliced.get_row(i)
++        assert len(mz) == 0
++        assert len(intensities) == 0
+diff --git a/tests/test_hashing.py b/tests/test_hashing.py
+index cfd751a40..ba642077f 100644
+--- a/tests/test_hashing.py
++++ b/tests/test_hashing.py
+@@ -1,7 +1,8 @@
+ import numpy as np
+ import pytest
++from scipy.sparse import csr_array
+ from matchms import Spectrum
+-from matchms.hashing import metadata_hash, spectrum_hash
++from matchms.hashing import metadata_hash, spectra_hashes, spectrum_hash, spectrum_hash_arrays
+ from .builder_Spectrum import SpectrumBuilder
+ 
+ 
+@@ -10,24 +11,51 @@ def spectrum() -> Spectrum:
+     mz = np.array([100, 200, 290, 490, 490.5], dtype="float")
+     intensities = np.array([0.1, 0.11, 1.0, 0.3, 0.4], dtype="float")
+     metadata = {"precursor_mz": 505.0}
+-    builder = SpectrumBuilder().with_mz(mz).with_intensities(
+-        intensities).with_metadata(metadata)
++    builder = SpectrumBuilder().with_mz(mz).with_intensities(intensities).with_metadata(metadata)
+     return builder.build()
+ 
+ 
++@pytest.fixture
++def sample_csr_data():
++    data = np.array([0.5, 1.0, 0.8], dtype=float)
++    indices = np.array([10, 20, 15], dtype=int)
++    indptr = np.array([0, 2, 3, 3], dtype=int)
++
++    return csr_array((data, indices, indptr), shape=(3, 30))
++
++
+ def test_spectrum_hash(spectrum):
+     generated_hash = spectrum_hash(spectrum.peaks)
+     assert len(generated_hash) == 20, "Expected hash of length 20."
+-    assert generated_hash == "9b78750e231ff7ea020b", \
+-        "Expected different hash"
++    assert generated_hash == "9b78750e231ff7ea020b", "Expected different hash"
++
++
++def test_spectrum_hash_arrays(spectrum):
++    mz = spectrum.peaks.mz
++    intensities = spectrum.peaks.intensities
++
++    hash_standard = spectrum_hash(spectrum.peaks)
++    hash_vectorized = spectrum_hash_arrays(mz, intensities)
++
++    assert hash_vectorized == hash_standard, "hash_arrays and spectrum_hash are different"
++    assert len(hash_vectorized) == 20
+ 
+ 
+ def test_spectrum_hash_changed_length(spectrum):
+-    generated_hash = spectrum_hash(spectrum.peaks,
+-                                   hash_length=15)
++    generated_hash = spectrum_hash(spectrum.peaks, hash_length=15)
+     assert len(generated_hash) == 15, "Expected hash of length 15."
+-    assert generated_hash == "9b78750e231ff7e", \
+-        "Expected different hash"
++    assert generated_hash == "9b78750e231ff7e", "Expected different hash"
++
++
++def test_spectrum_hash_arrays_custom_params(spectrum):
++    mz = spectrum.peaks.mz
++    intensities = spectrum.peaks.intensities
++
++    hash_v = spectrum_hash_arrays(mz, intensities, hash_length=15, mz_precision=2)
++    hash_s = spectrum_hash(spectrum.peaks, hash_length=15, mz_precision=2)
++
++    assert hash_v == hash_s
++    assert len(hash_v) == 15
+ 
+ 
+ def test_spectrum_hash_changed_mz_precision(spectrum: Spectrum):
+@@ -35,38 +63,68 @@ def test_spectrum_hash_changed_mz_precision(spectrum: Spectrum):
+     mz2[0] += 0.01
+     spectrum2 = SpectrumBuilder().from_spectrum(spectrum).with_mz(mz2).build()
+ 
+-    generated_hash_1a = spectrum_hash(spectrum.peaks,
+-                                      mz_precision=1)
++    generated_hash_1a = spectrum_hash(spectrum.peaks, mz_precision=1)
+ 
+-    generated_hash_1b = spectrum_hash(spectrum2.peaks,
+-                                      mz_precision=1)
+-    assert generated_hash_1a == generated_hash_1b, \
+-        "Expected hashes to be the same"
++    generated_hash_1b = spectrum_hash(spectrum2.peaks, mz_precision=1)
++    assert generated_hash_1a == generated_hash_1b, "Expected hashes to be the same"
+     # mz_precision = 2
+-    generated_hash_1a = spectrum_hash(spectrum.peaks,
+-                                      mz_precision=2)
++    generated_hash_1a = spectrum_hash(spectrum.peaks, mz_precision=2)
+ 
+-    generated_hash_1b = spectrum_hash(spectrum2.peaks,
+-                                      mz_precision=2)
+-    assert generated_hash_1a != generated_hash_1b, \
+-        "Expected hashes to be different"
++    generated_hash_1b = spectrum_hash(spectrum2.peaks, mz_precision=2)
++    assert generated_hash_1a != generated_hash_1b, "Expected hashes to be different"
+ 
+ 
+ def test_spectrum_hash_changed_precision(spectrum):
+-    generated_hash = spectrum_hash(spectrum.peaks,
+-                                   intensity_precision=1)
+-    assert generated_hash == "aef640708220769ce327", \
+-        "Expected different hash"
++    generated_hash = spectrum_hash(spectrum.peaks, intensity_precision=1)
++    assert generated_hash == "aef640708220769ce327", "Expected different hash"
+ 
+ 
+ def test_metadata_hash(spectrum):
+     generated_hash = metadata_hash(spectrum.metadata)
+-    assert generated_hash == "23da883766f6cdb37a35", \
+-        "Expected different hash"
++    assert generated_hash == "23da883766f6cdb37a35", "Expected different hash"
+ 
+ 
+ def test_metadata_hash_changed_length(spectrum):
+-    generated_hash = metadata_hash(spectrum.metadata,
+-                                   hash_length=15)
+-    assert generated_hash == "23da883766f6cdb", \
+-        "Expected different hash"
++    generated_hash = metadata_hash(spectrum.metadata, hash_length=15)
++    assert generated_hash == "23da883766f6cdb", "Expected different hash"
++
++
++def mock_bin_to_mz(bin_idx):
++    return (bin_idx * 0.1) + (0.1 / 2)
++
++
++def mock_mz_to_bin(mz, bin_size):
++    return np.floor(mz / bin_size).astype(np.int64)
++
++
++def test_spectra_hashes_consistency(sample_csr_data):
++    hashes = spectra_hashes(sample_csr_data, mock_bin_to_mz)
++
++    mz_0 = mock_bin_to_mz(sample_csr_data.indices[0:2])
++    int_0 = sample_csr_data.data[0:2]
++    expected_hash_0 = spectrum_hash_arrays(mz_0, int_0, hash_length=20)
++
++    assert len(hashes) == 3
++    assert hashes[0] == expected_hash_0
++
++
++def test_spectra_hashes_custom_params(sample_csr_data):
++    length = 10
++    hashes = spectra_hashes(sample_csr_data, mock_bin_to_mz, hash_length=length)
++
++    for h in hashes:
++        assert len(h) == length
++
++
++def test_spectra_hashes_with_collection_mock(spectrum):
++    bin_size = 0.1
++    mz = np.array([100.0, 200.0])
++    intensities = np.array([1.0, 0.5])
++
++    bins = mock_mz_to_bin(mz, bin_size)
++    csr = csr_array((intensities, bins, [0, 2]), shape=(1, 5000))
++
++    hashes = spectra_hashes(csr, mock_bin_to_mz)
++
++    assert isinstance(hashes[0], str)
++    assert len(hashes[0]) == 20
+diff --git a/tests/test_spectra_collection.py b/tests/test_spectra_collection.py
+new file mode 100644
+index 000000000..de07e3971
+--- /dev/null
++++ b/tests/test_spectra_collection.py
+@@ -0,0 +1,395 @@
++import numpy as np
++import pandas as pd
++import pytest
++from matchms import SpectraCollection, Spectrum
++from tests.builder_Spectrum import SpectrumBuilder
++
++
++@pytest.fixture
++def sample_spectra():
++    mz1 = np.array([100.00003, 110.2, 200.581], dtype="float")
++    intensities1 = np.array([0.51, 1.0, 0.011], dtype="float")  # Sum 1,521
++    metadata1 = {"compound_name": "A", "precursor_mz": 444.0, "charge": -1, "retention_time": 100}
++
++    mz2 = np.array([111.00213, 180.2, 332.342], dtype="float")
++    intensities2 = np.array([0.52, 1.0, 0.7], dtype="float")  # Sum 2,22
++    metadata2 = {"compound_name": "B", "precursor_mz": 565.0, "charge": -1, "retention_time": 200}
++
++    mz3 = np.array([111.00213, 200.1, 200.213], dtype="float")
++    intensities3 = np.array([0.52, 0.5, 1], dtype="float")  # Sum 2,02
++    metadata3 = {"compound_name": "C", "precursor_mz": 664.0, "charge": -1, "retention_time": 150}
++
++    s1 = SpectrumBuilder().with_mz(mz1).with_intensities(intensities1).with_metadata(metadata1).build()
++    s2 = SpectrumBuilder().with_mz(mz2).with_intensities(intensities2).with_metadata(metadata2).build()
++    s3 = SpectrumBuilder().with_mz(mz3).with_intensities(intensities3).with_metadata(metadata3).build()
++
++    return [s1, s2, s3]
++
++
++@pytest.fixture
++def collection(sample_spectra):
++    return SpectraCollection(sample_spectra, bin_size=0.01)
++
++
++def test_getitem_slice(collection):
++    sub_col = collection[0:2]
++
++    assert isinstance(sub_col, SpectraCollection)
++    assert len(sub_col) == 2
++    assert sub_col.metadata["compound_name"].tolist() == ["A", "B"]
++
++    original_sums = collection.fragments.sum(axis=1)
++    sub_sums = sub_col.fragments.sum(axis=1)
++    np.testing.assert_allclose(sub_sums, original_sums[0:2])
++
++
++def test_getitem_list_indices(collection):
++    indices = [0, 2]
++    sub_col = collection[indices]
++
++    assert len(sub_col) == 2
++    assert sub_col.metadata["compound_name"].tolist() == ["A", "C"]
++
++    np.testing.assert_allclose(sub_col.fragments.sum(axis=1), [1.521, 2.02], atol=1e-5)
++
++
++def test_fragments_proxy_slicing(collection):
++    raw_slice = collection.fragments[0:2]
++
++    assert hasattr(raw_slice, "shape")
++    assert raw_slice.shape[0] == 2
++    assert not isinstance(raw_slice, SpectraCollection)
++
++
++def test_fragments_mz_slicing(collection):
++    sliced = collection.fragments[:, 100.0:150.0]
++
++    assert sliced.shape[0] == 3
++    assert sliced.shape[1] >= 1
++
++    # Peak around 200 should be absent after slicing
++    mz0, _ = sliced.get_row(0)
++    assert np.all(mz0 < 150.1)
++
++
++def test_metadata_extraction(collection):
++    df = collection._metadata
++    assert len(df) == 3
++    assert list(df["compound_name"]) == ["A", "B", "C"]
++    assert list(df["precursor_mz"]) == [444.0, 565.0, 664.0]
++    assert list(df["retention_time"]) == [100, 200, 150]
++
++
++def test_fragments_matrix_sums(collection):
++    sums = collection.fragments.sum(axis=1)
++    np.testing.assert_allclose(sums, [1.521, 2.22, 2.02], atol=1e-5)
++
++
++def test_sort_by_rt_descending(collection):
++    sorted_col = collection.sort(by="retention_time", on="metadata", ascending=False)
++
++    assert sorted_col.metadata["compound_name"].tolist() == ["B", "C", "A"]
++    assert sorted_col.metadata["retention_time"].tolist() == [200, 150, 100]
++
++    sorted_sums = sorted_col.fragments.sum(axis=1)
++    assert sorted_sums[0] == pytest.approx(2.22)
++    assert sorted_sums[2] == 1.521
++
++
++def test_sort_inplace(collection):
++    original_id = id(collection)
++
++    result = collection.sort(by="retention_time", on="metadata", ascending=False, inplace=True)
++
++    assert result is None
++    assert id(collection) == original_id
++    assert collection.metadata["compound_name"].tolist() == ["B", "C", "A"]
++
++
++def test_getitem_consistency(collection):
++    spec_b = collection[1]
++
++    assert spec_b.metadata["compound_name"] == "B"
++    assert spec_b.metadata["precursor_mz"] == 565.0
++    assert np.sum(spec_b.intensities) == pytest.approx(2.22)
++
++
++def test_drop_spectra(collection):
++    new_col = collection.drop(indices=[1])
++
++    assert len(new_col) == 2
++    assert new_col.metadata["compound_name"].tolist() == ["A", "C"]
++
++    print(new_col[1].mz)
++
++    assert np.any(np.isclose(new_col[1].mz, 200.105, atol=0.1))
++
++
++def test_drop_duplicates(sample_spectra):
++    col = SpectraCollection(sample_spectra + [sample_spectra[1]], bin_size=0.01)
++
++    assert len(col) == 4
++    deduped = col.drop_duplicates()
++
++    assert len(deduped) == 3
++    assert deduped.metadata["compound_name"].tolist() == ["A", "B", "C"]
++
++
++def test_add_metadata_series(collection):
++    scores = pd.Series([0.95, 0.88, 0.99], name="quality_score")
++    collection.add_metadata(scores)
++
++    assert "quality_score" in collection.metadata.columns
++    assert collection.metadata.loc[2, "quality_score"] == 0.99
++
++
++def test_add_metadata_overwrite(collection):
++    new_rt = pd.Series([10, 20, 30], name="retention_time")
++    collection.add_metadata(new_rt, overwrite=True)
++
++    assert collection.metadata["retention_time"].tolist() == [10, 20, 30]
++
++
++def test_sort_by_metadata(collection):
++    # Sort by retention time (rt): [100, 200, 150] -> [100, 150, 200]
++    sorted_col = collection.sort(by="retention_time", on="metadata", inplace=False)
++
++    assert sorted_col.metadata["retention_time"].tolist() == [100, 150, 200]
++    assert sorted_col.metadata["compound_name"].tolist() == ["A", "C", "B"]
++    original_sums = collection.fragments.sum(axis=1)
++    sorted_sums = sorted_col.fragments.sum(axis=1)
++    assert sorted_sums[1] == original_sums[2]
++
++
++def test_sort_by_fragments(collection):
++    # Sort by intensity sums
++    # A: 6.0, B: 12.0, C: 11.0 -> Ascending: A, C, B
++    sorted_col = collection.sort(by="sum", on="fragments", ascending=True)
++    assert sorted_col.metadata["compound_name"].tolist() == ["A", "C", "B"]
++
++
++def test_drop_indices(collection):
++    dropped = collection.drop([1])
++    assert len(dropped) == 2
++    assert dropped.metadata["compound_name"].tolist() == ["A", "C"]
++
++
++def test_drop_inplace(collection):
++    original_id = id(collection)
++
++    result = collection.drop([1], inplace=True)
++
++    assert result is None
++    assert id(collection) == original_id
++    assert len(collection) == 2
++    assert collection.metadata["compound_name"].tolist() == ["A", "C"]
++
++
++def test_drop_empty_spectra(sample_spectra):
++    empty_spec = Spectrum(mz=np.array([]), intensities=np.array([]), metadata={"name": "empty"})
++    col = SpectraCollection(sample_spectra + [empty_spec], bin_size=1.0)
++
++    assert len(col) == 4
++    clean_col = col.drop_empty_spectra()
++    assert len(clean_col) == 3
++
++
++def test_copy(collection):
++    cloned = collection.copy()
++
++    assert cloned is not collection
++    assert cloned.metadata is not collection.metadata
++    assert cloned.fragments is not collection.fragments
++
++    np.testing.assert_array_equal(
++        cloned._fragments.array.data,
++        collection._fragments.array.data,
++    )
++    np.testing.assert_array_equal(
++        cloned._fragments.array.indptr,
++        collection._fragments.array.indptr,
++    )
++    np.testing.assert_array_equal(
++        cloned._fragments.array.indices,
++        collection._fragments.array.indices,
++    )
++    pd.testing.assert_frame_equal(cloned.metadata, collection.metadata)
++
++    # Mutating the clone should not affect the original
++    cloned.add_metadata(pd.Series([1, 2, 3], name="new_col"))
++
++    assert "new_col" in cloned.metadata.columns
++    assert "new_col" not in collection.metadata.columns
++
++
++def test_mz_bin_conversion(collection):
++    mz = 123.456
++    bin_idx = collection.mz_to_bin(mz)
++    back_mz = collection.bin_to_mz(bin_idx)
++
++    assert bin_idx == 12345
++    assert back_mz == 123.455
++
++
++def test_describe(collection):
++    stats = collection.describe()
++    assert "peak_counts" in stats.columns
++    assert "intensity_sums" in stats.columns
++    assert stats.attrs["num_spectra"] == 3
++
++
++def test_filter_by_metadata_mask(collection):
++    mask = collection.metadata["retention_time"] > 120
++    filtered = collection.filter(mask)
++
++    # Should keep B (200) and C (150)
++    assert len(filtered) == 2
++    assert filtered.metadata["compound_name"].tolist() == ["B", "C"]
++    assert filtered.metadata["retention_time"].tolist() == [200, 150]
++
++
++def test_filter_by_fragments_mask(collection):
++    mask = collection.fragments.sum(axis=1) > 2.0
++    filtered = collection.filter(mask)
++
++    assert len(filtered) == 2
++    assert filtered.metadata["compound_name"].tolist() == ["B", "C"]
++
++
++def test_filter_inplace(collection):
++    original_id = id(collection)
++    mask = np.array([True, False, True])  # Keep A and C
++
++    result = collection.filter(mask, inplace=True)
++
++    assert result is None
++    assert id(collection) == original_id
++    assert len(collection) == 2
++    assert collection.metadata["compound_name"].tolist() == ["A", "C"]
++
++
++def test_filter_invalid_length_raises_error(collection):
++    short_mask = np.array([True, False])
++
++    with pytest.raises(ValueError, match=r"Shape of filter mask \(2\) does not fit Items in SpectraCollection \(3\)."):
++        collection.filter(short_mask)
++
++
++def test_iteration_returns_spectrum_objects(collection):
++    spectra = list(collection)
++
++    assert len(spectra) == 3
++    assert all(isinstance(s, Spectrum) for s in spectra)
++    assert [s.metadata["compound_name"] for s in spectra] == ["A", "B", "C"]
++
++
++def test_getitem_negative_row_slice(collection):
++    sub_col = collection[-2:]
++
++    assert isinstance(sub_col, SpectraCollection)
++    assert len(sub_col) == 2
++    assert sub_col.metadata["compound_name"].tolist() == ["B", "C"]
++    np.testing.assert_allclose(sub_col.fragments.sum(axis=1), [2.22, 2.02], atol=1e-5)
++
++
++def test_getitem_row_and_mz_slice_returns_collection(collection):
++    sub_col = collection[:2, 100.0:150.0]
++
++    assert isinstance(sub_col, SpectraCollection)
++    assert len(sub_col) == 2
++    assert sub_col.metadata["compound_name"].tolist() == ["A", "B"]
++
++    mz0 = sub_col[0].mz
++    mz1 = sub_col[1].mz
++
++    assert np.all((mz0 >= 100.0) & (mz0 < 150.1))
++    assert np.all((mz1 >= 100.0) & (mz1 < 150.1))
++
++    assert np.sum(sub_col[0].intensities) == pytest.approx(1.51, abs=1e-6)
++    assert np.sum(sub_col[1].intensities) == pytest.approx(0.52, abs=1e-6)
++
++
++def test_getitem_scalar_row_and_mz_slice_returns_spectrum(collection):
++    spec = collection[1, 100.0:200.0]
++
++    assert isinstance(spec, Spectrum)
++    assert spec.metadata["compound_name"] == "B"
++    assert np.all((spec.mz >= 100.0) & (spec.mz < 200.1))
++    assert np.sum(spec.intensities) == pytest.approx(1.52, abs=1e-6)
++
++
++def test_getitem_row_mask_and_mz_slice(collection):
++    mask = np.array([True, False, True])
++    sub_col = collection[mask, 100.0:150.0]
++
++    assert isinstance(sub_col, SpectraCollection)
++    assert len(sub_col) == 2
++    assert sub_col.metadata["compound_name"].tolist() == ["A", "C"]
++
++    assert np.sum(sub_col[0].intensities) == pytest.approx(1.51, abs=1e-6)
++    assert np.sum(sub_col[1].intensities) == pytest.approx(0.52, abs=1e-6)
++
++
++def test_getitem_row_list_and_mz_slice(collection):
++    sub_col = collection[[0, 2], 200.0:250.0]
++
++    assert isinstance(sub_col, SpectraCollection)
++    assert len(sub_col) == 2
++    assert sub_col.metadata["compound_name"].tolist() == ["A", "C"]
++
++    # A has one peak around 200.581, C has two around 200.1 and 200.213
++    assert len(sub_col[0].mz) == 1
++    assert len(sub_col[1].mz) == 2
++    assert np.all(sub_col[0].mz >= 200.0)
++    assert np.all(sub_col[1].mz >= 200.0)
++
++
++def test_getitem_scalar_row_and_mz_slice_empty_result(collection):
++    spec = collection[0, 300.0:400.0]
++
++    assert isinstance(spec, Spectrum)
++    assert spec.metadata["compound_name"] == "A"
++    assert len(spec.mz) == 0
++    assert len(spec.intensities) == 0
++
++
++def test_getitem_tuple_invalid_length_raises(collection):
++    with pytest.raises(IndexError, match="Expected at most two indexers"):
++        _ = collection[0, 1, 2]
++
++
++def test_getitem_invalid_row_mask_length_raises(collection):
++    mask = np.array([True, False])
++
++    with pytest.raises(ValueError, match=r"Shape of row selector \(2\) does not fit Items in SpectraCollection \(3\)."):
++        _ = collection[mask, 100.0:200.0]
++
++
++def test_iteration_after_2d_slice_returns_spectrum_objects(collection):
++    sub_col = collection[:, 100.0:150.0]
++    spectra = list(sub_col)
++
++    assert len(spectra) == 3
++    assert all(isinstance(s, Spectrum) for s in spectra)
++    assert all(np.all((s.mz >= 100.0) & (s.mz < 150.1)) or len(s.mz) == 0 for s in spectra)
++
++
++def test_collection_dimension_properties(collection):
++    assert collection.n_spectra == 3
++    assert collection.n_metadata_columns == 4
++
++    # number of bins
++    assert collection.n_bins == collection.fragments.shape[1]
++
++
++def test_add_metadata_aligns_by_position_not_index(collection):
++    new_metadata = pd.DataFrame(
++        {"quality_score": [0.95, 0.88, 0.99]},
++        index=[10, 20, 30],
++    )
++
++    collection.add_metadata(new_metadata)
++
++    assert collection.metadata["quality_score"].tolist() == [0.95, 0.88, 0.99]
++    assert not collection.metadata["quality_score"].isna().any()
++    assert collection.metadata["compound_name"].tolist() == ["A", "B", "C"]

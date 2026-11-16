@@ -1,0 +1,124 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index fd5187789..be8b10aee 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
+ 
+ ## unpublished
+ ### Fixed
++- `load_from_msp` reads records with `Num Peaks: 0` as spectra without peaks. Before, such a record was dropped and its metadata was merged into the next spectrum, which also broke the `save_as_msp` round trip.
+ - `correct_charge` takes the charge from a known adduct (e.g. `[M-2H]2-` gives -2) before guessing +1/-1 from the ionmode when no charge is given.
+ 
+ ## [0.31.0] - 2025-10-06
+diff --git a/matchms/importing/load_from_msp.py b/matchms/importing/load_from_msp.py
+index 47dbedcc0..c4b10417d 100644
+--- a/matchms/importing/load_from_msp.py
++++ b/matchms/importing/load_from_msp.py
+@@ -59,6 +59,14 @@ def parse_msp_file(filename: str) -> Generator[dict, None, None]:
+ 
+             if contains_metadata(rline):
+                 parse_metadata(rline, params)
++                if peakscount == 0 and params.get("num peaks") is not None and int(params["num peaks"]) == 0:
++                    # A record without peaks ends at its Num Peaks line. Without this its
++                    # metadata would be merged into the next record.
++                    yield _record_to_dict(params, masses, intensities, peak_comments)
++                    params = {}
++                    masses = []
++                    intensities = []
++                    peak_comments = {}
+                 continue
+ 
+             mz, ints, comment = _parse_line_with_peaks(rline)
+@@ -74,17 +82,7 @@ def parse_msp_file(filename: str) -> Generator[dict, None, None]:
+             # Obtaining the masses and intensities
+             if int(params["num peaks"]) == peakscount:
+                 peakscount = 0
+-                # Handles edge cases with GOLM files where the nominal mass is written with a comma instead of a dot
+-                nominal_mass = params.get("mw")
+-                if nominal_mass and isinstance(nominal_mass, str):
+-                    params["mw"] = nominal_mass.replace(",", ".")
+-
+-                yield {
+-                    "params": (params),
+-                    "m/z array": masses,
+-                    "intensity array": intensities,
+-                    "peak comments": peak_comments,
+-                }
++                yield _record_to_dict(params, masses, intensities, peak_comments)
+ 
+                 params = {}
+                 masses = []
+@@ -92,6 +90,20 @@ def parse_msp_file(filename: str) -> Generator[dict, None, None]:
+                 peak_comments = {}
+ 
+ 
++def _record_to_dict(params: dict, masses, intensities, peak_comments: dict) -> dict:
++    # Handles edge cases with GOLM files where the nominal mass is written with a comma instead of a dot
++    nominal_mass = params.get("mw")
++    if nominal_mass and isinstance(nominal_mass, str):
++        params["mw"] = nominal_mass.replace(",", ".")
++
++    return {
++        "params": (params),
++        "m/z array": np.asarray(masses, dtype=float),
++        "intensity array": np.asarray(intensities, dtype=float),
++        "peak comments": peak_comments,
++    }
++
++
+ def _parse_line_with_peaks(rline: str) -> Tuple[List[float], List[float], str]:
+     """Parse a line containing peaks consisting of mz and intensity values with optional comments.
+ 
+diff --git a/tests/importing/test_load_from_msp.py b/tests/importing/test_load_from_msp.py
+index 839b604c9..28810ae24 100644
+--- a/tests/importing/test_load_from_msp.py
++++ b/tests/importing/test_load_from_msp.py
+@@ -2,6 +2,7 @@
+ import numpy as np
+ import pytest
+ from matchms import Spectrum
++from matchms.exporting import save_as_msp
+ from matchms.importing.load_from_msp import get_peak_values, load_from_msp, parse_metadata
+ from tests.builder_Spectrum import SpectrumBuilder
+ 
+@@ -294,4 +295,38 @@ def test_parse_metadata(input_line, expected_output):
+ ])
+ def test_get_peak_values(line, expected):
+     actual = get_peak_values(line)
+-    assert actual == expected
+\ No newline at end of file
++    assert actual == expected
++
++def test_load_msp_record_without_peaks(tmp_path):
++    msp = tmp_path / "zero_peaks.msp"
++    msp.write_text(
++        "NAME: A\nPRECURSORMZ: 300.1\nFORMULA: C6H6\nSMILES: c1ccccc1\nNum Peaks: 0\n\n"
++        "NAME: B\nPRECURSORMZ: 400.2\nNum Peaks: 2\n50 1\n60 2\n"
++    )
++    spectra = list(load_from_msp(str(msp)))
++
++    assert [s.get("compound_name") for s in spectra] == ["A", "B"]
++    assert len(spectra[0].peaks.mz) == 0
++    assert spectra[0].get("formula") == "C6H6"
++    assert spectra[1].get("formula") is None
++    assert spectra[1].get("smiles") is None
++    np.testing.assert_array_equal(spectra[1].peaks.mz, [50.0, 60.0])
++
++
++def test_save_and_load_msp_spectrum_without_peaks(tmp_path):
++    empty = Spectrum(
++        mz=np.array([], dtype=float),
++        intensities=np.array([], dtype=float),
++        metadata={"compound_name": "A", "precursor_mz": 300.1, "smiles": "c1ccccc1"},
++    )
++    other = Spectrum(
++        mz=np.array([50.0, 60.0]),
++        intensities=np.array([1.0, 2.0]),
++        metadata={"compound_name": "B", "precursor_mz": 400.2},
++    )
++    filename = str(tmp_path / "roundtrip.msp")
++    save_as_msp([empty, other], filename)
++    spectra = list(load_from_msp(filename))
++
++    assert [s.get("compound_name") for s in spectra] == ["A", "B"]
++    assert spectra[1].get("smiles") is None

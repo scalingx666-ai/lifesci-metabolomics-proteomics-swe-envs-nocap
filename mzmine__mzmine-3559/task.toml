@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3559"
+description = "add factory to join aligner parameters"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "b278bcffaeb06bdf17efb11653940eca79c7958f"
+reference = "https://github.com/mzmine/mzmine/pull/3559"
+source_access = "auto"
+built_at = "2026-11-16T08:43:08.215442+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:a8c4800a4d7cdd205015e2e5dd988a30c72c970e9c42d01fe0547674f32db267"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-07T11:46:39Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/align_join/JoinAlignerParameters.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 74
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

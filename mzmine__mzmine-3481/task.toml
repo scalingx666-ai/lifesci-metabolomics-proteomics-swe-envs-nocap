@@ -1,0 +1,64 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3481"
+description = "Targeted feature detection - status detected"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "671b5382068c6d94989bbbaa43dc298c65874bee"
+reference = "https://github.com/mzmine/mzmine/pull/3481"
+source_access = "auto"
+built_at = "2026-11-16T08:44:35.570056+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:2fddea409a5492f8864c692568eb1b2f2af5b1ada1a049eb1a37893a8b8eb184"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-09-02T12:37:47Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_targeted/TargetedFeatureDetectionModuleTask.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/gapfill_peakfinder/Gap.java",
+    "mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/featdet_targeted/TargetedFeatureDetectionMergeTest.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 166
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

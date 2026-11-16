@@ -1,0 +1,48 @@
+diff --git a/devtools/conda-recipe/meta.yaml b/devtools/conda-recipe/meta.yaml
+index 690cfce..58a81e7 100644
+--- a/devtools/conda-recipe/meta.yaml
++++ b/devtools/conda-recipe/meta.yaml
+@@ -13,6 +13,7 @@ requirements:
+     - python {{ python }}
+     - setuptools
+     - numpy
++    - pytest
+ 
+   run:
+     - python  {{ python }}
+diff --git a/pypdb/conftest.py b/pypdb/conftest.py
+new file mode 100644
+index 0000000..5c405c3
+--- /dev/null
++++ b/pypdb/conftest.py
+@@ -0,0 +1 @@
++# Sentinel file for `pytest` (to allow testing of PyPDB)
+diff --git a/pypdb/pypdb.py b/pypdb/pypdb.py
+index 01a3696..1f5c84f 100755
+--- a/pypdb/pypdb.py
++++ b/pypdb/pypdb.py
+@@ -29,7 +29,7 @@
+ import json
+ import warnings
+ 
+-from util import http_requests
++from pypdb.util import http_requests
+ 
+ 
+ '''
+diff --git a/pypdb/util/__init__.py b/pypdb/util/__init__.py
+deleted file mode 100644
+index e69de29..0000000
+diff --git a/pypdb/util/test_http_requests.py b/pypdb/util/test_http_requests.py
+index f6127af..182596d 100644
+--- a/pypdb/util/test_http_requests.py
++++ b/pypdb/util/test_http_requests.py
+@@ -4,7 +4,7 @@
+ from unittest import mock
+ import warnings
+ 
+-import http_requests
++from pypdb.util import http_requests
+ 
+ 
+ class TestHTTPRequests(unittest.TestCase):

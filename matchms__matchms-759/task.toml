@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-759"
+description = "Updated `load_from_usi` API call"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "61c837f3a8e0d7ed946910bcf167937360809a9f"
+reference = "https://github.com/matchms/matchms/pull/759"
+source_access = "auto"
+built_at = "2026-11-16T12:55:08.732133+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:25c76bb5a437f73b0e32e03370d8328edd3a95caf8a175e3955bfaa35ee61de7"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-03-12T16:51:56Z"
+diff_format = "unified"
+context_files = [
+    "matchms/importing/load_from_usi.py",
+    "tests/importing/test_load_from_usi.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 26
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

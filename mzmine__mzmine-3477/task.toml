@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3477"
+description = "allow every number in int component"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "d891e2ca54bce974866210bd0c190b7dbde1fc0e"
+reference = "https://github.com/mzmine/mzmine/pull/3477"
+source_access = "auto"
+built_at = "2026-11-16T08:44:38.287669+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:83fba02a34672cc21d9934d8ddcb5d608e242e36b8e78c740b32b159da15f190"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-09-01T10:15:12Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/IntegerComponent.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 7
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

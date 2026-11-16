@@ -1,0 +1,336 @@
+diff --git a/docs/src/en/updates.md b/docs/src/en/updates.md
+index 002baed61..312495e21 100644
+--- a/docs/src/en/updates.md
++++ b/docs/src/en/updates.md
+@@ -8,6 +8,9 @@
+ - [`gget pdb`](pdb.md): Added support for the PDBx/mmCIF structure format (fixes [issue 178](https://github.com/scverse/gget/issues/178) and [issue 177](https://github.com/scverse/gget/issues/177)).
+   - New `resource="mmcif"` option downloads the structure in PDBx/mmCIF format (`.cif`).
+   - The default `resource="pdb"` now automatically falls back to PDBx/mmCIF when the legacy PDB file is unavailable (e.g. for large structures), since the legacy PDB format is being phased out by RCSB. A warning is logged and saved files use the correct extension (`.cif`).
++- [`gget opentargets`](opentargets.md): Adapted to several upstream Open Targets GraphQL API changes:
++  - **Fixed**: `gget opentargets resource="drugs"` was failing with `HTTP 400 — Field 'synonyms' of type '[DrugLabelAndSource!]!' must have a sub selection.` Open Targets changed `Drug.synonyms` and `Drug.tradeNames` from scalar lists to lists of structured `DrugLabelAndSource` objects. The internal GraphQL query was updated to request the `label` sub-field; the `drug.synonyms` / `drug.tradeNames` columns in the returned DataFrame remain `list[str]`, so existing user code is unaffected.
++  - **Known limitation**: `gget opentargets resource="expression"` now returns an empty DataFrame because Open Targets deprecated the `Target.expressions` field. A `logger.warning` is now emitted when this resource is invoked so users see *why* the result is empty (rather than silently getting `[]`). The replacement `Target.baselineExpression` field has a different schema (`tissueBiosample`, `q1`/`q3`/`median`/`min`/`max` instead of `tissue`/`rna` sub-objects) and will be wired up in a future release (tracked in [issue 247](https://github.com/scverse/gget/issues/247)). The corresponding tests are marked as skipped until then.
+ - [`gget archs4`](archs4.md) (tissue mode): No longer crashes with `KeyError: ['color'] not found in axis` when ARCHS4 intermittently omits the optional `color` column from its CSV response. The column is now dropped only if present. Output also has a deterministic row order (sorted by `median` descending, with `id` as tiebreaker) so equal-median tissues no longer flip order between requests.
+ 
+ 
+diff --git a/gget/gget_opentargets.py b/gget/gget_opentargets.py
+index 8037fb342..fd53216fb 100644
+--- a/gget/gget_opentargets.py
++++ b/gget/gget_opentargets.py
+@@ -43,8 +43,16 @@
+             }
+           }
+           description
+-          synonyms
+-          tradeNames
++          # synonyms and tradeNames are now [DrugLabelAndSource!]! (were scalar
++          # lists); query the `label` sub-field so _collapse_singletons flattens
++          # each {label: "X"} back to "X", preserving the list[str] shape users
++          # see in the resulting DataFrame.
++          synonyms {
++            label
++          }
++          tradeNames {
++            label
++          }
+           maximumClinicalStage
+           indications {
+             rows {
+@@ -324,6 +332,19 @@ def opentargets(
+         query_string = QUERY_STRING_PHARMACOGENETICS
+         rows_path = ["pharmacogenomics"]
+     elif resource == "expression":
++        # Open Targets deprecated `Target.expressions` upstream (returns []
++        # for all targets as of mid-2026). The replacement field
++        # `Target.baselineExpression` has a different schema (tissueBiosample,
++        # q1/q3/median/min/max instead of tissue/rna sub-objects); migrating
++        # gget's output is a user-facing change tracked in
++        # https://github.com/scverse/gget/issues/247.
++        logger.warning(
++            "gget opentargets resource='expression' is currently broken upstream: "
++            "Open Targets retired the `Target.expressions` GraphQL field (returns []). "
++            "A future gget release will migrate to the replacement `Target.baselineExpression` "
++            "field, which has a different output schema. Track at "
++            "https://github.com/scverse/gget/issues/247."
++        )
+         query_string = QUERY_STRING_EXPRESSION
+         rows_path = ["expressions"]
+     elif resource == "depmap":
+diff --git a/tests/fixtures/test_opentargets.json b/tests/fixtures/test_opentargets.json
+index 34841d715..721f8bbdc 100644
+--- a/tests/fixtures/test_opentargets.json
++++ b/tests/fixtures/test_opentargets.json
+@@ -8,13 +8,13 @@
+     },
+     "expected_result": [
+       [
+-        0.7297489019498119,
+-        "EFO_0000274",
++        0.7279798021712002,
++        "MONDO_0004980",
+         "atopic eczema",
+         "A common chronic pruritic inflammatory skin disease with a strong genetic component. Onset typically occurs during the first 2 years of life."
+       ],
+       [
+-        0.6642728577751653,
++        0.6952093612226559,
+         "MONDO_0004979",
+         "asthma",
+         "A bronchial disease that is characterized by chronic inflammation and narrowing of the airways, which is caused by a combination of environmental and genetic factors resulting in recurring periods of wheezing (a whistling sound while breathing), chest tightness, shortness of breath, mucus production and coughing. The symptoms appear due to a variety of triggers such as allergens, irritants, respiratory infections, weather changes, exercise, stress, reflux disease, medications, foods and emotional anxiety."
+@@ -22,12 +22,13 @@
+     ]
+   },
+   "test_opentargets_expression_no_limit": {
+-    "type": "assert_equal_json_hash",
++    "type": "skip",
+     "args": {
+       "ensembl_id": "ENSG00000169194",
+       "resource": "expression"
+     },
+-    "expected_result": "7d32780ec48250553246c816d80b93ee"
++    "expected_result": "7d32780ec48250553246c816d80b93ee",
++    "reason": "Open Targets deprecated the `expressions` GraphQL field (returns []) in favor of `baselineExpression`, which has a different schema (tissueBiosample, q1/q3/median/min/max instead of tissue/rna sub-objects). Migration is a user-facing API change; tracked separately."
+   },
+   "test_opentargets_depmap": {
+     "type": "assert_equal_json_hash",
+@@ -35,7 +36,7 @@
+       "ensembl_id": "ENSG00000169194",
+       "resource": "depmap"
+     },
+-    "expected_result": "c335cc9c9b3167e8c5b3084e339c88a7"
++    "expected_result": "e81a60ff47c06bfecb3b421d28047718"
+   },
+   "test_opentargets_depmap_filter": {
+     "type": "assert_equal",
+@@ -47,26 +48,7 @@
+       },
+       "limit": 2
+     },
+-    "expected_result": [
+-      [
+-        "UBERON_0002367",
+-        "prostate gland",
+-        "DU 145",
+-        0.034343916922807693,
+-        "Prostate Adenocarcinoma",
+-        "ACH-000979",
+-        -0.14336788654327393
+-      ],
+-      [
+-        "UBERON_0002367",
+-        "prostate gland",
+-        "WPE1-NA22",
+-        0.0291899424046278,
+-        "Non-Cancerous",
+-        "ACH-001422",
+-        0.06934770196676254
+-      ]
+-    ]
++    "expected_result": []
+   },
+   "test_opentargets_interactions_no_limit": {
+     "type": "assert_equal_json_hash",
+@@ -74,7 +56,7 @@
+       "ensembl_id": "ENSG00000169194",
+       "resource": "interactions"
+     },
+-    "expected_result": "fa95d278c2d31ded3731e154d65fcda5"
++    "expected_result": "8ed7f7380590628acdbaa5f9501365a6"
+   },
+   "test_opentargets_interactions_simple_filter": {
+     "type": "assert_equal",
+@@ -163,13 +145,13 @@
+     },
+     "expected_result": [
+       {
+-        "score": 0.7297489019,
+-        "disease.id": "EFO_0000274",
++        "score": 0.7279798022,
++        "disease.id": "MONDO_0004980",
+         "disease.name": "atopic eczema",
+         "disease.description": "A common chronic pruritic inflammatory skin disease with a strong genetic component. Onset typically occurs during the first 2 years of life."
+       },
+       {
+-        "score": 0.6642728578,
++        "score": 0.6952093612,
+         "disease.id": "MONDO_0004979",
+         "disease.name": "asthma",
+         "disease.description": "A bronchial disease that is characterized by chronic inflammation and narrowing of the airways, which is caused by a combination of environmental and genetic factors resulting in recurring periods of wheezing (a whistling sound while breathing), chest tightness, shortness of breath, mucus production and coughing. The symptoms appear due to a variety of triggers such as allergens, irritants, respiratory infections, weather changes, exercise, stress, reflux disease, medications, foods and emotional anxiety."
+@@ -190,7 +172,7 @@
+         "drug.name": "LEBRIKIZUMAB",
+         "drug.drugType": "Antibody",
+         "drug.mechanismsOfAction.rows": "Interleukin-13 inhibitor",
+-        "drug.description": "Antibody drug with a maximum clinical stage of Approval (across all indications), with an approval for atopic eczema and eczematoid dermatitis and 5 investigational indications.",
++        "drug.description": "Antibody drug with a maximum clinical stage of Approval (across all indications), with 3 approved and 7 investigational indications.",
+         "drug.synonyms": [
+           "Lebrikizumab",
+           "Lebrikizumab-lbkz",
+@@ -200,19 +182,20 @@
+           "PRO-301444 RG-3637",
+           "PRO301444",
+           "RO-5490255",
+-          "Tnx-650"
++          "Tnx-650",
++          "ly3650150"
+         ],
+         "drug.tradeNames": "Ebglyss",
+         "drug.maximumClinicalStage": "APPROVAL",
+         "drug.indications.rows": [
+-          {
+-            "id": "EFO_0000274",
+-            "name": "atopic eczema"
+-          },
+           {
+             "id": "EFO_0000768",
+             "name": "idiopathic pulmonary fibrosis"
+           },
++          {
++            "id": "EFO_1002029",
++            "name": "chronic rhinosinusitis with nasal polyps"
++          },
+           {
+             "id": "MONDO_0004979",
+             "name": "asthma"
+@@ -222,16 +205,24 @@
+             "name": "Eczematoid dermatitis"
+           },
+           {
+-            "id": "EFO_0000341",
++            "id": "MONDO_0005002",
+             "name": "chronic obstructive pulmonary disease"
+           },
+           {
+-            "id": "EFO_0000183",
++            "id": "MONDO_0005083",
++            "name": "psoriasis"
++          },
++          {
++            "id": "MONDO_0004952",
+             "name": "Hodgkins lymphoma"
+           },
+           {
+-            "id": "MONDO_0004784",
+-            "name": "allergic asthma"
++            "id": "MONDO_0004980",
++            "name": "atopic eczema"
++          },
++          {
++            "id": "MONDO_0024332",
++            "name": "perennial allergic rhinitis"
+           }
+         ]
+       },
+@@ -249,12 +240,12 @@
+         "drug.maximumClinicalStage": "PHASE_2",
+         "drug.indications.rows": [
+           {
+-            "id": "MONDO_0004979",
+-            "name": "asthma"
++            "id": "MONDO_0005101",
++            "name": "ulcerative colitis"
+           },
+           {
+-            "id": "EFO_0000729",
+-            "name": "ulcerative colitis"
++            "id": "MONDO_0004979",
++            "name": "asthma"
+           }
+         ]
+       }
+@@ -262,7 +253,7 @@
+   },
+   "test_opentargets_expression": {
+     "function_call_to_reproduce": "output = opentargets(ensembl_id='ENSG00000169194', resource='expression', limit=2, json=True, verbose=False); print(json.dumps(output, indent=2))",
+-    "type": "assert_equal_json_with_keys",
++    "type": "skip",
+     "args": {
+       "ensembl_id": "ENSG00000169194",
+       "resource": "expression",
+@@ -297,7 +288,8 @@
+         "rna.unit": "",
+         "rna.level": -1
+       }
+-    ]
++    ],
++    "reason": "Open Targets deprecated the `expressions` GraphQL field (returns []) in favor of `baselineExpression`, which has a different schema (tissueBiosample, q1/q3/median/min/max instead of tissue/rna sub-objects). Migration is a user-facing API change; tracked separately."
+   },
+   "test_opentargets_interactions": {
+     "function_call_to_reproduce": "output = opentargets(ensembl_id='ENSG00000169194', resource='interactions', limit=2, json=True, verbose=False); print(json.dumps(output, indent=2))",
+@@ -314,13 +306,13 @@
+         "sourceDatabase": "string",
+         "intA": "ENSP00000304915",
+         "intABiologicalRole": "unspecified role",
+-        "intB": "ENSP00000361004",
++        "intB": "ENSP00000360730",
+         "intBBiologicalRole": "unspecified role",
+         "targetA.id": "ENSG00000169194",
+         "targetA.approvedSymbol": "IL13",
+         "speciesA.taxonId": 134,
+-        "targetB.id": "ENSG00000123496",
+-        "targetB.approvedSymbol": "IL13RA2",
++        "targetB.id": "ENSG00000131724",
++        "targetB.approvedSymbol": "IL13RA1",
+         "speciesB.taxonId": 134
+       },
+       {
+@@ -329,13 +321,13 @@
+         "sourceDatabase": "string",
+         "intA": "ENSP00000304915",
+         "intABiologicalRole": "unspecified role",
+-        "intB": "ENSP00000360730",
++        "intB": "ENSP00000361004",
+         "intBBiologicalRole": "unspecified role",
+         "targetA.id": "ENSG00000169194",
+         "targetA.approvedSymbol": "IL13",
+         "speciesA.taxonId": 134,
+-        "targetB.id": "ENSG00000131724",
+-        "targetB.approvedSymbol": "IL13RA1",
++        "targetB.id": "ENSG00000123496",
++        "targetB.approvedSymbol": "IL13RA2",
+         "speciesB.taxonId": 134
+       }
+     ]
+@@ -369,11 +361,11 @@
+       },
+       {
+         "variantId": "5_132660151_T_C",
+-        "genotypeId": "5_132660151_T_C,C",
+-        "genotype": "CC",
++        "genotypeId": "5_132660151_T_C,T",
++        "genotype": "CT",
+         "drugs": null,
+-        "phenotypeText": "decreased risk for non-immune response",
+-        "genotypeAnnotationText": "Patients with the CC genotype may be at decreased risk for non-immune response to the hepatitis B vaccine, as compared to patients with the TT genotype. Other genetic and clinical factors may also influence risk of non-immune response in patients receiving the hepatitis B vaccine.",
++        "phenotypeText": "decreased risk for non-immune response to the hepatitis B vaccine",
++        "genotypeAnnotationText": "Patients with the CT genotype may be at decreased risk for non-immune response to the hepatitis B vaccine, as compared to patients with the TT genotype, or at increased risk as compared to patients with the CC genotype. Other genetic and clinical factors may also influence risk of non-immune response in patients receiving the hepatitis B vaccine.",
+         "pgxCategory": "efficacy",
+         "isDirectTarget": false,
+         "evidenceLevel": "3",
+diff --git a/tests/from_json.py b/tests/from_json.py
+index 1b41cbcf6..82fcd68bf 100644
+--- a/tests/from_json.py
++++ b/tests/from_json.py
+@@ -279,6 +279,16 @@ def error(self: unittest.TestCase):
+ 
+ 
+ # _test_constructor = Callable[[str, dict[str, dict[str, ...]], Callable], Callable]
++def _skip(name, td, _func):
++    """Mark a JSON-defined test as skipped, with the `reason` from the fixture."""
++    reason = td[name].get("reason", "skipped")
++
++    def skip(self: unittest.TestCase):
++        self.skipTest(reason)
++
++    return skip
++
++
+ _TYPES = {
+     "assert_equal": _assert_equal,
+     "assert_equal_na": _assert_equal_na,
+@@ -288,6 +298,7 @@ def error(self: unittest.TestCase):
+     "assert_equal_json_hash_nested": _assert_equal_json_hash_nested,
+     "assert_equal_json_with_keys": _assert_equal_json_with_keys,
+     "error": _error,
++    "skip": _skip,
+ }
+ 
+ 

@@ -1,0 +1,747 @@
+diff --git a/matchms/calculate_scores.py b/matchms/calculate_scores.py
+index d2c162ced..0c7ba5a08 100644
+--- a/matchms/calculate_scores.py
++++ b/matchms/calculate_scores.py
+@@ -1,10 +1,15 @@
++from __future__ import annotations
+ from collections.abc import Sequence
++from typing import TYPE_CHECKING
+ from .scores import Scores
+ from .similarity.base_similarity import BaseSimilarity
+-from .typing import SpectrumType
+ 
+ 
+-def calculate_scores(spectra_1: Sequence[SpectrumType], spectra_2: Sequence[SpectrumType],
++if TYPE_CHECKING:
++    from matchms.spectrum import Spectrum
++
++
++def calculate_scores(spectra_1: Sequence[Spectrum], spectra_2: Sequence[Spectrum],
+                      similarity_function: BaseSimilarity) -> Scores:
+     """Calculate the similarity between all reference objects versus all query objects.
+ 
+diff --git a/matchms/filtering/_dispatch.py b/matchms/filtering/_dispatch.py
+index 6025fe4f1..45c00badb 100644
+--- a/matchms/filtering/_dispatch.py
++++ b/matchms/filtering/_dispatch.py
+@@ -1,13 +1,18 @@
++from __future__ import annotations
+ import inspect
+ import warnings
+ from collections.abc import Callable
+ from functools import wraps
++from typing import TYPE_CHECKING
+ from tqdm.auto import tqdm
+ from matchms.filtering.filter_utils.metadata_conversions import (
+     apply_metadata_row_filter,
+     apply_metadata_updates_to_spectrum,
+ )
+-from matchms.typing import SpectraCollectionType
++
++
++if TYPE_CHECKING:
++    from matchms.spectra_collection import SpectraCollection
+ 
+ 
+ def _get_spectra_collection_type():
+@@ -24,7 +29,7 @@ def _is_spectra_collection(obj) -> bool:
+ 
+ # ----------------------------------
+ # Public filter factories
+-# 1. General purpose collection_filter for filters with separate spectrum and collection implementations.
++# General purpose collection_filter for filters with separate spectrum and collection implementations.
+ # ----------------------------------
+ def collection_filter(
+     spectrum_impl: Callable,
+@@ -95,7 +100,7 @@ def wrapper(spectrum_in=None, *args, **kwargs):
+ 
+ 
+ # ----------------------------------
+-# 2. metadata_update_filter for filters that only update metadata and do not drop spectra.
++# Metadata_update_filter for filters that only update metadata and do not drop spectra.
+ # ----------------------------------
+ 
+ def _metadata_filter_signature(metadata_impl: Callable) -> inspect.Signature:
+@@ -181,7 +186,7 @@ def spectrum_impl(spectrum_in, *args, clone: bool | None = True, **kwargs):
+         return apply_metadata_updates_to_spectrum(spectrum, updates or {})
+ 
+     def default_collection_impl(
+-        spectrum_in: SpectraCollectionType,
++        spectrum_in: SpectraCollection,
+         *args,
+         clone: bool | None = True,
+         **kwargs,
+@@ -223,7 +228,7 @@ def default_collection_impl(
+ 
+ 
+ #----------------------------------
+-# 3. Factory for require-type filters that drop spectra/rows based on metadata requirements.
++# Factory for require-type filters that drop spectra/rows based on metadata requirements.
+ #----------------------------------
+ def _metadata_requirement_signature(metadata_impl: Callable) -> inspect.Signature:
+     """Build the public Spectrum-style signature for a metadata requirement filter."""
+@@ -323,13 +328,13 @@ def collection_impl(collection, *args, clone: bool | None = True, **kwargs):
+ 
+ 
+ def apply_spectrum_filter_to_collection(
+-    collection: SpectraCollectionType,
++    collection: SpectraCollection,
+     spectrum_filter: Callable,
+     *args,
+     clone: bool = True,
+     progress_bar: bool = False,
+     **kwargs,
+-) -> SpectraCollectionType | None:
++) -> SpectraCollection | None:
+     """Apply a spectrum-level filter to all spectra in a collection.
+ 
+     This is a compatibility fallback for filters without native
+diff --git a/matchms/filtering/default_filters.py b/matchms/filtering/default_filters.py
+index c2ddf1f1d..577624898 100644
+--- a/matchms/filtering/default_filters.py
++++ b/matchms/filtering/default_filters.py
+@@ -1,4 +1,5 @@
+-from matchms.typing import SpectrumType
++from __future__ import annotations
++from typing import TYPE_CHECKING
+ from .metadata_processing.add_compound_name import add_compound_name
+ from .metadata_processing.add_precursor_mz import add_precursor_mz
+ from .metadata_processing.clean_compound_name import clean_compound_name
+@@ -10,7 +11,10 @@
+ from .metadata_processing.make_charge_int import make_charge_int
+ 
+ 
+-def default_filters(spectrum: SpectrumType) -> SpectrumType:
++if TYPE_CHECKING:
++    from matchms.spectrum import Spectrum
++
++def default_filters(spectrum: Spectrum) -> Spectrum:
+     """
+     Collection of filters that are considered default and that do no require any (factory) arguments.
+ 
+diff --git a/matchms/filtering/metadata_processing/interpret_pepmass.py b/matchms/filtering/metadata_processing/interpret_pepmass.py
+index 16e4ca7dd..687789778 100644
+--- a/matchms/filtering/metadata_processing/interpret_pepmass.py
++++ b/matchms/filtering/metadata_processing/interpret_pepmass.py
+@@ -1,13 +1,19 @@
++from __future__ import annotations
+ import logging
+ import re
++from typing import TYPE_CHECKING
+ import numpy as np
+ import pandas as pd
+ from matchms.filtering._dispatch import collection_filter
+ from matchms.filtering.filter_utils.metadata_conversions import is_missing_metadata_value
+-from matchms.typing import SpectraCollectionType, SpectrumType
+ from .make_charge_int import _convert_charge_to_int
+ 
+ 
++if TYPE_CHECKING:
++    from matchms.spectra_collection import SpectraCollection
++    from matchms.spectrum import Spectrum
++
++
+ logger = logging.getLogger("matchms")
+ 
+ _accepted_types = (float, str, int)
+@@ -17,7 +23,7 @@
+ def _interpret_pepmass_spectrum(
+     spectrum_in,
+     clone: bool | None = True,
+-) -> SpectrumType | None:
++) -> Spectrum | None:
+     """Reads pepmass field, if present, and adds values to correct fields.
+ 
+     The field ``pepmass`` or ``PEPMASS`` is often used to describe the precursor
+@@ -45,9 +51,9 @@ def _interpret_pepmass_spectrum(
+ 
+ 
+ def _interpret_pepmass_collection(
+-    spectrum_in: SpectraCollectionType,
++    spectrum_in: SpectraCollection,
+     clone: bool | None = True,
+-) -> SpectraCollectionType:
++) -> SpectraCollection:
+     """Reads pepmass field, if present, for a SpectraCollection."""
+     target = spectrum_in.copy() if clone else spectrum_in
+     metadata = target._metadata.copy()
+diff --git a/matchms/fingerprints.py b/matchms/fingerprints.py
+index 97ab77e08..9f8cc5bd2 100644
+--- a/matchms/fingerprints.py
++++ b/matchms/fingerprints.py
+@@ -1,6 +1,8 @@
++from __future__ import annotations
+ import json
+ import logging
+ from dataclasses import dataclass
++from typing import TYPE_CHECKING
+ import numpy as np
+ import pandas as pd
+ import scipy.sparse as sp
+@@ -11,7 +13,10 @@
+     is_valid_inchikey,
+     is_valid_smiles,
+ )
+-from matchms.typing import SpectrumType
++
++
++if TYPE_CHECKING:
++    from matchms.spectrum import Spectrum
+ 
+ 
+ logger = logging.getLogger("matchms")
+@@ -231,7 +236,7 @@ def get_fingerprint_by_inchikey(self, inchikey: str):
+         logger.warning("Fingerprint is not present for given Spectrum/InChIKey. Use compute_fingerprints() first.")
+         return None
+ 
+-    def get_fingerprint_by_spectrum(self, spectrum: SpectrumType):
++    def get_fingerprint_by_spectrum(self, spectrum: Spectrum):
+         """Get fingerprint by spectrum.
+ 
+         Parameters
+@@ -247,7 +252,7 @@ def get_fingerprint_by_spectrum(self, spectrum: SpectrumType):
+         inchikey = spectrum.get("inchikey")
+         return self.get_fingerprint_by_inchikey(inchikey)
+ 
+-    def compute_fingerprint(self, spectrum: SpectrumType):
++    def compute_fingerprint(self, spectrum: Spectrum):
+         """Compute one fingerprint for a given spectrum.
+ 
+         This does not add the fingerprint to the internal storage. It only computes
+@@ -273,7 +278,7 @@ def compute_fingerprint(self, spectrum: SpectrumType):
+             return None
+         return self._extract_row(fps, 0)
+ 
+-    def compute_fingerprints(self, spectra: list[SpectrumType]):
++    def compute_fingerprints(self, spectra: list[Spectrum]):
+         """Compute fingerprints for a list of spectra.
+ 
+         Fingerprints are computed only for unique compounds, keyed by InChIKey.
+@@ -335,7 +340,7 @@ def _compute_from_smiles(self, smiles: list[str]):
+         )
+         return compute_fingerprints(smiles, self.fingerprint_generator, config=config)
+ 
+-    def _record_from_spectrum(self, spectrum: SpectrumType) -> _FingerprintRecord | None:
++    def _record_from_spectrum(self, spectrum: Spectrum) -> _FingerprintRecord | None:
+         """Build validated internal fingerprint record from a spectrum."""
+         inchikey = spectrum.get("inchikey")
+         smiles = spectrum.get("smiles")
+diff --git a/matchms/fragment_collection.py b/matchms/fragment_collection.py
+index 9937072ca..73c49717e 100644
+--- a/matchms/fragment_collection.py
++++ b/matchms/fragment_collection.py
+@@ -1,12 +1,12 @@
+ from abc import ABC, abstractmethod
+ from collections.abc import Generator, Iterable
+ from functools import cached_property
++from typing import Self
+ import numpy as np
+ from scipy.sparse import coo_array, csr_array
+ from tqdm.auto import tqdm
+ from matchms.spectrum import Spectrum
+ from .hashing import spectra_hashes
+-from .typing import FragmentCollectionType
+ 
+ 
+ class FragmentCollection(ABC):
+@@ -22,7 +22,7 @@ def __len__(self) -> int:
+         pass
+ 
+     @abstractmethod
+-    def copy(self) -> "FragmentCollection":
++    def copy(self) -> Self:
+         pass
+ 
+     @abstractmethod
+@@ -31,12 +31,12 @@ def get_row(self, idx: int) -> tuple[np.ndarray, np.ndarray]:
+         pass
+ 
+     @abstractmethod
+-    def take(self, indices: Iterable[int]) -> "FragmentCollection":
++    def take(self, indices: Iterable[int]) -> Self:
+         """Return new collection with selected rows."""
+         pass
+ 
+     @abstractmethod
+-    def slice_mz(self, mz_min: float | None = None, mz_max: float | None = None) -> "FragmentCollection":
++    def slice_mz(self, mz_min: float | None = None, mz_max: float | None = None) -> Self:
+         """Return new collection with restricted m/z range."""
+         pass
+ 
+@@ -70,7 +70,7 @@ def select_by_intensity(
+         self,
+         intensity_from: float = 0.0,
+         intensity_to: float = 1.0,
+-    ) -> "FragmentCollection":
++    ) -> Self:
+         """Return new collection with peaks restricted to an intensity range."""
+         pass
+ 
+@@ -79,12 +79,12 @@ def select_by_relative_intensity(
+         self,
+         intensity_from: float = 0.0,
+         intensity_to: float = 1.0,
+-    ) -> "FragmentCollection":
++    ) -> Self:
+         """Return new collection with peaks restricted to a row-wise relative intensity range."""
+         pass
+ 
+     @abstractmethod
+-    def keep_top_k_per_row_variable(self, k_per_row: np.ndarray) -> "FragmentCollection":
++    def keep_top_k_per_row_variable(self, k_per_row: np.ndarray) -> Self:
+         """Return new collection with only the top-k intensity peaks per row."""
+         pass
+ 
+@@ -202,7 +202,7 @@ def from_array(
+         mz_precision: float = 1e-6,
+         mz_rounding: str = "round",
+         index_dtype: np.dtype | type = np.int64,
+-    ) -> FragmentCollectionType:
++    ) -> Self:
+         return cls(
+             array=array,
+             mz_precision=mz_precision,
+@@ -210,7 +210,7 @@ def from_array(
+             index_dtype=index_dtype,
+         )
+ 
+-    def _from_array(self, array: csr_array) -> FragmentCollectionType:
++    def _from_array(self, array: csr_array) -> Self:
+         """Return a new collection preserving this collection's binning configuration."""
+         return self.__class__.from_array(
+             array,
+@@ -263,7 +263,7 @@ def __repr__(self) -> str:
+             f"n_fragments={self._array.data.shape[0]}, mz_precision={self.mz_precision})"
+         )
+ 
+-    def copy(self) -> FragmentCollectionType:
++    def copy(self) -> Self:
+         return self._from_array(self._array.copy())
+ 
+     def mz_to_bin(self, mz: np.ndarray | float) -> np.ndarray:
+@@ -318,16 +318,16 @@ def to_peak_arrays(self) -> list[tuple[np.ndarray, np.ndarray]]:
+         """Return all rows as a list of `(mz, intensities)` tuples."""
+         return list(self.iter_peak_arrays())
+ 
+-    def take(self, indices: Iterable[int]) -> FragmentCollectionType:
++    def take(self, indices: Iterable[int]) -> Self:
+         """Return a new collection with selected rows in the given order."""
+         indices = np.asarray(list(indices), dtype=self.index_dtype)
+         return self._from_array(self._array[indices, :])
+ 
+-    def reorder(self, indices: Iterable[int]) -> FragmentCollectionType:
++    def reorder(self, indices: Iterable[int]) -> Self:
+         """Alias for take()."""
+         return self.take(indices)
+ 
+-    def filter(self, mask: np.ndarray | list[bool]) -> FragmentCollectionType:
++    def filter(self, mask: np.ndarray | list[bool]) -> Self:
+         """Return a new collection keeping rows where mask is True."""
+         mask = np.asarray(mask, dtype=bool)
+         if mask.shape[0] != len(self):
+@@ -336,18 +336,18 @@ def filter(self, mask: np.ndarray | list[bool]) -> FragmentCollectionType:
+             )
+         return self.take(np.where(mask)[0])
+ 
+-    def drop(self, indices: Iterable[int]) -> FragmentCollectionType:
++    def drop(self, indices: Iterable[int]) -> Self:
+         """Return a new collection with selected rows removed."""
+         indices = np.asarray(list(indices), dtype=self.index_dtype)
+         all_indices = np.arange(len(self))
+         keep_mask = ~np.isin(all_indices, indices)
+         return self.take(all_indices[keep_mask])
+ 
+-    def drop_empty(self) -> FragmentCollectionType:
++    def drop_empty(self) -> Self:
+         """Return a new collection without rows that have no peaks."""
+         return self.filter(self.count(axis=1) > 0)
+ 
+-    def slice_rows(self, rows) -> FragmentCollectionType:
++    def slice_rows(self, rows) -> Self:
+         """Return a row-sliced collection."""
+         if isinstance(rows, slice):
+             indices = np.arange(len(self))[rows]
+@@ -489,7 +489,7 @@ def select_by_intensity(
+             self,
+             intensity_from: float = 0.0,
+             intensity_to: float = 1.0,
+-        ) -> FragmentCollectionType:
++        ) -> Self:
+         """Return a new collection keeping peaks within an intensity range."""
+         if intensity_from > intensity_to:
+             raise ValueError(
+@@ -510,7 +510,7 @@ def select_by_relative_intensity(
+             self,
+             intensity_from: float = 0.0,
+             intensity_to: float = 1.0,
+-        ) -> FragmentCollectionType:
++        ) -> Self:
+         """Return a new collection keeping peaks within a row-wise relative intensity range."""
+         if intensity_from < 0.0:
+             raise ValueError("'intensity_from' should be larger than or equal to 0.")
+@@ -552,7 +552,7 @@ def keep_top_k_per_row_variable(
+             self,
+             k_per_row: np.ndarray,
+             progress_bar: bool = False,
+-            ) -> FragmentCollectionType:
++            ) -> Self:
+         """Keep the top-k highest-intensity peaks per row.
+ 
+         Parameters
+diff --git a/matchms/networking/networking_functions.py b/matchms/networking/networking_functions.py
+index b8c3e8fb9..a8f02139e 100644
+--- a/matchms/networking/networking_functions.py
++++ b/matchms/networking/networking_functions.py
+@@ -1,11 +1,16 @@
+ """Helper functions to build and handle spectral networks."""
++from __future__ import annotations
+ from collections.abc import Sequence
++from typing import TYPE_CHECKING
+ import numpy as np
+-from matchms.typing import ScoresType
++
++
++if TYPE_CHECKING:
++    from matchms import Scores
+ 
+ 
+ def get_top_hits(
+-    scores: ScoresType,
++    scores: Scores,
+     top_n: int = 25,
+     axis: int = 1,
+     score_name: str | None = None,
+@@ -70,7 +75,7 @@ def get_top_hits(
+ 
+ 
+ def get_top_hits_by_row(
+-    scores: ScoresType,
++    scores: Scores,
+     top_n: int = 25,
+     score_name: str | None = None,
+     identifiers: Sequence | None = None,
+@@ -88,7 +93,7 @@ def get_top_hits_by_row(
+ 
+ 
+ def get_top_hits_by_column(
+-    scores: ScoresType,
++    scores: Scores,
+     top_n: int = 25,
+     score_name: str | None = None,
+     identifiers: Sequence | None = None,
+@@ -105,7 +110,7 @@ def get_top_hits_by_column(
+     )
+ 
+ 
+-def _get_score_array(scores: ScoresType, score_name: str | None) -> np.ndarray:
++def _get_score_array(scores: Scores, score_name: str | None) -> np.ndarray:
+     """Return the selected score field as a dense NumPy array."""
+     if score_name is None:
+         if scores.is_scalar:
+diff --git a/matchms/networking/similarity_network.py b/matchms/networking/similarity_network.py
+index d2b8c55a8..c39073c05 100644
+--- a/matchms/networking/similarity_network.py
++++ b/matchms/networking/similarity_network.py
+@@ -1,11 +1,16 @@
++from __future__ import annotations
+ import json
+ from collections.abc import Sequence
++from typing import TYPE_CHECKING
+ import networkx as nx
+ import numpy as np
+-from matchms.typing import ScoresType
+ from .networking_functions import get_top_hits
+ 
+ 
++if TYPE_CHECKING:
++    from matchms import Scores
++
++
+ class SimilarityNetwork:
+     """Create a similarity network from all-vs-all spectrum similarities.
+ 
+@@ -90,7 +95,7 @@ def __init__(
+ 
+     def create_network(
+         self,
+-        scores: ScoresType,
++        scores: Scores,
+         identifiers: Sequence[str],
+         score_name: str | None = None,
+     ) -> None:
+diff --git a/matchms/pipeline.py b/matchms/pipeline.py
+index a380a6c81..d934b63e6 100644
+--- a/matchms/pipeline.py
++++ b/matchms/pipeline.py
+@@ -1,9 +1,11 @@
++from __future__ import annotations
+ import logging
+ import operator
+ import os
+ from collections import OrderedDict
+ from collections.abc import Callable, Iterable, Sequence
+ from datetime import datetime
++from typing import TYPE_CHECKING, Self
+ import numpy as np
+ import matchms.similarity as mssimilarity
+ from matchms.filtering.filter_order import ALL_FILTERS
+@@ -19,10 +21,12 @@
+ )
+ from matchms.scores import Scores, ScoresMask
+ from matchms.similarity.base_similarity import BaseSimilarity
+-from matchms.typing import SpectrumType
+ from matchms.yaml_file_functions import load_workflow_from_yaml_file, ordered_dump
+ 
+ 
++if TYPE_CHECKING:
++    from matchms.spectrum import Spectrum
++
+ logger = logging.getLogger("matchms")
+ 
+ _MASKING_FUNCTIONS = {"mask"}
+@@ -85,8 +89,8 @@ def __init__(
+         logging_level: str = "WARNING",
+         logging_file: str | None = None,
+     ):
+-        self._spectra_1: list[SpectrumType] = []
+-        self._spectra_2: list[SpectrumType] | None = None
++        self._spectra_1: list[Spectrum] = []
++        self._spectra_2: list[Spectrum] | None = None
+ 
+         self.scores: Scores | None = None
+         self.mask: ScoresMask | None = None
+@@ -111,7 +115,7 @@ def from_yaml(
+         progress_bar: bool = True,
+         logging_level: str = "WARNING",
+         logging_file: str | None = None,
+-    ) -> "Pipeline":
++    ) -> Self:
+         workflow = load_workflow_from_yaml_file(yaml_file_name)
+         return cls(
+             workflow=workflow,
+@@ -338,11 +342,11 @@ def spectra_2_filters(self, filters):
+         self._initialize_spectrum_processor_2()
+ 
+     @property
+-    def spectra_1(self) -> list[SpectrumType]:
++    def spectra_1(self) -> list[Spectrum]:
+         return self._spectra_1
+ 
+     @property
+-    def spectra_2(self) -> list[SpectrumType] | None:
++    def spectra_2(self) -> list[Spectrum] | None:
+         return self._spectra_2
+ 
+ 
+diff --git a/matchms/scores.py b/matchms/scores.py
+index 1c0dbe729..21978c34d 100644
+--- a/matchms/scores.py
++++ b/matchms/scores.py
+@@ -1,9 +1,9 @@
+ import json
+ from dataclasses import dataclass
+ from pathlib import Path
++from typing import Self
+ import numpy as np
+ from scipy.sparse import coo_array
+-from matchms.typing import ScoresType
+ 
+ 
+ @dataclass(frozen=True)
+@@ -51,29 +51,29 @@ def to_dense(self) -> np.ndarray:
+         mask[self.row, self.col] = True
+         return mask
+ 
+-    def __and__(self, other: "ScoresMask") -> "ScoresMask":
++    def __and__(self, other: Self) -> Self:
+         self._check_shape(other)
+         if self.is_sparse and other.is_sparse:
+             return self._from_coord_set(self._coord_set() & other._coord_set())
+         return ScoresMask(shape=self.shape, dense_mask=self.to_dense() & other.to_dense())
+ 
+-    def __or__(self, other: "ScoresMask") -> "ScoresMask":
++    def __or__(self, other: Self) -> Self:
+         self._check_shape(other)
+         if self.is_sparse and other.is_sparse:
+             return self._from_coord_set(self._coord_set() | other._coord_set())
+         return ScoresMask(shape=self.shape, dense_mask=self.to_dense() | other.to_dense())
+ 
+-    def __invert__(self) -> "ScoresMask":
++    def __invert__(self) -> Self:
+         return ScoresMask(shape=self.shape, dense_mask=~self.to_dense())
+ 
+-    def _check_shape(self, other: "ScoresMask") -> None:
++    def _check_shape(self, other: Self) -> None:
+         if self.shape != other.shape:
+             raise ValueError(f"Incompatible mask shapes: {self.shape} and {other.shape}.")
+ 
+     def _coord_set(self) -> set[tuple[int, int]]:
+         return set(zip(self.row.tolist(), self.col.tolist(), strict=True))
+ 
+-    def _from_coord_set(self, coords: set[tuple[int, int]]) -> "ScoresMask":
++    def _from_coord_set(self, coords: set[tuple[int, int]]) -> Self:
+         if not coords:
+             row = np.array([], dtype=np.int_)
+             col = np.array([], dtype=np.int_)
+@@ -221,7 +221,7 @@ def to_coo(self, field: str | None = None) -> coo_array:
+         row, col = np.nonzero(value)
+         return coo_array((value[row, col], (row, col)), shape=value.shape)
+ 
+-    def filter(self, mask) -> ScoresType:
++    def filter(self, mask) -> Self:
+         if isinstance(mask, ScoresMask):
+             return self._filter_with_scores_mask(mask)
+ 
+@@ -282,7 +282,7 @@ def __ne__(self, other):
+         """Element-wise comparison for scalar Scores."""
+         return self._compare_scalar(other, np.not_equal, sparse_safe=False)
+ 
+-    def _filter_with_scores_mask(self, mask: ScoresMask) -> ScoresType:
++    def _filter_with_scores_mask(self, mask: ScoresMask) -> Self:
+         if mask.shape != self.shape:
+             raise ValueError(f"Mask has shape {mask.shape}, expected {self.shape}.")
+ 
+@@ -291,7 +291,7 @@ def _filter_with_scores_mask(self, mask: ScoresMask) -> ScoresType:
+ 
+         return self._filter_with_dense_mask(mask.to_dense())
+ 
+-    def _filter_sparse_with_sparse_mask(self, mask: ScoresMask) -> ScoresType:
++    def _filter_sparse_with_sparse_mask(self, mask: ScoresMask) -> Self:
+         mask_coords = set(zip(mask.row.tolist(), mask.col.tolist(), strict=True))
+         filtered = {}
+ 
+@@ -308,7 +308,7 @@ def _filter_sparse_with_sparse_mask(self, mask: ScoresMask) -> ScoresType:
+ 
+         return Scores(filtered)
+ 
+-    def _filter_with_dense_mask(self, mask: np.ndarray) -> ScoresType:
++    def _filter_with_dense_mask(self, mask: np.ndarray) -> Self:
+         filtered = {}
+         for field in self.score_fields:
+             arr = self.to_array(field)
+@@ -357,7 +357,7 @@ def _compare_scalar(self, other, op, sparse_safe: bool) -> ScoresMask:
+         return ScoresMask(shape=self.shape, dense_mask=op(self.to_array(), other))
+ 
+ 
+-    def copy(self) -> ScoresType:
++    def copy(self) -> Self:
+         """Return a copy of the Scores object.
+ 
+         Dense score fields are copied as independent NumPy arrays. Sparse score
+@@ -411,7 +411,7 @@ def save(self, path: str | Path, compressed: bool = True) -> None:
+         saver(path, **payload)
+ 
+     @classmethod
+-    def load(cls, path: str | Path) -> "Scores":
++    def load(cls, path: str | Path) -> Self:
+         """Load a Scores object from a `.npz` file.
+ 
+         Parameters
+diff --git a/matchms/spectra_collection.py b/matchms/spectra_collection.py
+index cbe75eb57..03756a131 100644
+--- a/matchms/spectra_collection.py
++++ b/matchms/spectra_collection.py
+@@ -2,6 +2,7 @@
+ import os
+ from collections.abc import Generator, Iterable
+ from functools import cached_property
++from typing import Self
+ import numpy as np
+ import pandas as pd
+ from scipy.sparse import csr_array, vstack
+@@ -10,7 +11,6 @@
+ from matchms.spectrum import Spectrum
+ from .fragment_collection import CSRFragmentCollection, FragmentCollection
+ from .hashing import compute_combined_hashes
+-from .typing import SpectraCollectionType
+ 
+ 
+ logger = logging.getLogger("matchms")
+@@ -86,7 +86,7 @@ def _from_metadata_and_fragments(
+         metadata: pd.DataFrame | pd.Series,
+         fragments: FragmentCollection,
+         mz_precision: float,
+-    ) -> SpectraCollectionType:
++    ) -> Self:
+         if isinstance(metadata, pd.Series):
+             metadata = metadata.to_frame().T
+ 
+@@ -97,7 +97,7 @@ def _from_metadata_and_fragments(
+         return obj
+ 
+     @classmethod
+-    def concat(cls, collections: Iterable[SpectraCollectionType]) -> SpectraCollectionType:
++    def concat(cls, collections: Iterable[Self]) -> Self:
+         """Concatenate two or more SpectraCollection objects.
+ 
+         Metadata columns are combined by column name. Columns that are absent
+diff --git a/matchms/typing.py b/matchms/typing.py
+index ec219066d..a305e9c73 100644
+--- a/matchms/typing.py
++++ b/matchms/typing.py
+@@ -1,12 +1,14 @@
+ from collections.abc import Callable
+-from typing import NewType
++from typing import TYPE_CHECKING, Any, TypeAlias
+ import numpy as np
+ 
+ 
+-SpectrumType = NewType("Spectrum", object)
+-ScoresType = NewType("Scores", object)
+-SpectraCollectionType = NewType("SpectraCollection", object)
+-FragmentCollectionType = NewType("FragmentCollection", object)
++if TYPE_CHECKING:
++    from matchms.spectrum import Spectrum
++
++    SpectrumType: TypeAlias = Spectrum
++else:
++    SpectrumType: TypeAlias = Any
+ ReferencesType = QueriesType = list[object] | tuple[object] | np.ndarray
+ ScoreFilter = Callable[[np.ndarray], bool]
+ 
+diff --git a/matchms/utils.py b/matchms/utils.py
+index 99e4dd7f2..135a68931 100644
+--- a/matchms/utils.py
++++ b/matchms/utils.py
+@@ -1,10 +1,15 @@
++from __future__ import annotations
+ import csv
+ import logging
+ import os
+ from collections.abc import Callable, Iterable
+ from functools import lru_cache
++from typing import TYPE_CHECKING
+ from warnings import warn
+-from .typing import SpectrumType
++
++
++if TYPE_CHECKING:
++    from matchms.spectrum import Spectrum
+ 
+ 
+ logger = logging.getLogger("matchms")
+@@ -130,13 +135,13 @@ def _load_key_conversions(file: str, source: str, target: str) -> dict:
+     return key_conversions
+ 
+ 
+-def fingerprint_export_warning(spectra: list[SpectrumType]):
++def fingerprint_export_warning(spectra: list[Spectrum]):
+     """
+     Check if any spectrum in the provided list contains a "fingerprint" and log a warning if so.
+ 
+     Parameters
+     ----------
+-    spectra : List[SpectrumType]
++    spectra : List[:class:`matchms.spectrum.Spectrum`]
+         A list of spectrum objects to be checked for the presence of a "fingerprint".
+ 
+     Notes
+@@ -147,7 +152,7 @@ def fingerprint_export_warning(spectra: list[SpectrumType]):
+         logger.warning("fingerprint found but will not be written to file.")
+ 
+ 
+-def filter_empty_spectra(spectra: list[SpectrumType]) -> list[SpectrumType]:
++def filter_empty_spectra(spectra: list[Spectrum]) -> list[Spectrum]:
+     """Filter None values in spectra list.
+ 
+     Parameters

@@ -1,0 +1,247 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundannotations/SimpleCompoundDBAnnotation.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundannotations/SimpleCompoundDBAnnotation.java
+index 36b0aa94b45..274a04521b6 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundannotations/SimpleCompoundDBAnnotation.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundannotations/SimpleCompoundDBAnnotation.java
+@@ -129,7 +129,9 @@ public static CompoundDBAnnotation loadFromXML(XMLStreamReader reader,
+           reader.getAttributeValue(null, CONST.XML_DATA_TYPE_ID_ATTR));
+       if (typeForId != null) {
+         Object o = typeForId.loadFromXML(reader, project, flist, row, null, null);
+-        id.put(typeForId, o);
++        if (o != null) {
++          id.put(typeForId, o);
++        }
+       }
+       i++;
+ 
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/annotations/iin/IonTypeType.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/annotations/iin/IonTypeType.java
+index 187dcb87c19..002b7690cee 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/annotations/iin/IonTypeType.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/annotations/iin/IonTypeType.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -101,7 +101,11 @@ public Object loadFromXML(@NotNull XMLStreamReader reader, @NotNull MZmineProjec
+       }
+     }
+ 
++    try {
+     return IonType.loadFromXML(reader);
++    } catch (Exception e) {
++      return null;
++    }
+   }
+ 
+   @Override
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/identities/iontype/IonType.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/identities/iontype/IonType.java
+index 22ad8a558f5..5d12a5aa866 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/identities/iontype/IonType.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/identities/iontype/IonType.java
+@@ -30,8 +30,8 @@
+ import io.github.mzmine.datamodel.PolarityType;
+ import io.github.mzmine.datamodel.identities.iontype.IonPart.IonPartStringFlavor;
+ import io.github.mzmine.main.ConfigService;
++import io.github.mzmine.parameters.parametertypes.ionidentity.LegacyIonTypeXMLReader;
+ import io.github.mzmine.util.FormulaUtils;
+-import io.github.mzmine.util.ParsingUtils;
+ import io.github.mzmine.util.maths.Precision;
+ import java.util.ArrayList;
+ import java.util.Comparator;
+@@ -206,41 +206,8 @@ public void saveToXML(XMLStreamWriter writer) throws XMLStreamException {
+   }
+ 
+   public static IonType loadFromXML(XMLStreamReader reader) throws XMLStreamException {
+-    if (!(reader.isStartElement() && reader.getLocalName().equals(XML_ELEMENT))) {
+-      throw new IllegalStateException("Current element is not an iontype");
+-    }
+-
+-    final Integer molecules = ParsingUtils.stringToInteger(
+-        reader.getAttributeValue(null, "molecules"));
+-    Objects.requireNonNull(molecules);
+-    // charge and mass is calculated from rest
+-//    final Integer charge = ParsingUtils.stringToInteger(reader.getAttributeValue(null, "charge"));
+-//    Objects.requireNonNull(charge);
+-//    final Integer mass = ParsingUtils.stringToInteger(reader.getAttributeValue(null, "mass"));
+-//    Objects.requireNonNull(mass);
+-
+-    final List<@NotNull IonPart> parts = new ArrayList<>();
+-
+-    while (reader.hasNext() && !(reader.isEndElement() && reader.getLocalName()
+-        .equals(XML_ELEMENT))) {
+-      reader.next();
+-      if (!reader.isStartElement()) {
+-        continue;
+-      }
+-
+-      if (reader.getLocalName().equals(IonParts.XML_ELEMENT)) {
+-//        if (ParsingUtils.progressToStartElement(reader, IonModification.XML_ELEMENT,
+-//            CONST.XML_DATA_TYPE_ELEMENT)) {
+-        var part = IonParts.loadFromXML(reader);
+-        Objects.requireNonNull(part);
+-        parts.add(part);
+-      }
+-    }
+-    if (parts.isEmpty()) {
+-      throw new IllegalStateException("No ion parts found in xml");
+-    }
+-
+-    return IonType.create(parts, molecules);
++    // need to try read legacy and new format
++    return LegacyIonTypeXMLReader.loadNewAndLegacyIonFromXML(reader);
+   }
+ 
+   /**
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/ionidentity/LegacyIonTypeXMLReader.java b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/ionidentity/LegacyIonTypeXMLReader.java
+new file mode 100644
+index 00000000000..8dc52649377
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/ionidentity/LegacyIonTypeXMLReader.java
+@@ -0,0 +1,104 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.parameters.parametertypes.ionidentity;
++
++import io.github.mzmine.datamodel.identities.iontype.IonPart;
++import io.github.mzmine.datamodel.identities.iontype.IonParts;
++import io.github.mzmine.datamodel.identities.iontype.IonType;
++import io.github.mzmine.modules.io.projectload.version_3_0.CONST;
++import io.github.mzmine.util.ParsingUtils;
++import java.util.ArrayList;
++import java.util.List;
++import java.util.Objects;
++import javax.xml.stream.XMLStreamException;
++import javax.xml.stream.XMLStreamReader;
++import org.jetbrains.annotations.NotNull;
++
++/// Loads the new {@link IonType} from XML and also the {@link LegacyIonType} (package private) that
++/// was replaced by it.
++public class LegacyIonTypeXMLReader {
++
++  public static IonType loadNewAndLegacyIonFromXML(XMLStreamReader reader)
++      throws XMLStreamException {
++    if (!(reader.isStartElement() && reader.getLocalName().equals(IonType.XML_ELEMENT))) {
++      throw new IllegalStateException("Current element is not an iontype");
++    }
++
++    final Integer molecules = ParsingUtils.stringToInteger(
++        reader.getAttributeValue(null, "molecules"));
++    Objects.requireNonNull(molecules);
++    // charge and mass is calculated from rest
++//    final Integer charge = ParsingUtils.stringToInteger(reader.getAttributeValue(null, "charge"));
++//    Objects.requireNonNull(charge);
++//    final Integer mass = ParsingUtils.stringToInteger(reader.getAttributeValue(null, "mass"));
++//    Objects.requireNonNull(mass);
++
++    final List<@NotNull IonPart> parts = new ArrayList<>();
++
++    LegacyIonModification adduct = null;
++    LegacyIonModification mod = null;
++    // has to load the new and the legacy ion modifications from projects
++    while (reader.hasNext() && !(reader.isEndElement() && reader.getLocalName()
++        .equals(IonType.XML_ELEMENT))) {
++      reader.next();
++      if (!reader.isStartElement()) {
++        continue;
++      }
++
++      // new ions
++      if (reader.getLocalName().equals(IonParts.XML_ELEMENT)) {
++        var part = IonParts.loadFromXML(reader);
++        Objects.requireNonNull(part);
++        parts.add(part);
++      }
++      // old legacy ion
++      else if (reader.getLocalName().equals("adduct")) {
++        if (ParsingUtils.progressToStartElement(reader, LegacyIonModification.XML_ELEMENT,
++            CONST.XML_DATA_TYPE_ELEMENT)) {
++          adduct = LegacyIonModification.loadFromXML(reader);
++        } else {
++          return null;
++        }
++      } else if (reader.getLocalName().equals("modification")) {
++        if (ParsingUtils.progressToStartElement(reader, LegacyIonModification.XML_ELEMENT,
++            CONST.XML_DATA_TYPE_ELEMENT)) {
++          mod = LegacyIonModification.loadFromXML(reader);
++        }
++      }
++    }
++
++    // old always have adduct but mod is optional
++    if (adduct != null) {
++      return mod != null ? new LegacyIonType(molecules, adduct, mod).toNewIonType()
++          : new LegacyIonType(molecules, adduct).toNewIonType();
++    }
++    if (parts.isEmpty()) {
++      throw new IllegalStateException("No ion parts found in xml");
++    }
++
++    return IonType.create(parts, molecules);
++  }
++}
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/util/XMLUtils.java b/mzmine-community/src/main/java/io/github/mzmine/util/XMLUtils.java
+index ad80f0c0eca..8a5558aa192 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/util/XMLUtils.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/util/XMLUtils.java
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright (c) 2004-2026 The mzmine Development Team
++ *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+  * files (the "Software"), to deal in the Software without
+@@ -55,6 +56,7 @@
+ import javax.xml.transform.TransformerFactory;
+ import javax.xml.transform.dom.DOMResult;
+ import javax.xml.transform.dom.DOMSource;
++import javax.xml.transform.stax.StAXSource;
+ import javax.xml.transform.stream.StreamResult;
+ import org.jetbrains.annotations.NotNull;
+ import org.w3c.dom.Document;
+@@ -436,4 +438,21 @@ public static <T> T loadFromDOM(Node parent, Class<? extends T> targetClass) {
+       throw new RuntimeException("Failed to load object from XML DOM", e);
+     }
+   }
++
++  /**
++   * IMPORTANT: This method is for debugging purposes only and should not be used in production
++   * code. It advances the reader.
++   */
++  @Deprecated
++  public static String streamToStringDebugging(XMLStreamReader reader) {
++    try {
++      StringWriter sw = new StringWriter();
++      TransformerFactory.newInstance().newTransformer()
++          .transform(new StAXSource(reader), new StreamResult(sw));
++      String xml = sw.toString();
++      return xml;
++    } catch (TransformerException e) {
++      throw new RuntimeException("Failed to reader to string", e);
++    }
++  }
+ }

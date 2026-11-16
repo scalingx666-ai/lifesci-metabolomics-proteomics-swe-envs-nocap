@@ -1,0 +1,69 @@
+version = "1.0"
+
+[task]
+name = "default/jaechang-hits__SciAgent-Skills-44"
+description = "feat: add neb-irc-activation-energy pipeline skill"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "SciAgent-Skills",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "jaechang-hits/SciAgent-Skills"
+ref = "55f9733a5ed50193a6f612a80356634c715a1b15"
+reference = "https://github.com/jaechang-hits/SciAgent-Skills/pull/44"
+source_access = "auto"
+built_at = "2026-11-15T15:24:10.524592+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:bf7896f2069e13bae05615088c09299b0418595f0e0c8eb053c6d3857d9689a4"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-15T16:15:12Z"
+diff_format = "unified"
+context_files = [
+    "registry.yaml",
+    "skills/scientific-computing/neb-irc-activation-energy/SKILL.md",
+    "skills/scientific-computing/neb-irc-activation-energy/references/energetics.md",
+    "skills/scientific-computing/neb-irc-activation-energy/references/feasibility.md",
+    "skills/scientific-computing/neb-irc-activation-energy/scripts/check_result.py",
+    "skills/scientific-computing/neb-irc-activation-energy/scripts/pipeline.yaml",
+    "skills/scientific-computing/neb-irc-activation-energy/scripts/plot_irc.py",
+    "skills/scientific-computing/neb-irc-activation-energy/scripts/setup_env.sh",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 954
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

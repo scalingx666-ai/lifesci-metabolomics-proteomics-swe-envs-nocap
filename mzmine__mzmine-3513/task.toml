@@ -1,0 +1,65 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3513"
+description = "local-max: keep SG filter result > 0"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "af93ff4bb6f9c994d83213cb54488479dd6e9ec7"
+reference = "https://github.com/mzmine/mzmine/pull/3513"
+source_access = "auto"
+built_at = "2026-11-16T08:44:09.676541+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:7cac8714a3284dd577bd3cd0b665f79a0caac43909c3d997f07194d7a1b17839"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-09-18T14:31:59Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxGaussianModule.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxSavitzkyGolayModule.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_smoothing/savitzkygolay/SavitzkyGolayFilter.java",
+    "mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/featdet_smoothing/savitzkygolay/SavitzkyGolayFilterTest.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 19
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

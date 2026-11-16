@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/Gaius-Augustus__BRAKER-120"
+description = "Suggested fix to not mangle columns 1-8 in the output GTF (re: Issue #118)"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "BRAKER",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "Gaius-Augustus/BRAKER"
+ref = "036eb3b28fb3591cd58010489898b860332bbd41"
+reference = "https://github.com/Gaius-Augustus/BRAKER/pull/120"
+source_access = "auto"
+built_at = "2026-11-15T22:38:29.335948+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:a611864e4a4b5071159225a270757e3603175d87912a8886f244b5084cc8adce"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2019-11-25T07:57:19Z"
+diff_format = "unified"
+context_files = [
+    "scripts/braker.pl",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 50
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

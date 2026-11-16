@@ -1,0 +1,13 @@
+diff --git a/matchms/__version__.py b/matchms/__version__.py
+index 52c1b0824..0df1eba69 100644
+--- a/matchms/__version__.py
++++ b/matchms/__version__.py
+@@ -1 +1,7 @@
+-__version__ = '0.33.1'
++from importlib.metadata import PackageNotFoundError, version
++
++
++try:
++    __version__ = version("matchms")
++except PackageNotFoundError:
++    __version__ = "0+unknown"

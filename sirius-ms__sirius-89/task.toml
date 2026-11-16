@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/sirius-ms__sirius-89"
+description = "Added Trigger Actions on sirius-client-openAPI"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "sirius",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "sirius-ms/sirius"
+ref = "ec7d24617b9401e10bf803047abb046841e22965"
+reference = "https://github.com/sirius-ms/sirius/pull/89"
+source_access = "auto"
+built_at = "2026-11-16T09:51:09.199269+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e03084f1530d2d1b0893099ae0204bec7a3abec7c6a8565b2d126f48820ad9b0"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2023-04-12T13:39:29Z"
+diff_format = "unified"
+context_files = [
+    ".github/workflows/distribute.yaml",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 7
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

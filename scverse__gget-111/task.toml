@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/scverse__gget-111"
+description = "Fix bug in gget cellxgene"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "gget",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "scverse/gget"
+ref = "947088543cc595e3e9e29a9f5e8f64a77c15c464"
+reference = "https://github.com/scverse/gget/pull/111"
+source_access = "auto"
+built_at = "2026-11-15T21:06:21.650865+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:b7d30047f3b75fb40550323a138bb2e7da620e84687db1459b5823d7f940a986"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2023-11-07T22:18:09Z"
+diff_format = "unified"
+context_files = [
+    "gget/gget_cellxgene.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 8
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

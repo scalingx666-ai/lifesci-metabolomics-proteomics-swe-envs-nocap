@@ -1,0 +1,115 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index b688c35c6..5b2102601 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
+ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+ 
++### Unreleased:
++
++### Added
++- repair_adduct_and_parent_mass_based_on_smiles does not repair parent mass anymore if it is already close to the smiles
++
+ ## [0.26.2] -2024-06-03
+ ### Added
+ - Added require correct ms level
+diff --git a/matchms/filtering/metadata_processing/repair_adduct_and_parent_mass_based_on_smiles.py b/matchms/filtering/metadata_processing/repair_adduct_and_parent_mass_based_on_smiles.py
+index 94cf55261..055324005 100644
+--- a/matchms/filtering/metadata_processing/repair_adduct_and_parent_mass_based_on_smiles.py
++++ b/matchms/filtering/metadata_processing/repair_adduct_and_parent_mass_based_on_smiles.py
+@@ -38,26 +38,28 @@ def repair_adduct_and_parent_mass_based_on_smiles(spectrum_in: Spectrum,
+     parent_mass = spectrum_in.get("parent_mass")
+ 
+     # First check if the given adduct and precursor mz already match the monoisotopic mass of the smiles
+-    new_parent_mass = derive_parent_mass_from_precursor_mz(changed_spectrum,
+-                                                           estimate_from_adduct=True,
+-                                                           estimate_from_charge=False)
+-    if new_parent_mass is not None:
+-        if abs(new_parent_mass - smiles_mass) <= mass_tolerance:
+-            changed_spectrum.set("parent_mass", smiles_mass)
+-            logger.info("Parent mass was updated from %s to %s to match the smiles mass", parent_mass, smiles_mass)
+-            return changed_spectrum
++    estimated_parent_mass = derive_parent_mass_from_precursor_mz(changed_spectrum,
++                                                                 estimate_from_adduct=True,
++                                                                 estimate_from_charge=False)
++    need_to_update_adduct = False
++    if estimated_parent_mass is not None:
++        if abs(estimated_parent_mass - smiles_mass) > mass_tolerance:
++            need_to_update_adduct = True
++    else:
++        need_to_update_adduct = True
+ 
+-    # Otherwise check if any of the common adducts matches the smiles mass
+-    new_adduct = _get_matching_adduct(precursor_mz=spectrum_in.get("precursor_mz"),
+-                                      parent_mass=smiles_mass,
+-                                      ion_mode=spectrum_in.get("ionmode"),
+-                                      mass_tolerance=mass_tolerance)
+-    if new_adduct is None:
+-        return spectrum_in
++    if need_to_update_adduct:
++        # Otherwise check if any of the common adducts matches the smiles mass
++        new_adduct = _get_matching_adduct(precursor_mz=spectrum_in.get("precursor_mz"),
++                                          parent_mass=smiles_mass,
++                                          ion_mode=spectrum_in.get("ionmode"),
++                                          mass_tolerance=mass_tolerance)
++        if new_adduct is None:
++            return spectrum_in
+ 
+-    changed_spectrum.set("adduct", new_adduct)
+-    logger.info("Adduct was set from %s to %s",
+-                spectrum_in.get('adduct'), new_adduct)
++        changed_spectrum.set("adduct", new_adduct)
++        logger.info("Adduct was set from %s to %s",
++                    spectrum_in.get('adduct'), new_adduct)
+ 
+     # if no parent_mass is set always overwrite
+     if parent_mass is None:
+diff --git a/tests/filtering/test_repair_adduct/test_repair_adduct_and_parent_mass_based_on_smiles.py b/tests/filtering/test_repair_adduct/test_repair_adduct_and_parent_mass_based_on_smiles.py
+index d31709101..ef48540e9 100644
+--- a/tests/filtering/test_repair_adduct/test_repair_adduct_and_parent_mass_based_on_smiles.py
++++ b/tests/filtering/test_repair_adduct/test_repair_adduct_and_parent_mass_based_on_smiles.py
+@@ -16,10 +16,10 @@
+                           # Should not be repaired as [M]+, since this could also be a mistake with the precursor mz
+                           # being the parent mass
+                           (16.04, None, "positive"),
+-                           # Should not be repaired as [M]-, since this could also be a mistake with the precursor mz
+-                           # being the parent mass
+-                           (16.04, None, "negative"),
+-                           (1000, None, "positive"),
++                          # Should not be repaired as [M]-, since this could also be a mistake with the precursor mz
++                          # being the parent mass
++                          (16.04, None, "negative"),
++                          (1000, None, "positive"),
+                           ])
+ def test_repair_adduct_and_parent_mass_based_on_smiles(precursor_mz, expected_adduct, ionmode):
+     pytest.importorskip("rdkit")
+@@ -32,3 +32,28 @@ def test_repair_adduct_and_parent_mass_based_on_smiles(precursor_mz, expected_ad
+     assert spectrum_out.get("adduct") == expected_adduct
+     if expected_adduct is not None:
+         assert abs(spectrum_out.get("parent_mass") - 15.9589) < 0.1
++
++
++@pytest.mark.parametrize("precursor_mz, parent_mass, adduct, expected_parent_mass, expected_adduct",
++                         [
++                             # Normal repair
++                             (17.0, 17.0, "[M+H]+", 16.031300127999998, "[M+H]+"),
++                             # Parent mass should not be repaired if close enough to smiles mass
++                             (17.0, 16.0, "[M+H]+", 16.0, "[M+H]+"),
++                             # Parent mass is incorrect, but no adduct is available
++                             (19.0, 20.0, "[M+H]+", 20.0, "[M+H]+"),
++                         ])
++def test_repair_adduct_and_parent_mass_based_on_smiles_correct_parent_mass(precursor_mz, parent_mass, adduct,
++                                                                           expected_parent_mass,
++                                                                           expected_adduct):
++    pytest.importorskip("rdkit")
++
++    # CH4 is used as smiles, this has a mass of 16
++    spectrum_in = SpectrumBuilder().with_metadata({"smiles": "C",
++                                                   "adduct": adduct,
++                                                   "precursor_mz": precursor_mz,
++                                                   "parent_mass": parent_mass,
++                                                   "ionmode": "positive"}).build()
++    spectrum_out = repair_adduct_and_parent_mass_based_on_smiles(spectrum_in, mass_tolerance=0.1)
++    assert spectrum_out.get("adduct") == expected_adduct
++    assert spectrum_out.get("parent_mass") == expected_parent_mass

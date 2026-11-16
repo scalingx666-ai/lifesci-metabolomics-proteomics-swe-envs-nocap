@@ -1,0 +1,64 @@
+version = "1.0"
+
+[task]
+name = "default/sirius-ms__sirius-123"
+description = "add Docker image generation"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "sirius",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "sirius-ms/sirius"
+ref = "3fdc83b0fefe8721a79649a34129da55f9bccf0d"
+reference = "https://github.com/sirius-ms/sirius/pull/123"
+source_access = "auto"
+built_at = "2026-11-16T09:51:07.589521+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:fd7814c5db8c177ef1108868994503d893d85b521c6abfe42a799917a5fa9cea"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2023-05-26T01:07:23Z"
+diff_format = "unified"
+context_files = [
+    ".github/workflows/distribute.yaml",
+    ".github/workflows/dockergen.yaml",
+    "sirius_dist/sirius_docker/Dockerfile",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 106
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

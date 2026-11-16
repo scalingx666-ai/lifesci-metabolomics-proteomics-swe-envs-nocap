@@ -1,0 +1,76 @@
+version = "1.0"
+
+[task]
+name = "default/jaechang-hits__SciAgent-Skills-40"
+description = "docs: adopt AGENTS.md as canonical guidance"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "SciAgent-Skills",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "jaechang-hits/SciAgent-Skills"
+ref = "02745ef6988d5949cd2bd8091307c14047faa833"
+reference = "https://github.com/jaechang-hits/SciAgent-Skills/pull/40"
+source_access = "auto"
+built_at = "2026-11-15T15:24:20.178717+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:87053ab60759abdbc9d9b7d786bd5dea04d2267554bb08da3eec435a0ff63a30"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-07-24T04:30:23Z"
+diff_format = "unified"
+context_files = [
+    ".claude/skills/sciagent-skill-creator/SKILL.md",
+    ".claude/skills/sciagent-skill-creator/scripts/validate_description.py",
+    ".github/PULL_REQUEST_TEMPLATE.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "CONTRIBUTING.md",
+    "README.md",
+    "references/format-rules-detail.md",
+    "references/migration-rules.md",
+    "references/quality-checklist-by-type.md",
+    "references/tool-type-adaptations.md",
+    "registry.yaml",
+    "templates/SKILL_TEMPLATE.md",
+    "templates/SKILL_TEMPLATE_PROSE.md",
+    "templates/SKILL_TEMPLATE_TOOLKIT.md",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 934
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,175 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_all/AllSpectralDataImportModule.java b/mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_all/AllSpectralDataImportModule.java
+index eac799608d2..2604c6d96dc 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_all/AllSpectralDataImportModule.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_all/AllSpectralDataImportModule.java
+@@ -414,7 +414,7 @@ private RawDataImportTask createTask(RawDataFileType fileType, MZmineProject pro
+       case BRUKER_TDF -> // ims files are big, use own storage
+           new TDFImportTask(project, file, storage, module, parameters, moduleCallDate);
+       // MS
+-      case MZML, MZML_IMS ->
++      case MZML ->
+           new MSDKmzMLImportTask(project, file, scanProcessorConfig, module, parameters,
+               moduleCallDate, storage);
+       case MZXML -> new MzXMLImportTask(project, file, scanProcessorConfig, module, parameters,
+@@ -468,7 +468,7 @@ private RawDataImportTask createAdvancedTask(RawDataFileType fileType, MZminePro
+       case IMZML -> new ImzMLImportTask(project, file, scanProcessorConfig, module, parameters,
+           moduleCallDate, storage);
+       // MS
+-      case MZML, MZML_IMS ->
++      case MZML ->
+           new MSDKmzMLImportTask(project, file, null, scanProcessorConfig, module, parameters,
+               moduleCallDate, storage);
+       case MZXML -> new MzXMLImportTask(project, file, scanProcessorConfig, module, parameters,
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_msconvert/MSConvertImportTask.java b/mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_msconvert/MSConvertImportTask.java
+index f357a05defd..bf6b9a61691 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_msconvert/MSConvertImportTask.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_msconvert/MSConvertImportTask.java
+@@ -140,7 +140,6 @@ private static boolean isPeakPickingSupported(RawDataFileType fileType) {
+     return switch (fileType) {
+       case MZML -> true;
+       case IMZML -> true;
+-      case MZML_IMS -> true;
+       case MZXML -> true;
+       case MZDATA -> true;
+       case NETCDF -> true;
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/util/RawDataFileType.java b/mzmine-community/src/main/java/io/github/mzmine/util/RawDataFileType.java
+index 0957ce74e29..c0fd716873f 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/util/RawDataFileType.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/util/RawDataFileType.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -40,7 +40,6 @@ public enum RawDataFileType {
+ 
+   MZML(ExtensionFilters.MZML, false), //
+   IMZML(ExtensionFilters.IMZML, false), //
+-  MZML_IMS(ExtensionFilters.MZML, false), //
+   MZXML(ExtensionFilters.MZXML, false), //
+   MZDATA(ExtensionFilters.MZDATA, false), //
+   NETCDF(ExtensionFilters.NETCDF, false), //
+@@ -83,8 +82,8 @@ public static List<File> getAdditionalRequiredFiles(RawDataFile raw) {
+     final RawDataFileType type = RawDataFileTypeDetector.detectDataFileType(file);
+ 
+     return switch (type) {
+-      case MZML, MZXML, MZML_IMS, MZDATA, NETCDF, THERMO_RAW, MZML_ZIP, MZML_GZIP, ICPMSMS_CSV,
+-           BRUKER_TDF, BRUKER_TSF, BRUKER_BAF, AGILENT_D, AGILENT_D_IMS, WATERS_RAW, WATERS_RAW_IMS,
++      case MZML, MZXML, MZDATA, NETCDF, THERMO_RAW, MZML_ZIP, MZML_GZIP, ICPMSMS_CSV, BRUKER_TDF,
++           BRUKER_TSF, BRUKER_BAF, AGILENT_D, AGILENT_D_IMS, WATERS_RAW, WATERS_RAW_IMS,
+            SHIMADZU_LCD, MBI -> List.of();
+       case IMZML -> {
+         final String extension = FileAndPathUtil.getExtension(file.getName());
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/util/RawDataFileTypeDetector.java b/mzmine-community/src/main/java/io/github/mzmine/util/RawDataFileTypeDetector.java
+index af520830959..df51d7f7a74 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/util/RawDataFileTypeDetector.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/util/RawDataFileTypeDetector.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -262,7 +262,7 @@ public static RawDataFileType getMzmlType(File fileName) throws IOException {
+       reader2.close();
+       if (content.contains("1002476") || content.contains("1002815")) { // accession for
+         // mobility
+-        return RawDataFileType.MZML_IMS;
++        return RawDataFileType.MZML/*_IMS*/;
+       } else {
+         return RawDataFileType.MZML;
+       }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/util/RawDataFileUtils.java b/mzmine-community/src/main/java/io/github/mzmine/util/RawDataFileUtils.java
+index 9a4f34f65dd..b5985f356d5 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/util/RawDataFileUtils.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/util/RawDataFileUtils.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2024 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -82,51 +82,40 @@ public static void createRawDataImportTasks(MZmineProject project, List<Task> ta
+       Task newTask = null;
+       var scanProcessorConfig = ScanImportProcessorConfig.createDefault();
+       switch (fileType) {
+-        case ICPMSMS_CSV:
+-          newTask = new IcpMsCVSImportTask(project, fileName, module, parameters, moduleCallDate,
+-              storage);
+-          break;
+-        case MZDATA:
+-          newTask = new MzDataImportTask(project, fileName, module, parameters, moduleCallDate,
+-              storage);
+-          break;
+-        case MZML, MZML_IMS:
+-          newTask = new MSDKmzMLImportTask(project, fileName, scanProcessorConfig, module,
+-              parameters, moduleCallDate, storage);
+-          break;
+-        case IMZML:
+-          newTask = new ImzMLImportTask(project, fileName, scanProcessorConfig, module, parameters,
+-              moduleCallDate, storage);
+-          break;
+-        case MZXML:
+-          newTask = new MzXMLImportTask(project, fileName, scanProcessorConfig,
+-              module, parameters, moduleCallDate, storage);
+-          break;
+-        case NETCDF:
+-          newTask = new NetCDFImportTask(project, fileName, module, parameters, moduleCallDate,
+-              storage);
+-          break;
+-        case THERMO_RAW:
+-          newTask = new ThermoImportTaskDelegator(storage, moduleCallDate, fileName,
+-              scanProcessorConfig, project, parameters, module);
+-          break;
++        case ICPMSMS_CSV ->
++            newTask = new IcpMsCVSImportTask(project, fileName, module, parameters, moduleCallDate,
++                storage);
++        case MZDATA ->
++            newTask = new MzDataImportTask(project, fileName, module, parameters, moduleCallDate,
++                storage);
++        case MZML ->
++            newTask = new MSDKmzMLImportTask(project, fileName, scanProcessorConfig, module,
++                parameters, moduleCallDate, storage);
++        case IMZML -> newTask = new ImzMLImportTask(project, fileName, scanProcessorConfig, module,
++            parameters, moduleCallDate, storage);
++        case MZXML -> newTask = new MzXMLImportTask(project, fileName, scanProcessorConfig, module,
++            parameters, moduleCallDate, storage);
++        case NETCDF ->
++            newTask = new NetCDFImportTask(project, fileName, module, parameters, moduleCallDate,
++                storage);
++        case THERMO_RAW ->
++            newTask = new ThermoImportTaskDelegator(storage, moduleCallDate, fileName,
++                scanProcessorConfig, project, parameters, module);
++
+ /*        case WATERS_RAW:
+           newMZmineFile = MZmineCore.createNewFile(fileName.getName(), fileName.getAbsolutePath(),
+               storage);
+           newTask = new WatersRawImportTask(project, fileName, newMZmineFile, module, parameters,
+               moduleCallDate);
+           break;*/
+-        case MZML_ZIP:
+-        case MZML_GZIP:
+-          newTask = new ZipImportTask(project, fileName, scanProcessorConfig, module, parameters,
+-              moduleCallDate, storage);
+-          break;
+-        case BRUKER_TDF:
+-          newTask = new TDFImportTask(project, fileName, MemoryMapStorage.forRawDataFile(), module,
+-              parameters, moduleCallDate);
+-          break;
+-        default:
+-          break;
++        case MZML_ZIP, MZML_GZIP ->
++            newTask = new ZipImportTask(project, fileName, scanProcessorConfig, module, parameters,
++                moduleCallDate, storage);
++        case BRUKER_TDF ->
++            newTask = new TDFImportTask(project, fileName, MemoryMapStorage.forRawDataFile(),
++                module, parameters, moduleCallDate);
++        case null, default -> {
++        }
+       }
+       if (newTask != null) {
+         taskList.add(newTask);

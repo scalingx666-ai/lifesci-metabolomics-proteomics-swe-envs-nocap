@@ -1,0 +1,761 @@
+diff --git a/.github/badges/tests.json b/.github/badges/tests.json
+index f4c54a216..3ebecd1dc 100644
+--- a/.github/badges/tests.json
++++ b/.github/badges/tests.json
+@@ -1 +1,6 @@
+-{"schemaVersion": 1, "label": "tests", "message": "397/400 passing", "color": "brightgreen"}
++{
++	"schemaVersion": 1,
++	"label": "tests",
++	"message": "397/400 passing",
++	"color": "brightgreen"
++}
+diff --git a/.pre-commit-config.yaml b/.pre-commit-config.yaml
+index cb9079a59..ccff9d2d3 100644
+--- a/.pre-commit-config.yaml
++++ b/.pre-commit-config.yaml
+@@ -25,7 +25,7 @@ exclude: |
+       gget/bins/
+     | gget/constants/
+     | tests/fixtures/
+-    | tests/pytest_results_py.*\.txt
++    | tests/pytest_results.*\.txt
+   )
+ repos:
+   - repo: https://github.com/biomejs/pre-commit
+diff --git a/gget/gget_cbio.py b/gget/gget_cbio.py
+index d957525b2..55659a060 100644
+--- a/gget/gget_cbio.py
++++ b/gget/gget_cbio.py
+@@ -415,7 +415,9 @@ def _get_ensembl_gene_name_bulk(gene_ids: list[str]) -> dict[str, Any]:
+         raise e
+ 
+ 
+-def _get_valid_ensembl_gene_id(row: pd.Series, transcript_column: str = "seq_ID", gene_column: str = "gene_name") -> Any:
++def _get_valid_ensembl_gene_id(
++    row: pd.Series, transcript_column: str = "seq_ID", gene_column: str = "gene_name"
++) -> Any:
+     ensembl_gene_id = _get_ensembl_gene_id(row[transcript_column])
+     if ensembl_gene_id == "Unknown":
+         return row[gene_column]
+diff --git a/gget/gget_g2p.py b/gget/gget_g2p.py
+index 224ae1876..cc7bd77ea 100644
+--- a/gget/gget_g2p.py
++++ b/gget/gget_g2p.py
+@@ -1,11 +1,12 @@
+ from __future__ import annotations
+ 
+ import io
++
+ import pandas as pd
+ import requests
+ 
+ from .constants import G2P_API
+-from .utils import set_up_logger, DEFAULT_REQUESTS_TIMEOUT
++from .utils import DEFAULT_REQUESTS_TIMEOUT, set_up_logger
+ 
+ logger = set_up_logger()
+ 
+@@ -18,9 +19,9 @@ def g2p(
+     save: bool = False,
+     verbose: bool = True,
+ ) -> pd.DataFrame | None:
+-    """
+-    Query the Genomics 2 Proteins (G2P) portal (https://g2p.broadinstitute.org/) to link
+-    genes/proteins to per-residue structural and functional annotations.
++    """Query the Genomics 2 Proteins (G2P) portal to link genes/proteins to per-residue structural and functional annotations.
++
++    Portal: https://g2p.broadinstitute.org/
+ 
+     Args:
+     - gene          Gene symbol, e.g. "BRCA1" (str).
+@@ -43,9 +44,7 @@ def g2p(
+     """
+     resources = ["features", "map", "alignment"]
+     if resource not in resources:
+-        raise ValueError(
+-            f"'resource' argument specified as {resource}. Expected one of: {', '.join(resources)}"
+-        )
++        raise ValueError(f"'resource' argument specified as {resource}. Expected one of: {', '.join(resources)}")
+ 
+     if not uniprot_id:
+         raise ValueError(
+@@ -69,9 +68,7 @@ def g2p(
+         url = f"{base}/{isoform}/alignment"
+ 
+     if verbose:
+-        logger.info(
+-            f"Querying the Genomics 2 Proteins portal ('{resource}') for {gene} / {uniprot_id}..."
+-        )
++        logger.info(f"Querying the Genomics 2 Proteins portal ('{resource}') for {gene} / {uniprot_id}...")
+ 
+     try:
+         r = requests.get(
+@@ -92,9 +89,7 @@ def g2p(
+         return
+ 
+     if not r.text.strip():
+-        logger.warning(
+-            "The Genomics 2 Proteins portal returned an empty result for this query."
+-        )
++        logger.warning("The Genomics 2 Proteins portal returned an empty result for this query.")
+         return pd.DataFrame()
+ 
+     df = pd.read_csv(io.StringIO(r.text), sep="\t")
+diff --git a/gget/gget_muscle.py b/gget/gget_muscle.py
+index 12bb7b7d7..69d0dcd82 100644
+--- a/gget/gget_muscle.py
++++ b/gget/gget_muscle.py
+@@ -113,9 +113,7 @@ def muscle(fasta: str | list[str], super5: bool = False, out: str | None = None,
+         diagnosis = diagnose_binary_load_error(stderr_2, "muscle")
+         if diagnosis:
+             raise RuntimeError(diagnosis)
+-        raise RuntimeError(
+-            f"MUSCLE failed with exit code {process_2.returncode}. See stderr above for details."
+-        )
++        raise RuntimeError(f"MUSCLE failed with exit code {process_2.returncode}. See stderr above for details.")
+     if verbose:
+         logger.info(f"MUSCLE alignment complete. Alignment time: {round(time.time() - start_time, 2)} seconds")
+ 
+diff --git a/gget/gget_pdb.py b/gget/gget_pdb.py
+index dd657e0b0..d58a9a5c7 100644
+--- a/gget/gget_pdb.py
++++ b/gget/gget_pdb.py
+@@ -1,8 +1,7 @@
+ from __future__ import annotations
+ 
+-from typing import Any
+-
+ import json
++from typing import Any
+ from urllib.error import HTTPError
+ from urllib.request import urlopen
+ 
+diff --git a/gget/gget_search.py b/gget/gget_search.py
+index 76aa18767..a5ed75529 100644
+--- a/gget/gget_search.py
++++ b/gget/gget_search.py
+@@ -310,8 +310,7 @@ def search(
+     # inside the list to None so an empty-synonym row is [None] rather than
+     # [nan]. (SQL LEFT JOIN on external_synonym surfaces missing rows as NaN.)
+     df["synonym"] = [
+-        [None if pd.isna(item) else item
+-         for item in np.sort(syn if isinstance(syn, list) else [syn]).tolist()]
++        [None if pd.isna(item) else item for item in np.sort(syn if isinstance(syn, list) else [syn]).tolist()]
+         for syn in df["synonym"].values
+     ]
+ 
+diff --git a/gget/gget_setup.py b/gget/gget_setup.py
+index 53340b7d5..e83927059 100644
+--- a/gget/gget_setup.py
++++ b/gget/gget_setup.py
+@@ -115,9 +115,7 @@ def setup(module: str, verbose: bool = True, out: str | None = None) -> None:
+         raise ValueError(f"'module' argument specified as {module}. Expected one of: {', '.join(supported_modules)}")
+ 
+     if module == "gpt":
+-        logger.warning(
+-            "gget gpt is no longer actively maintained."
+-        )
++        logger.warning("gget gpt is no longer actively maintained.")
+         _install("openai<=0.28.1", "openai", verbose=verbose)
+ 
+     elif module == "cellxgene":
+diff --git a/gget/gget_virus.py b/gget/gget_virus.py
+index 807d06a83..8a04dfdec 100644
+--- a/gget/gget_virus.py
++++ b/gget/gget_virus.py
+@@ -341,7 +341,10 @@ def _retry_with_exponential_backoff(
+     initial_delay: float = API_INITIAL_RETRY_DELAY,
+     backoff_multiplier: float = API_RETRY_BACKOFF_MULTIPLIER,
+     max_delay: int = MAX_RETRY_DELAY,
+-    retryable_exceptions: tuple[type[BaseException], ...] = (requests.exceptions.ConnectionError, requests.exceptions.HTTPError),
++    retryable_exceptions: tuple[type[BaseException], ...] = (
++        requests.exceptions.ConnectionError,
++        requests.exceptions.HTTPError,
++    ),
+     failed_commands: dict[str, Any] | None = None,
+ ) -> tuple[bool, Any, dict[str, Any] | None]:
+     """Execute an operation with exponential backoff retry logic.
+@@ -414,7 +417,9 @@ def _retry_with_exponential_backoff(
+     return False, None, error_info
+ 
+ 
+-def _track_failed_operation(failed_commands: dict[str, Any] | None, operation_type: str, batch_info: dict[str, Any], error_info: dict[str, Any]) -> None:
++def _track_failed_operation(
++    failed_commands: dict[str, Any] | None, operation_type: str, batch_info: dict[str, Any], error_info: dict[str, Any]
++) -> None:
+     """Track a failed operation in the failed_commands dictionary.
+ 
+     This ensures consistent error tracking across all operation types for
+@@ -864,7 +869,9 @@ def _parse_baseline_file(baseline_path: str) -> set[str]:
+     return baseline_accessions
+ 
+ 
+-def _deduplicate_metadata_against_baseline(metadata_dict: dict[str, Any], baseline_accessions: set[str]) -> tuple[dict[str, Any], int]:
++def _deduplicate_metadata_against_baseline(
++    metadata_dict: dict[str, Any], baseline_accessions: set[str]
++) -> tuple[dict[str, Any], int]:
+     """Remove metadata records whose accessions are already in the baseline set.
+ 
+     Args:
+@@ -889,7 +896,9 @@ def _deduplicate_metadata_against_baseline(metadata_dict: dict[str, Any], baseli
+     return new_metadata, skipped_count
+ 
+ 
+-def _save_partial_metadata(metadata_dict: dict[str, Any], outfolder: str, virus_clean: str, reason: str = "api_failure") -> str | None:
++def _save_partial_metadata(
++    metadata_dict: dict[str, Any], outfolder: str, virus_clean: str, reason: str = "api_failure"
++) -> str | None:
+     """Save partial metadata to CSV for recovery via --baseline.
+ 
+     Args:
+@@ -2786,7 +2795,9 @@ def process_cached_download(zip_file: str, virus_type: str = "virus") -> tuple[s
+     return cached_fasta_file, cached_metadata_jsonl_path, True
+ 
+ 
+-def _monitor_subprocess_with_progress(process: subprocess.Popen[Any], cmd: list[str], timeout: int | None = None, progress_timeout: int | None = None) -> subprocess.CompletedProcess[Any]:
++def _monitor_subprocess_with_progress(
++    process: subprocess.Popen[Any], cmd: list[str], timeout: int | None = None, progress_timeout: int | None = None
++) -> subprocess.CompletedProcess[Any]:
+     """Monitor a subprocess with progress tracking and timeout handling.
+ 
+     This helper function monitors a running subprocess. When stdout/stderr are piped, it checks for progress indicators. When they're not piped (output goes to console), it simply polls for completion.
+@@ -3463,7 +3474,13 @@ def download_alphainfluenza_optimized(
+     )
+ 
+ 
+-def download_sequences_by_accessions(accessions: list[str], outdir: str | None = None, batch_size: int = 200, failed_commands: dict[str, Any] | None = None, api_key: str | None = None) -> str:
++def download_sequences_by_accessions(
++    accessions: list[str],
++    outdir: str | None = None,
++    batch_size: int = 200,
++    failed_commands: dict[str, Any] | None = None,
++    api_key: str | None = None,
++) -> str:
+     """Download virus genome sequences for a specific list of accession numbers.
+ 
+     This function downloads sequences for a pre-filtered list of accessions,
+@@ -3590,7 +3607,9 @@ def download_sequences_by_accessions(accessions: list[str], outdir: str | None =
+     )
+ 
+ 
+-def _download_sequences_epost_efetch(accessions: list[str], fasta_path: str, failed_commands: dict[str, Any] | None = None, api_key: str | None = None) -> str:
++def _download_sequences_epost_efetch(
++    accessions: list[str], fasta_path: str, failed_commands: dict[str, Any] | None = None, api_key: str | None = None
++) -> str:
+     """Download FASTA sequences using NCBI EPost + EFetch History Server pipeline.
+ 
+     This is NCBI's recommended approach for large datasets. It uploads accession
+@@ -3756,7 +3775,11 @@ def _fetch_fasta_batch(rs=retstart):
+ 
+ 
+ def _download_sequences_single_batch(
+-    accessions: list[str], NCBI_EUTILS_BASE_EFETCH: str, fasta_path: str, failed_commands: dict[str, Any] | None = None, api_key: str | None = None
++    accessions: list[str],
++    NCBI_EUTILS_BASE_EFETCH: str,
++    fasta_path: str,
++    failed_commands: dict[str, Any] | None = None,
++    api_key: str | None = None,
+ ) -> str:
+     """Download sequences in a single E-utilities request with exponential backoff retries.
+ 
+@@ -3882,7 +3905,12 @@ def execute_request():
+ 
+ 
+ def _download_sequences_batched(
+-    accessions: list[str], NCBI_EUTILS_BASE_EFETCH: str, fasta_path: str, batch_size: int, failed_commands: dict[str, Any] | None = None, api_key: str | None = None
++    accessions: list[str],
++    NCBI_EUTILS_BASE_EFETCH: str,
++    fasta_path: str,
++    batch_size: int,
++    failed_commands: dict[str, Any] | None = None,
++    api_key: str | None = None,
+ ) -> str:
+     """Download sequences using multiple batched E-utilities requests with incremental file writing.
+ 
+@@ -4154,7 +4182,9 @@ def _parse_date(date_str: str, filtername: str = "") -> datetime:
+         #     return None
+ 
+ 
+-def _parse_partial_date_for_range_check(date_str: str, for_min_comparison: bool = True, filtername: str = "") -> datetime:
++def _parse_partial_date_for_range_check(
++    date_str: str, for_min_comparison: bool = True, filtername: str = ""
++) -> datetime:
+     """Parse partial dates with range-aware handling for comparison.
+ 
+     When comparing partial dates (year-only or year-month) against specific dates,
+@@ -4749,7 +4779,9 @@ def load_metadata_from_api_reports(api_reports: list[dict[str, Any]]) -> dict[st
+     return metadata_dict
+ 
+ 
+-def _check_protein_requirements(record: Any, metadata: dict[str, Any], has_proteins: Any, proteins_complete: bool) -> bool:
++def _check_protein_requirements(
++    record: Any, metadata: dict[str, Any], has_proteins: Any, proteins_complete: bool
++) -> bool:
+     """Check if a sequence meets protein/gene requirements based on FASTA header.
+ 
+     This function validates whether a virus sequence contains required proteins
+@@ -5491,7 +5523,9 @@ def merge_metadata_csvs(genbank_csv_path: str, standard_csv_path: str) -> bool:
+         return False
+ 
+ 
+-def save_metadata_to_csv(filtered_metadata: list[dict[str, Any]], protein_headers: list[Any], output_metadata_file: str) -> None:
++def save_metadata_to_csv(
++    filtered_metadata: list[dict[str, Any]], protein_headers: list[Any], output_metadata_file: str
++) -> None:
+     """Save filtered metadata to a CSV file with a specific column order.
+ 
+     This function creates a comprehensive CSV file containing all relevant metadata
+@@ -5968,7 +6002,14 @@ def _epost_accessions(accessions: list[str], api_key: str | None = None) -> tupl
+         return None, None
+ 
+ 
+-def _efetch_with_history(web_env: str, query_key: str, retstart: int, retmax: int, api_key: str | None = None, failed_log_path: str | None = None) -> tuple[dict[str, Any], str]:
++def _efetch_with_history(
++    web_env: str,
++    query_key: str,
++    retstart: int,
++    retmax: int,
++    api_key: str | None = None,
++    failed_log_path: str | None = None,
++) -> tuple[dict[str, Any], str]:
+     """Fetch GenBank records using History Server reference (WebEnv/query_key).
+ 
+     This is the NCBI-recommended method for large datasets. After uploading UIDs
+@@ -6609,7 +6650,9 @@ def fetch_genbank_metadata(
+     return all_metadata, failed_log_path if os.path.exists(failed_log_path) else None
+ 
+ 
+-def _fetch_genbank_batch(accessions: list[str], failed_log_path: str | None = None) -> tuple[dict[str, Any], str | None]:
++def _fetch_genbank_batch(
++    accessions: list[str], failed_log_path: str | None = None
++) -> tuple[dict[str, Any], str | None]:
+     """Fetch GenBank metadata for a single batch of accessions.
+ 
+     Includes retry logic with exponential backoff and automatic batch splitting
+@@ -7188,7 +7231,9 @@ def _parse_genbank_xml(xml_content: str) -> dict[str, Any]:
+     return metadata_dict
+ 
+ 
+-def save_genbank_metadata_to_csv(genbank_metadata: dict[str, Any], output_file: str, virus_metadata: list[dict[str, Any]] | None = None) -> None:
++def save_genbank_metadata_to_csv(
++    genbank_metadata: dict[str, Any], output_file: str, virus_metadata: list[dict[str, Any]] | None = None
++) -> None:
+     """Save GenBank metadata to a CSV file with the same column headers as the standard metadata CSV.
+ 
+     Args:
+diff --git a/gget/main.py b/gget/main.py
+index 8c8467b28..49cfe7b4c 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -1,10 +1,9 @@
+ from __future__ import annotations
+ 
+-from typing import Any
+-
+ import argparse
+ import sys
+ from datetime import datetime
++from typing import Any
+ 
+ import pandas as pd
+ 
+@@ -31,38 +30,18 @@
+ from .gget_diamond import diamond  # noqa: E402
+ from .gget_elm import elm  # noqa: E402
+ from .gget_enrichr import enrichr  # noqa: E402
++from .gget_g2p import g2p  # noqa: E402
+ from .gget_gpt import gpt  # noqa: E402
+ from .gget_info import info  # noqa: E402
+ from .gget_muscle import muscle  # noqa: E402
+ from .gget_mutate import mutate  # noqa: E402
+ from .gget_opentargets import OPENTARGETS_RESOURCES, opentargets  # noqa: E402
+ from .gget_pdb import pdb  # noqa: E402
+-
+-# Module functions
+-from .gget_ref import ref
+-from .gget_search import search
+-from .gget_info import info
+-from .gget_seq import seq
+-from .gget_muscle import muscle
+-from .gget_blast import blast
+-from .gget_blat import blat
+-from .gget_enrichr import enrichr
+-from .gget_archs4 import archs4
+-from .gget_alphafold import alphafold
+-from .gget_setup import setup
+-from .gget_pdb import pdb
+-from .gget_gpt import gpt
+-from .gget_cellxgene import cellxgene
+-from .gget_elm import elm
+-from .gget_diamond import diamond
+-from .gget_cosmic import cosmic
+-from .gget_mutate import mutate
+-from .gget_opentargets import opentargets, OPENTARGETS_RESOURCES
+-from .gget_cbio import cbio_plot, cbio_search
+-from .gget_bgee import bgee
+-from .gget_g2p import g2p
+-from .gget_8cube import specificity, psi_block, gene_expression
+-from .gget_virus import virus
++from .gget_ref import ref  # noqa: E402
++from .gget_search import search  # noqa: E402
++from .gget_seq import seq  # noqa: E402
++from .gget_setup import setup  # noqa: E402
++from .gget_virus import virus  # noqa: E402
+ 
+ 
+ # Custom formatter for help messages that preserved the text formatting and adds the default value to the end of the help message
+@@ -3835,16 +3814,12 @@ def main() -> None:
+                 if args.csv:
+                     g2p_results.to_csv(f, index=False)
+                 else:
+-                    g2p_results.to_json(
+-                        f, orient="records", force_ascii=False, indent=4
+-                    )
++                    g2p_results.to_json(f, orient="records", force_ascii=False, indent=4)
+         else:
+             if args.csv:
+                 g2p_results.to_csv(sys.stdout, index=False)
+             else:
+-                print(
+-                    g2p_results.to_json(orient="records", force_ascii=False, indent=4)
+-                )
++                print(g2p_results.to_json(orient="records", force_ascii=False, indent=4))
+ 
+     ## 8cube return
+     if args.command == "8cube":
+diff --git a/gget/utils.py b/gget/utils.py
+index 7aa372550..2d86a564c 100644
+--- a/gget/utils.py
++++ b/gget/utils.py
+@@ -7,7 +7,8 @@
+ import os
+ import time
+ import uuid
+-from typing import TYPE_CHECKING, Any, Callable, Iterable
++from collections.abc import Callable, Iterable
++from typing import TYPE_CHECKING, Any
+ 
+ import numpy as np
+ import pandas as pd
+@@ -1237,8 +1238,10 @@ def write(records: Iterable[Any], filename: str, format: str | None = None) -> N
+ 
+ 
+ def diagnose_binary_load_error(stderr_text: str, module_name: str) -> str | None:
+-    """If stderr indicates a missing shared-library / dynamic-linker error, return a
+-    human-friendly diagnostic + fix instructions. Otherwise return None.
++    """Return a human-friendly diagnostic for a missing shared-library / dynamic-linker error.
++
++    If stderr indicates a missing shared library, return a diagnostic with fix
++    instructions. Otherwise return None.
+ 
+     Covers:
+     - macOS dyld: 'Library not loaded: <path>'
+@@ -1296,8 +1299,7 @@ def _shared_library_install_hint(lib_basename: str, system: str) -> str:
+ 
+     if system == "Darwin":
+         return (
+-            "Install the package that provides this library via Homebrew (https://brew.sh) "
+-            "or another package manager."
++            "Install the package that provides this library via Homebrew (https://brew.sh) or another package manager."
+         )
+     if system == "Linux":
+         return "Install the package that provides this library via your system package manager."
+diff --git a/pyproject.toml b/pyproject.toml
+index ebe4ee23c..2b7f7fb57 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -126,7 +126,6 @@ lint.per-file-ignores."tests/*" = [ "D" ]
+ lint.pydocstyle.convention = "numpy"
+ 
+ [tool.mypy]
+-python_version = "3.12"
+ files = [ "gget" ]
+ # `gget/constants.py` (module) coexists with `gget/constants/` (data dir, no
+ # __init__.py). Mypy's default namespace-package discovery treats the data dir
+@@ -135,11 +134,12 @@ files = [ "gget" ]
+ namespace_packages = false
+ ignore_missing_imports = true
+ follow_imports = "silent"
+-check_untyped_defs = false
+-disallow_untyped_defs = false
++python_version = "3.12"
+ disallow_any_generics = false
+-warn_unused_ignores = true
++disallow_untyped_defs = false
++check_untyped_defs = false
+ warn_redundant_casts = true
++warn_unused_ignores = true
+ show_error_codes = true
+ 
+ [tool.pytest]
+diff --git a/tests/pytest_results.txt b/tests/pytest_results.txt
+index 2c6fd2d23..c1d7cbdc9 100644
+--- a/tests/pytest_results.txt
++++ b/tests/pytest_results.txt
+@@ -411,6 +411,255 @@ tests/test_diamond.py::TestDiamond::test_diamond_JSON_out PASSED         [ 99%]
+ tests/test_diamond.py::TestDiamond::test_diamond_seqs_multiple PASSED    [ 99%]
+ tests/test_diamond.py::TestDiamond::test_diamond_seqs_single PASSED      [100%]
+ 
++_________________________ TestBgee.test_bgee_orthologs _________________________
++
++self = <tests.test_bgee.TestBgee testMethod=test_bgee_orthologs>
++
++    def assert_equal(self: unittest.TestCase):
++        test = name
++        expected_result = td[test]["expected_result"]
++>       result_to_test = do_call(func, td[test]["args"])
++                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++
++tests/from_json.py:68:
++_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
++tests/from_json.py:60: in do_call
++    return func(**args)
++           ^^^^^^^^^^^^
++gget/gget_bgee.py:192: in bgee
++    return _bgee_orthologs(gene_id, json=json, verbose=verbose)
++           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++gget/gget_bgee.py:60: in _bgee_orthologs
++    species = _bgee_species(gene_id, verbose=verbose)
++              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++gget/gget_bgee.py:24: in _bgee_species
++    payload = http_json(
++_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
++
++method = 'GET', url = 'https://bgee.org/api/'
++context = 'Bgee API (species lookup)', timeout = (10, 60), retries = 3
++backoff = 1.0
++kwargs = {'params': {'display_type': 'json', 'page': 'gene', 'action': 'general_info', 'gene_id': 'ENSOARG00000019163'}}
++
++    def http_json(
++        method: str,
++        url: str,
++        *,
++        context: str = "",
++        timeout: float = DEFAULT_REQUESTS_TIMEOUT,
++        retries: int = 3,
++        backoff: float = 1.0,
++        **kwargs: Any,
++    ) -> Any:
++        """Issue an HTTP request and return the parsed JSON body, raising a
++
++        RuntimeError with consistent context if the request fails or the body
++        is not valid JSON.
++
++        `context` is a short human-readable label (e.g. "Bgee API") used in
++        error messages so users can identify which upstream service failed.
++        Transient failures (connection errors, read timeouts, HTTP 5xx) are
++        retried up to `retries` additional times with exponential backoff
++        (`backoff * 2**i` seconds between attempts). Set `retries=0` to disable.
++        All other keyword arguments are forwarded to `requests.request`.
++        """
++        label = context or url
++        last_exc = None
++        last_status = None
++        last_body = ""
++        attempts = retries + 1
++        for attempt in range(attempts):
++            try:
++                response = requests.request(method, url, timeout=timeout, **kwargs)
++            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
++                last_exc = e
++                last_status = None
++                last_body = ""
++            else:
++                if response.ok:
++                    try:
++                        return response.json()
++                    except json.JSONDecodeError as e:
++                        body = response.text[:200] if response.text else ""
++                        raise RuntimeError(
++                            f"{label} returned non-JSON response (HTTP {response.status_code}): {body}"
++                        ) from e
++                # Retry on transient server errors only; client errors are returned
++                # to the caller without retry.
++                if response.status_code < 500:
++                    body = response.text[:200] if response.text else ""
++>                   raise RuntimeError(f"{label} returned HTTP {response.status_code}. Body: {body}")
++E                   RuntimeError: Bgee API (species lookup) returned HTTP 403. Body: <!DOCTYPE html><html lang="en-US"><head><title>Just a moment...</title><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=Edge"><meta nam
++
++gget/utils.py:147: RuntimeError
++------------------------------ Captured log call -------------------------------
++INFO     gget.utils:gget_bgee.py:22 Getting species ID for gene ENSOARG00000019163 from Bgee
++____________________ TestBgee.test_bgee_expression_multiple ____________________
++
++self = <tests.test_bgee.TestBgee testMethod=test_bgee_expression_multiple>
++
++    def assert_equal(self: unittest.TestCase):
++        test = name
++        expected_result = td[test]["expected_result"]
++>       result_to_test = do_call(func, td[test]["args"])
++                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++
++tests/from_json.py:68:
++_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
++tests/from_json.py:60: in do_call
++    return func(**args)
++           ^^^^^^^^^^^^
++gget/gget_bgee.py:190: in bgee
++    return _bgee_expression(gene_id, json=json, verbose=verbose)
++           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++gget/gget_bgee.py:117: in _bgee_expression
++    species_set = {_bgee_species(gene_id, verbose=verbose) for gene_id in gene_ids}
++                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++gget/gget_bgee.py:24: in _bgee_species
++    payload = http_json(
++_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
++
++method = 'GET', url = 'https://bgee.org/api/'
++context = 'Bgee API (species lookup)', timeout = (10, 60), retries = 3
++backoff = 1.0
++kwargs = {'params': {'display_type': 'json', 'page': 'gene', 'action': 'general_info', 'gene_id': 'ENSBTAG00000047356'}}
++
++    def http_json(
++        method: str,
++        url: str,
++        *,
++        context: str = "",
++        timeout: float = DEFAULT_REQUESTS_TIMEOUT,
++        retries: int = 3,
++        backoff: float = 1.0,
++        **kwargs: Any,
++    ) -> Any:
++        """Issue an HTTP request and return the parsed JSON body, raising a
++
++        RuntimeError with consistent context if the request fails or the body
++        is not valid JSON.
++
++        `context` is a short human-readable label (e.g. "Bgee API") used in
++        error messages so users can identify which upstream service failed.
++        Transient failures (connection errors, read timeouts, HTTP 5xx) are
++        retried up to `retries` additional times with exponential backoff
++        (`backoff * 2**i` seconds between attempts). Set `retries=0` to disable.
++        All other keyword arguments are forwarded to `requests.request`.
++        """
++        label = context or url
++        last_exc = None
++        last_status = None
++        last_body = ""
++        attempts = retries + 1
++        for attempt in range(attempts):
++            try:
++                response = requests.request(method, url, timeout=timeout, **kwargs)
++            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
++                last_exc = e
++                last_status = None
++                last_body = ""
++            else:
++                if response.ok:
++                    try:
++                        return response.json()
++                    except json.JSONDecodeError as e:
++                        body = response.text[:200] if response.text else ""
++                        raise RuntimeError(
++                            f"{label} returned non-JSON response (HTTP {response.status_code}): {body}"
++                        ) from e
++                # Retry on transient server errors only; client errors are returned
++                # to the caller without retry.
++                if response.status_code < 500:
++                    body = response.text[:200] if response.text else ""
++>                   raise RuntimeError(f"{label} returned HTTP {response.status_code}. Body: {body}")
++E                   RuntimeError: Bgee API (species lookup) returned HTTP 403. Body: <!DOCTYPE html><html lang="en-US"><head><title>Just a moment...</title><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=Edge"><meta nam
++
++gget/utils.py:147: RuntimeError
++------------------------------ Captured log call -------------------------------
++INFO     gget.utils:gget_bgee.py:22 Getting species ID for gene ENSBTAG00000047356 from Bgee
++________________________ TestBgee.test_bgee_expression _________________________
++
++self = <tests.test_bgee.TestBgee testMethod=test_bgee_expression>
++
++    def assert_equal(self: unittest.TestCase):
++        test = name
++        expected_result = td[test]["expected_result"]
++>       result_to_test = do_call(func, td[test]["args"])
++                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++
++tests/from_json.py:68:
++_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
++tests/from_json.py:60: in do_call
++    return func(**args)
++           ^^^^^^^^^^^^
++gget/gget_bgee.py:190: in bgee
++    return _bgee_expression(gene_id, json=json, verbose=verbose)
++           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++gget/gget_bgee.py:117: in _bgee_expression
++    species_set = {_bgee_species(gene_id, verbose=verbose) for gene_id in gene_ids}
++                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
++gget/gget_bgee.py:24: in _bgee_species
++    payload = http_json(
++_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
++
++method = 'GET', url = 'https://bgee.org/api/'
++context = 'Bgee API (species lookup)', timeout = (10, 60), retries = 3
++backoff = 1.0
++kwargs = {'params': {'display_type': 'json', 'page': 'gene', 'action': 'general_info', 'gene_id': 'ENSBTAG00000047356'}}
++
++    def http_json(
++        method: str,
++        url: str,
++        *,
++        context: str = "",
++        timeout: float = DEFAULT_REQUESTS_TIMEOUT,
++        retries: int = 3,
++        backoff: float = 1.0,
++        **kwargs: Any,
++    ) -> Any:
++        """Issue an HTTP request and return the parsed JSON body, raising a
++
++        RuntimeError with consistent context if the request fails or the body
++        is not valid JSON.
++
++        `context` is a short human-readable label (e.g. "Bgee API") used in
++        error messages so users can identify which upstream service failed.
++        Transient failures (connection errors, read timeouts, HTTP 5xx) are
++        retried up to `retries` additional times with exponential backoff
++        (`backoff * 2**i` seconds between attempts). Set `retries=0` to disable.
++        All other keyword arguments are forwarded to `requests.request`.
++        """
++        label = context or url
++        last_exc = None
++        last_status = None
++        last_body = ""
++        attempts = retries + 1
++        for attempt in range(attempts):
++            try:
++                response = requests.request(method, url, timeout=timeout, **kwargs)
++            except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
++                last_exc = e
++                last_status = None
++                last_body = ""
++            else:
++                if response.ok:
++                    try:
++                        return response.json()
++                    except json.JSONDecodeError as e:
++                        body = response.text[:200] if response.text else ""
++                        raise RuntimeError(
++                            f"{label} returned non-JSON response (HTTP {response.status_code}): {body}"
++                        ) from e
++                # Retry on transient server errors only; client errors are returned
++                # to the caller without retry.
++                if response.status_code < 500:
++                    body = response.text[:200] if response.text else ""
++>                   raise RuntimeError(f"{label} returned HTTP {response.status_code}. Body: {body}")
++E                   RuntimeError: Bgee API (species lookup) returned HTTP 403. Body: <!DOCTYPE html><html lang="en-US"><head><title>Just a moment...</title><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=Edge"><meta nam
++
++gget/utils.py:147: RuntimeError
++------------------------------ Captured log call -------------------------------
++INFO     gget.utils:gget_bgee.py:22 Getting species ID for gene ENSBTAG00000047356 from Bgee
+ =============================== warnings summary ===============================
+ tests/test_utils.py: 1 warning
+ tests/test_ref.py: 11 warnings
+diff --git a/tests/test_g2p.py b/tests/test_g2p.py
+index 48afd9332..e3ecbc18b 100644
+--- a/tests/test_g2p.py
++++ b/tests/test_g2p.py
+@@ -1,4 +1,5 @@
+ import unittest
++
+ from gget.gget_g2p import g2p
+ 
+ 

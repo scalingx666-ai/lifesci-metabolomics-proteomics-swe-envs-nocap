@@ -1,0 +1,364 @@
+diff --git a/docs/src/SUMMARY.md b/docs/src/SUMMARY.md
+index 8beb4c8f0..40d92f158 100644
+--- a/docs/src/SUMMARY.md
++++ b/docs/src/SUMMARY.md
+@@ -9,18 +9,19 @@
+ - [Quick Start Guide](quick_start_guide.md)  
+ 
+ # Manual
+-- [gget ref](ref.md)  
+-- [gget search](search.md)  
+-- [gget info](info.md)  
+-- [gget seq](seq.md)  
++- [gget alphafold](alphafold.md)  
++- [gget archs4](archs4.md)  
+ - [gget blast](blast.md)  
+ - [gget blat](blat.md)  
+-- [gget muscle](muscle.md)  
+ - [gget enrichr](enrichr.md)  
+-- [gget archs4](archs4.md)  
++- [gget gpt](gpt.md)  
++- [gget info](info.md)  
++- [gget muscle](muscle.md)  
+ - [gget pdb](pdb.md)  
+-- [gget alphafold](alphafold.md)  
++- [gget ref](ref.md)  
++- [gget search](search.md)  
+ - [gget setup](setup.md)  
++- [gget seq](seq.md)  
+ 
+ ---
+ 
+diff --git a/docs/src/gpt.md b/docs/src/gpt.md
+new file mode 100644
+index 000000000..891b4923e
+--- /dev/null
++++ b/docs/src/gpt.md
+@@ -0,0 +1,49 @@
++> Python arguments are equivalent to long-option arguments (`--arg`), unless otherwise specified. Flags are True/False arguments in Python. The manual for any gget tool can be called from the command-line using the `-h` `--help` flag.  
++## gget gpt 💬
++Generates text based on a given prompt using the [OpenAI](https://openai.com/) API. This module, including its source code, documentation and unit tests, were written (almost) entirely by OpenAI's Chat-GTP3.  
++
++NOTE OpenAI API calls are only 'free' for the first three months after generating your OpenAI Account (OpenAI provides a $5 credit that expires).  
++You can define a hard monthly billing limit (e.g. $1) [here](https://platform.openai.com/account/billing/limits).  
++See their pricing and FAQ [here](https://openai.com/pricing).  
++Get your OpenAI API key [here](https://platform.openai.com/account/api-keys).  
++
++Returns: Predicted API response (text).  
++
++**Positional argument**  
++`prompt`  
++The input prompt for the GPT-3 model to generate text from (str).  
++
++`api_key`  
++Your OpenAI API key (str) ([get your API key](https://platform.openai.com/account/api-keys)).  
++
++**Optional arguments**  
++`-e` `--engine`  
++The name of the GPT-3 engine to use (defaults to 'davinci').  
++You can choose from the following engines:  
++    "davinci": Most capable, creative, and accurate but slower.  
++    "curie": A good balance between performance and response time.  
++    "babbage": Faster and lower-cost with decent performance.  
++    "ada": Fastest and least expensive, suitable for simple tasks.  
++
++`-m` `--max_tokens`   
++The maximum number of tokens (words or subwords) in the generated text (defaults to 100).  
++
++`-s` `--stop`   
++A sequence of tokens that should indicate the end of the generated text (defaults to None).  
++
++`-temp` `--temperature`   
++Controls the 'creativity' of the generated text (defaults to 0.5).  
++A higher value increases creativity, while a lower value decreases creativity.  
++
++`-o` `--output`   
++The file name to save the generated text to as a text file (defaults to printing the output to the console).  
++  
++  
++### Example
++```bash
++gget gpt "hi there gpt" your_api_token
++```
++```python
++# Python
++gget.gpt("hi there gpt", "your_api_token")
++```
+\ No newline at end of file
+diff --git a/docs/src/modules.md b/docs/src/modules.md
+index c52d88972..2a3739d71 100644
+--- a/docs/src/modules.md
++++ b/docs/src/modules.md
+@@ -31,3 +31,6 @@ Get the structure and metadata of a protein from the [RCSB Protein Data Bank](ht
+   
+ - [`gget alphafold`](alphafold.md)  
+ Predict the 3D structure of a protein from its amino acid sequence using a simplified version of [DeepMind](https://www.deepmind.com/)’s [AlphaFold2](https://github.com/deepmind/alphafold).   
++
++- [`gget gpt`](gpt.md)  
++Generates text based on a given prompt using the [OpenAI API](https://openai.com/).   
+diff --git a/gget/__init__.py b/gget/__init__.py
+index cd029d3ef..fc8f13474 100644
+--- a/gget/__init__.py
++++ b/gget/__init__.py
+@@ -10,6 +10,7 @@
+ from .gget_alphafold import alphafold
+ from .gget_setup import setup
+ from .gget_pdb import pdb
++from .gget_gpt import gpt
+ 
+ import logging
+ logging.basicConfig(
+@@ -20,6 +21,6 @@
+ # Mute numexpr threads info
+ logging.getLogger("numexpr").setLevel(logging.WARNING)
+ 
+-__version__ = "0.27.3"
++__version__ = "0.27.4"
+ __author__ = "Laura Luebbert"
+ __email__ = "lauraluebbert@caltech.edu"
+diff --git a/gget/gget_gpt.py b/gget/gget_gpt.py
+new file mode 100644
+index 000000000..1e698e2af
+--- /dev/null
++++ b/gget/gget_gpt.py
+@@ -0,0 +1,90 @@
++import logging
++
++# Add and format time stamp in logging messages
++logging.basicConfig(
++    format="%(asctime)s %(levelname)s %(message)s",
++    level=logging.INFO,
++    datefmt="%c",
++)
++# Mute numexpr threads info
++logging.getLogger("numexpr").setLevel(logging.WARNING)
++
++import openai
++
++
++def gpt(
++    prompt,
++    api_key,
++    engine="davinci",
++    max_tokens=100,
++    stop=None,
++    temperature=0.5,
++    output=None,
++):
++    """
++    Generates text based on a given prompt using the OpenAI API.
++
++    Args:
++        prompt (str): The input prompt for the GPT-3 model to generate text from.
++        api_key (str): Your OpenAI API key (see: https://platform.openai.com/account/api-keys).
++        engine (str, optional): The name of the GPT-3 engine to use (defaults to "davinci").
++                                You can choose from the following engines:
++                                "davinci": Most capable, creative, and accurate but slower.
++                                "curie": A good balance between performance and response time.
++                                "babbage": Faster and lower-cost with decent performance.
++                                "ada": Fastest and least expensive, suitable for simple tasks.
++        max_tokens (int, optional): The maximum number of tokens (words or subwords) in the generated text (defaults to 100).
++        stop (str, optional): A sequence of tokens that should indicate the end of the generated text (defaults to None).
++        temperature (float, optional): Controls the "creativity" of the generated text (defaults to 0.5).
++
++    Returns:
++        str: The generated text based on the input prompt.
++
++    Raises:
++        openai.Error: If there is an error with the OpenAI API request.
++
++    Example:
++        >>> prompt = "What is the meaning of life?"
++        >>> api_key = "YOUR_API_KEY_HERE"
++        >>> import gget
++        >>> response = gget.gpt(prompt, api_key, engine="curie", max_tokens=64, stop="\n", temperature=0.7)
++        >>> print(response)
++        "The meaning of life is subjective and varies from person to person. Some people find meaning in their work or career, while others find it in their relationships or hobbies."
++
++    NOTE: OpenAI API calls are only 'free' for the first three months after generating your OpenAI Account
++    (they give you a $5 credit that expires).
++    You can define a hard billing limit (e.g. $1) here: https://platform.openai.com/account/billing/limits
++    See their pricing and FAQ here: https://openai.com/pricing
++    You can get your API key here: https://platform.openai.com/account/api-keys
++
++    This module, including its source code, documentation and unittests, were written (almost) entirely by OpenAI's Chat-GTP3.
++    """
++
++    engines = ["davinci", "curie", "babbage", "ada"]
++    if engine not in engines:
++        raise ValueError(
++            f"Engine specified is {engine}. Expected one of: {', '.join(engines)}"
++        )
++
++    openai.api_key = api_key
++
++    response = openai.Completion.create(
++        engine=engine,
++        prompt=prompt,
++        max_tokens=max_tokens,
++        n=1,
++        stop=stop,
++        temperature=temperature,
++    )
++
++    logging.info(
++        f"Total tokens used for API call to engine '{engine}': {response['usage']['total_tokens']}"
++    )
++
++    texts = response["choices"][0]["text"].strip()
++
++    if output:
++        with open(output, "w") as f:
++            f.write(texts)
++
++    return texts
+diff --git a/gget/main.py b/gget/main.py
+index dd217f997..11b94696c 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -33,6 +33,7 @@
+ from .gget_alphafold import alphafold
+ from .gget_setup import setup
+ from .gget_pdb import pdb
++from .gget_gpt import gpt
+ 
+ 
+ def main():
+@@ -967,6 +968,67 @@ def main():
+         ),
+     )
+ 
++    # gpt parser arguments
++    gpt_desc = "Generate text using the OpenAI API."
++    parser_gpt = parent_subparsers.add_parser(
++        "gpt",
++        parents=[parent],
++        description=gpt_desc,
++        help=gpt_desc,
++        add_help=True,
++    )
++    parser_gpt.add_argument(
++        "prompt",
++        type=str,
++        help="The input prompt for the GPT-3 model to generate text from",
++    )
++    parser_gpt.add_argument(
++        "api_key",
++        type=str,
++        help="Your OpenAI API key (see: https://platform.openai.com/account/api-keys)",
++    )
++    parser_gpt.add_argument(
++        "-e",
++        "--engine",
++        type=str,
++        default="davinci",
++        choices=["davinci", "curie", "babbage", "ada"],
++        required=False,
++        help="The name of the GPT-3 engine to use (defaults to 'davinci')",
++    )
++    parser_gpt.add_argument(
++        "-m",
++        "--max_tokens",
++        type=int,
++        default=100,
++        required=False,
++        help="The maximum number of tokens (words or subwords) in the generated text (defaults to 100)",
++    )
++    parser_gpt.add_argument(
++        "-s",
++        "--stop",
++        type=str,
++        default=None,
++        required=False,
++        help="A sequence of tokens that should indicate the end of the generated text (defaults to None)",
++    )
++    parser_gpt.add_argument(
++        "-temp",
++        "--temperature",
++        type=float,
++        default=0.5,
++        required=False,
++        help="Controls the 'creativity' of the generated text (defaults to 0.5)",
++    )
++    parser_gpt.add_argument(
++        "-o",
++        "--output",
++        type=str,
++        default=None,
++        required=False,
++        help="The file name to save the generated text to as a text file (defaults to printing the output to the console)",
++    )
++
+     ### Define return values
+     args = parent_parser.parse_args()
+ 
+@@ -1015,6 +1077,21 @@ def main():
+             parent_parser.print_help(sys.stderr)
+         sys.exit(1)
+ 
++    ## gpt return
++    if args.command == "gpt":
++        gpt_results = gpt(
++            prompt=args.prompt,
++            api_key=args.api_key,
++            engine=args.engine,
++            max_tokens=args.max_tokens,
++            stop=args.stop,
++            temperature=args.temperature,
++            output=args.output,
++        )
++
++        if args.output is None:
++            sys.stdout.write(gpt_results)
++
+     ## blat return
+     if args.command == "blat":
+         # Handle deprecated flags for backwards compatibility
+diff --git a/requirements.txt b/requirements.txt
+index 2ca82820a..ee01c8279 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -9,3 +9,4 @@ ipywidgets
+ tqdm
+ py3Dmol>=1.8.0
+ lxml
++openai
+diff --git a/tests/test_gpt.py b/tests/test_gpt.py
+new file mode 100644
+index 000000000..dd1318489
+--- /dev/null
++++ b/tests/test_gpt.py
+@@ -0,0 +1,33 @@
++import unittest
++from unittest.mock import patch
++from gget.gget_gpt import gpt
++
++
++class TestGpt(unittest.TestCase):
++    @patch("openai.Completion.create")
++    def test_gpt(self, mock_create):
++        # Mock the response from the API
++        mock_response = {
++            "choices": [{"text": "This is a generated response."}],
++            "usage": {"total_tokens": 10},
++        }
++        mock_create.return_value = mock_response
++
++        # Call the function with a prompt and test API key
++        prompt = "Test prompt"
++        api_key = "test_api_key"
++        output = gpt(prompt, api_key)
++
++        # Check that the mock API was called with the correct arguments
++        mock_create.assert_called_once_with(
++            engine="davinci",
++            prompt=prompt,
++            max_tokens=100,
++            n=1,
++            stop=None,
++            temperature=0.5,
++        )
++
++        # Check that the output matches the mock response
++        expected_output = "This is a generated response."
++        self.assertEqual(output, expected_output)

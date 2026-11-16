@@ -1,0 +1,65 @@
+version = "1.0"
+
+[task]
+name = "default/jaechang-hits__SciAgent-Skills-21"
+description = "feat: add bakta and roary skills for gene annotation and pan-genome analysis"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "SciAgent-Skills",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "jaechang-hits/SciAgent-Skills"
+ref = "760aeb6c2aaa0c47167b863942fb5a95f5811d3b"
+reference = "https://github.com/jaechang-hits/SciAgent-Skills/pull/21"
+source_access = "auto"
+built_at = "2026-11-15T15:24:58.299248+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:37145d66647548ac62ac12e252360cfd0b4285459d42b6c55299eb5485ffa4a1"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-05-08T03:03:45Z"
+diff_format = "unified"
+context_files = [
+    "README.md",
+    "registry.yaml",
+    "skills/genomics-bioinformatics/bakta-genome-annotation/SKILL.md",
+    "skills/genomics-bioinformatics/roary-pangenome/SKILL.md",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 1056
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

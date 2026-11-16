@@ -1,0 +1,498 @@
+diff --git a/gget/__init__.py b/gget/__init__.py
+index 7eeeda5d7..d9117de6e 100644
+--- a/gget/__init__.py
++++ b/gget/__init__.py
+@@ -14,6 +14,7 @@
+ from .gget_cellxgene import cellxgene
+ from .gget_elm import elm
+ from .gget_diamond import diamond
++from .gget_cosmic import cosmic
+ 
+ import logging
+ logging.basicConfig(
+diff --git a/gget/constants.py b/gget/constants.py
+index 9f12d3f77..8487978ef 100644
+--- a/gget/constants.py
++++ b/gget/constants.py
+@@ -44,3 +44,7 @@
+     "http://elm.eu.org/instances.tsv?q=*&taxon=&instance_logic="
+ )
+ ELM_CLASSES_TSV_DOWNLOAD = "http://elm.eu.org/elms/elms_index.tsv"
++
++
++#COSMIC API endpoinds 
++COSMIC_GET_URL='https://cancer.sanger.ac.uk/cosmic/search/'
+\ No newline at end of file
+diff --git a/gget/gget_cosmic.py b/gget/gget_cosmic.py
+new file mode 100644
+index 000000000..c9050adb8
+--- /dev/null
++++ b/gget/gget_cosmic.py
+@@ -0,0 +1,188 @@
++import requests
++import pandas as pd
++import json as json_package
++import io
++import logging
++
++# Add and format time stamp in logging messages
++logging.basicConfig(
++    format="%(asctime)s %(levelname)s %(message)s",
++    level=logging.INFO,
++    datefmt="%c",
++)
++# Mute numexpr threads info
++logging.getLogger("numexpr").setLevel(logging.WARNING)
++
++# Custom functions
++from .gget_info import info
++
++# Constants
++from .constants import COSMIC_GET_URL
++
++
++def cosmic(
++    name,
++    limit=100,
++    types="mutations",
++    save=False,
++    verbose=True,
++    json=False
++):
++    """
++    COSMIC, the Catalogue Of Somatic Mutations In Cancer, 
++    is the world's largest and most comprehensive resource 
++    for exploring the impact of somatic mutations in human cancer.
++    Start using COSMIC by searching for a gene, cancer type, mutation, etc. below. 
++    (https://cancer.sanger.ac.uk/cosmic/).
++
++    Args:
++    - name      by searching for a gene, cancer type, mutation, etc. below.
++    - limit     Number of rows to return (default: 100).
++    - types      'mutations' (default) or 'pubmed', 'genes','studies','samples'.
++    - json          If True, returns results in json format instead of data frame. Default: False.
++    - save          True/False whether to save the results in the local directory.
++    - verbose        True/False whether to print progress information. Default True.
++
++    Returns a data frame with the requested results.
++    """
++
++    # Check if 'species' argument is valid
++    sps = ["mutations" ,"pubmed", "genes","studies","samples"]
++    if types not in sps:
++        raise ValueError(
++            f"'type' argument specified as {types}. Expected one of: {', '.join(sps)}"
++        )
++
++    if verbose:
++        logging.info(
++            f"Fetching the {limit} most correlated to {name} from COSMIC."
++        )
++
++    r = requests.get(url=COSMIC_GET_URL+types+'?q='+name+'&export=json')
++
++    if not r.ok:
++        raise RuntimeError(
++            f"Gene correlation API request returned with error code: {r.status_code}. "
++            "Please double-check the arguments and try again.\n"
++        )
++
++    if r.text=='\n':
++        raise RuntimeError(
++            f"Your search term {name} did not return any results in {types} "
++            "Please double-check the arguments and try again.\n"
++        )
++    data = r.text.split('\n')
++    # Check if the request returned an error (e.g. gene not found)
++    dicts={}
++    if types == "mutations":
++        dicts={
++            'Gene':[],
++            'Syntax':[],
++            'Alternate IDs':[],
++            'Canonical':[]
++        }
++        counter=0
++        for i in data:
++            if len(i)>2:
++                parsing_mutations=i.split('\t')
++                dicts['Gene'].append(parsing_mutations[0])
++                dicts['Syntax'].append(parsing_mutations[1])
++                dicts['Alternate IDs'].append(parsing_mutations[2])
++                dicts['Canonical'].append(parsing_mutations[3])
++                counter=counter+1
++                if limit<counter:
++                    break
++    #pubmed logic  
++    elif types == "pubmed":
++        dicts={
++            'Pubmed':[],
++            'Paper title':[],
++            'Author':[]
++            }
++        counter=0
++        for i in data:
++            if len(i)>2:
++                parsing_mutations=i.split('\t')
++                dicts['Pubmed'].append(parsing_mutations[0])
++                dicts['Paper title'].append(parsing_mutations[1])
++                dicts['Author'].append(parsing_mutations[2])
++                counter=counter+1
++                if limit<=counter:
++                    break 
++    elif types == "genes":
++        dicts={
++            'Gene':[],
++            'Alternate IDs':[],
++            'Tested samples':[],
++            'Simple Mutations':[],
++            'Fusions':[],
++            'Coding':[],
++            }
++        counter=0
++        for i in data:
++            if len(i)>2:
++                parsing_mutations=i.split('\t')
++                dicts['Gene'].append(parsing_mutations[0])
++                dicts['Alternate IDs'].append(parsing_mutations[1])
++                dicts['Tested samples'].append(parsing_mutations[2])
++                dicts['Simple Mutations'].append(parsing_mutations[3])
++                dicts['Fusions'].append(parsing_mutations[4])
++                dicts['Coding'].append(parsing_mutations[5])
++                counter=counter+1
++                if limit<counter:
++                    break 
++    elif types == "samples":
++        dicts={
++            'Sample Name':[],
++            'Sites &amp; Histologies':[],
++            'Analysed Genes':[],
++            'Mutations':[],
++            'Fusions':[],
++            'Structual variants':[],
++            }
++        counter=0
++        for i in data:
++            if len(i)>2:
++                parsing_mutations=i.split('\t')
++                dicts['Sample Name'].append(parsing_mutations[0])
++                dicts['Sites &amp; Histologies'].append(parsing_mutations[1])
++                dicts['Analysed Genes'].append(parsing_mutations[2])
++                dicts['Mutations'].append(parsing_mutations[3])
++                dicts['Fusions'].append(parsing_mutations[4])
++                dicts['Structual variants'].append(parsing_mutations[5])
++                counter=counter+1
++                if limit<counter:
++                    break 
++    elif types == "studies":
++        dicts={
++            'Study Id':[],
++            'Project Code':[],
++            'Description':[],
++            }
++        counter=0
++        for i in data:
++            if len(i)>2:
++                parsing_mutations=i.split('\t')
++                dicts['Study Id'].append(parsing_mutations[0])
++                dicts['Project Code'].append(parsing_mutations[1])
++                dicts['Description'].append(parsing_mutations[2])
++                counter=counter+1
++                if limit<counter:
++                    break 
++
++    # Build data frame from returned results
++    corr_df = pd.DataFrame(dicts)
++    # Drop the first row (since that is the searched gene against itself)
++    if json:
++        results_dict = json_package.loads(corr_df.to_json(orient="records"))
++        if save:
++            with open(
++                f"gget_cosmic_{types}-name_{name}.json", "w", encoding="utf-8"
++            ) as f:
++                json_package.dump(results_dict, f, ensure_ascii=False, indent=4)
++
++        return results_dict
++    else:
++        if save:    
++            corr_df.to_csv(f"gget_cosmic_{types}-name_{name}.csv", index=False)
++        return corr_df
+diff --git a/tests/fixtures/test_cosmic.json b/tests/fixtures/test_cosmic.json
+new file mode 100644
+index 000000000..4f1afdd85
+--- /dev/null
++++ b/tests/fixtures/test_cosmic.json
+@@ -0,0 +1,207 @@
++{
++    "test1": {
++        "type": "assert_equal_mutations",
++        "args": {
++            "name": "v600e"
++        },
++        "expected_result": [
++            [
++                "BRAF",
++                "c.1799T>A",
++                "\"BRAF c.1799T>A, BRAF p.V600E, BRAF 1799T>A, BRAF V600E, BRAF COSV56056643, BRAF COSM476\"",
++                "y"
++            ],
++            [
++                "BRAF",
++                "c.1799_1800del",
++                "\"BRAF c.1799_1800del, BRAF p.V600Efs*11, BRAF 1799_1800del, BRAF V600Efs*11, BRAF COSV56085831, BRAF COSM1168053\"",
++                "y"
++            ],
++            [
++                "BRAF",
++                "c.1799_1800delinsAA",
++                "\"BRAF c.1799_1800delinsAA, BRAF p.V600E, BRAF 1799_1800delinsAA, BRAF V600E, BRAF COSV56059110, BRAF COSM475\"",
++                "y"
++            ],
++            [
++                "BRAF",
++                "c.?",
++                "\"BRAF c.?, BRAF p.V600E, BRAF ?, BRAF V600E, BRAF COSV, BRAF COSM1131\"",
++                "y"
++            ],
++            [
++                "DUSP27",
++                "c.1799T>A",
++                "\"DUSP27 c.1799T>A, DUSP27 p.V600E, DUSP27 1799T>A, DUSP27 V600E, DUSP27 COSV54807118, DUSP27 COSM358260\"",
++                "y"
++            ],
++            [
++                "BAZ2A_ENST00000549884",
++                "c.1799T>A",
++                "\"BAZ2A_ENST00000549884 c.1799T>A, BAZ2A_ENST00000549884 p.V600E, BAZ2A_ENST00000549884 1799T>A, BAZ2A_ENST00000549884 V600E, BAZ2A_ENST00000549884 COSV51631953, BAZ2A_ENST00000549884 COSM6073024\"",
++                "n"
++            ],
++            [
++                "BRAF_ENST00000496384",
++                "c.1799T>A",
++                "\"BRAF_ENST00000496384 c.1799T>A, BRAF_ENST00000496384 p.V600E, BRAF_ENST00000496384 1799T>A, BRAF_ENST00000496384 V600E, BRAF_ENST00000496384 COSV56056643, BRAF_ENST00000496384 COSM476\"",
++                "n"
++            ],
++            [
++                "BRAF_ENST00000496384",
++                "c.1799_1800del",
++                "\"BRAF_ENST00000496384 c.1799_1800del, BRAF_ENST00000496384 p.V600Efs*11, BRAF_ENST00000496384 1799_1800del, BRAF_ENST00000496384 V600Efs*11, BRAF_ENST00000496384 COSV56085831, BRAF_ENST00000496384 COSM1168053\"",
++                "n"
++            ],
++            [
++                "BRAF_ENST00000496384",
++                "c.1799_1800delinsAA",
++                "\"BRAF_ENST00000496384 c.1799_1800delinsAA, BRAF_ENST00000496384 p.V600E, BRAF_ENST00000496384 1799_1800delinsAA, BRAF_ENST00000496384 V600E, BRAF_ENST00000496384 COSV56059110, BRAF_ENST00000496384 COSM475\"",
++                "n"
++            ],
++            [
++                "DUSP27_ENST00000271385",
++                "c.1799T>A",
++                "\"DUSP27_ENST00000271385 c.1799T>A, DUSP27_ENST00000271385 p.V600E, DUSP27_ENST00000271385 1799T>A, DUSP27_ENST00000271385 V600E, DUSP27_ENST00000271385 COSV54807118, DUSP27_ENST00000271385 COSM358260\"",
++                "n"
++            ],
++            [
++                "DUSP27_ENST00000443333",
++                "c.1799T>A",
++                "\"DUSP27_ENST00000443333 c.1799T>A, DUSP27_ENST00000443333 p.V600E, DUSP27_ENST00000443333 1799T>A, DUSP27_ENST00000443333 V600E, DUSP27_ENST00000443333 COSV54807118, DUSP27_ENST00000443333 COSM358260\"",
++                "n"
++            ],
++            [
++                "FMR1_ENST00000218200",
++                "c.1799T>A",
++                "\"FMR1_ENST00000218200 c.1799T>A, FMR1_ENST00000218200 p.V600E, FMR1_ENST00000218200 1799T>A, FMR1_ENST00000218200 V600E, FMR1_ENST00000218200 COSV54427979, FMR1_ENST00000218200 COSM756011\"",
++                "n"
++            ]
++        ]
++    },
++    "test2": {
++        "type": "assert_equal_pubmed",
++        "args": {
++            "name": "v600e",
++            "types": "pubmed",
++            "limit": 2
++        },
++        "expected_result": [
++            [
++                "21882184",
++                "\" association of the braf v600e mutation with prognostic factors and poor clinical outcome in papillary thyroid cancer a meta analysis, the\"",
++                "\"Kim TH,Park YJ,Lim JA,Ahn HY,Lee EK,Lee YJ,Kim KW,Hahn SK,Youn YK,Kim KH,Cho BY and Park do J\""
++            ],
++            [
++                "25323687",
++                "\" braf v600e mutation in circulating cell free dna is a promising biomarker of high risk adult langerhans cell histiocytosis, the\"",
++                "Kobayashi M and Tojo A"
++            ]
++        ]
++    },
++    "test3": {
++        "type": "assert_equal_genes_and_json",
++        "args": {
++            "name": "EGFR",
++            "types": "genes",
++            "json": true
++        },
++        "expected_result": [
++            {
++                "Gene": "EGFR",
++                "Alternate IDs": "\"EGFR,ENST00000275493.6,EGFR,ENSP00000275493.2,Erlotinib,HKI-272,BIBW2992,Gefitinib,EGFR.html,NP_005219,NM_005228.3,ENSG00000146648.17,3236,131550,P00533,CCDS5514.1,1956,ERBB1,ERBB,COSG150\"",
++                "Tested samples": "210280",
++                "Simple Mutations": "31900",
++                "Fusions": "0",
++                "Coding": "31900"
++            },
++            {
++                "Gene": "EGFR_ENST00000454757",
++                "Alternate IDs": "\"EGFR_ENST00000454757,ENST00000454757.6,EGFR,ENSP00000395243.3,EGFR.html,NP_001333828.1,ENSG00000146648.17,3236,131550,1956,ERBB1,ERBB,COSG454757\"",
++                "Tested samples": "210280",
++                "Simple Mutations": "10220",
++                "Fusions": "0",
++                "Coding": "10220"
++            },
++            {
++                "Gene": "EGFR_ENST00000455089",
++                "Alternate IDs": "\"EGFR_ENST00000455089,ENST00000455089.5,EGFR,ENSP00000415559.1,EGFR.html,NP_001333826.1,NM_001346897.1,ENSG00000146648.17,3236,131550,1956,ERBB1,ERBB,COSG455089\"",
++                "Tested samples": "210280",
++                "Simple Mutations": "9965",
++                "Fusions": "0",
++                "Coding": "9965"
++            },
++            {
++                "Gene": "EGFR_ENST00000638463",
++                "Alternate IDs": "\"EGFR_ENST00000638463,ENST00000638463.1,EGFR,ENSP00000492462.1,EGFR.html,ENSG00000146648.17,3236,131550,1956,ERBB1,ERBB,COSG638463\"",
++                "Tested samples": "210279",
++                "Simple Mutations": "9407",
++                "Fusions": "0",
++                "Coding": "9407"
++            },
++            {
++                "Gene": "EGFR_ENST00000344576",
++                "Alternate IDs": "\"EGFR_ENST00000344576,ENST00000344576.6,EGFR,ENSP00000345973.2,EGFR.html,NP_958441,NM_201284.1,ENSG00000146648.17,3236,131550,P00533,CCDS5515.1,1956,ERBB1,ERBB,COSG90589\"",
++                "Tested samples": "210277",
++                "Simple Mutations": "2341",
++                "Fusions": "0",
++                "Coding": "2341"
++            },
++            {
++                "Gene": "EGFR_ENST00000342916",
++                "Alternate IDs": "\"EGFR_ENST00000342916,ENST00000342916.7,EGFR,ENSP00000342376.3,EGFR.html,NP_958439,NM_201282.1,ENSG00000146648.17,3236,131550,P00533,CCDS5516.1,1956,ERBB1,ERBB,COSG107618\"",
++                "Tested samples": "210277",
++                "Simple Mutations": "2207",
++                "Fusions": "0",
++                "Coding": "2207"
++            },
++            {
++                "Gene": "EGFR_ENST00000420316",
++                "Alternate IDs": "\"EGFR_ENST00000420316,ENST00000420316.6,EGFR,ENSP00000413843.2,EGFR.html,NP_958440,NM_201283.1,ENSG00000146648.17,3236,131550,P00533,CCDS47587.1,1956,ERBB1,ERBB,COSG420316\"",
++                "Tested samples": "210274",
++                "Simple Mutations": "1712",
++                "Fusions": "0",
++                "Coding": "1712"
++            },
++            {
++                "Gene": "RHBDF1",
++                "Alternate IDs": "\"RHBDF1,ENST00000262316.10,RHBDF1,ENSP00000262316.5,NP_071895,NM_022450.3,ENSG00000007384.15,20561,614403,Q96CC6,CCDS32344.1,64285,iRhom1,FLJ2235,EGFR-RS,Dist1,C16orf8,COSG67901\"",
++                "Tested samples": "44658",
++                "Simple Mutations": "568",
++                "Fusions": "0",
++                "Coding": "568"
++            }
++        ]
++    },
++    "test4": {
++        "type": "assert_equal_samples",
++        "args": {
++            "name": "EGFR",
++            "types": "samples"
++        },
++        "expected_result": [
++            [
++                "P1_Pre-RAFi_EGFRi",
++                "Large intestine:carcinoma:adenocarcinoma",
++                "1224",
++                "1179",
++                "0",
++                "0"
++            ]
++        ]
++    },
++    "test5": {
++        "type": "assert_equal_studies",
++        "args": {
++            "name": "THCA-SA",
++            "types": "studies"
++        },
++        "expected_result": [
++            [
++                "589",
++                "THCA-SA",
++                "ICGC(THCA-SA) : Thyroid Cancer - SA"
++            ]
++        ]
++    }
++}
+\ No newline at end of file
+diff --git a/tests/test_cosmic.py b/tests/test_cosmic.py
+new file mode 100644
+index 000000000..7526ef738
+--- /dev/null
++++ b/tests/test_cosmic.py
+@@ -0,0 +1,58 @@
++import unittest
++import pandas as pd
++import json
++from gget.gget_cosmic import cosmic
++
++# Load
++#  dictionary containing arguments and expected results
++with open("./tests/fixtures/test_cosmic.json") as json_file:
++    cosmic_dict = json.load(json_file)
++
++class TestCosmic(unittest.TestCase):
++    def test_cosmic_defaults(self):
++        test = "test1"
++        expected_result = cosmic_dict[test]["expected_result"]
++        result_to_test = cosmic(**cosmic_dict[test]["args"])
++        # If result is a DataFrame, convert to list
++        if isinstance(result_to_test, pd.DataFrame):
++            result_to_test = result_to_test.values.tolist()
++        self.assertListEqual(result_to_test, expected_result)
++    def test_cosmic_limit_and_pubmet(self):
++        test = "test2"
++        expected_result = cosmic_dict[test]["expected_result"]
++        result_to_test = cosmic(**cosmic_dict[test]["args"])
++        # If result is a DataFrame, convert to list
++        if isinstance(result_to_test, pd.DataFrame):
++            result_to_test = result_to_test.values.tolist()
++        self.assertListEqual(result_to_test, expected_result)
++    def test_cosmic_json_and_genes(self):
++        test = "test3"
++        expected_result = cosmic_dict[test]["expected_result"]
++        result_to_test = cosmic(**cosmic_dict[test]["args"])
++        # If result is a DataFrame, convert to list
++        if isinstance(result_to_test, pd.DataFrame):
++            result_to_test = result_to_test.values.tolist()
++        self.assertListEqual(result_to_test, expected_result)
++    def test_cosmic_samples(self):
++        test = "test4"
++        expected_result = cosmic_dict[test]["expected_result"]
++        result_to_test = cosmic(**cosmic_dict[test]["args"])
++        # If result is a DataFrame, convert to list
++        if isinstance(result_to_test, pd.DataFrame):
++            result_to_test = result_to_test.values.tolist()
++        self.assertListEqual(result_to_test, expected_result)
++    def test_cosmic_studies(self):
++        test = "test5"
++        expected_result = cosmic_dict[test]["expected_result"]
++        result_to_test = cosmic(**cosmic_dict[test]["args"])
++        # If result is a DataFrame, convert to list
++        if isinstance(result_to_test, pd.DataFrame):
++            result_to_test = result_to_test.values.tolist()
++        self.assertListEqual(result_to_test, expected_result)
++
++
++print(TestCosmic().test_cosmic_defaults())
++print(TestCosmic().test_cosmic_limit_and_pubmet())
++print(TestCosmic().test_cosmic_json_and_genes())
++print(TestCosmic().test_cosmic_samples())
++print(TestCosmic().test_cosmic_studies())
+\ No newline at end of file

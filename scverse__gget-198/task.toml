@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/scverse__gget-198"
+description = "Rename 'gget 8cubedb' module to 'gget 8cube'"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "gget",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "scverse/gget"
+ref = "d067b8f2bba3d15688d1e5987025f51b2dcecf7b"
+reference = "https://github.com/scverse/gget/pull/198"
+source_access = "auto"
+built_at = "2026-11-15T21:05:07.297230+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e60395c1e20baaa00ac382838591b718e0e5eeac6d5822ab405787b2f987e941"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-01-19T22:26:58Z"
+diff_format = "unified"
+context_files = [
+    "docs/src/SUMMARY.md",
+    "docs/src/en/8cube.md",
+    "docs/src/en/updates.md",
+    "docs/src/es/8cube.md",
+    "docs/src/es/updates.md",
+    "gget/__init__.py",
+    "gget/gget_8cube.py",
+    "gget/main.py",
+    "tests/fixtures/test_8cube.json",
+    "tests/test_8cube.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 102
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

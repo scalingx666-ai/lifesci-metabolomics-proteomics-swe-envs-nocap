@@ -1,0 +1,1022 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/MassDetectorPreprocessor.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/MassDetectorPreprocessor.java
+new file mode 100644
+index 00000000000..ae0ab3c174c
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/MassDetectorPreprocessor.java
+@@ -0,0 +1,53 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataprocessing.featdet_massdetection;
++
++import io.github.mzmine.util.collections.IndexRange;
++import java.util.List;
++import org.jetbrains.annotations.NotNull;
++
++/**
++ * Optional preprocessing of the intensity values before maximum and edge detection in a
++ * {@link MassDetector}. Implementations transform the original intensities (e.g. by smoothing)
++ * while leaving the original array untouched, so the mass detector can keep the original
++ * intensities for the intensity calculation.
++ */
++public interface MassDetectorPreprocessor {
++
++  /**
++   * Preprocess the intensities used for maximum and edge detection. The original array must not be
++   * modified. Implementations may return the input unchanged (no preprocessing).
++   *
++   * @param intensities the original intensities of the whole spectrum.
++   * @param ranges      the consecutive ranges of equidistant points detected in the spectrum.
++   *                    Points within one range are equidistant; ranges are separated by larger m/z
++   *                    gaps and must be processed independently.
++   * @return the intensities to use for maximum and edge detection. May be the same array as
++   * {@code intensities}.
++   */
++  double @NotNull [] preprocessIntensities(double @NotNull [] intensities,
++      @NotNull List<IndexRange> ranges);
++}
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/MassDetectorPreprocessorModule.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/MassDetectorPreprocessorModule.java
+new file mode 100644
+index 00000000000..3e5ec996178
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/MassDetectorPreprocessorModule.java
+@@ -0,0 +1,47 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataprocessing.featdet_massdetection;
++
++import io.github.mzmine.modules.MZmineModule;
++import io.github.mzmine.parameters.ParameterSet;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++
++/**
++ * A {@link MZmineModule} that creates a {@link MassDetectorPreprocessor} from its parameters. Used
++ * as the option type of a
++ * {@link io.github.mzmine.parameters.parametertypes.submodules.ModuleOptionsEnumComboParameter} so
++ * that additional preprocessing options can be added in the future.
++ */
++public interface MassDetectorPreprocessorModule extends MZmineModule {
++
++  /**
++   * @param parameters the embedded parameters of the selected option (may be null if the option has
++   *                   no parameters).
++   * @return a configured preprocessor.
++   */
++  @NotNull MassDetectorPreprocessor createPreprocessor(@Nullable ParameterSet parameters);
++}
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/MassDetectorSetupDialog.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/MassDetectorSetupDialog.java
+index 34bb817e9e5..8a32a78edfb 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/MassDetectorSetupDialog.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/MassDetectorSetupDialog.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2024 The MZmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -26,13 +26,18 @@
+ package io.github.mzmine.modules.dataprocessing.featdet_massdetection;
+ 
+ import io.github.mzmine.datamodel.Scan;
++import io.github.mzmine.main.ConfigService;
+ import io.github.mzmine.modules.visualization.spectra.simplespectra.SpectraPlot;
+ import io.github.mzmine.modules.visualization.spectra.simplespectra.SpectraVisualizerTab;
+ import io.github.mzmine.modules.visualization.spectra.simplespectra.SpectrumPlotType;
+ import io.github.mzmine.modules.visualization.spectra.simplespectra.datasets.MassListDataSet;
++import io.github.mzmine.modules.visualization.spectra.simplespectra.datasets.MzIntensityDataSet;
+ import io.github.mzmine.modules.visualization.spectra.simplespectra.datasets.ScanDataSet;
++import io.github.mzmine.modules.visualization.spectra.simplespectra.renderers.ContinuousRenderer;
+ import io.github.mzmine.parameters.ParameterSet;
+ import io.github.mzmine.parameters.dialogs.ParameterSetupDialogWithScanPreview;
++import io.github.mzmine.util.color.ColorUtils;
++import java.awt.Color;
+ import java.util.ArrayList;
+ 
+ /**
+@@ -73,6 +78,25 @@ protected void loadPreview(SpectraPlot spectrumPlot, Scan previewScan) {
+ 
+     double[][] mzValues = massDetector.getMassValues(previewScan);
+ 
++    // If the detector preprocessed (e.g. smoothed) the intensities, show that series as a line in a
++    // distinct color so the user can see what maximum and edge detection ran on.
++    if (massDetector instanceof PreprocessedIntensitiesProvider provider) {
++      final double[] preprocessedIntensities = provider.getLastPreprocessedIntensities();
++      if (preprocessedIntensities != null
++          && preprocessedIntensities.length == previewScan.getNumberOfDataPoints()) {
++        final double[] mzs = new double[preprocessedIntensities.length];
++        for (int i = 0; i < mzs.length; i++) {
++          mzs[i] = previewScan.getMzValue(i);
++        }
++        final MzIntensityDataSet preprocessedDataSet = new MzIntensityDataSet("Smoothed", mzs,
++            preprocessedIntensities);
++        final Color preprocessedColor = ColorUtils.getContrastPaletteColorAWT(
++            previewScan.getDataFile().getColorAWT(), ConfigService.getDefaultColorPalette());
++        spectrumPlot.addDataSet(preprocessedDataSet, preprocessedColor, false,
++            new ContinuousRenderer(preprocessedColor, false), false, true);
++      }
++    }
++
+     MassListDataSet peaksDataSet = new MassListDataSet(mzValues[0], mzValues[1]);
+ 
+     spectrumPlot.addDataSet(peaksDataSet, SpectraVisualizerTab.peaksColor, false, true);
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/PreprocessedIntensitiesProvider.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/PreprocessedIntensitiesProvider.java
+new file mode 100644
+index 00000000000..ef10dcbe07e
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/PreprocessedIntensitiesProvider.java
+@@ -0,0 +1,43 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataprocessing.featdet_massdetection;
++
++import org.jetbrains.annotations.Nullable;
++
++/**
++ * Implemented by {@link MassDetector}s that preprocess (e.g. smooth) the intensities before
++ * detection. Allows the preview to display the preprocessed intensities alongside the original
++ * spectrum.
++ */
++public interface PreprocessedIntensitiesProvider {
++
++  /**
++   * The preprocessed (e.g. smoothed) intensities of the most recently processed spectrum, aligned
++   * by index with that spectrum's m/z values. Returns null if no preprocessing was applied (e.g.
++   * the last spectrum was processed without smoothing or was too small to process).
++   */
++  double @Nullable [] getLastPreprocessedIntensities();
++}
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxMassDetector.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxMassDetector.java
+index dc3c37c3c3e..ffad0386ce5 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxMassDetector.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxMassDetector.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -31,6 +31,8 @@
+ import io.github.mzmine.datamodel.SimpleRange.SimpleIntegerRange;
+ import io.github.mzmine.datamodel.impl.SimpleMassSpectrum;
+ import io.github.mzmine.modules.dataprocessing.featdet_massdetection.MassDetector;
++import io.github.mzmine.modules.dataprocessing.featdet_massdetection.MassDetectorPreprocessor;
++import io.github.mzmine.modules.dataprocessing.featdet_massdetection.PreprocessedIntensitiesProvider;
+ import io.github.mzmine.parameters.ParameterSet;
+ import io.github.mzmine.util.collections.IndexRange;
+ import io.github.mzmine.util.maths.Weighting;
+@@ -42,7 +44,7 @@
+ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+ 
+-public class LocalMaxMassDetector implements MassDetector {
++public class LocalMaxMassDetector implements MassDetector, PreprocessedIntensitiesProvider {
+ 
+   private static final Logger logger = Logger.getLogger(LocalMaxMassDetector.class.getName());
+ 
+@@ -60,15 +62,33 @@ public class LocalMaxMassDetector implements MassDetector {
+   private final double noiseLevel;
+   private final AbundanceMeasure intensityCalculation;
+ 
++  /**
++   * Optional preprocessing of the intensities (e.g. smoothing) before maximum and edge detection.
++   * Returns the original intensities when no preprocessing is configured.
++   */
++  private final @NotNull MassDetectorPreprocessor preprocessor;
++
++  /**
++   * Preprocessed (e.g. smoothed) intensities of the most recently processed spectrum, or null if no
++   * preprocessing was applied. Kept for the preview to display the preprocessed series.
++   */
++  private double @Nullable [] lastPreprocessedIntensities;
++
+   public LocalMaxMassDetector() {
+-    this(0, AbundanceMeasure.Height, 3);
++    this(0, AbundanceMeasure.Height, 3, new LocalMaxNoSmoothingModule());
+   }
+ 
+   public LocalMaxMassDetector(final double noiseLevel, final AbundanceMeasure intensityCalculation,
+       final int minNonZeroDp) {
++    this(noiseLevel, intensityCalculation, minNonZeroDp, new LocalMaxNoSmoothingModule());
++  }
++
++  public LocalMaxMassDetector(final double noiseLevel, final AbundanceMeasure intensityCalculation,
++      final int minNonZeroDp, final @NotNull MassDetectorPreprocessor preprocessor) {
+     this.noiseLevel = noiseLevel;
+     this.intensityCalculation = intensityCalculation;
+     this.minNonZeroDp = minNonZeroDp;
++    this.preprocessor = preprocessor;
+   }
+ 
+   /**
+@@ -116,9 +136,16 @@ private static double getMaxMzDiff(final double[] mzs, final double[] intensitie
+ 
+   @Override
+   public MassDetector create(final ParameterSet params) {
++    final LocalMaxSmoothingOptions smoothingOption = params.getValue(
++        LocalMaxMassDetectorParameters.smoothing);
++    final ParameterSet smoothingParams = params.getEmbeddedParameterValue(
++        LocalMaxMassDetectorParameters.smoothing);
++    final MassDetectorPreprocessor preprocessor = smoothingOption.createPreprocessor(
++        smoothingParams);
++
+     return new LocalMaxMassDetector(params.getValue(LocalMaxMassDetectorParameters.noiseLevel),
+         params.getValue(LocalMaxMassDetectorParameters.intensityCalculation),
+-        params.getValue(LocalMaxMassDetectorParameters.minNumberOfDp));
++        params.getValue(LocalMaxMassDetectorParameters.minNumberOfDp), preprocessor);
+   }
+ 
+   @Override
+@@ -128,6 +155,9 @@ public boolean filtersActive() {
+ 
+   @Override
+   public double[][] getMassValues(final MassSpectrum spectrum) {
++    // reset so the preview never shows a stale preprocessed series for an unprocessed spectrum
++    lastPreprocessedIntensities = null;
++
+     final int numPoints = spectrum.getNumberOfDataPoints();
+     if (numPoints < minNonZeroDp) {
+       return new double[2][0];
+@@ -197,8 +227,16 @@ public double[][] getMassValues(final MassSpectrum spectrum) {
+     final DoubleArrayList resultMzs = new DoubleArrayList();
+     final DoubleArrayList resultIntensities = new DoubleArrayList();
+ 
++    // Optional preprocessing: maximum and edge detection run on the (potentially smoothed)
++    // intensities, while the intensity calculation keeps using the original intensities.
++    final double[] detectIntensities = preprocessor.preprocessIntensities(intensities,
++        consecutiveRanges);
++    // store only if preprocessing actually changed the data (NONE returns the original array)
++    lastPreprocessedIntensities = (detectIntensities == intensities) ? null : detectIntensities;
++
+     for (final IndexRange range : consecutiveRanges) {
+-      findAndCentroidPeaks(mzs, intensities, range, absMinIntensity, resultMzs, resultIntensities);
++      findAndCentroidPeaks(mzs, detectIntensities, intensities, range, absMinIntensity, resultMzs,
++          resultIntensities);
+     }
+ 
+     final double[][] result = new double[2][];
+@@ -210,13 +248,17 @@ public double[][] getMassValues(final MassSpectrum spectrum) {
+ 
+   /**
+    * Identifies peaks within a continuous region using the valley/rise logic, then centroids them.
++   *
++   * @param detectIntensities the (potentially smoothed) intensities used for maximum and edge
++   *                          detection.
++   * @param origIntensities   the original intensities used for the intensity calculation.
+    */
+-  private void findAndCentroidPeaks(final double[] mzs, final double[] intensities,
+-      final IndexRange range, final double minIntensity, final DoubleArrayList resultMzs,
+-      final DoubleArrayList resultIntensities) {
++  private void findAndCentroidPeaks(final double[] mzs, final double[] detectIntensities,
++      final double[] origIntensities, final IndexRange range, final double minIntensity,
++      final DoubleArrayList resultMzs, final DoubleArrayList resultIntensities) {
+ 
+     // Find all raw local maxima (candidates) in the region above noise
+-    final IntArrayList candidateIndices = findLocalMaximaIndices(intensities, range);
++    final IntArrayList candidateIndices = findLocalMaximaIndices(detectIntensities, range);
+ 
+     if (candidateIndices.isEmpty()) {
+       return;
+@@ -231,11 +273,12 @@ private void findAndCentroidPeaks(final double[] mzs, final double[] intensities
+       final int nextCandidateIdx = candidateIndices.getInt(i);
+ 
+       // Find the deepest valley between the current active peak and the next candidate (to the right)
+-      final int valleyIdx = findLowestValleyIndex(intensities, activePeakIdx, nextCandidateIdx);
++      final int valleyIdx = findLowestValleyIndex(detectIntensities, activePeakIdx,
++          nextCandidateIdx);
+ 
+-      final double activePeakInt = intensities[activePeakIdx];
+-      final double nextCandidateInt = intensities[nextCandidateIdx];
+-      final double valleyInt = intensities[valleyIdx];
++      final double activePeakInt = detectIntensities[activePeakIdx];
++      final double nextCandidateInt = detectIntensities[nextCandidateIdx];
++      final double valleyInt = detectIntensities[valleyIdx];
+ 
+       // Rule: Separate if it drops below 0.7 * active AND rises 1.3 * valley
+       final boolean dropsEnough = valleyInt < (VALLEY_FACTOR * activePeakInt);
+@@ -245,8 +288,8 @@ private void findAndCentroidPeaks(final double[] mzs, final double[] intensities
+         // They are separate peaks.
+         // The right boundary for the current peak is the valley.
+         // include valleyIdx in this peak and also as potential new peak - similar to belows use of range.maxExclusive
+-        processSinglePeak(mzs, intensities, activePeakIdx, leftBoundary, valleyIdx + 1,
+-            minIntensity, resultMzs, resultIntensities);
++        processSinglePeak(mzs, origIntensities, leftBoundary, valleyIdx + 1, minIntensity,
++            resultMzs, resultIntensities);
+ 
+         // Move to the next peak
+         activePeakIdx = nextCandidateIdx;
+@@ -261,8 +304,8 @@ private void findAndCentroidPeaks(final double[] mzs, final double[] intensities
+       }
+     }
+ 
+-    processSinglePeak(mzs, intensities, activePeakIdx, leftBoundary, range.maxExclusive(),
+-        minIntensity, resultMzs, resultIntensities);
++    processSinglePeak(mzs, origIntensities, leftBoundary, range.maxExclusive(), minIntensity,
++        resultMzs, resultIntensities);
+   }
+ 
+   /**
+@@ -307,22 +350,35 @@ private int findLowestValleyIndex(final double[] intensities, final int startIdx
+   }
+ 
+   /**
+-   * Calculates centroid and intensity for a defined peak and adds to results.
++   * Calculates centroid and intensity for a defined peak and adds to results. The peak edges
++   * ({@code startIdx}, {@code endIdx}) should be determined on the (potentially smoothed) detection
++   * series, but the intensity calculation (apex, height, area, centroid) runs on the original
++   * intensities passed here.
+    *
+-   * @param peakMaxIdx      The index of the maximum intensity within these bounds.
+    * @param startIdx        Inclusive start of peak region (valley or range start).
+    * @param endIdx          Exclusive end of peak region (valley or range end).
+    * @param absMinIntensity Absolute minimum intensity of the whole spectrum.
+    */
+-  private void processSinglePeak(final double[] mzs, final double[] intensities,
+-      final int peakMaxIdx, final int startIdx, final int endIdx, final double absMinIntensity,
++  private void processSinglePeak(final double[] mzs, final double[] intensities, final int startIdx,
++      final int endIdx, final double absMinIntensity,
+       final DoubleArrayList resultMzs, final DoubleArrayList resultIntensities) {
+ 
+     if (endIdx - startIdx < minNonZeroDp) {
+       return;
+     }
+ 
+-    final double maxIntensity = intensities[peakMaxIdx];
++    // Locate the apex on the original intensities within the detected edges. Using the original
++    // (not smoothed) maximum ensures the reported height and the centroid window reference the raw
++    // signal, even when smoothing shifted or lowered the smoothed apex.
++    int peakMaxIdx = startIdx;
++    double maxIntensity = intensities[startIdx];
++    for (int i = startIdx + 1; i < endIdx; i++) {
++      if (intensities[i] > maxIntensity) {
++        maxIntensity = intensities[i];
++        peakMaxIdx = i;
++      }
++    }
++
+     final double detectionThreshold = Math.max(noiseLevel, 2 * absMinIntensity);
+ 
+     // check the actual intensity as noise level not the area which is harder to optimize
+@@ -389,4 +445,9 @@ public double[][] getMassValues(double[] mzs, double[] intensities,
+       @NotNull MassSpectrumType type) {
+     return getMassValues(new SimpleMassSpectrum(mzs, intensities, type));
+   }
++
++  @Override
++  public double @Nullable [] getLastPreprocessedIntensities() {
++    return lastPreprocessedIntensities;
++  }
+ }
+\ No newline at end of file
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxMassDetectorParameters.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxMassDetectorParameters.java
+index 8bc279d40b0..498e775f8c0 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxMassDetectorParameters.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxMassDetectorParameters.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -33,6 +33,7 @@
+ import io.github.mzmine.parameters.parametertypes.AbundanceMeasureParameter;
+ import io.github.mzmine.parameters.parametertypes.DoubleParameter;
+ import io.github.mzmine.parameters.parametertypes.IntegerParameter;
++import io.github.mzmine.parameters.parametertypes.submodules.ModuleOptionsEnumComboParameter;
+ import java.util.Map;
+ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+@@ -43,10 +44,15 @@ public class LocalMaxMassDetectorParameters extends SimpleParameterSet {
+   public static final IntegerParameter minNumberOfDp = new IntegerParameter(
+       "Minimum non-zero points", "Minimum number of data points >0 intensity", 3);
+   public static final AbundanceMeasureParameter intensityCalculation = new AbundanceMeasureParameter(
+-      "Intensity calculation", "", AbundanceMeasure.values(), AbundanceMeasure.Height);
++      "Intensity calculation", "", AbundanceMeasure.rawValues(), AbundanceMeasure.Height);
++  public static final ModuleOptionsEnumComboParameter<LocalMaxSmoothingOptions> smoothing = new ModuleOptionsEnumComboParameter<>(
++      "Smoothing",
++      "Optional smoothing applied to the equidistant points of each consecutive range before maximum "
++          + "and edge detection. The intensity calculation always uses the original (unsmoothed) "
++          + "intensities.", LocalMaxSmoothingOptions.NONE);
+ 
+   public LocalMaxMassDetectorParameters() {
+-    super(noiseLevel, minNumberOfDp, intensityCalculation);
++    super(noiseLevel, minNumberOfDp, intensityCalculation, smoothing);
+   }
+ 
+   public static LocalMaxMassDetectorParameters create(final double noiseLevel,
+@@ -81,5 +87,10 @@ public void handleLoadedParameters(Map<String, Parameter<?>> loadedParams, int l
+       setParameter(intensityCalculation, AbundanceMeasure.Height);
+       setParameter(minNumberOfDp, 3);
+     }
++
++    // smoothing was added without a version bump - disable it for configs that did not store it
++    if (!loadedParams.containsKey(smoothing.getName())) {
++      setParameter(smoothing, LocalMaxSmoothingOptions.NONE);
++    }
+   }
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxNoSmoothingModule.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxNoSmoothingModule.java
+new file mode 100644
+index 00000000000..91bb55a569c
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxNoSmoothingModule.java
+@@ -0,0 +1,67 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataprocessing.featdet_massdetection.local_max;
++
++import io.github.mzmine.modules.dataprocessing.featdet_massdetection.MassDetectorPreprocessor;
++import io.github.mzmine.modules.dataprocessing.featdet_massdetection.MassDetectorPreprocessorModule;
++import io.github.mzmine.parameters.ParameterSet;
++import io.github.mzmine.util.collections.IndexRange;
++import java.util.List;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++
++/**
++ * "No smoothing" option for the {@link LocalMaxMassDetector}. Returns the original intensities
++ * unchanged.
++ */
++public class LocalMaxNoSmoothingModule implements MassDetectorPreprocessorModule,
++    MassDetectorPreprocessor {
++
++  public LocalMaxNoSmoothingModule() {
++  }
++
++  @Override
++  public @NotNull MassDetectorPreprocessor createPreprocessor(
++      @Nullable final ParameterSet parameters) {
++    return this;
++  }
++
++  @Override
++  public double @NotNull [] preprocessIntensities(final double @NotNull [] intensities,
++      @NotNull final List<IndexRange> ranges) {
++    return intensities;
++  }
++
++  @Override
++  public @NotNull String getName() {
++    return "None";
++  }
++
++  @Override
++  public @Nullable Class<? extends ParameterSet> getParameterSetClass() {
++    return LocalMaxNoSmoothingParameters.class;
++  }
++}
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxNoSmoothingParameters.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxNoSmoothingParameters.java
+new file mode 100644
+index 00000000000..9c095cd9b37
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxNoSmoothingParameters.java
+@@ -0,0 +1,38 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataprocessing.featdet_massdetection.local_max;
++
++import io.github.mzmine.parameters.impl.SimpleParameterSet;
++
++/**
++ * Empty parameter set for the "no smoothing" option of the {@link LocalMaxMassDetector}.
++ */
++public class LocalMaxNoSmoothingParameters extends SimpleParameterSet {
++
++  public LocalMaxNoSmoothingParameters() {
++    super();
++  }
++}
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxSavitzkyGolayModule.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxSavitzkyGolayModule.java
+new file mode 100644
+index 00000000000..4b42ebac077
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxSavitzkyGolayModule.java
+@@ -0,0 +1,93 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataprocessing.featdet_massdetection.local_max;
++
++import io.github.mzmine.modules.dataprocessing.featdet_massdetection.MassDetectorPreprocessor;
++import io.github.mzmine.modules.dataprocessing.featdet_massdetection.MassDetectorPreprocessorModule;
++import io.github.mzmine.modules.dataprocessing.featdet_smoothing.savitzkygolay.SavitzkyGolayFilter;
++import io.github.mzmine.parameters.ParameterSet;
++import io.github.mzmine.util.collections.IndexRange;
++import java.util.List;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++
++/**
++ * Savitzky-Golay smoothing option for the {@link LocalMaxMassDetector}. Smoothing is applied
++ * independently to each consecutive range (the points within a range are equidistant) and writes
++ * into a separate buffer, so the original intensities remain available for the intensity
++ * calculation.
++ */
++public class LocalMaxSavitzkyGolayModule implements MassDetectorPreprocessorModule,
++    MassDetectorPreprocessor {
++
++  /**
++   * Normalized Savitzky-Golay weights. Null for the no-arg module instance that only exposes the
++   * parameters.
++   */
++  private final double @NotNull [] weights;
++
++  /**
++   * No-arg constructor used to expose the parameter set through the module registry.
++   */
++  public LocalMaxSavitzkyGolayModule() {
++    this.weights = SavitzkyGolayFilter.getNormalizedWeights(3);
++  }
++
++  private LocalMaxSavitzkyGolayModule(final double @NotNull [] weights) {
++    this.weights = weights;
++  }
++
++  @Override
++  public @NotNull MassDetectorPreprocessor createPreprocessor(
++      @Nullable final ParameterSet parameters) {
++    final int width = parameters.getValue(LocalMaxSavitzkyGolayParameters.width);
++    final double[] normWeights = SavitzkyGolayFilter.getNormalizedWeights(
++        SavitzkyGolayFilter.getClosestFilterWidth(width));
++    return new LocalMaxSavitzkyGolayModule(normWeights);
++  }
++
++  @Override
++  public double @NotNull [] preprocessIntensities(final double @NotNull [] intensities,
++      @NotNull final List<IndexRange> ranges) {
++    final double[] smoothed = new double[intensities.length];
++    for (final IndexRange range : ranges) {
++      // confined to [min, maxExclusive) so consecutive ranges do not bleed into each other
++      SavitzkyGolayFilter.convolve(intensities, range.min(), range.maxExclusive(), weights,
++          smoothed);
++    }
++    return smoothed;
++  }
++
++  @Override
++  public @NotNull String getName() {
++    return "Savitzky-Golay";
++  }
++
++  @Override
++  public @Nullable Class<? extends ParameterSet> getParameterSetClass() {
++    return LocalMaxSavitzkyGolayParameters.class;
++  }
++}
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxSavitzkyGolayParameters.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxSavitzkyGolayParameters.java
+new file mode 100644
+index 00000000000..f021ca76b24
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxSavitzkyGolayParameters.java
+@@ -0,0 +1,44 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataprocessing.featdet_massdetection.local_max;
++
++import io.github.mzmine.parameters.impl.SimpleParameterSet;
++import io.github.mzmine.parameters.parametertypes.IntegerParameter;
++
++/**
++ * Parameters for the optional Savitzky-Golay smoothing applied to consecutive ranges of the
++ * {@link LocalMaxMassDetector}.
++ */
++public class LocalMaxSavitzkyGolayParameters extends SimpleParameterSet {
++
++  public static final IntegerParameter width = new IntegerParameter("Width (points)",
++      "Full width of the Savitzky-Golay filter in data points. Even values are rounded up to the "
++          + "next odd number, the minimum is 3.", 5, 3, null);
++
++  public LocalMaxSavitzkyGolayParameters() {
++    super(width);
++  }
++}
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxSmoothingOptions.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxSmoothingOptions.java
+new file mode 100644
+index 00000000000..fae12ca1a9b
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxSmoothingOptions.java
+@@ -0,0 +1,80 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataprocessing.featdet_massdetection.local_max;
++
++import io.github.mzmine.modules.dataprocessing.featdet_massdetection.MassDetectorPreprocessor;
++import io.github.mzmine.modules.dataprocessing.featdet_massdetection.MassDetectorPreprocessorModule;
++import io.github.mzmine.parameters.ParameterSet;
++import io.github.mzmine.parameters.parametertypes.submodules.ModuleOptionsEnum;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++
++/**
++ * Optional preprocessing (e.g. smoothing) applied to the consecutive ranges detected by the
++ * {@link LocalMaxMassDetector}. Used through a
++ * {@link io.github.mzmine.parameters.parametertypes.submodules.ModuleOptionsEnumComboParameter}.
++ * Add a new option here together with a {@link MassDetectorPreprocessorModule} to extend the
++ * available preprocessing methods.
++ */
++public enum LocalMaxSmoothingOptions implements ModuleOptionsEnum<MassDetectorPreprocessorModule> {
++
++  NONE, SAVITZKY_GOLAY;
++
++  /**
++   * Create the configured preprocessor for this option.
++   *
++   * @param params the embedded parameters of the selected option (may be null for options without
++   *               parameters).
++   */
++  public @NotNull MassDetectorPreprocessor createPreprocessor(@Nullable final ParameterSet params) {
++    return getModuleInstance().createPreprocessor(params);
++  }
++
++  @Override
++  public Class<? extends MassDetectorPreprocessorModule> getModuleClass() {
++    return switch (this) {
++      case NONE -> LocalMaxNoSmoothingModule.class;
++      case SAVITZKY_GOLAY -> LocalMaxSavitzkyGolayModule.class;
++    };
++  }
++
++  @Override
++  public String toString() {
++    return switch (this) {
++      case NONE -> "None";
++      case SAVITZKY_GOLAY -> "Savitzky-Golay";
++    };
++  }
++
++  @Override
++  public String getStableId() {
++    // do not change these values for load/save
++    return switch (this) {
++      case NONE -> "none";
++      case SAVITZKY_GOLAY -> "savitzky_golay";
++    };
++  }
++}
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_smoothing/savitzkygolay/SavitzkyGolayFilter.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_smoothing/savitzkygolay/SavitzkyGolayFilter.java
+index ff88bdee1c3..475137a1dd0 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_smoothing/savitzkygolay/SavitzkyGolayFilter.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_smoothing/savitzkygolay/SavitzkyGolayFilter.java
+@@ -132,6 +132,44 @@ public static double[] convolve(final double[] intensities, final double[] weigh
+     return convolved;
+   }
+ 
++  /**
++   * Convolve a sub-window {@code [from, to)} of the input in place into the provided output buffer.
++   * Boundary handling uses the strict intersection of filter and data, but confined to
++   * {@code [from, to)} so that separate windows (e.g. consecutive m/z ranges) never bleed into each
++   * other. Only {@code out[from..to)} is written; the rest of {@code out} is left untouched. This
++   * avoids per-window allocations when smoothing many small ranges of a larger array.
++   *
++   * @param in      the input intensities.
++   * @param from    inclusive start index of the window.
++   * @param to      exclusive end index of the window.
++   * @param weights the filter weights.
++   * @param out     the output buffer (must be at least {@code to} long, may be the same length as
++   *                {@code in}).
++   */
++  public static void convolve(final double[] in, final int from, final int to,
++      final double[] weights, final double[] out) {
++
++    final int fullWidth = weights.length;
++    final int halfWidth = (fullWidth - 1) / 2;
++    final int numPoints = to - from;
++
++    for (int i = from; i < to; i++) {
++      double sum = 0.0;
++      // index into the window where the leftmost filter tap would land
++      final int k = (i - from) - halfWidth;
++
++      // Boundary handling: strict intersection of filter and the window [from, to)
++      final int startJ = Math.max(0, -k);
++      final int endJ = Math.min(fullWidth, numPoints - k);
++
++      for (int j = startJ; j < endJ; j++) {
++        sum += in[from + k + j] * weights[j];
++      }
++
++      out[i] = sum;
++    }
++  }
++
+   /**
+    * Returns the valid filter width. Ensures the width is odd and at least 3.
+    */
+diff --git a/mzmine-community/src/main/resources/dependency/dependency-licenses.json b/mzmine-community/src/main/resources/dependency/dependency-licenses.json
+index 36260022dde..006e1369d57 100644
+--- a/mzmine-community/src/main/resources/dependency/dependency-licenses.json
++++ b/mzmine-community/src/main/resources/dependency/dependency-licenses.json
+@@ -298,6 +298,19 @@
+                 }
+             ]
+         },
++        {
++            "moduleName": "com.github.ben-manes.caffeine:caffeine",
++            "moduleVersion": "3.2.2",
++            "moduleUrls": [
++                "https://github.com/ben-manes/caffeine"
++            ],
++            "moduleLicenses": [
++                {
++                    "moduleLicense": "Apache License, Version 2.0",
++                    "moduleLicenseUrl": "https://www.apache.org/licenses/LICENSE-2.0"
++                }
++            ]
++        },
+         {
+             "moduleName": "com.github.chhh:javolution-core-java-msftbx",
+             "moduleVersion": "6.11.8",
+@@ -447,7 +460,7 @@
+         },
+         {
+             "moduleName": "com.google.errorprone:error_prone_annotations",
+-            "moduleVersion": "2.36.0",
++            "moduleVersion": "2.40.0",
+             "moduleUrls": [
+                 "https://errorprone.info/error_prone_annotations"
+             ],
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/featdet_smoothing/savitzkygolay/SavitzkyGolayFilterTest.java b/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/featdet_smoothing/savitzkygolay/SavitzkyGolayFilterTest.java
+new file mode 100644
+index 00000000000..60eec056543
+--- /dev/null
++++ b/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/featdet_smoothing/savitzkygolay/SavitzkyGolayFilterTest.java
+@@ -0,0 +1,94 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataprocessing.featdet_smoothing.savitzkygolay;
++
++import static org.junit.jupiter.api.Assertions.assertArrayEquals;
++import static org.junit.jupiter.api.Assertions.assertEquals;
++
++import java.util.Arrays;
++import org.junit.jupiter.api.Test;
++
++class SavitzkyGolayFilterTest {
++
++  @Test
++  void windowedConvolveMatchesStandaloneConvolve() {
++    final double[] weights = SavitzkyGolayFilter.getNormalizedWeights(5);
++
++    final double[] window = new double[]{1, 4, 9, 16, 9, 4, 1};
++    final double[] expected = SavitzkyGolayFilter.convolve(window, weights);
++
++    // embed the same window into a larger array surrounded by very different values
++    final double[] full = new double[]{1000, 1000, 1, 4, 9, 16, 9, 4, 1, 1000, 1000};
++    final int from = 2;
++    final int to = from + window.length;
++    final double[] out = new double[full.length];
++
++    SavitzkyGolayFilter.convolve(full, from, to, weights, out);
++
++    // results inside the window must equal the standalone convolution (no bleeding from neighbours)
++    for (int i = 0; i < window.length; i++) {
++      assertEquals(expected[i], out[from + i], 1e-12, "mismatch at window index " + i);
++    }
++  }
++
++  @Test
++  void windowedConvolveLeavesOutsideUntouched() {
++    final double[] weights = SavitzkyGolayFilter.getNormalizedWeights(5);
++    final double[] full = new double[]{1, 2, 3, 4, 5, 6, 7, 8};
++    final double[] out = new double[full.length];
++    Arrays.fill(out, -1.0);
++
++    final int from = 3;
++    final int to = 6;
++    SavitzkyGolayFilter.convolve(full, from, to, weights, out);
++
++    // positions outside [from, to) must remain at their sentinel value
++    for (int i = 0; i < full.length; i++) {
++      if (i < from || i >= to) {
++        assertEquals(-1.0, out[i], "position " + i + " outside the window was modified");
++      }
++    }
++  }
++
++  @Test
++  void neighbouringWindowsDoNotBleed() {
++    final double[] weights = SavitzkyGolayFilter.getNormalizedWeights(5);
++    // two ranges that would heavily influence each other if convolved as one array
++    final double[] full = new double[]{10, 10, 10, 0, 0, 1000, 1000, 1000};
++    final double[] out = new double[full.length];
++
++    SavitzkyGolayFilter.convolve(full, 0, 3, weights, out);
++    SavitzkyGolayFilter.convolve(full, 5, 8, weights, out);
++
++    // first range smoothed in isolation -> stays around 10, not pulled up by the 1000s
++    final double[] firstExpected = SavitzkyGolayFilter.convolve(new double[]{10, 10, 10}, weights);
++    assertArrayEquals(firstExpected, new double[]{out[0], out[1], out[2]}, 1e-12);
++
++    final double[] secondExpected = SavitzkyGolayFilter.convolve(new double[]{1000, 1000, 1000},
++        weights);
++    assertArrayEquals(secondExpected, new double[]{out[5], out[6], out[7]}, 1e-12);
++  }
++}

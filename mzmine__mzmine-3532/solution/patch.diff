@@ -1,0 +1,95 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/graphicalnodes/ImageChartCell.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/graphicalnodes/ImageChartCell.java
+index 365f5d0f179..cce3c1d10ee 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/graphicalnodes/ImageChartCell.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/graphicalnodes/ImageChartCell.java
+@@ -45,6 +45,7 @@
+ import org.jfree.chart.axis.AxisLocation;
+ import org.jfree.chart.axis.NumberAxis;
+ import org.jfree.chart.plot.XYPlot;
++import org.jfree.chart.ui.RectangleInsets;
+ import org.jfree.data.Range;
+ 
+ /**
+@@ -137,11 +138,13 @@ protected SimpleXYZScatterPlot<?> createChart() {
+     axis.setAutoRangeStickyZero(false);
+     axis.setAutoRangeIncludesZero(false);
+     chart.getXYPlot().setDomainAxisLocation(AxisLocation.TOP_OR_RIGHT);
+-
+     axis.setVisible(!hideAxes);
+     chart.setLegendVisible(!hideAxes);
+     chart.getXYPlot().setBackgroundPaint(Color.BLACK);
+ 
++    chart.getXYPlot().setAxisOffset(RectangleInsets.ZERO_INSETS);
++    chart.setShowCrosshair(false);
++
+     return chart;
+   }
+ 
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_features_all_speclib_matches/ImageChart.java b/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_features_all_speclib_matches/ImageChart.java
+index da9026e4f42..ac520fda1f8 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_features_all_speclib_matches/ImageChart.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_features_all_speclib_matches/ImageChart.java
+@@ -43,6 +43,7 @@
+ import org.jetbrains.annotations.NotNull;
+ import org.jfree.chart.axis.AxisLocation;
+ import org.jfree.chart.axis.NumberAxis;
++import org.jfree.chart.ui.RectangleInsets;
+ import org.jfree.data.Range;
+ 
+ /*
+@@ -92,6 +93,8 @@ class ImageChart extends BufferedChartNode {
+         : GraphicalColumType.LARGE_GRAPHICAL_CELL_WIDTH;
+ 
+     chart.getXYPlot().setBackgroundPaint(Color.BLACK);
++    chart.getXYPlot().setAxisOffset(RectangleInsets.ZERO_INSETS);
++    chart.setShowCrosshair(false);
+ 
+     setChartCreateImage(chart, (int) width, GraphicalColumType.DEFAULT_IMAGE_CELL_HEIGHT);
+   }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/image/ImagingPlot.java b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/image/ImagingPlot.java
+index be9325511c6..2d134dd2d6d 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/image/ImagingPlot.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/image/ImagingPlot.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -43,6 +43,7 @@
+ import javafx.scene.layout.BorderPane;
+ import org.jfree.chart.axis.AxisLocation;
+ import org.jfree.chart.axis.NumberAxis;
++import org.jfree.chart.ui.RectangleInsets;
+ 
+ /**
+  * @author Robin Schmid <a href="https://github.com/robinschmid">https://github.com/robinschmid</a>
+@@ -123,6 +124,8 @@ private SimpleXYZScatterPlot<FeatureImageProvider> createChart() {
+     axis.setAutoRangeIncludesZero(false);
+ //    axis.setRange(new org.jfree.data.Range(0, imagingParameters.getLateralHeight()));
+     axis.setVisible(!hideAxes);
++    axis.setLowerMargin(0);
++    axis.setUpperMargin(0);
+ 
+     axis = (NumberAxis) chart.getXYPlot().getDomainAxis();
+     axis.setAutoRangeStickyZero(false);
+@@ -130,6 +133,8 @@ private SimpleXYZScatterPlot<FeatureImageProvider> createChart() {
+     chart.getXYPlot().setDomainAxisLocation(AxisLocation.TOP_OR_RIGHT);
+ //    axis.setRange(new org.jfree.data.Range(0, imagingParameters.getLateralWidth()));
+     axis.setVisible(!hideAxes);
++    axis.setLowerMargin(0);
++    axis.setUpperMargin(0);
+ 
+     final boolean lockOnAspectRatio = MZmineCore.getConfiguration()
+         .getModuleParameters(FeatureTableFXModule.class)
+@@ -138,6 +143,9 @@ private SimpleXYZScatterPlot<FeatureImageProvider> createChart() {
+ 
+     chart.setLegendVisible(true);
+ 
++    chart.getXYPlot().setAxisOffset(RectangleInsets.ZERO_INSETS);
++    chart.setShowCrosshair(true);
++
+     setCenter(chart);
+     return chart;
+   }

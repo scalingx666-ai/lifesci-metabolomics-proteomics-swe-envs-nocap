@@ -1,0 +1,67 @@
+version = "1.0"
+
+[task]
+name = "default/lightdock__lightdock-33"
+description = "A bit of support for HETATM entities"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "lightdock",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "lightdock/lightdock"
+ref = "68216299849162936e81799bd0ba9b6797585a9c"
+reference = "https://github.com/lightdock/lightdock/pull/33"
+source_access = "auto"
+built_at = "2026-11-15T22:44:54.282278+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:fa5ba9027f23e385a241d30033319efdefa0e2a352868b30f22cdba3d7ffafa2"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2022-06-16T12:08:57Z"
+diff_format = "unified"
+context_files = [
+    "lightdock/prep/poses.py",
+    "lightdock/prep/starting_points.py",
+    "lightdock/structure/atom.py",
+    "lightdock/structure/residue.py",
+    "lightdock/test/prep/golden_data/3p0g/receptor_membrane_no_membrane.pdb",
+    "lightdock/test/structure/test_residue.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 80
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

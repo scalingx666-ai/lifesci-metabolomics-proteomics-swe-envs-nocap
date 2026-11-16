@@ -1,0 +1,65 @@
+version = "1.0"
+
+[task]
+name = "default/lightdock__lightdock-50"
+description = "Unpin ProDy by handling pathlib to string casting"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "lightdock",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "lightdock/lightdock"
+ref = "edbbd363def9f5866fb27c502069fe19610303e5"
+reference = "https://github.com/lightdock/lightdock/pull/50"
+source_access = "auto"
+built_at = "2026-11-15T22:44:51.680225+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:a115460e3095b08fd5b7f1b4a1d4db5a31ef57ce21f0b478f4d404068dd10243"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2023-03-07T15:00:36Z"
+diff_format = "unified"
+context_files = [
+    "bin/lgd_cluster_bsas.py",
+    "lightdock/prep/starting_points.py",
+    "lightdock/structure/nm.py",
+    "setup.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 22
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

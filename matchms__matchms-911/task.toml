@@ -1,0 +1,72 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-911"
+description = "Refactor Cosine and ModifiedCosine wrapper"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "af19a089ccdfe553c024a8ae5e7628047c33eab3"
+reference = "https://github.com/matchms/matchms/pull/911"
+source_access = "auto"
+built_at = "2026-11-16T12:52:27.632010+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:a18d9d3c28259310ed8147c2a3449c042d1a59d82173a763c5f8fb5879b6e415"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-06-16T11:13:54Z"
+diff_format = "unified"
+context_files = [
+    "integration-tests/test_user_workflow.py",
+    "matchms/similarity/Cosine.py",
+    "matchms/similarity/CosineGreedy.py",
+    "matchms/similarity/FlashSimilarity.py",
+    "matchms/similarity/ModifiedCosine.py",
+    "matchms/similarity/ModifiedCosineGreedy.py",
+    "matchms/similarity/flash_utils.py",
+    "matchms/similarity/spectrum_similarity_functions.py",
+    "tests/similarity/test_spectrum_similarity_functions.py",
+    "tests/test_pipeline.py",
+    "tests/test_version_string_consistency.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 172
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

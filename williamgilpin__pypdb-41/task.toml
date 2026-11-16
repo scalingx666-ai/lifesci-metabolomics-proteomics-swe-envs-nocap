@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/williamgilpin__pypdb-41"
+description = "Fixes small error in comparions types"
+
+[metadata]
+difficulty = "easy"
+category = "bugfix"
+keywords = [
+    "pypdb",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "williamgilpin/pypdb"
+ref = "8259074366a693617d6b386cfe9d3a4440f5ce39"
+reference = "https://github.com/williamgilpin/pypdb/pull/41"
+source_access = "auto"
+built_at = "2026-11-16T00:16:38.823416+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:ccf81133fc342a0eadf47a2f451e9e6a5c4faa8b5b34c97ee3881e0c5ee54515"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2021-06-10T17:31:41Z"
+diff_format = "unified"
+context_files = [
+    "pypdb/clients/search/operators/text_operators.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 2
+difficulty = "trivial"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,75 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-908"
+description = "Merging master branch and adjust new code pieces"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "1f9be264ab23eb6fdb3a207bc0976aee9c574d9a"
+reference = "https://github.com/matchms/matchms/pull/908"
+source_access = "auto"
+built_at = "2026-11-16T12:52:34.269382+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:d74da7a6ec811010bd1c30b922134fa8f94e749307d9338b74edfc45673a6987"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-06-15T14:24:19Z"
+diff_format = "unified"
+context_files = [
+    ".github/workflows/CI_build.yml",
+    ".github/workflows/dependabot.yml",
+    "README.rst",
+    "dev-requirements.txt",
+    "matchms/__version__.py",
+    "matchms/similarity/CosineLinear.py",
+    "matchms/similarity/__init__.py",
+    "matchms/similarity/cosine_linear_functions.py",
+    "pyproject.toml",
+    "readthedocs/conf.py",
+    "tests/cosine_linear_reference.json",
+    "tests/similarity/test_bench_matrix.py",
+    "tests/similarity/test_cosine_linear.py",
+    "uv.lock",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 6834
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

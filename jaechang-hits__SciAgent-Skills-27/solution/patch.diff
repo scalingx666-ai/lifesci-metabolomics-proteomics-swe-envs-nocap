@@ -1,0 +1,124 @@
+diff --git a/registry.yaml b/registry.yaml
+index 5f085f3..e435575 100644
+--- a/registry.yaml
++++ b/registry.yaml
+@@ -1,6 +1,23 @@
+ # Skills Registry
+ # Each entry is added here when a new SKILL.md is created.
+ # This file is maintained by following the workflow in CLAUDE.md (Step 5).
++#
++# Entry schema:
++#   name         (required) — kebab-case unique slug; must match frontmatter `name`
++#   type         (required) — always "skill" today
++#   sub_type     (required) — pipeline | toolkit | database | guide
++#   category     (required) — primary category directory under skills/
++#   path         (required) — relative path to SKILL.md
++#   description  (required) — short discovery string; first 120 chars carry the
++#                             discovery weight (keep tool/domain keywords up front)
++#   date_added   (required) — ISO-8601 date the entry first landed
++#   tags         (optional) — list of cross-cutting tags for secondary discovery.
++#                             Use when an entry meaningfully belongs to more than
++#                             one category. Examples: ["databases", "literature"],
++#                             ["machine-learning"], ["medical-informatics"].
++#                             Tags do NOT replace `category`; the primary home
++#                             stays in `category`. Tag names are lowercase and
++#                             hyphen-separated, validated as plain strings only.
+ 
+ entries:
+   - name: "scanpy-scrna-seq"
+diff --git a/scripts/validate_registry.py b/scripts/validate_registry.py
+index 34050ee..1539911 100644
+--- a/scripts/validate_registry.py
++++ b/scripts/validate_registry.py
+@@ -2,6 +2,7 @@
+ """Validate registry.yaml: check all entries point to existing SKILL.md files
+ with valid YAML frontmatter."""
+ 
++import re
+ import sys
+ from pathlib import Path
+ 
+@@ -11,6 +12,7 @@
+ ROOT = Path(__file__).resolve().parent.parent
+ REGISTRY_PATH = ROOT / "registry.yaml"
+ REQUIRED_FRONTMATTER = {"name", "description"}
++TAG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+ 
+ 
+ def parse_frontmatter(skill_path: Path) -> dict:
+@@ -51,6 +53,23 @@ def validate() -> list[str]:
+             if not entry.get(field):
+                 errors.append(f"[{name}] Missing registry field: {field}")
+ 
++        # Optional tags field
++        tags = entry.get("tags")
++        if tags is not None:
++            if not isinstance(tags, list):
++                errors.append(f"[{name}] tags must be a list, got {type(tags).__name__}")
++            else:
++                for t in tags:
++                    if not isinstance(t, str):
++                        errors.append(f"[{name}] tag must be a string, got {type(t).__name__}: {t!r}")
++                    elif not TAG_PATTERN.match(t):
++                        errors.append(
++                            f"[{name}] tag '{t}' must be lowercase kebab-case "
++                            f"(matching {TAG_PATTERN.pattern})"
++                        )
++                if len(tags) != len(set(tags)):
++                    errors.append(f"[{name}] tags has duplicates: {tags}")
++
+         # File existence
+         skill_path = ROOT / entry.get("path", "")
+         if not skill_path.exists():
+diff --git a/tests/test_registry.py b/tests/test_registry.py
+index a59aab0..62ccfff 100644
+--- a/tests/test_registry.py
++++ b/tests/test_registry.py
+@@ -85,3 +85,47 @@ def test_all_skill_files_registered(self, entries):
+ 
+         unregistered = on_disk - registered_paths
+         assert unregistered == set(), f"SKILL.md files not in registry: {unregistered}"
++
++
++class TestTagsField:
++    """Validate the optional `tags` field schema (PR1).
++
++    tags is optional. When present, it must be a list of unique
++    lowercase kebab-case strings used for cross-cutting discovery
++    alongside the primary `category`.
++    """
++
++    def test_tags_is_list_when_present(self, entries):
++        bad = []
++        for e in entries:
++            tags = e.get("tags")
++            if tags is not None and not isinstance(tags, list):
++                bad.append((e["name"], type(tags).__name__))
++        assert bad == [], f"tags must be a list when present: {bad}"
++
++    def test_tags_items_are_strings(self, entries):
++        bad = []
++        for e in entries:
++            for t in e.get("tags") or []:
++                if not isinstance(t, str):
++                    bad.append((e["name"], t, type(t).__name__))
++        assert bad == [], f"tag items must be strings: {bad}"
++
++    def test_tags_are_kebab_case(self, entries):
++        import re
++
++        pattern = re.compile(r"^[a-z0-9][a-z0-9-]*$")
++        bad = []
++        for e in entries:
++            for t in e.get("tags") or []:
++                if isinstance(t, str) and not pattern.match(t):
++                    bad.append((e["name"], t))
++        assert bad == [], f"tags must be lowercase kebab-case: {bad}"
++
++    def test_tags_no_duplicates_within_entry(self, entries):
++        bad = []
++        for e in entries:
++            tags = e.get("tags") or []
++            if len(tags) != len(set(tags)):
++                bad.append((e["name"], tags))
++        assert bad == [], f"tags have duplicates within entry: {bad}"

@@ -1,0 +1,67 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-922"
+description = "Fix mzml loader"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "f9cc919a5c5eb9a8d9dc08b2ca10e61a5d3587d1"
+reference = "https://github.com/matchms/matchms/pull/922"
+source_access = "auto"
+built_at = "2026-11-16T12:52:21.132708+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:6ae6ba53d9dd16a09ae46e8a5982153884e906911ae4fa1c8c08e34b54e6bc6c"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-16T10:19:28Z"
+diff_format = "unified"
+context_files = [
+    "CHANGELOG.md",
+    "matchms/data/known_key_conversions.csv",
+    "matchms/importing/load_from_mzml.py",
+    "matchms/importing/load_from_mzxml.py",
+    "tests/importing/test_load_from_mzml.py",
+    "tests/testdata/tiny.pwiz.1.1.mzML",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 471
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

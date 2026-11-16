@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3476"
+description = "fix npe in feature data access of aligned flists"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "d891e2ca54bce974866210bd0c190b7dbde1fc0e"
+reference = "https://github.com/mzmine/mzmine/pull/3476"
+source_access = "auto"
+built_at = "2026-11-16T08:44:39.587535+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:5ccb6be62f1358812dcc29fbe842cd06c8cf4a5d9370c616b74b5d20d597a94b"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-09-01T10:16:48Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/data_access/FeatureDataAccess.java",
+    "mzmine-community/src/test/java/io/github/mzmine/datamodel/data_access/FeatureDataAccessAlignedTest.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 242
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

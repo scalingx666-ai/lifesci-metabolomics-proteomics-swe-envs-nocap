@@ -1,0 +1,18 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/compounddashboard/CompoundDashboardController.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/compounddashboard/CompoundDashboardController.java
+index 9e65202ed71..9ac584f75e6 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/compounddashboard/CompoundDashboardController.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/compounddashboard/CompoundDashboardController.java
+@@ -706,8 +706,11 @@ CompoundRowQualityController getQualityController() {
+     return qualityCtrl;
+   }
+ 
+-  @SuppressWarnings("unused")
+-  FxFeatureTableController getTableController() {
++  /**
++   * Exposes the embedded table through the same controller contract used by other linked
++   * dashboards. Consumers can synchronize selected rows without reaching into the scene graph.
++   */
++  public @NotNull FxFeatureTableController getTableController() {
+     return tableCtrl;
+   }
+ 

@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/Gaius-Augustus__BRAKER-410"
+description = "Input traingtf"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "BRAKER",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "Gaius-Augustus/BRAKER"
+ref = "4028b631f1ccd32ed23d0038a63a1ae9481a1213"
+reference = "https://github.com/Gaius-Augustus/BRAKER/pull/410"
+source_access = "auto"
+built_at = "2026-11-15T22:37:47.755009+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:8e6c41d447f6faebd54ead13db9a527319ba43a0587b3822d4badcf3b0e290dd"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2021-08-05T08:40:19Z"
+diff_format = "unified"
+context_files = [
+    "scripts/braker.pl",
+    "scripts/rename_tsebra_transcripts.pl",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 141
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

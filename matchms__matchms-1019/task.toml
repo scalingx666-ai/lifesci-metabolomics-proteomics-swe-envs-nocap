@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-1019"
+description = "Add load_collection_from_mgf: read mgf files directly into a SpectraCollection"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "2a3b6ced302f0464f082f9b0f910ec23fe58deed"
+reference = "https://github.com/matchms/matchms/pull/1019"
+source_access = "auto"
+built_at = "2026-11-16T12:50:59.638429+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:beca24d5a3cc56fd72b923359570740cd152eab921fbf1f043547fe8e658458e"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-09T21:08:10Z"
+diff_format = "unified"
+context_files = [
+    "CHANGELOG.md",
+    "matchms/fragment_collection.py",
+    "matchms/importing/__init__.py",
+    "matchms/importing/collection_builder.py",
+    "matchms/importing/load_from_mgf.py",
+    "matchms/importing/load_from_parquet.py",
+    "matchms/importing/load_spectra.py",
+    "matchms/metadata.py",
+    "tests/importing/test_load_collection_from_mgf.py",
+    "tests/importing/test_load_from_parquet.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 694
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

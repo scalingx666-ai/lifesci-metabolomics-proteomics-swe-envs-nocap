@@ -1,0 +1,73 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3424"
+description = "Volcano plot improvements"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "59d40c28255d5ede733b4f98a3a337014b843a32"
+reference = "https://github.com/mzmine/mzmine/pull/3424"
+source_access = "auto"
+built_at = "2026-11-16T08:45:52.168901+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:c99fe1ece2e10c3f4d9c90c4d8cbb49c7ac6830f650cc3aaada16e0c2f953e26"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-18T14:34:42Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/statistics/FeaturesDataTable.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/significance/UnivariateRowSignificanceTest.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/significance/anova/AnovaTest.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/volcanoplot/VolcanoPlotController.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/volcanoplot/VolcanoPlotModel.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/volcanoplot/VolcanoPlotUpdateTask.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/volcanoplot/VolcanoPlotViewBuilder.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_rowsfilter/FoldChangeSignificanceRowFilter.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/projectmetadata/table/MetadataTable.java",
+    "mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/statistics/UnivariateRowSignificanceTestConfig.java",
+    "mzmine-community/src/test/java/io/github/mzmine/modules/dataanalysis/significance/UnivariateRowSignificanceTestTest.java",
+    "utils/src/main/java/io/github/mzmine/util/collections/CollectionUtils.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 492
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

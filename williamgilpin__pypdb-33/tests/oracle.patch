@@ -1,0 +1,155 @@
+diff --git a/pypdb/clients/pdb/pdb_client_test.py b/pypdb/clients/pdb/pdb_client_test.py
+index 1cfa25f..b0ebcac 100644
+--- a/pypdb/clients/pdb/pdb_client_test.py
++++ b/pypdb/clients/pdb/pdb_client_test.py
+@@ -1,3 +1,4 @@
++import gzip
+ import unittest
+ from unittest import mock
+ 
+@@ -20,20 +21,23 @@ def test_unsuccessful_test_returns_none(self, mock_http_requests):
+         )
+ 
+     @mock.patch.object(http_requests, "request_limited", autospec=True)
+-    def test_compressed_cif_file(self, mock_http_requests):
++    @mock.patch.object(gzip, "decompress")
++    def test_compressed_cif_file(self, mock_decompress, mock_http_requests):
+         mock_return_value_cif = mock.Mock()
+         mock_return_value_cif.ok = True
+         mock_return_value_cif.content = "fake_compressed_cif"
+         mock_http_requests.return_value = mock_return_value_cif
++        mock_decompress.return_value = "fake_decompressed_cif"
+ 
+         self.assertEqual(
+-            "fake_compressed_cif",
++            "fake_decompressed_cif",
+             pdb_client.get_pdb_file("1A2B", pdb_client.PDBFileType.CIF,
+             compression=True)
+         )
+         mock_http_requests.assert_called_once_with(
+             "https://files.rcsb.org/download/1A2B.cif.gz"
+         )
++        mock_decompress.assert_called_once_with("fake_compressed_cif")
+ 
+     @mock.patch.object(http_requests, "request_limited", autospec=True)
+     def test_umcompressed_pdb(self, mock_http_requests):
+@@ -51,20 +55,23 @@ def test_umcompressed_pdb(self, mock_http_requests):
+         )
+ 
+     @mock.patch.object(http_requests, "request_limited", autospec=True)
+-    def test_compressed_structfact(self, mock_http_requests):
++    @mock.patch.object(gzip, "decompress")
++    def test_compressed_structfact(self, mock_decompress, mock_http_requests):
+         mock_return_value_pdb = mock.Mock()
+         mock_return_value_pdb.content = "fake_compressed_structfact"
+         mock_return_value_pdb.ok = True
+         mock_http_requests.return_value = mock_return_value_pdb
++        mock_decompress.return_value = "fake_decompressed_structfact"
+ 
+         self.assertEqual(
+-            "fake_compressed_structfact",
++            "fake_decompressed_structfact",
+             pdb_client.get_pdb_file("HK97", pdb_client.PDBFileType.STRUCTFACT,
+                                     compression=True)
+         )
+         mock_http_requests.assert_called_once_with(
+             "https://files.rcsb.org/download/HK97-sf.cif.gz"
+         )
++        mock_decompress.assert_called_once_with("fake_compressed_structfact")
+ 
+     @mock.patch.object(http_requests, "request_limited", autospec=True)
+     def test_uncompressed_xml(self, mock_http_requests):
+diff --git a/pypdb/clients/search/operators/chemical_operators.py b/pypdb/clients/search/operators/chemical_operators.py
+new file mode 100644
+index 0000000..ab01fa5
+--- /dev/null
++++ b/pypdb/clients/search/operators/chemical_operators.py
+@@ -0,0 +1,43 @@
++"""Search operators corresponding to Chemical search using SMILES or InChI."""
++
++from dataclasses import dataclass
++from enum import Enum
++from typing import Any, Dict
++
++
++class DescriptorMatchingCriterion(Enum):
++    """Criterion describing what constitutes a chemical 'match' in RCSB search.
++
++    For definitions of these criteria, see:
++    https://search.rcsb.org/#search-services
++    """
++    GRAPH_STRICT = "graph-strict"
++    GRAPH_RELAXED = "graph-relaxed"
++    GRAPH_RELAXED_STEREO = "graph-relaxed-stereo"
++    FINGERPRINT_SIMILARITY = "fingerprint-similarity"
++
++
++@dataclass
++class ChemicalOperator:
++    """Search operator for Chemical searches using SMILES / InChI."""
++    # Descriptor for matching (i.e. a valid SMILES or InChI string)
++    descriptor: str
++    # Criterion for what constitutes a match ("graph-strict" by default)
++    matching_criterion: DescriptorMatchingCriterion = DescriptorMatchingCriterion.GRAPH_STRICT
++
++    def __post_init__(self):
++        """Derives whether the chemical descriptor string is SMILES or InChI."""
++        # All InChI strings definitionally start with "InChI="
++        if self.descriptor.startswith("InChI="):
++            self.descriptor_type = "InChI"
++        else:
++            # Otherwise, assume SMILES string by default
++            self.descriptor_type = "SMILES"
++
++    def _to_dict(self) -> Dict[str, Any]:
++        return {
++            "value": self.descriptor,
++            "type": "descriptor",
++            "descriptor_type": self.descriptor_type,
++            "match_type": self.matching_criterion.value
++        }
+diff --git a/pypdb/clients/search/operators/chemical_operators_test.py b/pypdb/clients/search/operators/chemical_operators_test.py
+new file mode 100644
+index 0000000..e8afec9
+--- /dev/null
++++ b/pypdb/clients/search/operators/chemical_operators_test.py
+@@ -0,0 +1,39 @@
++"""Tests for RCSB SeqMotif Search Service Operators."""
++
++import unittest
++
++from pypdb.clients.search.operators import chemical_operators
++
++
++class TestChemicalOperators(unittest.TestCase):
++    def test_chemical_operator_to_dict(self):
++        # InChI
++        inchi_operator = chemical_operators.ChemicalOperator(
++            # Panadol
++            descriptor=
++            "InChI=1S/C8H9NO2/c1-6(10)9-7-2-4-8(11)5-3-7/h2-5,11H,1H3,(H,9,10)",
++            matching_criterion=chemical_operators.DescriptorMatchingCriterion.
++            GRAPH_RELAXED_STEREO)
++        self.assertEqual(inchi_operator.descriptor_type, "InChI")
++        self.assertEqual(
++            inchi_operator._to_dict(), {
++                "value":
++                "InChI=1S/C8H9NO2/c1-6(10)9-7-2-4-8(11)5-3-7/h2-5,11H,1H3,(H,9,10)",
++                "type": "descriptor",
++                "descriptor_type": "InChI",
++                "match_type": "graph-relaxed-stereo"
++            })
++
++        # SMILES
++        smiles_operator = chemical_operators.ChemicalOperator(
++            descriptor=
++            "CC(C)C[C@H](NC(=O)OCC1CCC(F)(F)CC1)C(=O)N[C@@H](C[C@@H]2CCNC2=O)[C@@H](O)[S](O)(=O)=O"
++        )
++        self.assertEqual(
++            smiles_operator._to_dict(), {
++                "value":
++                "CC(C)C[C@H](NC(=O)OCC1CCC(F)(F)CC1)C(=O)N[C@@H](C[C@@H]2CCNC2=O)[C@@H](O)[S](O)(=O)=O",
++                "type": "descriptor",
++                "descriptor_type": "SMILES",
++                "match_type": "graph-strict"
++            })

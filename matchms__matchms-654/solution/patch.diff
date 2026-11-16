@@ -1,0 +1,25 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index cb1f1c34c..233ddfa9d 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
+ - repair_adduct_based_on_smiles does not repair adducts [M]+ and [M]- anymore, since these cases could also be due to a mistake in filling in the parent mass instead of the precursor mz. 
+ - repair_parent_mass_is_molar_weight does only repair parent mass and does not change the precursor mz.
+ - Change repair_parent_mass_is_mol_wt to repair_parent_mass_is_molar_mass
++- Set RDKIT version to rdkit = ">=2023.3.2,<2023.9.5" to fix installation issues. 
+ 
+ ## [0.24.4] -2024-01-16
+ ### changed
+diff --git a/pyproject.toml b/pyproject.toml
+index 3bdb0d26c..8ba24da54 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -38,7 +38,7 @@ pyteomics = "^4.6"
+ requests = "^2.31.0"
+ sparsestack = "^0.4.1"
+ tqdm = "^4.65.0"
+-rdkit = "^2023.3.2"
++rdkit = ">=2023.3.2,<2023.9.5"
+ pyyaml = "^6.0.1"
+ deprecated = "^1.2.14"
+ pubchempy = "*"

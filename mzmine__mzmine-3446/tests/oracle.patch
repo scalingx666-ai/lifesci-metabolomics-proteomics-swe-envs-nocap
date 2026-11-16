@@ -1,0 +1,1892 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/data_access/BinningMobilogramDataAccess.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/data_access/BinningMobilogramDataAccess.java
+index 54d82606ff8..71743baa92c 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/data_access/BinningMobilogramDataAccess.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/data_access/BinningMobilogramDataAccess.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -26,10 +26,8 @@
+ package io.github.mzmine.datamodel.data_access;
+ 
+ import com.google.common.collect.Range;
+-import com.google.common.primitives.Booleans;
+ import io.github.mzmine.datamodel.Frame;
+ import io.github.mzmine.datamodel.IMSRawDataFile;
+-import io.github.mzmine.datamodel.MobilityScan;
+ import io.github.mzmine.datamodel.MobilityType;
+ import io.github.mzmine.datamodel.featuredata.IntensitySeries;
+ import io.github.mzmine.datamodel.featuredata.IonMobilitySeries;
+@@ -51,12 +49,14 @@
+ import io.github.mzmine.parameters.ParameterSet;
+ import io.github.mzmine.util.IonMobilityUtils;
+ import io.github.mzmine.util.MemoryMapStorage;
++import it.unimi.dsi.fastutil.doubles.DoubleArrayList;
++import it.unimi.dsi.fastutil.doubles.DoubleImmutableList;
+ import java.lang.foreign.MemorySegment;
+ import java.util.ArrayList;
+ import java.util.Arrays;
++import java.util.Comparator;
+ import java.util.List;
+ import java.util.Map;
+-import java.util.Map.Entry;
+ import java.util.logging.Logger;
+ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+@@ -77,12 +77,14 @@ public class BinningMobilogramDataAccess implements IntensitySeries, MobilitySer
+   private final IMSRawDataFile dataFile;
+ 
+   private final double[] intensities;
+-  private final double[] tempMobilities;
+-  private final double[] tempIntensities;
+   private final double[] mobilities;
+   private final double[] upperBinLimits;
+   private final int binWidth;
+ 
++  // not final: grown on demand if a summed mobilogram with more values than expected is set
++  private double[] tempMobilities;
++  private double[] tempIntensities;
++
+   private final double approximateBinSize;
+ 
+   public BinningMobilogramDataAccess(@NotNull final IMSRawDataFile rawDataFile,
+@@ -91,64 +93,80 @@ public BinningMobilogramDataAccess(@NotNull final IMSRawDataFile rawDataFile,
+       throw new IllegalArgumentException("Illegal bin width (" + binWidth + ")");
+     }
+     dataFile = rawDataFile;
++    this.binWidth = binWidth;
+ 
++    // multiple mobility ranges are possible in tims. in MALDI acquisitions every single frame may
++    // have its own mobility segment, so anything sized by the number of segments has to be avoided.
+     final Map<Frame, Range<Double>> ranges = IonMobilityUtils.getUniqueMobilityRanges(rawDataFile);
+-    // multiple mobility ranges are possible in tims
+-    final int maxMobilityScans =
+-        rawDataFile.getFrames().stream().mapToInt(Frame::getNumberOfMobilityScans).max()
+-            .orElseThrow() * ranges.size();
+-
+-    tempIntensities = new double[maxMobilityScans];
+-    tempMobilities = new double[maxMobilityScans];
+-    this.binWidth = binWidth;
++    final int maxMobilityScans = rawDataFile.getFrames().stream()
++        .mapToInt(Frame::getNumberOfMobilityScans).max().orElseThrow();
+ 
+-    var entries = ranges.entrySet().stream().toList();
+-    List<Double> distinctMobilities = new ArrayList<>();
+     final MobilityType mt = rawDataFile.getMobilityType();
+ 
+-    // find all possible mobility values
+-    for (int j = 0; j < entries.size(); j++) {
+-      final Entry<Frame, Range<Double>> entry = entries.get(j);
+-      final Frame frame = entry.getKey();
+-
+-      for (final MobilityScan scan : frame.getMobilityScans()) {
++    // decision: process the segments starting at the outer end of the mobility axis. The filter
++    // below only ever extends the collected values in one direction, so starting anywhere else
++    // would silently discard everything a later segment adds beyond the first segment's outer limit.
++    // tims mobilities descend with mobility scan number, all other types ascend.
++    final List<Frame> orderedFrames = new ArrayList<>(ranges.keySet());
++    orderedFrames.sort(mt == MobilityType.TIMS //
++        ? Comparator.comparingDouble((Frame f) -> f.getMobilityRange().upperEndpoint()).reversed()
++        : Comparator.comparingDouble((Frame f) -> f.getMobilityRange().lowerEndpoint()));
++
++    final DoubleArrayList distinctMobilities = new DoubleArrayList(
++        orderedFrames.getFirst().getMobilities().size());
++    for (final Frame frame : orderedFrames) {
++      final DoubleImmutableList frameMobilities = frame.getMobilities();
++      if (frameMobilities == null) {
++        continue;
++      }
++      for (int i = 0; i < frameMobilities.size(); i++) {
++        final double mobility = frameMobilities.getDouble(i);
+         if (!distinctMobilities.isEmpty()
+             // either not tims and current mobility > highest mobility
+-            && ((distinctMobilities.get(distinctMobilities.size() - 1) > scan.getMobility()
++            && ((distinctMobilities.getDouble(distinctMobilities.size() - 1) > mobility
+             && mt != MobilityType.TIMS)
+             // or tims and current mobility < lowest mobility
+-            || (distinctMobilities.get(distinctMobilities.size() - 1) < scan.getMobility()
++            || (distinctMobilities.getDouble(distinctMobilities.size() - 1) < mobility
+             && mt == MobilityType.TIMS))) {
+           continue;
+         }
+-        distinctMobilities.add(scan.getMobility());
++        distinctMobilities.add(mobility);
+       }
+     }
+ 
+-    distinctMobilities.sort(Double::compare);
++    // the segment order above guarantees that these span every mobility range of the file: the first
++    // segment contributes all of its values, so the outer limit is the outermost of all segments, and
++    // every later segment extends the opposite end. No value of any frame can fall outside all bins.
++    final double[] sortedMobilities = distinctMobilities.toDoubleArray();
++    Arrays.sort(sortedMobilities);
+ 
+-    final List<Double> upperLimits = new ArrayList<>();
+-    final List<Double> centerBins = new ArrayList<>();
+-    for (int i = 0; i < distinctMobilities.size(); i += binWidth) {
++    final int numBins = (sortedMobilities.length + binWidth - 1) / binWidth;
++    mobilities = new double[numBins];
++    upperBinLimits = new double[numBins];
++    for (int bin = 0; bin < numBins; bin++) {
++      final int i = bin * binWidth;
+ 
+       int currentBins = 0;
+       double summedMobility = 0d;
+-      for (int j = 0; i + j < distinctMobilities.size() && j < binWidth; j++) {
+-        summedMobility += distinctMobilities.get(i + j);
++      for (int j = 0; i + j < sortedMobilities.length && j < binWidth; j++) {
++        summedMobility += sortedMobilities[i + j];
+         currentBins++;
+-        double d = distinctMobilities.get(i + j);
+-//        logger.finest(() -> "Adding " + d + " to bin");
+       }
+-      centerBins.add(summedMobility / Math.max(currentBins, 1));
+-      upperLimits.add(
+-          distinctMobilities.get(Math.min(i + binWidth - 1, distinctMobilities.size() - 1))
+-              + MOBILITY_EPSILON);
++      mobilities[bin] = summedMobility / Math.max(currentBins, 1);
++      upperBinLimits[bin] =
++          sortedMobilities[Math.min(i + binWidth - 1, sortedMobilities.length - 1)]
++              + MOBILITY_EPSILON;
+     }
+ 
+-    mobilities = centerBins.stream().mapToDouble(Double::doubleValue).toArray();
+-    upperBinLimits = upperLimits.stream().mapToDouble(Double::doubleValue).toArray();
+     intensities = new double[mobilities.length];
+ 
++    // the temp arrays only ever hold a single mobilogram (one value per mobility scan of one frame)
++    // or a single summed mobilogram (one value per bin at bin width 1). They are grown on demand in
++    // setMobilogram, so an underestimate here is safe.
++    final int tempSize = Math.max(maxMobilityScans, sortedMobilities.length);
++    tempIntensities = new double[tempSize];
++    tempMobilities = new double[tempSize];
++
+     double previous = mobilities[0];
+     double deltas = 0;
+     for (int i = 1; i < mobilities.length; i++) {
+@@ -156,7 +174,7 @@ public BinningMobilogramDataAccess(@NotNull final IMSRawDataFile rawDataFile,
+       previous = mobilities[i];
+     }
+ 
+-    approximateBinSize = deltas / (mobilities.length - 2);
++    approximateBinSize = deltas / (mobilities.length - 2); // - 2 to slightly overestimate
+     logger.finest(
+         () -> "Bin width set to " + binWidth + " scans. (approximately " + approximateBinSize + " "
+             + rawDataFile.getMobilityType().getUnit() + ")");
+@@ -218,18 +236,18 @@ public static Integer getPreviousBinningWidth(@NotNull final FeatureList flist,
+           case TIMS ->
+               advancedParam.getParameter(AdvancedImsTraceBuilderParameters.timsBinningWidth)
+                   .getValue() ? advancedParam.getParameter(
+-                      AdvancedImsTraceBuilderParameters.timsBinningWidth).getEmbeddedParameter()
+-                  .getValue() : getRecommendedBinWidth(imsFile);
++                  AdvancedImsTraceBuilderParameters.timsBinningWidth).getEmbeddedParameter()
++                                              .getValue() : getRecommendedBinWidth(imsFile);
+           case DRIFT_TUBE ->
+               advancedParam.getParameter(AdvancedImsTraceBuilderParameters.dtimsBinningWidth)
+                   .getValue() ? advancedParam.getParameter(
+-                      AdvancedImsTraceBuilderParameters.dtimsBinningWidth).getEmbeddedParameter()
+-                  .getValue() : getRecommendedBinWidth(imsFile);
++                  AdvancedImsTraceBuilderParameters.dtimsBinningWidth).getEmbeddedParameter()
++                                              .getValue() : getRecommendedBinWidth(imsFile);
+           case TRAVELING_WAVE, SLIM ->
+               advancedParam.getParameter(AdvancedImsTraceBuilderParameters.twimsBinningWidth)
+                   .getValue() ? advancedParam.getParameter(
+-                      AdvancedImsTraceBuilderParameters.twimsBinningWidth).getEmbeddedParameter()
+-                  .getValue() : getRecommendedBinWidth(imsFile);
++                  AdvancedImsTraceBuilderParameters.twimsBinningWidth).getEmbeddedParameter()
++                                              .getValue() : getRecommendedBinWidth(imsFile);
+         };
+         break;
+       }
+@@ -244,18 +262,18 @@ public static Integer getPreviousBinningWidth(@NotNull final FeatureList flist,
+           case TIMS ->
+               advancedParam.getParameter(RecursiveIMSBuilderAdvancedParameters.timsBinningWidth)
+                   .getValue() ? advancedParam.getParameter(
+-                      RecursiveIMSBuilderAdvancedParameters.timsBinningWidth).getEmbeddedParameter()
+-                  .getValue() : getRecommendedBinWidth(imsFile);
++                  RecursiveIMSBuilderAdvancedParameters.timsBinningWidth).getEmbeddedParameter()
++                                              .getValue() : getRecommendedBinWidth(imsFile);
+           case DRIFT_TUBE ->
+               advancedParam.getParameter(RecursiveIMSBuilderAdvancedParameters.dtimsBinningWidth)
+                   .getValue() ? advancedParam.getParameter(
+-                      RecursiveIMSBuilderAdvancedParameters.dtimsBinningWidth).getEmbeddedParameter()
+-                  .getValue() : getRecommendedBinWidth(imsFile);
++                  RecursiveIMSBuilderAdvancedParameters.dtimsBinningWidth).getEmbeddedParameter()
++                                              .getValue() : getRecommendedBinWidth(imsFile);
+           case TRAVELING_WAVE, SLIM ->
+               advancedParam.getParameter(RecursiveIMSBuilderAdvancedParameters.twimsBinningWidth)
+                   .getValue() ? advancedParam.getParameter(
+-                      RecursiveIMSBuilderAdvancedParameters.twimsBinningWidth).getEmbeddedParameter()
+-                  .getValue() : getRecommendedBinWidth(imsFile);
++                  RecursiveIMSBuilderAdvancedParameters.twimsBinningWidth).getEmbeddedParameter()
++                                              .getValue() : getRecommendedBinWidth(imsFile);
+         };
+         break;
+       }
+@@ -278,7 +296,7 @@ public static Integer getPreviousBinningWidth(@NotNull final FeatureList flist,
+         final ParameterSet parameterSet = method.getParameters();
+         binWidth = parameterSet.getParameter(ImsExpanderParameters.mobilogramBinWidth).getValue()
+             ? parameterSet.getParameter(ImsExpanderParameters.mobilogramBinWidth)
+-            .getEmbeddedParameter().getValue() : getRecommendedBinWidth(imsFile);
++              .getEmbeddedParameter().getValue() : getRecommendedBinWidth(imsFile);
+         break;
+       }
+     }
+@@ -294,6 +312,18 @@ private void clearIntensities() {
+     Arrays.fill(intensities, 0d);
+   }
+ 
++  /**
++   * Ensures the temp buffers can hold {@code numValues}. The copy methods of
++   * {@link IntensitySeries} and {@link MobilitySeries} silently allocate a new array if the
++   * destination is too small and return it, so without this the buffers would keep stale data.
++   */
++  private void ensureTempCapacity(final int numValues) {
++    if (tempIntensities.length < numValues) {
++      tempIntensities = new double[numValues];
++      tempMobilities = new double[numValues];
++    }
++  }
++
+   /**
+    * Re-bins an already summed mobilogram. Note that re-binning an already binned mobilogram with a
+    * lower binnign width than before will lead to 0-intensity values. Consider using
+@@ -305,7 +335,7 @@ public void setMobilogram(@NotNull final SummedIntensityMobilitySeries summedMob
+     clearIntensities();
+ 
+     final int numValues = summedMobilogram.getNumberOfValues();
+-    assert numValues <= tempIntensities.length;
++    ensureTempCapacity(numValues);
+ 
+     summedMobilogram.getIntensityValues(tempIntensities);
+     summedMobilogram.getMobilityValues(tempMobilities);
+@@ -345,6 +375,7 @@ public void setMobilogram(@NotNull final List<IonMobilitySeries> mobilograms) {
+ 
+     for (IonMobilitySeries ims : mobilograms) {
+       final int numValues = ims.getNumberOfValues();
++      ensureTempCapacity(numValues);
+       ims.getIntensityValues(tempIntensities);
+ 
+       for (int i = 0; i < numValues; i++) {
+@@ -355,8 +386,8 @@ public void setMobilogram(@NotNull final List<IonMobilitySeries> mobilograms) {
+       final int start = order == 1 ? 0 : numValues - 1;
+       int rawIndex = start;
+ 
+-      boolean[] assigned = new boolean[numValues];
+-      Arrays.fill(assigned, false);
++      // rawIndex only ever moves forward, so counting the additions counts the assigned values
++      int numAssigned = 0;
+ 
+       for (int i = 0; i < upperBinLimits.length && rawIndex >= 0; i++) {
+ 
+@@ -368,14 +399,15 @@ public void setMobilogram(@NotNull final List<IonMobilitySeries> mobilograms) {
+             && tempMobilities[rawIndex] > binStart) {
+ 
+           intensities[i] += tempIntensities[rawIndex];
+-          assigned[rawIndex] = true;
++          numAssigned++;
+           rawIndex += order;
+         }
+       }
+ 
+-      long numAssigned = Booleans.asList(assigned).stream().filter(val -> val).count();
+       if (numAssigned != numValues) {
+-        logger.info("assiged " + numAssigned + "/" + numValues);
++        // happens if a mobilogram uses a mobility segment that extends beyond the binned range
++        final int assigned = numAssigned;
++        logger.finest(() -> "Assigned " + assigned + "/" + numValues + " mobility values to bins.");
+       }
+     }
+   }
+@@ -392,10 +424,14 @@ public SummedIntensityMobilitySeries toSummedMobilogram(@Nullable MemoryMapStora
+         lastNonZero = i;
+       }
+     }
++
++    if (firstNonZero == -1) {
++      return new SummedIntensityMobilitySeries(storage, new double[0], new double[0]);
++    }
+     // first non zero - 1, include one zero.
+     firstNonZero = Math.max(firstNonZero - 1, 0);
+     // last non zero + 2 because Arrays.copyOfRange is exclusive, include one zero.
+-    lastNonZero = Math.min(lastNonZero + 2, mobilities.length - 1);
++    lastNonZero = Math.min(lastNonZero + 2, mobilities.length);
+ 
+     return new SummedIntensityMobilitySeries(storage,
+         Arrays.copyOfRange(mobilities, firstNonZero, lastNonZero),
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/gui/preferences/MZminePreferences.java b/mzmine-community/src/main/java/io/github/mzmine/gui/preferences/MZminePreferences.java
+index 62823945a64..5f54f11976e 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/gui/preferences/MZminePreferences.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/gui/preferences/MZminePreferences.java
+@@ -36,6 +36,7 @@
+ import io.github.mzmine.main.KeepInMemory;
+ import io.github.mzmine.main.MZmineCore;
+ import io.github.mzmine.modules.io.download.AssetGroup;
++import io.github.mzmine.modules.io.import_rawdata_bruker_tdf.datamodel.TdfPressureCompensation;
+ import io.github.mzmine.parameters.Parameter;
+ import io.github.mzmine.parameters.UserParameter;
+ import io.github.mzmine.parameters.dialogs.GroupedParameterSetupDialog;
+@@ -243,6 +244,10 @@ public class MZminePreferences extends SimpleParameterSet {
+       .cloneParameter();
+   public static final BooleanParameter excludeThermoExceptionMasses = VendorImportParameters.excludeThermoExceptionMasses.getEmbeddedParameter()
+       .cloneParameter();
++  public static final ComboParameter<TdfPressureCompensation> brukerPressureComp = VendorImportParameters.applyTimsPressureCompensation.getEmbeddedParameter()
++      .cloneParameter();
++
++
+   public static final HiddenParameter<Boolean> showTempFolderAlert = new HiddenParameter<>(
+       new BooleanParameter("Show temp alert", "Show temp folder alert", true));
+   public static final HiddenParameter<String> username = new HiddenParameter<>(
+@@ -294,7 +299,8 @@ public MZminePreferences() {
+             showTempFolderAlert, username, showQuickStart, siriusCountWarningOptOut,
+             // conversion, data handling
+             applyVendorCentroiding, watersLockmass, massLynxImportChoice, msConvertPath,
+-            keepConvertedFile, thermoRawFileParserPath, excludeThermoExceptionMasses},
++            keepConvertedFile, thermoRawFileParserPath, excludeThermoExceptionMasses,
++            brukerPressureComp},
+         "https://mzmine.github.io/mzmine_documentation/performance.html#preferences");
+ 
+     darkModeProperty.subscribe(state -> {
+@@ -330,7 +336,7 @@ public ExitCode showSetupDialog(boolean valueCheckRequired, String filterParamet
+             imageTransformation, imageNormalization, windowSettings), //
+         new ParameterGroup("MS data import", applyVendorCentroiding, massLynxImportChoice,
+             watersLockmass, msConvertPath, keepConvertedFile, thermoRawFileParserPath,
+-            excludeThermoExceptionMasses) //
++            excludeThermoExceptionMasses, brukerPressureComp) //
+     );
+     // imsModuleWarnings, showTempFolderAlert, showQuickStart  are hidden parameters
+ 
+@@ -566,6 +572,11 @@ public void handleLoadedParameters(final Map<String, Parameter<?>> loadedParams,
+           new ManualProxyConfig(type, address, port, List.of()));
+       ProxyUtils.applyConfig(config);
+     }
++
++    if (!loadedParams.containsKey(brukerPressureComp.getName())) {
++      getParameter(brukerPressureComp).setValue(
++          VendorImportParameters.DEFAULT_PRESSURE_COMPENSATION);
++    }
+   }
+ 
+   private void updateSystemProxySettings() {
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/gui/preferences/VendorImportParameters.java b/mzmine-community/src/main/java/io/github/mzmine/gui/preferences/VendorImportParameters.java
+index 0ed0608e072..45323744501 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/gui/preferences/VendorImportParameters.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/gui/preferences/VendorImportParameters.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -12,6 +12,7 @@
+  *
+  * The above copyright notice and this permission notice shall be
+  * included in all copies or substantial portions of the Software.
++ *
+  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+  * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+@@ -28,11 +29,14 @@
+ import io.github.mzmine.javafx.util.FxIcons;
+ import io.github.mzmine.main.ConfigService;
+ import io.github.mzmine.modules.dataprocessing.filter_scan_signals.ScanSignalRemovalModule;
++import io.github.mzmine.modules.io.import_rawdata_bruker_tdf.datamodel.TdfPressureCompensation;
++import io.github.mzmine.parameters.Parameter;
+ import io.github.mzmine.parameters.impl.SimpleParameterSet;
+ import io.github.mzmine.parameters.parametertypes.BooleanParameter;
+ import io.github.mzmine.parameters.parametertypes.ComboParameter;
+ import io.github.mzmine.parameters.parametertypes.ComponentWrapperParameter;
+ import io.github.mzmine.parameters.parametertypes.submodules.OptionalModuleParameter;
++import java.util.Map;
+ import java.util.function.Supplier;
+ import javafx.scene.Node;
+ import org.jetbrains.annotations.NotNull;
+@@ -45,19 +49,11 @@ public class VendorImportParameters extends SimpleParameterSet {
+           Specify which path you want to use for Thermo raw data import.
+           """, ThermoImportOptions.getOptionsForOs(), DEFAULT_THERMO_IMPORT),
+       createJumpToPrefButton(VendorImportParameters.thermoImportChoice.getName()));*/
+-  // disabled, but moved from preferences. Disabled due to downstream bugs.
+-   /*public static final BooleanParameter applyTimsPressureCompensation = new BooleanParameter(
+-      "Use MALDI-TIMS pressure compensation", """
+-      Specifies if mobility values from Bruker timsTOF fleX MALDI raw data shall be recalibrated using a Bruker algorithm.
+-      This compensation is applied during file import and cannot be applied afterwards.
+-      Will cause additional memory consumption, because every pixel might have it's own mobility calibration (in theory).
+-      In practical cases, this memory consumption is mostly negligible.
+-      """, false);*/
+-
+   public static final MassLynxImportOptions DEFAULT_WATERS_OPTION = MassLynxImportOptions.NATIVE_MZMINE_CENTROIDING;
+   public static final boolean DEFAULT_VENDOR_CENTROIDING = true;
+   public static final boolean DEFAULT_WATERS_LOCKMASS_ENABLED = true;
+   public static final boolean DEFAULT_THERMO_EXCEPTION_SIGNALS = true;
++  public static final TdfPressureCompensation DEFAULT_PRESSURE_COMPENSATION = TdfPressureCompensation.NONE;
+ 
+   private static final String JUMP_TO_PREFERENCE_TOOLTIP = """
+       Open the preference dialog, which controls this parameter for the drag & drop import and the mzwizard.
+@@ -94,9 +90,20 @@ public class VendorImportParameters extends SimpleParameterSet {
+           """.formatted(ScanSignalRemovalModule.MODULE_NAME), DEFAULT_THERMO_EXCEPTION_SIGNALS),
+       createJumpToPrefButton("Remove calibrant signals (Thermo)"));
+ 
++  public static final ComponentWrapperParameter<TdfPressureCompensation, ComboParameter<TdfPressureCompensation>> applyTimsPressureCompensation = new ComponentWrapperParameter<>(
++      new ComboParameter<>("Pressure compensation (Bruker IMS)", """
++          Specifies if mobility values from Bruker timsTOF raw data shall be compensated for pressure changes on import using a Bruker algorithm.
++          This compensation is applied during file import and cannot be applied afterwards.
++          Will cause additional memory consumption, because every frame might have it's own mobility calibration (in theory).
++          In practical cases, this memory consumption is mostly negligible.
++          Usually not required in LC-IMS-MS, especially if the file was already recalibrated.
++          May lead to more stable mobility values in MALDI-IMS mode.
++          """, TdfPressureCompensation.values(), DEFAULT_PRESSURE_COMPENSATION),
++      createJumpToPrefButton("Pressure compensation (Bruker IMS)"));
++
+   public VendorImportParameters() {
+     super(applyVendorCentroiding, excludeThermoExceptionMasses, watersLockmass,
+-        massLynxImportChoice);
++        massLynxImportChoice, applyTimsPressureCompensation);
+   }
+ 
+   private static @NotNull Supplier<Node> createJumpToPrefButton(String preferenceParameterName) {
+@@ -105,8 +112,9 @@ public VendorImportParameters() {
+   }
+ 
+   public static VendorImportParameters create(boolean applyCentroiding,
+-      MassLynxImportOptions massLynxOption, boolean watersLockmassEnabled,
+-      WatersLockmassParameters lockmassParam, boolean removeThermoExceptionMasses) {
++      @NotNull MassLynxImportOptions massLynxOption, boolean watersLockmassEnabled,
++      @NotNull WatersLockmassParameters lockmassParam, boolean removeThermoExceptionMasses,
++      @NotNull TdfPressureCompensation brukerPressureComp) {
+     final VendorImportParameters param = (VendorImportParameters) new VendorImportParameters().cloneParameterSet();
+ 
+     param.setParameter(applyVendorCentroiding, applyCentroiding);
+@@ -114,13 +122,14 @@ public static VendorImportParameters create(boolean applyCentroiding,
+     param.getParameter(watersLockmass).setValue(watersLockmassEnabled);
+     param.getParameter(watersLockmass).getEmbeddedParameter().setEmbeddedParameters(lockmassParam);
+     param.setParameter(excludeThermoExceptionMasses, removeThermoExceptionMasses);
++    param.setParameter(applyTimsPressureCompensation, brukerPressureComp);
+     return param;
+   }
+ 
+   public static VendorImportParameters createDefault() {
+     return create(DEFAULT_VENDOR_CENTROIDING, DEFAULT_WATERS_OPTION,
+         DEFAULT_WATERS_LOCKMASS_ENABLED, WatersLockmassParameters.createDefault(),
+-        DEFAULT_THERMO_EXCEPTION_SIGNALS);
++        DEFAULT_THERMO_EXCEPTION_SIGNALS, DEFAULT_PRESSURE_COMPENSATION);
+   }
+ 
+   /**
+@@ -134,6 +143,17 @@ public static VendorImportParameters createFromPreferences() {
+         preferences.getValue(MZminePreferences.massLynxImportChoice),
+         preferences.getValue(MZminePreferences.watersLockmass),
+         preferences.getParameter(MZminePreferences.watersLockmass).getEmbeddedParameters(),
+-        preferences.getValue(MZminePreferences.excludeThermoExceptionMasses));
++        preferences.getValue(MZminePreferences.excludeThermoExceptionMasses),
++        preferences.getValue(MZminePreferences.brukerPressureComp));
++  }
++
++  @Override
++  public void handleLoadedParameters(Map<String, Parameter<?>> loadedParams, int loadedVersion) {
++    super.handleLoadedParameters(loadedParams, loadedVersion);
++
++    if (!loadedParams.containsKey(applyTimsPressureCompensation.getName())) {
++      getParameter(applyTimsPressureCompensation).getEmbeddedParameter()
++          .setValue(DEFAULT_PRESSURE_COMPENSATION);
++    }
+   }
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_bruker_tdf/TDFImportTask.java b/mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_bruker_tdf/TDFImportTask.java
+index 40c0ddb0093..be06650a0ef 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_bruker_tdf/TDFImportTask.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_bruker_tdf/TDFImportTask.java
+@@ -43,10 +43,13 @@
+ import io.github.mzmine.datamodel.impl.masslist.ScanPointerMassList;
+ import io.github.mzmine.datamodel.msms.IonMobilityMsMsInfo;
+ import io.github.mzmine.datamodel.msms.PasefMsMsInfo;
++import io.github.mzmine.gui.preferences.VendorImportParameters;
+ import io.github.mzmine.main.ConfigService;
+ import io.github.mzmine.modules.MZmineModule;
++import io.github.mzmine.modules.io.import_rawdata_all.AllSpectralDataImportParameters;
+ import io.github.mzmine.modules.io.import_rawdata_all.spectral_processor.ScanImportProcessorConfig;
+ import io.github.mzmine.modules.io.import_rawdata_bruker_tdf.datamodel.BrukerScanMode;
++import io.github.mzmine.modules.io.import_rawdata_bruker_tdf.datamodel.TdfPressureCompensation;
+ import io.github.mzmine.modules.io.import_rawdata_bruker_tdf.datamodel.sql.BuildingPASEFMsMsInfo;
+ import io.github.mzmine.modules.io.import_rawdata_bruker_tdf.datamodel.sql.DiaFrameMsMsInfoTable;
+ import io.github.mzmine.modules.io.import_rawdata_bruker_tdf.datamodel.sql.DiaFrameMsMsWindowTable;
+@@ -120,6 +123,7 @@ public class TDFImportTask extends AbstractTask implements RawDataImportTask {
+   private double finishedPercentage;
+   private double lastFinishedPercentage;
+   private int loadedFrames;
++  private final TdfPressureCompensation applyPressureComp;
+ 
+   /**
+    * Bruker tims format: - Folder - contains multiple files - one folder per analysis - .d extension
+@@ -146,6 +150,8 @@ public TDFImportTask(MZmineProject project, File file, MemoryMapStorage storage,
+     this.scanProcessorConfig = scanProcessorConfig;
+     this.module = module;
+     this.parameters = parameters;
++    this.applyPressureComp = parameters.getParameter(AllSpectralDataImportParameters.vendorOptions)
++        .getEmbeddedParameters().getValue(VendorImportParameters.applyTimsPressureCompensation);
+     setDescription("Importing raw data file %s".formatted(file.getName()));
+   }
+ 
+@@ -263,7 +269,7 @@ public void run() {
+       return;
+     }
+ 
+-    try (final TDFUtils tdfUtils = new TDFUtils()) {
++    try (final TDFUtils tdfUtils = new TDFUtils(applyPressureComp)) {
+ 
+       logger.finest(() -> "Opening tdf file " + tdfBin.getAbsolutePath());
+       final long handle = tdfUtils.openFile(tdfBin);
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_bruker_tdf/TDFUtils.java b/mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_bruker_tdf/TDFUtils.java
+index 0d8e1f4f8bd..cf5bdb96731 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_bruker_tdf/TDFUtils.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_bruker_tdf/TDFUtils.java
+@@ -26,7 +26,6 @@
+ package io.github.mzmine.modules.io.import_rawdata_bruker_tdf;
+ 
+ import com.google.common.collect.Range;
+-import com.sun.jna.Library;
+ import com.sun.jna.Native;
+ import com.sun.jna.Pointer;
+ import io.github.mzmine.datamodel.IMSRawDataFile;
+@@ -41,6 +40,7 @@
+ import io.github.mzmine.modules.io.import_rawdata_all.spectral_processor.SimpleSpectralArrays;
+ import io.github.mzmine.modules.io.import_rawdata_bruker_tdf.datamodel.BrukerScanMode;
+ import io.github.mzmine.modules.io.import_rawdata_bruker_tdf.datamodel.TDFLibrary;
++import io.github.mzmine.modules.io.import_rawdata_bruker_tdf.datamodel.TdfPressureCompensation;
+ import io.github.mzmine.modules.io.import_rawdata_bruker_tdf.datamodel.callbacks.CentroidData;
+ import io.github.mzmine.modules.io.import_rawdata_bruker_tdf.datamodel.callbacks.ProfileData;
+ import io.github.mzmine.modules.io.import_rawdata_bruker_tdf.datamodel.sql.FramePrecursorTable;
+@@ -65,13 +65,10 @@
+ import java.nio.ByteOrder;
+ import java.nio.IntBuffer;
+ import java.nio.charset.StandardCharsets;
+-import java.nio.charset.StandardCharsets;
+ import java.text.NumberFormat;
+ import java.util.ArrayList;
+ import java.util.Arrays;
+-import java.util.HashMap;
+ import java.util.List;
+-import java.util.Map;
+ import java.util.logging.Level;
+ import java.util.logging.Logger;
+ import java.util.regex.Matcher;
+@@ -97,11 +94,16 @@ public class TDFUtils implements AutoCloseable {
+    * the handle of the currently opened file
+    **/
+   private long handle = 0L;
++  private TdfPressureCompensation applyPressureComp = TdfPressureCompensation.NONE;
+ 
+   public TDFUtils() {
+     loadLibrary();
+   }
+ 
++  public TDFUtils(TdfPressureCompensation pressureCompensation) {
++    this();
++    this.applyPressureComp = pressureCompensation;
++  }
+ 
+   /**
+    * Creates an array of the given size and populates it with numbers from 1 to size
+@@ -220,19 +222,13 @@ public long openFile(final File path, final long useRecalibratedState) {
+       return 0L;
+     }
+ 
+-    final Boolean applyPressureComp = false;
+-    // currently disabled as it's not working as expected ~SteffenHeu
+-    /*final Boolean applyPressureComp = MZmineCore.getConfiguration().getPreferences()
+-        .getValue(MZminePreferences.applyTimsPressureCompensation)*/
+-    final int pressureCompensation = applyPressureComp == null || !applyPressureComp ? 0 : 2;
+-
+     logger.finest(() -> "Opening tdf file " + path.getAbsolutePath());
+     final String dirToOpen =
+         path.isFile() ? path.getParentFile().getAbsolutePath() : path.getAbsolutePath();
+ 
+     // UTF8 required to load files from paths with special chars like ü
+     final byte[] fileBytes = Native.toByteArray(dirToOpen, StandardCharsets.UTF_8);
+-    handle = tdfLib.tims_open_v2(fileBytes, useRecalibratedState, pressureCompensation);
++    handle = tdfLib.tims_open_v2(fileBytes, useRecalibratedState, applyPressureComp.mode());
+ 
+     if (handle == 0) {
+       printLastError(0).throwOnError();
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_bruker_tdf/datamodel/TdfPressureCompensation.java b/mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_bruker_tdf/datamodel/TdfPressureCompensation.java
+new file mode 100644
+index 00000000000..7e09cc812d3
+--- /dev/null
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_bruker_tdf/datamodel/TdfPressureCompensation.java
+@@ -0,0 +1,52 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.io.import_rawdata_bruker_tdf.datamodel;
++
++/**
++ * pressure compensation for tdf raw data to compensate for pressure changes in the mobility
++ * calibration.
++ */
++public enum TdfPressureCompensation {
++  NONE, GLOBAL, FRAME;
++
++  public int mode() {
++    return switch (this) {
++      case NONE -> 0;
++      case GLOBAL -> 1;
++      case FRAME -> 2;
++    };
++  }
++
++
++  @Override
++  public String toString() {
++    return switch (this) {
++      case NONE -> "No compensation";
++      case GLOBAL -> "Global (single, file wide)";
++      case FRAME -> "Frame (each frame individually)";
++    };
++  }
++}
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/util/IonMobilityUtils.java b/mzmine-community/src/main/java/io/github/mzmine/util/IonMobilityUtils.java
+index 1481623aa50..fa565512fb7 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/util/IonMobilityUtils.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/util/IonMobilityUtils.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2024 The MZmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -55,9 +55,11 @@
+ import java.awt.geom.Point2D;
+ import java.util.Arrays;
+ import java.util.Collection;
++import java.util.HashSet;
+ import java.util.LinkedHashMap;
+ import java.util.List;
+ import java.util.Map;
++import java.util.Set;
+ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+ 
+@@ -88,13 +90,17 @@ public static double getSmallestMobilityDelta(Frame frame) {
+    */
+   public static Map<Frame, Range<Double>> getUniqueMobilityRanges(
+       @NotNull final IMSRawDataFile file) {
+-    Map<Frame, Range<Double>> ranges = new LinkedHashMap<>();
++    final Map<Frame, Range<Double>> ranges = new LinkedHashMap<>();
++    // separate set for the duplicate check: Map#containsValue is a linear scan, which would make
++    // this quadratic in the number of segments. MALDI files may have one segment per frame.
++    final Set<Range<Double>> distinctRanges = new HashSet<>();
+     for (Frame frame : file.getFrames()) {
+-      if (frame.getMobilityRange().isEmpty() || frame.getMobilities().size() <= 1) {
++      final Range<Double> mobilityRange = frame.getMobilityRange();
++      if (mobilityRange.isEmpty() || frame.getMobilities().size() <= 1) {
+         continue;
+       }
+-      if (!ranges.containsValue(frame.getMobilityRange())) {
+-        ranges.put(frame, frame.getMobilityRange());
++      if (distinctRanges.add(mobilityRange)) {
++        ranges.put(frame, mobilityRange);
+       }
+     }
+     return ranges;
+diff --git a/mzmine-community/src/test/java/import_data/MassLynxImportTest.java b/mzmine-community/src/test/java/import_data/MassLynxImportTest.java
+index fb8fa2ebff0..3d4afaee5e5 100644
+--- a/mzmine-community/src/test/java/import_data/MassLynxImportTest.java
++++ b/mzmine-community/src/test/java/import_data/MassLynxImportTest.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -12,6 +12,7 @@
+  *
+  * The above copyright notice and this permission notice shall be
+  * included in all copies or substantial portions of the Software.
++ *
+  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+  * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+@@ -60,7 +61,8 @@ static void init() {
+   public AllSpectralDataImportParameters generateWatersCentroidingParam(File file) {
+     VendorImportParameters vendorParam = VendorImportParameters.create(true,
+         MassLynxImportOptions.NATIVE_WATERS_CENTROIDING, true,
+-        WatersLockmassParameters.createDefault(), true);
++        WatersLockmassParameters.createDefault(), true,
++        VendorImportParameters.DEFAULT_PRESSURE_COMPENSATION);
+     return (AllSpectralDataImportParameters) AllSpectralDataImportParameters.create(vendorParam,
+         new File[]{file}, null, null);
+   }
+@@ -68,7 +70,8 @@ public AllSpectralDataImportParameters generateWatersCentroidingParam(File file)
+   public AllSpectralDataImportParameters generateMzmineCentroidingParam(File file) {
+     VendorImportParameters vendorParam = VendorImportParameters.create(true,
+         MassLynxImportOptions.NATIVE_MZMINE_CENTROIDING, true,
+-        WatersLockmassParameters.createDefault(), true);
++        WatersLockmassParameters.createDefault(), true,
++        VendorImportParameters.DEFAULT_PRESSURE_COMPENSATION);
+     return (AllSpectralDataImportParameters) AllSpectralDataImportParameters.create(vendorParam,
+         new File[]{file}, null, null);
+   }
+@@ -76,7 +79,8 @@ public AllSpectralDataImportParameters generateMzmineCentroidingParam(File file)
+   public AllSpectralDataImportParameters generateProfileImportParamMzmine(File file) {
+     VendorImportParameters vendorParam = VendorImportParameters.create(false,
+         MassLynxImportOptions.NATIVE_MZMINE_CENTROIDING, true,
+-        WatersLockmassParameters.createDefault(), true);
++        WatersLockmassParameters.createDefault(), true,
++        VendorImportParameters.DEFAULT_PRESSURE_COMPENSATION);
+     return (AllSpectralDataImportParameters) AllSpectralDataImportParameters.create(vendorParam,
+         new File[]{file}, null, null);
+   }
+@@ -84,7 +88,8 @@ public AllSpectralDataImportParameters generateProfileImportParamMzmine(File fil
+   public AllSpectralDataImportParameters generateProfileImportParamWaters(File file) {
+     VendorImportParameters vendorParam = VendorImportParameters.create(false,
+         MassLynxImportOptions.NATIVE_WATERS_CENTROIDING, true,
+-        WatersLockmassParameters.createDefault(), true);
++        WatersLockmassParameters.createDefault(), true,
++        VendorImportParameters.DEFAULT_PRESSURE_COMPENSATION);
+     return (AllSpectralDataImportParameters) AllSpectralDataImportParameters.create(vendorParam,
+         new File[]{file}, null, null);
+   }
+@@ -92,7 +97,8 @@ public AllSpectralDataImportParameters generateProfileImportParamWaters(File fil
+   public AllSpectralDataImportParameters generateProfileImportAdvancedExactMass(File file) {
+     VendorImportParameters vendorParam = VendorImportParameters.create(false,
+         MassLynxImportOptions.NATIVE_MZMINE_CENTROIDING, true,
+-        WatersLockmassParameters.createDefault(), true);
++        WatersLockmassParameters.createDefault(), true,
++        VendorImportParameters.DEFAULT_PRESSURE_COMPENSATION);
+ 
+     final var param = (ExactMassDetectorParameters) new ExactMassDetectorParameters().cloneParameterSet();
+     param.setParameter(ExactMassDetectorParameters.noiseLevel, 0d);
+diff --git a/mzmine-community/src/test/java/import_data/speed/ImportSpeedTestMain.java b/mzmine-community/src/test/java/import_data/speed/ImportSpeedTestMain.java
+index bb31d5cb36a..a9085cee116 100644
+--- a/mzmine-community/src/test/java/import_data/speed/ImportSpeedTestMain.java
++++ b/mzmine-community/src/test/java/import_data/speed/ImportSpeedTestMain.java
+@@ -165,7 +165,8 @@ public static TaskResult importFiles(final List<String> fileNames, long timeoutS
+ 
+     ParameterSet paramDataImport = AllSpectralDataImportParameters.create(
+         VendorImportParameters.create(true, MassLynxImportOptions.NATIVE_MZMINE_CENTROIDING, true,
+-            WatersLockmassParameters.createDefault(), true), files, null, null, advanced);
++            WatersLockmassParameters.createDefault(), true,
++            VendorImportParameters.DEFAULT_PRESSURE_COMPENSATION), files, null, null, advanced);
+ 
+     logger.info("Testing data import of mzML and mzXML without advanced parameters");
+ 
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/datamodel/data_access/BinningMobilogramDataAccessMultiSegmentTest.java b/mzmine-community/src/test/java/io/github/mzmine/datamodel/data_access/BinningMobilogramDataAccessMultiSegmentTest.java
+new file mode 100644
+index 00000000000..975155df65e
+--- /dev/null
++++ b/mzmine-community/src/test/java/io/github/mzmine/datamodel/data_access/BinningMobilogramDataAccessMultiSegmentTest.java
+@@ -0,0 +1,150 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.datamodel.data_access;
++
++import com.google.common.collect.Range;
++import io.github.mzmine.datamodel.Frame;
++import io.github.mzmine.datamodel.IMSRawDataFile;
++import io.github.mzmine.datamodel.MobilityScan;
++import io.github.mzmine.datamodel.featuredata.IonMobilitySeries;
++import io.github.mzmine.datamodel.featuredata.impl.SimpleIonMobilitySeries;
++import io.github.mzmine.modules.io.import_rawdata_bruker_tdf.datamodel.TdfPressureCompensation;
++import io.github.mzmine.project.ProjectService;
++import io.github.mzmine.util.IonMobilityUtils;
++import java.util.ArrayList;
++import java.util.Arrays;
++import java.util.List;
++import java.util.logging.Logger;
++import org.jetbrains.annotations.NotNull;
++import org.junit.jupiter.api.AfterAll;
++import org.junit.jupiter.api.Assertions;
++import org.junit.jupiter.api.BeforeAll;
++import org.junit.jupiter.api.DisplayName;
++import org.junit.jupiter.api.Test;
++import org.junit.jupiter.api.TestInstance;
++import org.junit.jupiter.api.TestInstance.Lifecycle;
++import org.junit.jupiter.api.condition.DisabledOnOs;
++import org.junit.jupiter.api.condition.OS;
++import testutils.MZmineTestUtil;
++
++/**
++ * Tests {@link BinningMobilogramDataAccess} on a file with multiple mobility segments.
++ * {@code lc-tims-ms-pasef-a.d} changes its mobility window at frame #33, so it has at least two
++ * segments regardless of whether per-frame pressure compensation is enabled during import.
++ * <p>
++ * The central guarantee here: every mobility value of every frame must be assigned to a bin. Values
++ * that fall outside all bins lose their intensity silently, which shows up as a signal drop at the
++ * edge of a mobilogram.
++ */
++@TestInstance(Lifecycle.PER_CLASS)
++@DisabledOnOs(OS.MAC)
++public class BinningMobilogramDataAccessMultiSegmentTest {
++
++  private static final Logger logger = Logger.getLogger(
++      BinningMobilogramDataAccessMultiSegmentTest.class.getName());
++
++  private static final String TEST_FILE = "rawdatafiles/additional/lc-tims-ms-pasef-a.d";
++
++  private IMSRawDataFile file;
++
++  /**
++   * One representative frame per mobility segment.
++   */
++  private List<Frame> segmentFrames;
++
++  @BeforeAll
++  public void initialize() throws InterruptedException {
++    MZmineTestUtil.startMzmineCore();
++    MZmineTestUtil.cleanProject();
++    // import without pressure compensation, so the file has exactly the two segments of its own
++    // acquisition and the segment count does not depend on the vendor option default
++    MZmineTestUtil.importFiles(List.of(TEST_FILE), 360,
++        VendorImportParametersTestUtils.withPressureCompensation(TdfPressureCompensation.NONE),
++        null);
++
++    file = (IMSRawDataFile) ProjectService.getProject().getCurrentRawDataFiles().stream()
++        .filter(IMSRawDataFile.class::isInstance).findFirst()
++        .orElseThrow(() -> new IllegalStateException("Did not import an IMS raw data file."));
++
++    segmentFrames = new ArrayList<>(IonMobilityUtils.getUniqueMobilityRanges(file).keySet());
++    logger.info(() -> "Segments: " + segmentFrames.size() + " " + segmentFrames.stream()
++        .map(f -> "#" + f.getFrameId() + f.getMobilityRange()).toList());
++  }
++
++  @AfterAll
++  public void tearDown() {
++    MZmineTestUtil.cleanProject();
++  }
++
++  @NotNull
++  private static IonMobilitySeries unitMobilogram(@NotNull final Frame frame) {
++    final List<MobilityScan> scans = new ArrayList<>(frame.getMobilityScans());
++    final double[] mzs = new double[scans.size()];
++    Arrays.fill(mzs, 500d);
++    final double[] intensities = new double[scans.size()];
++    Arrays.fill(intensities, 1d);
++    return new SimpleIonMobilitySeries(null, mzs, intensities, scans);
++  }
++
++  @Test
++  @DisplayName("The test file really has more than one mobility segment")
++  void fileHasMultipleSegments() {
++    Assertions.assertTrue(segmentFrames.size() > 1,
++        "Expected " + TEST_FILE + " to contain multiple mobility segments, found "
++            + segmentFrames.size());
++  }
++
++  @Test
++  @DisplayName("The bins span the mobility range of every segment")
++  void binsSpanEverySegmentRange() {
++    final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, 1);
++    final double[] bins = access.getMobilityValues();
++    final Range<Double> binned = Range.closed(bins[0], bins[bins.length - 1]);
++
++    for (final Frame frame : segmentFrames) {
++      final Range<Double> segment = frame.getMobilityRange();
++      Assertions.assertTrue(binned.encloses(segment),
++          "bins " + binned + " do not enclose segment of frame #" + frame.getFrameId() + " "
++              + segment);
++    }
++  }
++
++  @Test
++  @DisplayName("No intensity is lost for any segment, at any bin width")
++  void noIntensityIsLostForAnySegment() {
++    for (final int binWidth : new int[]{1, 2, 3, 5, 7, 10,
++        BinningMobilogramDataAccess.getRecommendedBinWidth(file)}) {
++      final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, binWidth);
++
++      for (final Frame frame : segmentFrames) {
++        access.setMobilogram(List.of(unitMobilogram(frame)));
++        Assertions.assertEquals(frame.getNumberOfMobilityScans(),
++            Arrays.stream(access.getIntensityValues()).sum(), 1E-9,
++            "intensity lost for frame #" + frame.getFrameId() + " at bin width " + binWidth);
++      }
++    }
++  }
++}
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/datamodel/data_access/BinningMobilogramDataAccessTdfTest.java b/mzmine-community/src/test/java/io/github/mzmine/datamodel/data_access/BinningMobilogramDataAccessTdfTest.java
+new file mode 100644
+index 00000000000..66e826502a9
+--- /dev/null
++++ b/mzmine-community/src/test/java/io/github/mzmine/datamodel/data_access/BinningMobilogramDataAccessTdfTest.java
+@@ -0,0 +1,220 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.datamodel.data_access;
++
++import io.github.mzmine.datamodel.Frame;
++import io.github.mzmine.datamodel.IMSRawDataFile;
++import io.github.mzmine.datamodel.MobilityScan;
++import io.github.mzmine.datamodel.MobilityType;
++import io.github.mzmine.datamodel.featuredata.IonMobilitySeries;
++import io.github.mzmine.datamodel.featuredata.impl.SimpleIonMobilitySeries;
++import io.github.mzmine.modules.io.import_rawdata_bruker_tdf.datamodel.TdfPressureCompensation;
++import io.github.mzmine.project.ProjectService;
++import io.github.mzmine.util.IonMobilityUtils;
++import it.unimi.dsi.fastutil.doubles.DoubleImmutableList;
++import java.util.ArrayList;
++import java.util.Arrays;
++import java.util.List;
++import java.util.logging.Logger;
++import org.jetbrains.annotations.NotNull;
++import org.junit.jupiter.api.AfterAll;
++import org.junit.jupiter.api.Assertions;
++import org.junit.jupiter.api.BeforeAll;
++import org.junit.jupiter.api.DisplayName;
++import org.junit.jupiter.api.Test;
++import org.junit.jupiter.api.TestInstance;
++import org.junit.jupiter.api.TestInstance.Lifecycle;
++import org.junit.jupiter.api.condition.DisabledOnOs;
++import org.junit.jupiter.api.condition.OS;
++import testutils.MZmineTestUtil;
++
++/**
++ * Characterises {@link BinningMobilogramDataAccess} on a real, "regular" timsTOF file, i.e. a file
++ * that only contains a single mobility segment. Complements
++ * {@link BinningMobilogramDataAccessTest}, which uses synthetic files.
++ * <p>
++ * These tests are the baseline for upcoming changes that have to deal with files containing
++ * multiple largely differing mobility segments or per-frame pressure recalibration.
++ */
++@TestInstance(Lifecycle.PER_CLASS)
++@DisabledOnOs(OS.MAC)
++public class BinningMobilogramDataAccessTdfTest {
++
++  private static final Logger logger = Logger.getLogger(
++      BinningMobilogramDataAccessTdfTest.class.getName());
++
++  /**
++   * All 60 frames of this file share the exact same mobility values, so it only contains a single
++   * mobility segment. Note that {@code lc-tims-ms-pasef-a.d} is deliberately not used here: it
++   * switches the mobility range at frame #33 and therefore contains two segments.
++   */
++  private static final String TEST_FILE = "rawdatafiles/additional/lc-tims-ms-pasef-b.d";
++
++  private static final double DELTA = 1E-9;
++
++  private IMSRawDataFile file;
++
++  /**
++   * The frame the bins are derived from: the first frame of the single unique mobility range.
++   */
++  private Frame referenceFrame;
++
++  @BeforeAll
++  public void initialize() throws InterruptedException {
++    MZmineTestUtil.startMzmineCore();
++    MZmineTestUtil.cleanProject();
++    // import without pressure compensation, which would give every frame block its own mobility
++    // grid and remove the single-segment premise of every test below
++    MZmineTestUtil.importFiles(List.of(TEST_FILE), 360,
++        VendorImportParametersTestUtils.withPressureCompensation(TdfPressureCompensation.NONE),
++        null);
++
++    file = (IMSRawDataFile) ProjectService.getProject().getCurrentRawDataFiles().stream()
++        .filter(IMSRawDataFile.class::isInstance).findFirst()
++        .orElseThrow(() -> new IllegalStateException("Did not import an IMS raw data file."));
++
++    referenceFrame = IonMobilityUtils.getUniqueMobilityRanges(file).keySet().iterator().next();
++    logger.info(() -> "Using frame #" + referenceFrame.getFrameId() + " with "
++        + referenceFrame.getNumberOfMobilityScans() + " mobility scans as reference.");
++  }
++
++  @AfterAll
++  public void tearDown() {
++    MZmineTestUtil.cleanProject();
++  }
++
++  /**
++   * @return The mobility values of {@link #referenceFrame}, sorted ascending.
++   */
++  @NotNull
++  private double[] sortedReferenceMobilities() {
++    final double[] mobilities = referenceFrame.getMobilities().toDoubleArray();
++    Arrays.sort(mobilities);
++    return mobilities;
++  }
++
++  /**
++   * Creates a mobilogram over all mobility scans of {@link #referenceFrame}.
++   *
++   * @param intensities One intensity per mobility scan, in mobility scan order.
++   */
++  @NotNull
++  private IonMobilitySeries createFullFrameMobilogram(@NotNull final double[] intensities) {
++    final List<MobilityScan> scans = new ArrayList<>(referenceFrame.getMobilityScans());
++    final double[] mzs = new double[scans.size()];
++    Arrays.fill(mzs, 500d);
++    return new SimpleIonMobilitySeries(null, mzs, intensities, scans);
++  }
++
++  // ---------------------------------------------------------------------------------------------
++  // preconditions: this is a "regular" file
++  // ---------------------------------------------------------------------------------------------
++
++  @Test
++  @DisplayName("The test file is a regular TIMS file with a single mobility segment")
++  void testFileHasSingleMobilitySegment() {
++    Assertions.assertEquals(MobilityType.TIMS, file.getMobilityType());
++    Assertions.assertEquals(1, IonMobilityUtils.getUniqueMobilityRanges(file).size(),
++        "The test file is expected to contain exactly one unique mobility range.");
++
++    // every frame shares the exact same mobility values -> a single segment
++    final DoubleImmutableList reference = referenceFrame.getMobilities();
++    Assertions.assertNotNull(reference);
++    for (final Frame frame : file.getFrames()) {
++      Assertions.assertEquals(reference, frame.getMobilities(),
++          "Frame #" + frame.getFrameId() + " uses different mobility values.");
++    }
++  }
++
++  // ---------------------------------------------------------------------------------------------
++  // bin creation
++  // ---------------------------------------------------------------------------------------------
++
++  @Test
++  @DisplayName("Bin width 1 creates one ascending bin per raw mobility value")
++  void binWidthOneMirrorsTheRawMobilityValues() {
++    final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, 1);
++    final double[] expected = sortedReferenceMobilities();
++
++    Assertions.assertEquals(expected.length, access.getNumberOfValues());
++    Assertions.assertArrayEquals(expected, access.getMobilityValues(), DELTA);
++  }
++
++  // ---------------------------------------------------------------------------------------------
++  // binning of mobilograms
++  // ---------------------------------------------------------------------------------------------
++
++  @Test
++  @DisplayName("Every bin receives signal and no intensity is lost if all mobility scans contribute")
++  void noEmptyBinsAndNoIntensityLoss() {
++    final int numMobilities = referenceFrame.getMobilities().size();
++    final double[] intensities = new double[numMobilities];
++    Arrays.fill(intensities, 1d);
++    final IonMobilitySeries mobilogram = createFullFrameMobilogram(intensities);
++
++    for (final int binWidth : new int[]{1, 2, 3, 5, 7, 10, 16,
++        BinningMobilogramDataAccess.getRecommendedBinWidth(file)}) {
++      final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, binWidth);
++      access.setMobilogram(List.of(mobilogram));
++
++      final double[] binned = access.getIntensityValues();
++      Assertions.assertEquals(numMobilities, Arrays.stream(binned).sum(), DELTA,
++          "intensity lost for bin width " + binWidth);
++      for (int i = 0; i < binned.length; i++) {
++        Assertions.assertTrue(binned[i] > 0d,
++            "bin " + i + "/" + binned.length + " is empty for bin width " + binWidth
++                + " although every mobility value carries intensity");
++      }
++    }
++  }
++
++  @Test
++  @DisplayName("The raw TIC of a frame is preserved by the binning")
++  void rawFrameTicIsPreserved() {
++    final List<MobilityScan> scans = referenceFrame.getMobilityScans();
++    final double[] intensities = new double[scans.size()];
++    for (int i = 0; i < scans.size(); i++) {
++      final MobilityScan scan = scans.get(i);
++      double tic = 0d;
++      for (int j = 0; j < scan.getNumberOfDataPoints(); j++) {
++        tic += scan.getIntensityValue(j);
++      }
++      intensities[i] = tic;
++    }
++    final double expectedSum = Arrays.stream(intensities).sum();
++    Assertions.assertTrue(expectedSum > 0d, "the reference frame does not contain any signal");
++
++    final IonMobilitySeries mobilogram = createFullFrameMobilogram(intensities);
++    for (final int binWidth : new int[]{1, 2, 5,
++        BinningMobilogramDataAccess.getRecommendedBinWidth(file)}) {
++      final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, binWidth);
++      access.setMobilogram(List.of(mobilogram));
++
++      Assertions.assertEquals(expectedSum, Arrays.stream(access.getIntensityValues()).sum(),
++          expectedSum * 1E-12, "TIC not preserved for bin width " + binWidth);
++    }
++  }
++}
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/datamodel/data_access/BinningMobilogramDataAccessTest.java b/mzmine-community/src/test/java/io/github/mzmine/datamodel/data_access/BinningMobilogramDataAccessTest.java
+new file mode 100644
+index 00000000000..07244cf46a2
+--- /dev/null
++++ b/mzmine-community/src/test/java/io/github/mzmine/datamodel/data_access/BinningMobilogramDataAccessTest.java
+@@ -0,0 +1,588 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.datamodel.data_access;
++
++import com.google.common.collect.Range;
++import io.github.mzmine.datamodel.Frame;
++import io.github.mzmine.datamodel.IMSRawDataFile;
++import io.github.mzmine.datamodel.MassSpectrumType;
++import io.github.mzmine.datamodel.MobilityScan;
++import io.github.mzmine.datamodel.MobilityType;
++import io.github.mzmine.datamodel.PolarityType;
++import io.github.mzmine.datamodel.featuredata.IonMobilitySeries;
++import io.github.mzmine.datamodel.featuredata.impl.SimpleIonMobilitySeries;
++import io.github.mzmine.datamodel.featuredata.impl.SummedIntensityMobilitySeries;
++import io.github.mzmine.datamodel.impl.BuildingMobilityScan;
++import io.github.mzmine.datamodel.impl.SimpleFrame;
++import io.github.mzmine.project.impl.IMSRawDataFileImpl;
++import java.util.ArrayList;
++import java.util.Arrays;
++import java.util.List;
++import javafx.scene.paint.Color;
++import org.jetbrains.annotations.NotNull;
++import org.junit.jupiter.api.Assertions;
++import org.junit.jupiter.api.DisplayName;
++import org.junit.jupiter.api.Test;
++
++/**
++ * Characterises the binning of {@link BinningMobilogramDataAccess} for "regular" ion mobility
++ * files, i.e. files in which every frame shares the very same set of mobility values (a single
++ * mobility segment). These tests are the baseline for upcoming changes that have to deal with files
++ * containing multiple, largely differing mobility segments or per-frame pressure recalibration.
++ * <p>
++ * Multi-segment behaviour that does not need a vendor file is covered here too, see
++ * {@link #timsSegmentReachingHigherThanTheFirstLosesNoIntensity()}.
++ */
++public class BinningMobilogramDataAccessTest {
++
++  /**
++   * Mobility values of a synthetic drift tube file, ascending with mobility scan number. Chosen so
++   * that all expected bin centers are exactly writable decimals.
++   */
++  private static final double[] DTIMS_MOBILITIES = new double[]{0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1,
++      1.2, 1.3, 1.4, 1.5, 1.6};
++
++  /**
++   * The same values as {@link #DTIMS_MOBILITIES}, but descending with mobility scan number as it is
++   * the case for TIMS data.
++   */
++  private static final double[] TIMS_MOBILITIES = reversed(DTIMS_MOBILITIES);
++
++  private static final double DELTA = 1E-9;
++
++  private static double[] reversed(@NotNull final double[] values) {
++    final double[] result = new double[values.length];
++    for (int i = 0; i < values.length; i++) {
++      result[i] = values[values.length - 1 - i];
++    }
++    return result;
++  }
++
++  /**
++   * Creates a file in which every frame uses the exact same mobility values, so only a single
++   * mobility segment and a single unique mobility range exist.
++   *
++   * @param mobilityType The mobility type of all frames.
++   * @param mobilities   The mobility values in mobility scan order.
++   * @param numFrames    The number of frames to create.
++   */
++  @NotNull
++  private static IMSRawDataFile createSingleSegmentFile(@NotNull final MobilityType mobilityType,
++      @NotNull final double[] mobilities, final int numFrames) {
++    final IMSRawDataFile file = new IMSRawDataFileImpl("single segment test file", null, null,
++        Color.BLACK);
++
++    for (int frameIndex = 0; frameIndex < numFrames; frameIndex++) {
++      final SimpleFrame frame = new SimpleFrame(file, frameIndex + 1, 1, frameIndex,
++          new double[]{100d}, new double[]{1d}, MassSpectrumType.CENTROIDED, PolarityType.POSITIVE,
++          "", Range.closed(100d, 1000d), mobilityType, null, null);
++
++      // mobilities first, so the mobility scan count is validated against them
++      frame.setMobilities(mobilities);
++
++      final List<BuildingMobilityScan> scans = new ArrayList<>();
++      for (int i = 0; i < mobilities.length; i++) {
++        scans.add(new BuildingMobilityScan(i, new double[]{100d, 200d}, new double[]{1d, 2d},
++            MassSpectrumType.CENTROIDED));
++      }
++      frame.setMobilityScans(scans, false);
++
++      file.addScan(frame);
++    }
++    return file;
++  }
++
++  /**
++   * Creates a file with one frame per given mobility array, i.e. one mobility segment per frame, in
++   * exactly the given order.
++   *
++   * @param mobilityType       The mobility type of all frames.
++   * @param mobilitiesPerFrame The mobility values of each frame, in mobility scan order.
++   */
++  @NotNull
++  private static IMSRawDataFile createMultiSegmentFile(@NotNull final MobilityType mobilityType,
++      @NotNull final List<double[]> mobilitiesPerFrame) {
++    final IMSRawDataFile file = new IMSRawDataFileImpl("multi segment test file", null, null,
++        Color.BLACK);
++
++    for (int frameIndex = 0; frameIndex < mobilitiesPerFrame.size(); frameIndex++) {
++      final double[] mobilities = mobilitiesPerFrame.get(frameIndex);
++      final SimpleFrame frame = new SimpleFrame(file, frameIndex + 1, 1, frameIndex,
++          new double[]{100d}, new double[]{1d}, MassSpectrumType.CENTROIDED, PolarityType.POSITIVE,
++          "", Range.closed(100d, 1000d), mobilityType, null, null);
++
++      frame.setMobilities(mobilities);
++
++      final List<BuildingMobilityScan> scans = new ArrayList<>();
++      for (int i = 0; i < mobilities.length; i++) {
++        scans.add(new BuildingMobilityScan(i, new double[]{100d, 200d}, new double[]{1d, 2d},
++            MassSpectrumType.CENTROIDED));
++      }
++      frame.setMobilityScans(scans, false);
++
++      file.addScan(frame);
++    }
++    return file;
++  }
++
++  /**
++   * @param intensities One intensity per mobility scan of the frame, in mobility scan order.
++   */
++  @NotNull
++  private static IonMobilitySeries createMobilogram(@NotNull final Frame frame,
++      @NotNull final double[] intensities) {
++    return createMobilogram(frame, 0, frame.getNumberOfMobilityScans(), intensities);
++  }
++
++  /**
++   * @param fromScan    First mobility scan index (inclusive) the mobilogram covers.
++   * @param toScan      Last mobility scan index (exclusive) the mobilogram covers.
++   * @param intensities One intensity per covered mobility scan.
++   */
++  @NotNull
++  private static IonMobilitySeries createMobilogram(@NotNull final Frame frame, final int fromScan,
++      final int toScan, @NotNull final double[] intensities) {
++    final List<MobilityScan> scans = new ArrayList<>(
++        frame.getMobilityScans().subList(fromScan, toScan));
++    final double[] mzs = new double[scans.size()];
++    Arrays.fill(mzs, 500d);
++    return new SimpleIonMobilitySeries(null, mzs, intensities, scans);
++  }
++
++  private static double[] ascendingIntensities(final int numValues) {
++    final double[] intensities = new double[numValues];
++    for (int i = 0; i < numValues; i++) {
++      intensities[i] = i + 1;
++    }
++    return intensities;
++  }
++
++  // ---------------------------------------------------------------------------------------------
++  // preconditions of a "regular" file
++  // ---------------------------------------------------------------------------------------------
++
++  @Test
++  void illegalBinWidthThrows() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.DRIFT_TUBE, DTIMS_MOBILITIES,
++        1);
++
++    Assertions.assertThrows(IllegalArgumentException.class,
++        () -> new BinningMobilogramDataAccess(file, 0));
++    Assertions.assertThrows(IllegalArgumentException.class,
++        () -> new BinningMobilogramDataAccess(file, -1));
++  }
++
++  // ---------------------------------------------------------------------------------------------
++  // bin creation
++  // ---------------------------------------------------------------------------------------------
++
++  @Test
++  @DisplayName("Bin width 1 keeps every raw mobility value as its own bin (DTIMS)")
++  void binWidthOneKeepsRawMobilitiesDtims() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.DRIFT_TUBE, DTIMS_MOBILITIES,
++        3);
++    final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, 1);
++
++    Assertions.assertEquals(DTIMS_MOBILITIES.length, access.getNumberOfValues());
++    Assertions.assertArrayEquals(DTIMS_MOBILITIES, access.getMobilityValues(), DELTA);
++  }
++
++  @Test
++  @DisplayName("Bin width 1 sorts the descending TIMS mobilities ascending")
++  void binWidthOneKeepsRawMobilitiesTims() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.TIMS, TIMS_MOBILITIES, 3);
++    final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, 1);
++
++    Assertions.assertEquals(TIMS_MOBILITIES.length, access.getNumberOfValues());
++    // bins are always ascending, independent of the raw acquisition order
++    Assertions.assertArrayEquals(DTIMS_MOBILITIES, access.getMobilityValues(), DELTA);
++  }
++
++  @Test
++  @DisplayName("Bin centers are the arithmetic mean of the contained raw mobilities")
++  void binCentersAreMeanOfContainedMobilities() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.DRIFT_TUBE, DTIMS_MOBILITIES,
++        3);
++
++    final BinningMobilogramDataAccess width2 = new BinningMobilogramDataAccess(file, 2);
++    Assertions.assertArrayEquals(new double[]{0.55, 0.75, 0.95, 1.15, 1.35, 1.55},
++        width2.getMobilityValues(), DELTA);
++
++    final BinningMobilogramDataAccess width3 = new BinningMobilogramDataAccess(file, 3);
++    Assertions.assertArrayEquals(new double[]{0.6, 0.9, 1.2, 1.5}, width3.getMobilityValues(),
++        DELTA);
++  }
++
++  @Test
++  @DisplayName("A trailing bin that is not completely filled only averages the values it contains")
++  void trailingPartialBinAveragesOnlyItsOwnValues() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.DRIFT_TUBE, DTIMS_MOBILITIES,
++        1);
++    // 12 values / 5 -> bins of 5, 5 and 2 values
++    final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, 5);
++
++    Assertions.assertEquals(3, access.getNumberOfValues());
++    Assertions.assertArrayEquals(new double[]{0.7, 1.2, 1.55}, access.getMobilityValues(), DELTA);
++  }
++
++  @Test
++  @DisplayName("The number of bins is ceil(numMobilityValues / binWidth) for a single segment")
++  void binCountIsCeilDivisionOfMobilityCount() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.DRIFT_TUBE, DTIMS_MOBILITIES,
++        1);
++
++    for (int binWidth = 1; binWidth <= DTIMS_MOBILITIES.length + 3; binWidth++) {
++      final int expected = (DTIMS_MOBILITIES.length + binWidth - 1) / binWidth;
++      Assertions.assertEquals(expected,
++          new BinningMobilogramDataAccess(file, binWidth).getNumberOfValues(),
++          "unexpected bin count for bin width " + binWidth);
++    }
++  }
++
++  @Test
++  @DisplayName("The approximate bin size slightly overestimates the real bin width")
++  void approximateBinSizeSlightlyOverestimatesTheBinWidth() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.DRIFT_TUBE, DTIMS_MOBILITIES,
++        1);
++
++    // the covered range is divided by numBins - 2 on purpose, so the reported size is slightly
++    // larger than the real average bin width. 12 bins spanning 1.6 - 0.5 = 1.1 -> 1.1 / 10.
++    Assertions.assertEquals(1.1 / 10d,
++        new BinningMobilogramDataAccess(file, 1).getApproximateBinSize(), DELTA);
++    // 6 bins spanning 1.55 - 0.55 = 1.0 -> 1.0 / 4, real average bin width is 0.2
++    Assertions.assertEquals(1.0 / 4d,
++        new BinningMobilogramDataAccess(file, 2).getApproximateBinSize(), DELTA);
++  }
++
++  // ---------------------------------------------------------------------------------------------
++  // setMobilogram(List<IonMobilitySeries>)
++  // ---------------------------------------------------------------------------------------------
++
++  @Test
++  @DisplayName("Bin width 1 keeps every raw intensity in its own bin, no bin is dropped (DTIMS)")
++  void mobilogramWithBinWidthOneIsUnchangedDtims() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.DRIFT_TUBE, DTIMS_MOBILITIES,
++        1);
++    final Frame frame = file.getFrame(0);
++    final double[] intensities = ascendingIntensities(DTIMS_MOBILITIES.length);
++
++    final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, 1);
++    access.setMobilogram(List.of(createMobilogram(frame, intensities)));
++
++    Assertions.assertArrayEquals(intensities, access.getIntensityValues(), DELTA);
++  }
++
++  @Test
++  @DisplayName("Bin width 1 reverses the descending TIMS mobilogram into ascending bins")
++  void mobilogramWithBinWidthOneIsReversedForTims() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.TIMS, TIMS_MOBILITIES, 1);
++    final Frame frame = file.getFrame(0);
++    // intensities in mobility scan order, i.e. from high to low mobility
++    final double[] intensities = ascendingIntensities(TIMS_MOBILITIES.length);
++
++    final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, 1);
++    access.setMobilogram(List.of(createMobilogram(frame, intensities)));
++
++    Assertions.assertArrayEquals(reversed(intensities), access.getIntensityValues(), DELTA);
++  }
++
++  @Test
++  @DisplayName("Intensities of all raw values within a bin are summed")
++  void intensitiesAreSummedWithinBins() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.DRIFT_TUBE, DTIMS_MOBILITIES,
++        1);
++    final Frame frame = file.getFrame(0);
++    final double[] intensities = ascendingIntensities(DTIMS_MOBILITIES.length);
++
++    final BinningMobilogramDataAccess width2 = new BinningMobilogramDataAccess(file, 2);
++    width2.setMobilogram(List.of(createMobilogram(frame, intensities)));
++    Assertions.assertArrayEquals(new double[]{3, 7, 11, 15, 19, 23}, width2.getIntensityValues(),
++        DELTA);
++
++    final BinningMobilogramDataAccess width3 = new BinningMobilogramDataAccess(file, 3);
++    width3.setMobilogram(List.of(createMobilogram(frame, intensities)));
++    Assertions.assertArrayEquals(new double[]{6, 15, 24, 33}, width3.getIntensityValues(), DELTA);
++  }
++
++  @Test
++  @DisplayName("No intensity is lost and no bin in between stays empty for a single segment")
++  void noIntensityIsLostAndNoInnerBinStaysEmpty() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.DRIFT_TUBE, DTIMS_MOBILITIES,
++        1);
++    final Frame frame = file.getFrame(0);
++    final double[] intensities = new double[DTIMS_MOBILITIES.length];
++    Arrays.fill(intensities, 1d);
++    final double expectedSum = DTIMS_MOBILITIES.length;
++
++    for (int binWidth = 1; binWidth <= 5; binWidth++) {
++      final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, binWidth);
++      access.setMobilogram(List.of(createMobilogram(frame, intensities)));
++
++      final double[] binned = access.getIntensityValues();
++      Assertions.assertEquals(expectedSum, Arrays.stream(binned).sum(), DELTA,
++          "intensity lost for bin width " + binWidth);
++      for (int i = 0; i < binned.length; i++) {
++        Assertions.assertTrue(binned[i] > 0d,
++            "empty bin " + i + " for bin width " + binWidth + " although every mobility value"
++                + " carries intensity");
++      }
++    }
++  }
++
++  @Test
++  @DisplayName("Bins outside the covered mobility range stay empty")
++  void binsOutsideTheMobilogramStayEmpty() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.DRIFT_TUBE, DTIMS_MOBILITIES,
++        1);
++    final Frame frame = file.getFrame(0);
++
++    final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, 1);
++    // mobility scans 3, 4, 5 -> mobilities 0.8, 0.9, 1.0
++    access.setMobilogram(List.of(createMobilogram(frame, 3, 6, new double[]{10d, 20d, 30d})));
++
++    Assertions.assertArrayEquals(new double[]{0, 0, 0, 10, 20, 30, 0, 0, 0, 0, 0, 0},
++        access.getIntensityValues(), DELTA);
++  }
++
++  @Test
++  @DisplayName("Mobilograms of multiple frames are summed into the same bins")
++  void mobilogramsOfMultipleFramesAreSummed() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.DRIFT_TUBE, DTIMS_MOBILITIES,
++        3);
++    final double[] intensities = new double[DTIMS_MOBILITIES.length];
++    Arrays.fill(intensities, 2d);
++
++    final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, 2);
++    access.setMobilogram(List.of(createMobilogram(file.getFrame(0), intensities), //
++        createMobilogram(file.getFrame(1), intensities), //
++        createMobilogram(file.getFrame(2), intensities)));
++
++    // 3 frames * 2 values per bin * intensity 2
++    final double[] expected = new double[6];
++    Arrays.fill(expected, 12d);
++    Assertions.assertArrayEquals(expected, access.getIntensityValues(), DELTA);
++  }
++
++  @Test
++  @DisplayName("Setting a new mobilogram clears the intensities of the previous one")
++  void settingANewMobilogramClearsPreviousIntensities() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.DRIFT_TUBE, DTIMS_MOBILITIES,
++        1);
++    final Frame frame = file.getFrame(0);
++
++    final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, 1);
++    access.setMobilogram(
++        List.of(createMobilogram(frame, ascendingIntensities(DTIMS_MOBILITIES.length))));
++    access.setMobilogram(List.of(createMobilogram(frame, 3, 6, new double[]{10d, 20d, 30d})));
++
++    Assertions.assertArrayEquals(new double[]{0, 0, 0, 10, 20, 30, 0, 0, 0, 0, 0, 0},
++        access.getIntensityValues(), DELTA);
++  }
++
++  @Test
++  @DisplayName("An empty list of mobilograms results in an empty mobilogram")
++  void emptyMobilogramListYieldsZeroIntensities() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.DRIFT_TUBE, DTIMS_MOBILITIES,
++        1);
++
++    final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, 1);
++    access.setMobilogram(List.of());
++
++    Assertions.assertArrayEquals(new double[DTIMS_MOBILITIES.length], access.getIntensityValues(),
++        DELTA);
++  }
++
++  // ---------------------------------------------------------------------------------------------
++  // multiple mobility segments: the order the segments are collected in must not matter
++  // ---------------------------------------------------------------------------------------------
++
++  @Test
++  @DisplayName("TIMS: a later segment reaching higher than the first loses no intensity")
++  void timsSegmentReachingHigherThanTheFirstLosesNoIntensity() {
++    // frame 1 holds the lower window, frame 2 the higher one. Collecting in frame order would cap
++    // the bins at frame 1's maximum and drop everything of frame 2 above it.
++    final double[] lowerWindow = new double[]{1.00, 0.90, 0.80, 0.70, 0.60, 0.50};
++    final double[] higherWindow = new double[]{1.25, 1.15, 1.05, 0.95, 0.85, 0.75};
++    final IMSRawDataFile file = createMultiSegmentFile(MobilityType.TIMS,
++        List.of(lowerWindow, higherWindow));
++
++    final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, 1);
++
++    // the bins must span both windows
++    final double[] bins = access.getMobilityValues();
++    Assertions.assertEquals(0.50, bins[0], DELTA);
++    Assertions.assertEquals(1.25, bins[bins.length - 1], DELTA);
++
++    for (final Frame frame : file.getFrames()) {
++      final double[] intensities = new double[frame.getNumberOfMobilityScans()];
++      Arrays.fill(intensities, 1d);
++      access.setMobilogram(List.of(createMobilogram(frame, intensities)));
++
++      Assertions.assertEquals(intensities.length, Arrays.stream(access.getIntensityValues()).sum(),
++          DELTA, "intensity lost for frame #" + frame.getFrameId());
++    }
++  }
++
++  @Test
++  @DisplayName("DTIMS: a later segment reaching lower than the first is not piled into the first bin")
++  void dtimsSegmentReachingLowerThanTheFirstIsNotPiledIntoTheFirstBin() {
++    // frame 1 holds the higher window, frame 2 the lower one. Collecting in frame order would start
++    // the bins at frame 1's minimum; everything of frame 2 below it then falls into bin 0, whose
++    // lower edge is -MOBILITY_EPSILON, producing a spike instead of a dropped value.
++    final double[] higherWindow = new double[]{0.80, 0.90, 1.00, 1.10, 1.20, 1.30};
++    final double[] lowerWindow = new double[]{0.55, 0.65, 0.75, 0.85, 0.95, 1.05};
++    final IMSRawDataFile file = createMultiSegmentFile(MobilityType.DRIFT_TUBE,
++        List.of(higherWindow, lowerWindow));
++
++    final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, 1);
++
++    final double[] bins = access.getMobilityValues();
++    Assertions.assertEquals(0.55, bins[0], DELTA);
++    Assertions.assertEquals(1.30, bins[bins.length - 1], DELTA);
++
++    for (final Frame frame : file.getFrames()) {
++      final double[] intensities = new double[frame.getNumberOfMobilityScans()];
++      Arrays.fill(intensities, 1d);
++      access.setMobilogram(List.of(createMobilogram(frame, intensities)));
++
++      final double[] binned = access.getIntensityValues();
++      Assertions.assertEquals(intensities.length, Arrays.stream(binned).sum(), DELTA,
++          "intensity lost for frame #" + frame.getFrameId());
++      // at bin width 1 every value must get its own bin, none may pile up
++      Assertions.assertEquals(1d, Arrays.stream(binned).max().orElseThrow(), DELTA,
++          "values piled into a single bin for frame #" + frame.getFrameId());
++    }
++  }
++
++  // ---------------------------------------------------------------------------------------------
++  // setMobilogram(SummedIntensityMobilitySeries)
++  // ---------------------------------------------------------------------------------------------
++
++  @Test
++  @DisplayName("Re-binning a summed mobilogram with the same bin width is an identity operation")
++  void reBinningWithSameBinWidthIsIdentity() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.DRIFT_TUBE, DTIMS_MOBILITIES,
++        1);
++    final double[] intensities = ascendingIntensities(DTIMS_MOBILITIES.length);
++    final SummedIntensityMobilitySeries summed = new SummedIntensityMobilitySeries(null,
++        DTIMS_MOBILITIES, intensities);
++
++    final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, 1);
++    access.setMobilogram(summed);
++
++    Assertions.assertArrayEquals(intensities, access.getIntensityValues(), DELTA);
++  }
++
++  @Test
++  @DisplayName("Re-binning a summed mobilogram to a larger bin width sums the intensities")
++  void reBinningToLargerBinWidthSumsIntensities() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.DRIFT_TUBE, DTIMS_MOBILITIES,
++        1);
++    final SummedIntensityMobilitySeries summed = new SummedIntensityMobilitySeries(null,
++        DTIMS_MOBILITIES, ascendingIntensities(DTIMS_MOBILITIES.length));
++
++    final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, 2);
++    access.setMobilogram(summed);
++
++    Assertions.assertArrayEquals(new double[]{3, 7, 11, 15, 19, 23}, access.getIntensityValues(),
++        DELTA);
++  }
++
++  @Test
++  @DisplayName("Re-binning keeps mobility values that are exactly on a bin border in the lower bin")
++  void valuesOnBinBorderStayInTheLowerBin() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.DRIFT_TUBE, DTIMS_MOBILITIES,
++        1);
++    // 0.6 is the upper limit of bin 0 (0.5, 0.6) for bin width 2
++    final SummedIntensityMobilitySeries summed = new SummedIntensityMobilitySeries(null,
++        new double[]{0.6, 0.7}, new double[]{5d, 7d});
++
++    final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, 2);
++    access.setMobilogram(summed);
++
++    Assertions.assertArrayEquals(new double[]{5, 7, 0, 0, 0, 0}, access.getIntensityValues(),
++        DELTA);
++  }
++
++  // ---------------------------------------------------------------------------------------------
++  // toSummedMobilogram
++  // ---------------------------------------------------------------------------------------------
++
++  @Test
++  @DisplayName("toSummedMobilogram trims to the signal and keeps one zero on each side")
++  void toSummedMobilogramKeepsOneZeroOnEachSide() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.DRIFT_TUBE, DTIMS_MOBILITIES,
++        1);
++    final Frame frame = file.getFrame(0);
++
++    final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, 1);
++    // mobility scans 3, 4, 5 -> mobilities 0.8, 0.9, 1.0
++    access.setMobilogram(List.of(createMobilogram(frame, 3, 6, new double[]{10d, 20d, 30d})));
++
++    final SummedIntensityMobilitySeries summed = access.toSummedMobilogram(null);
++
++    Assertions.assertEquals(5, summed.getNumberOfValues());
++    Assertions.assertArrayEquals(new double[]{0.7, 0.8, 0.9, 1.0, 1.1},
++        summed.getMobilityValues(new double[5]), DELTA);
++    Assertions.assertArrayEquals(new double[]{0d, 10d, 20d, 30d, 0d},
++        summed.getIntensityValues(new double[5]), DELTA);
++  }
++
++  @Test
++  @DisplayName("toSummedMobilogram keeps signal that reaches the very last bin")
++  void toSummedMobilogramKeepsSignalInTheLastBin() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.DRIFT_TUBE, DTIMS_MOBILITIES,
++        1);
++    final Frame frame = file.getFrame(0);
++
++    final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, 1);
++    // last two mobility scans -> bins 10 (1.5) and 11 (1.6), so there is no trailing zero to keep
++    access.setMobilogram(List.of(createMobilogram(frame, 10, 12, new double[]{10d, 20d})));
++
++    final SummedIntensityMobilitySeries summed = access.toSummedMobilogram(null);
++
++    Assertions.assertEquals(3, summed.getNumberOfValues());
++    Assertions.assertArrayEquals(new double[]{1.4, 1.5, 1.6},
++        summed.getMobilityValues(new double[summed.getNumberOfValues()]), DELTA);
++    Assertions.assertArrayEquals(new double[]{0d, 10d, 20d},
++        summed.getIntensityValues(new double[summed.getNumberOfValues()]), DELTA);
++  }
++
++  @Test
++  @DisplayName("An empty mobilogram results in an empty summed mobilogram")
++  void toSummedMobilogramOfEmptyMobilogram() {
++    final IMSRawDataFile file = createSingleSegmentFile(MobilityType.DRIFT_TUBE, DTIMS_MOBILITIES,
++        1);
++
++    final BinningMobilogramDataAccess access = new BinningMobilogramDataAccess(file, 1);
++    access.setMobilogram(List.of());
++
++    final SummedIntensityMobilitySeries summed = access.toSummedMobilogram(null);
++
++    Assertions.assertEquals(0, summed.getNumberOfValues());
++    Assertions.assertEquals(0, summed.getNumberOfDataPoints());
++  }
++}
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/datamodel/data_access/VendorImportParametersTestUtils.java b/mzmine-community/src/test/java/io/github/mzmine/datamodel/data_access/VendorImportParametersTestUtils.java
+new file mode 100644
+index 00000000000..e4434b14e24
+--- /dev/null
++++ b/mzmine-community/src/test/java/io/github/mzmine/datamodel/data_access/VendorImportParametersTestUtils.java
+@@ -0,0 +1,53 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.datamodel.data_access;
++
++import io.github.mzmine.gui.preferences.VendorImportParameters;
++import io.github.mzmine.modules.io.import_rawdata_bruker_tdf.datamodel.TdfPressureCompensation;
++import org.jetbrains.annotations.NotNull;
++
++/**
++ * Helper to import raw data with an explicit vendor option, so tests do not depend on the current
++ * default of {@link VendorImportParameters#applyTimsPressureCompensation}.
++ */
++public final class VendorImportParametersTestUtils {
++
++  private VendorImportParametersTestUtils() {
++  }
++
++  /**
++   * @param pressureCompensation Whether Bruker per-frame pressure compensation is applied on
++   *                             import.
++   * @return Default vendor import parameters with the pressure compensation set explicitly.
++   */
++  @NotNull
++  public static VendorImportParameters withPressureCompensation(
++      final @NotNull TdfPressureCompensation pressureCompensation) {
++    final VendorImportParameters params = VendorImportParameters.createDefault();
++    params.setParameter(VendorImportParameters.applyTimsPressureCompensation, pressureCompensation);
++    return params;
++  }
++}
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/MassDetectionErrorTests.java b/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/MassDetectionErrorTests.java
+index c242ab294fa..e8b84c37bb0 100644
+--- a/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/MassDetectionErrorTests.java
++++ b/mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/MassDetectionErrorTests.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -12,6 +12,7 @@
+  *
+  * The above copyright notice and this permission notice shall be
+  * included in all copies or substantial portions of the Software.
++ *
+  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+  * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+@@ -144,7 +145,8 @@ public void testBruker() {
+         VendorImportParameters.create(false, VendorImportParameters.DEFAULT_WATERS_OPTION,
+             VendorImportParameters.DEFAULT_WATERS_LOCKMASS_ENABLED,
+             WatersLockmassParameters.createDefault(),
+-            VendorImportParameters.DEFAULT_THERMO_EXCEPTION_SIGNALS));
++            VendorImportParameters.DEFAULT_THERMO_EXCEPTION_SIGNALS,
++            VendorImportParameters.DEFAULT_PRESSURE_COMPENSATION));
+ 
+     final RawDataFile file = brukerImport.runImport().getFirst();
+     final Scan scan = file.getScans().getLast();
+diff --git a/mzmine-community/src/test/java/resolver_tests/FilesToImport.java b/mzmine-community/src/test/java/resolver_tests/FilesToImport.java
+index f5a6da66622..26422f8fb83 100644
+--- a/mzmine-community/src/test/java/resolver_tests/FilesToImport.java
++++ b/mzmine-community/src/test/java/resolver_tests/FilesToImport.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -12,6 +12,7 @@
+  *
+  * The above copyright notice and this permission notice shall be
+  * included in all copies or substantial portions of the Software.
++ *
+  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+  * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+@@ -59,7 +60,8 @@ public record FilesToImport(@NotNull List<String> filePaths,
+       VendorImportParameters.DEFAULT_WATERS_OPTION,
+       VendorImportParameters.DEFAULT_WATERS_LOCKMASS_ENABLED,
+       WatersLockmassParameters.createDefault(),
+-      VendorImportParameters.DEFAULT_THERMO_EXCEPTION_SIGNALS);
++      VendorImportParameters.DEFAULT_THERMO_EXCEPTION_SIGNALS,
++      VendorImportParameters.DEFAULT_PRESSURE_COMPENSATION);
+ 
+   public static FilesToImport factor5(@NotNull String fileName) {
+     return factor5(List.of(fileName));

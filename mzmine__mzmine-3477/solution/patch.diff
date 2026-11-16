@@ -1,0 +1,26 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/IntegerComponent.java b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/IntegerComponent.java
+index 550d0f8e0c4..599b4007704 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/IntegerComponent.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/IntegerComponent.java
+@@ -67,10 +67,6 @@ public void setToolTipText(String toolTip) {
+     textField.setTooltip(new Tooltip(toolTip));
+   }
+ 
+-  private boolean checkBounds(final int number) {
+-    return (minimum == null || number >= minimum) && (maximum == null || number <= maximum);
+-  }
+-
+   /**
+    * Sets the number of columns in this TextField.
+    */
+@@ -98,8 +94,9 @@ public TextField getTextField() {
+       return null;
+     }
+     try {
++      // just check if we can parse
+       final int parsed = Integer.parseInt(newText);
+-      return checkBounds(parsed) ? change : null;
++      return change;
+     } catch (NumberFormatException ex) {
+       return null;
+     }

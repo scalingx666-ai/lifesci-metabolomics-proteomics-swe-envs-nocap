@@ -1,0 +1,13 @@
+diff --git a/gget/utils.py b/gget/utils.py
+index dfa4a2011..040730e39 100644
+--- a/gget/utils.py
++++ b/gget/utils.py
+@@ -103,7 +103,7 @@ def http_json(
+     url: str,
+     *,
+     context: str = "",
+-    timeout: float = DEFAULT_REQUESTS_TIMEOUT,
++    timeout: float | tuple[float, float] = DEFAULT_REQUESTS_TIMEOUT,
+     retries: int = 3,
+     backoff: float = 1.0,
+     **kwargs: Any,

@@ -1,0 +1,245 @@
+diff --git a/.github/workflows/deploy.yml b/.github/workflows/deploy.yml
+index 46da29ab..c5deb1e8 100644
+--- a/.github/workflows/deploy.yml
++++ b/.github/workflows/deploy.yml
+@@ -2,35 +2,35 @@ name: Deploy Website
+ on:
+   push:
+     branches:
+-    - main
++      - main
+ 
+     paths:
+-    - 'docs/**'
++      - "docs/**"
+ 
+ jobs:
+   deploy:
+     runs-on: ubuntu-latest
+     steps:
+-    - uses: actions/checkout@v2
+-      with:
+-        fetch-depth: 0
+-    - name: Install mdbook
+-      run: |
+-        mkdir mdbook
+-        curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.34/mdbook-v0.4.34-x86_64-unknown-linux-gnu.tar.gz | tar -xz --directory=./mdbook
+-        echo `pwd`/mdbook >> $GITHUB_PATH
+-    - name: Deploy GitHub Pages
+-      run: |
+-        cd docs/
+-        mdbook build
+-        git worktree add gh-pages
+-        git config user.name "Deploy from CI"
+-        git config user.email ""
+-        cd gh-pages
+-        # Delete the ref to avoid keeping history.
+-        git update-ref -d refs/heads/gh-pages
+-        rm -rf *
+-        mv ../book/* .
+-        git add .
+-        git commit -m "Deploy $GITHUB_SHA to gh-pages"
+-        git push --force --set-upstream origin gh-pages
++      - uses: actions/checkout@v2
++        with:
++          fetch-depth: 0
++      - name: Install mdbook
++        run: |
++          mkdir mdbook
++          curl -sSL https://github.com/rust-lang/mdBook/releases/download/v0.4.34/mdbook-v0.4.34-x86_64-unknown-linux-gnu.tar.gz | tar -xz --directory=./mdbook
++          echo `pwd`/mdbook >> $GITHUB_PATH
++      - name: Deploy GitHub Pages
++        run: |
++          cd docs/
++          mdbook build
++          git worktree add gh-pages
++          git config user.name "Deploy from CI"
++          git config user.email ""
++          cd gh-pages
++          # Delete the ref to avoid keeping history.
++          git update-ref -d refs/heads/gh-pages
++          rm -rf *
++          mv ../book/* .
++          git add .
++          git commit -m "Deploy $GITHUB_SHA to gh-pages"
++          git push --force --set-upstream origin gh-pages
+diff --git a/.github/workflows/gdrive_backup.yml b/.github/workflows/gdrive_backup.yml
+index 0cc0a394..34416a85 100644
+--- a/.github/workflows/gdrive_backup.yml
++++ b/.github/workflows/gdrive_backup.yml
+@@ -2,7 +2,7 @@ name: Backup gget Repo on Google Drive
+ 
+ on:
+   schedule:
+-    - cron: "0 0 1 * *"  # Runs at midnight on the 1st of every month
++    - cron: "0 0 1 * *" # Runs at midnight on the 1st of every month
+   workflow_dispatch:
+ 
+ jobs:
+diff --git a/.github/workflows/plot_traffic.yml b/.github/workflows/plot_traffic.yml
+index f94ab6e9..1e6a8608 100644
+--- a/.github/workflows/plot_traffic.yml
++++ b/.github/workflows/plot_traffic.yml
+@@ -9,9 +9,9 @@ on:
+   workflow_dispatch:
+   # Trigger when Traffic workflow finishes
+   workflow_run:
+-      workflows: ["Traffic"]
+-      types:
+-        - completed
++    workflows: ["Traffic"]
++    types:
++      - completed
+ 
+ jobs:
+   build:
+@@ -26,7 +26,7 @@ jobs:
+       - name: Setup Python
+         uses: actions/setup-python@v4
+         with:
+-          python-version: '3.8'
++          python-version: "3.8"
+ 
+       - name: Configure pip caching
+         uses: actions/cache@v4
+diff --git a/.github/workflows/traffic.yml b/.github/workflows/traffic.yml
+index 3d578671..42ad06b0 100644
+--- a/.github/workflows/traffic.yml
++++ b/.github/workflows/traffic.yml
+@@ -11,23 +11,23 @@ jobs:
+     runs-on: ubuntu-latest
+ 
+     steps:
+-    # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+-    - uses: actions/checkout@v2
+-      with:
+-        ref: "traffic"
++      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
++      - uses: actions/checkout@v2
++        with:
++          ref: "traffic"
+ 
+-    # Calculates traffic and clones and stores them in a CSV file
+-    # This workflow is based on https://github.com/marketplace/actions/repository-traffic
+-    - name: GitHub traffic
+-      uses: sangonzal/repository-traffic-action@v.0.1.6
+-      env:
+-        TRAFFIC_ACTION_TOKEN: ${{ secrets.TRAFFIC_ACTION_TOKEN }}
++      # Calculates traffic and clones and stores them in a CSV file
++      # This workflow is based on https://github.com/marketplace/actions/repository-traffic
++      - name: GitHub traffic
++        uses: sangonzal/repository-traffic-action@v.0.1.6
++        env:
++          TRAFFIC_ACTION_TOKEN: ${{ secrets.TRAFFIC_ACTION_TOKEN }}
+ 
+-    # Commits files to traffic branch
+-    - name: Commit changes
+-      uses: EndBug/add-and-commit@v4
+-      with:
+-        author_name: Laura Luebbert
+-        message: "GitHub traffic"
+-        add: "./traffic/*"
+-        ref: "traffic"
++      # Commits files to traffic branch
++      - name: Commit changes
++        uses: EndBug/add-and-commit@v4
++        with:
++          author_name: Laura Luebbert
++          message: "GitHub traffic"
++          add: "./traffic/*"
++          ref: "traffic"
+diff --git a/.github/workflows/translate_docs.yml b/.github/workflows/translate_docs.yml
+index 656d9277..64946b09 100644
+--- a/.github/workflows/translate_docs.yml
++++ b/.github/workflows/translate_docs.yml
+@@ -4,10 +4,10 @@ on:
+   push:
+     branches: [main]
+     paths:
+-      - 'docs/src/en/**'
++      - "docs/src/en/**"
+       # The English contributing page is an mdbook include of this file, so a
+       # change here must regenerate docs/src/es/contributing.md (see translate_docs.py).
+-      - 'CONTRIBUTING.md'
++      - "CONTRIBUTING.md"
+   workflow_dispatch:
+ 
+ # Only one translation run at a time; new pushes cancel in-progress runs.
+@@ -25,13 +25,13 @@ jobs:
+       - name: Checkout repository
+         uses: actions/checkout@v4
+         with:
+-          fetch-depth: 0  # full history so git diff works
+-          token: ${{ secrets.TRAFFIC_ACTION_TOKEN }}  # PAT so the push triggers deploy.yml
++          fetch-depth: 0 # full history so git diff works
++          token: ${{ secrets.TRAFFIC_ACTION_TOKEN }} # PAT so the push triggers deploy.yml
+ 
+       - name: Set up Python
+         uses: actions/setup-python@v5
+         with:
+-          python-version: '3.12'
++          python-version: "3.12"
+ 
+       - name: Install dependencies
+         run: pip install anthropic
+diff --git a/.panache.toml b/.panache.toml
+index 9748a54b..ef092f92 100644
+--- a/.panache.toml
++++ b/.panache.toml
+@@ -1,6 +1,6 @@
+ #:schema https://panache.bz/panache.schema.json
+ flavor = "gfm"
+-extend-exclude = ["docs/src/*/dependents.md", "tests/fixtures/"]
++extend-exclude = ["docs/src/*/dependents.md", "docs/src/es/", "tests/fixtures/"]  # bot-generated (dependents, translations)
+ 
+ [format]
+ wrap = "preserve"
+diff --git a/.pre-commit-config.yaml b/.pre-commit-config.yaml
+index 1da29a80..3ed4c9b8 100644
+--- a/.pre-commit-config.yaml
++++ b/.pre-commit-config.yaml
+@@ -19,7 +19,7 @@ exclude: |
+   )
+ repos:
+   - repo: https://github.com/biomejs/pre-commit
+-    rev: v2.5.12
++    rev: v2.6.5
+     hooks:
+       - id: biome-format
+   - repo: https://github.com/jolars/panache-pre-commit
+@@ -27,11 +27,11 @@ repos:
+     hooks:
+       - id: panache-format
+   - repo: https://github.com/tox-dev/pyproject-fmt
+-    rev: v2.29.3
++    rev: v2.30.6
+     hooks:
+       - id: pyproject-fmt
+   - repo: https://github.com/astral-sh/ruff-pre-commit
+-    rev: v0.16.6
++    rev: v0.17.3
+     hooks:
+       - id: ruff-check
+         types_or: [python, pyi, jupyter]
+diff --git a/biome.jsonc b/biome.jsonc
+new file mode 100644
+index 00000000..18bc9acc
+--- /dev/null
++++ b/biome.jsonc
+@@ -0,0 +1,4 @@
++{
++	"$schema": "https://biomejs.dev/schemas/2.6.5/schema.json",
++	"markdown": { "formatter": { "enabled": false } } // handled by panache
++}
+diff --git a/pyproject.toml b/pyproject.toml
+index fc104b08..b76480bc 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -26,6 +26,7 @@ classifiers = [
+   "Programming Language :: Python :: 3.12",
+   "Programming Language :: Python :: 3.13",
+   "Programming Language :: Python :: 3.14",
++  "Programming Language :: Python :: 3.15",
+   "Topic :: Scientific/Engineering :: Bio-Informatics",
+   "Topic :: Utilities",
+ ]

@@ -1,0 +1,1358 @@
+diff --git a/.claude/skills/sciagent-skill-creator/SKILL.md b/.claude/skills/sciagent-skill-creator/SKILL.md
+index 2e97032..7ffef7f 100644
+--- a/.claude/skills/sciagent-skill-creator/SKILL.md
++++ b/.claude/skills/sciagent-skill-creator/SKILL.md
+@@ -92,6 +92,34 @@ The generated SKILL.md is a **skeleton with placeholders**. The agent's remainin
+ 
+ The scaffold script does not pretend to write content. Content stays with the agent and the source material.
+ 
++## Content authoring rules (what NOT to bake into a SKILL.md)
++
++Skills document a tool's *analysis surface*, not the consumer's *house style*. A SKILL.md is read by many agents for many downstream tasks — visual choices that fit one analysis brief leak into every future invocation. Strip the following before committing:
++
++- **Color palettes, cmaps, themes** — no hex codes (`#08306b`), no `LinearSegmentedColormap.from_list(...)`, no `ListedColormap([...])`, no prescribed `cmap=` arguments unless the cmap *is* the tool's API (e.g., a tool that ships its own palette). Let matplotlib pick defaults; the consumer overrides downstream.
++- **Per-replicate / per-condition color dicts** — e.g., `colors = {"rep1": "#1f77b4", ...}`. Matplotlib auto-cycles colors.
++- **Font choices, dpi presets, figure sizes tuned for one report** — `figsize=(8, 4)` for a routine line plot is fine; `figsize=(12, 4)` chosen to fit a slide deck is not.
++- **One-shot user-brief specifics** — if the user asked for "blue for low, red for high" in *their* analysis, that belongs in their code, not the skill. The skill teaches *how to compute* phi/psi density; *how to color it* is consumer choice.
++- **Hardcoded paths beyond the tool's defaults** — `"figures/"`, `"results/"`, `f"{pdb_id}_protein.pdb"` are fine as illustrative outputs; `"/Users/me/proj42/output"` is not.
++
++What to keep: the analysis logic, the data shape, the units, the parameter semantics, the expected output *structure* (columns, axes, units), and any visual choice the tool itself enforces.
++
++Rule of thumb: if a downstream consumer would *override* the choice, don't ship the choice in the skill.
++
++## Writing style: be succinct
++
++A SKILL.md is reference material for agents, not a tutorial. Token cost matters — every line is paid for on every retrieval. Write like documentation, not like a walkthrough:
++
++- **One sentence per section intro, not a paragraph.** Drop hedging ("typically", "in general", "you may want to"), filler ("note that", "it's worth mentioning"), and softeners. State the rule.
++- **Comments inside code blocks earn their place.** Only annotate non-obvious lines — units, gotchas, why this parameter. Don't restate what the code already says (`# load the trajectory` above `traj = md.load(...)` is noise).
++- **Code over prose when possible.** A four-line code block beats a paragraph describing the same call. The agent runs the code; the prose is for what the code can't show.
++- **No preamble before code.** "The following snippet demonstrates how one might..." → delete. The header and code speak for themselves.
++- **No closing recap.** Each section ends when the information ends. No "In summary..." or "As shown above...".
++- **Cut redundancy across sections.** If Workflow Step 2 already shows the parameter, the Key Parameters table row doesn't need to re-explain it — just list it.
++- **Tables for enumerations, not bullets.** Parameters, troubleshooting, codes → table. Prose lists waste vertical space.
++
++Target density: a reader scanning the file should reach the next code block within ~5 lines of prose. If a section's prose is longer than its code, tighten the prose.
++
+ ## Files in this skill
+ 
+ - `SKILL.md` — this file (when/how/what)
+diff --git a/.claude/skills/sciagent-skill-creator/scripts/scaffold.py b/.claude/skills/sciagent-skill-creator/scripts/scaffold.py
+index 0fc89d2..2091515 100644
+--- a/.claude/skills/sciagent-skill-creator/scripts/scaffold.py
++++ b/.claude/skills/sciagent-skill-creator/scripts/scaffold.py
+@@ -50,7 +50,8 @@
+ 
+ NAME_PATTERN = re.compile(r"^[a-z][a-z0-9-]*[a-z0-9]$")
+ TAG_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+-STOP_VERBS = {"use", "a", "an", "the", "query", "fetch", "run"}
++# Description stop-verb / promo-word lists live in validate_description.py;
++# scaffold.py delegates to that module via validate_description().
+ 
+ 
+ def fail(msg: str) -> None:
+diff --git a/skills/structural-biology-drug-discovery/mdtraj-trajectory-analysis/SKILL.md b/skills/structural-biology-drug-discovery/mdtraj-trajectory-analysis/SKILL.md
+index 3679b93..9c8dc1d 100644
+--- a/skills/structural-biology-drug-discovery/mdtraj-trajectory-analysis/SKILL.md
++++ b/skills/structural-biology-drug-discovery/mdtraj-trajectory-analysis/SKILL.md
+@@ -8,71 +8,62 @@ license: "LGPL-2.1"
+ 
+ ## Overview
+ 
+-mdtraj is a fast, dependency-light Python library for reading, writing, and analyzing molecular dynamics (MD) trajectories. It handles every common MD format (DCD, XTC, TRR, NetCDF, H5, AMBER, GROMACS, CHARMM, OpenMM) into a single `Trajectory` object backed by NumPy arrays, then exposes geometry, RMSD/Rg/RMSF/SASA, contacts, hydrogen bonds, torsions, and 8-state DSSP secondary structure as pure-Python functions. This skill covers the analysis-side workflows: structural stability metrics, contact frequency maps, Ramachandran plots (general + Gly/Pro), and DSSP time series across multi-replicate ensembles.
++mdtraj is a dependency-light Python library for analyzing MD trajectories. Reads DCD/XTC/TRR/NetCDF/H5/AMBER/GROMACS/CHARMM/OpenMM into a `Trajectory` object backed by NumPy arrays, then exposes geometry, RMSD/Rg/RMSF/SASA, contacts, hydrogen bonds, torsions, and 8-state DSSP as pure-Python functions.
+ 
+-> **Unit note**: mdtraj works in **nanometers** and **picoseconds** internally. Multiply distances by 10 for Ångström output. Torsions are in **radians** — convert with `np.degrees()`.
++> **Units**: mdtraj uses **nm** and **ps** internally. Multiply distances by 10 for Å, divide time by 1000 for ns. Torsions are in **radians** — `np.degrees()`.
+ 
+ ## When to Use
+ 
+-- Computing RMSD vs time, radius of gyration, and per-residue RMSF to assess structural stability across MD replicates
+-- Building residue-residue contact frequency maps from a trajectory ensemble
+-- Extracting backbone phi/psi torsions to plot Ramachandran diagrams (general, glycine-specific, proline-specific)
+-- Assigning 8-state DSSP secondary structure per residue per frame for time-series visualization
+-- Lightweight ad-hoc analyses where MDAnalysis's atom selection grammar or AnalysisBase framework is overkill
+-- NMR observables (J-couplings, chemical shifts via SHIFTX2 wrapper) directly on a trajectory
+-- Use `mdanalysis-trajectory` instead when you need MDAnalysis's richer selection language, AnalysisBase parallelism, or LAMMPS/NAMD-specific readers
+-- For running the MD simulation itself, use OpenMM or GROMACS — this skill is post-simulation analysis only
++- RMSD vs time, Rg, per-residue RMSF for stability across MD replicates
++- Residue-residue contact frequency maps from a trajectory ensemble
++- Backbone phi/psi for Ramachandran (general, Gly, Pro)
++- 8-state DSSP per residue per frame for secondary-structure time series
++- Lightweight ad-hoc analyses where MDAnalysis's full framework is overkill
++- NMR observables (J-couplings, chemical shifts via SHIFTX2)
++- Use **mdanalysis-trajectory** instead when you need MDAnalysis's selection grammar, AnalysisBase parallelism, or LAMMPS/NAMD-specific readers
++- Use **OpenMM/GROMACS** to *run* the simulation — this skill is post-simulation only
+ 
+ ## Prerequisites
+ 
+-- **Python packages**: `mdtraj`, `numpy`, `pandas`, `matplotlib`, `seaborn`
+-- **Data**: topology (PDB / GRO / PRMTOP / PSF) + trajectory (DCD / XTC / TRR / NetCDF / H5)
+-- **Environment**: Python 3.9+, conda-forge build recommended for binary wheels
++- `mdtraj`, `numpy`, `pandas`, `matplotlib`
++- Topology (PDB/GRO/PRMTOP/PSF) + trajectory (DCD/XTC/TRR/NetCDF/H5)
++- Python 3.9+, conda-forge build recommended
+ 
+-Check before installing — inside a pixi/conda env `mdtraj` is usually already present. Inside a pixi project invoke as `pixi run python ...`:
++Check before installing — inside a pixi/conda env mdtraj is usually present:
+ 
+ ```bash
+-command -v python3 && python3 -c "import mdtraj" 2>/dev/null \
+-  || conda install -c conda-forge mdtraj numpy pandas matplotlib seaborn
++python3 -c "import mdtraj" 2>/dev/null || conda install -c conda-forge mdtraj numpy pandas matplotlib
+ ```
+ 
+ ## Quick Start
+ 
+-Load a trajectory, align to first frame, compute RMSD on alpha-carbons.
+-
+ ```python
+ import mdtraj as md
+-import numpy as np
+ 
+ traj = md.load("traj.xtc", top="topology.pdb")
+ ca = traj.topology.select("name CA")
+-
+ traj.superpose(traj, frame=0, atom_indices=ca)
+-rmsd_ang = md.rmsd(traj, traj, frame=0, atom_indices=ca) * 10.0  # nm -> Å
+ 
+-print(f"Frames: {traj.n_frames}  Residues: {traj.n_residues}")
+-print(f"RMSD range: {rmsd_ang.min():.2f}–{rmsd_ang.max():.2f} Å")
++rmsd_ang = md.rmsd(traj, traj, frame=0, atom_indices=ca) * 10.0  # nm -> Å
++print(f"Frames: {traj.n_frames}  RMSD: {rmsd_ang.min():.2f}–{rmsd_ang.max():.2f} Å")
+ ```
+ 
+ ## Core API
+ 
+ ### Module 1: Trajectory I/O
+ 
+-Load and write trajectories. mdtraj auto-detects format from extension.
++Load whole or streamed. Format auto-detected from extension.
+ 
+ ```python
+ import mdtraj as md
+ 
+-# Load whole trajectory
+ traj = md.load("rep1.xtc", top="protein.pdb")
+ 
+-# Stream large trajectories chunk-by-chunk (avoids OOM)
+-chunk_rmsd = []
++# Stream large trajectories — avoids OOM
+ for chunk in md.iterload("rep1.xtc", top="protein.pdb", chunk=500):
+-    chunk_rmsd.append(md.rmsd(chunk, chunk, frame=0))
+-print(f"Total chunks: {len(chunk_rmsd)}")
++    rmsd_chunk = md.rmsd(chunk, chunk, frame=0)
+ 
+-# Save aligned subset
++# Save subset
+ ca = traj.topology.select("name CA")
+ traj.atom_slice(ca).save_dcd("ca_only.dcd")
+ ```
+@@ -80,119 +71,90 @@ traj.atom_slice(ca).save_dcd("ca_only.dcd")
+ Selecting atoms and slicing frames:
+ 
+ ```python
+-# Topology selection language (subset of VMD/MDAnalysis grammar)
+ backbone = traj.topology.select("backbone")
+-protein  = traj.topology.select("protein")
+ chain_a  = traj.topology.select("chainid 0")
+ 
+-# Frame slicing
+-first_ns      = traj[:1000]            # first 1000 frames
++first_ns      = traj[:1000]
+ every_10th    = traj[::10]
+-last_half_ca  = traj[traj.n_frames // 2:].atom_slice(backbone)
+-print(f"Backbone-only, second half: {last_half_ca}")
++last_half_bb  = traj[traj.n_frames // 2:].atom_slice(backbone)
+ ```
+ 
+-### Module 2: RMSD, Rg, RMSF (Structural Stability)
++### Module 2: RMSD, Rg, RMSF
+ 
+-mdtraj returns distances in nm — multiply by 10 for Å.
++`md.rmsd` superposes internally; RMSF you compute manually after explicit superpose.
+ 
+ ```python
+-import mdtraj as md
+-import numpy as np
++import mdtraj as md, numpy as np
+ 
+ traj = md.load("rep1.xtc", top="protein.pdb")
+ ca = traj.topology.select("name CA")
+ 
+-# RMSD vs frame 0 (after internal superposition by md.rmsd)
+ rmsd_ang = md.rmsd(traj, traj, frame=0, atom_indices=ca) * 10.0    # Å
+-time_ns  = traj.time / 1000.0                                       # ps -> ns
+-
+-# Radius of gyration (uses ALL atoms by default; pass masses=None for unweighted)
+-rg_ang   = md.compute_rg(traj) * 10.0                               # Å
+-print(f"<RMSD>={rmsd_ang.mean():.2f}±{rmsd_ang.std():.2f} Å,  <Rg>={rg_ang.mean():.2f} Å")
++rg_ang   = md.compute_rg(traj) * 10.0                              # Å
++time_ns  = traj.time / 1000.0
++print(f"<RMSD>={rmsd_ang.mean():.2f} Å,  <Rg>={rg_ang.mean():.2f} Å")
+ ```
+ 
+-RMSF (per-atom or per-residue):
+-
+ ```python
+-# RMSF on CA atoms — average-structure reference
++# Per-CA RMSF — average-structure reference
+ ca_traj = traj.atom_slice(ca)
+ ca_traj.superpose(ca_traj, frame=0)
+-mean_xyz = ca_traj.xyz.mean(axis=0)                                  # (n_atoms, 3)
+-diff     = ca_traj.xyz - mean_xyz
+-rmsf_nm  = np.sqrt((diff ** 2).sum(axis=2).mean(axis=0))             # per CA
+-rmsf_ang = rmsf_nm * 10.0
++diff     = ca_traj.xyz - ca_traj.xyz.mean(axis=0)
++rmsf_ang = np.sqrt((diff ** 2).sum(axis=2).mean(axis=0)) * 10.0
+ res_ids  = [a.residue.resSeq for a in ca_traj.topology.atoms]
+-print(f"Most flexible residue: {res_ids[np.argmax(rmsf_ang)]}  RMSF={rmsf_ang.max():.2f} Å")
++print(f"Max RMSF: residue {res_ids[np.argmax(rmsf_ang)]} = {rmsf_ang.max():.2f} Å")
+ ```
+ 
+ ### Module 3: Contacts and Distance Maps
+ 
+-Residue-residue contact distances; threshold to get contact frequency.
++Threshold distances to get contact frequency.
+ 
+ ```python
+-import mdtraj as md
+-import numpy as np
++import mdtraj as md, numpy as np
+ 
+ traj = md.load("rep1.xtc", top="protein.pdb")
++distances_nm, pairs = md.compute_contacts(traj, contacts="all", scheme="closest-heavy")
++# distances_nm: (n_frames, n_pairs);  pairs: (n_pairs, 2) of residue indices
+ 
+-# Distances between every residue pair (closest heavy atom)
+-distances_nm, residue_pairs = md.compute_contacts(traj, contacts="all", scheme="closest-heavy")
+-# distances_nm: (n_frames, n_pairs);  residue_pairs: (n_pairs, 2)
+-
+-# Contact frequency: fraction of frames within 0.5 nm (5 Å)
+-cutoff = 0.5
+-contact_freq = (distances_nm < cutoff).mean(axis=0)                  # (n_pairs,)
+-
+-# Reshape to square matrix
+-n_res = traj.n_residues
++contact_freq = (distances_nm < 0.5).mean(axis=0)                  # 5 Å cutoff
++n_res    = traj.n_residues
+ freq_map = np.zeros((n_res, n_res))
+-for (i, j), f in zip(residue_pairs, contact_freq):
++for (i, j), f in zip(pairs, contact_freq):
+     freq_map[i, j] = freq_map[j, i] = f
+ print(f"Persistent contacts (>0.8): {(contact_freq > 0.8).sum()}")
+ ```
+ 
+ ### Module 4: Torsions (Ramachandran)
+ 
+-Compute phi/psi per residue per frame; mdtraj returns radians.
++phi/psi returned in radians; intersect on residue since first residue has no phi and last has no psi.
+ 
+ ```python
+-import mdtraj as md
+-import numpy as np
++import mdtraj as md, numpy as np
+ 
+ traj = md.load("rep1.xtc", top="protein.pdb")
++phi_ix, phi_rad = md.compute_phi(traj)
++psi_ix, psi_rad = md.compute_psi(traj)
+ 
+-# md.compute_phi / compute_psi return (atom_indices, angles_rad)
+-phi_indices, phi_rad = md.compute_phi(traj)
+-psi_indices, psi_rad = md.compute_psi(traj)
+-
+-# Match phi and psi by residue (phi[i] and psi[i] don't always align; intersect on residue)
+-def res_of(indices):
+-    return np.array([traj.topology.atom(ix[1]).residue.index for ix in indices])
+-
+-phi_res, psi_res = res_of(phi_indices), res_of(psi_indices)
+-common = np.intersect1d(phi_res, psi_res)
++def res_of(indices): return np.array([traj.topology.atom(ix[1]).residue.index for ix in indices])
++phi_res, psi_res = res_of(phi_ix), res_of(psi_ix)
++common  = np.intersect1d(phi_res, psi_res)
+ phi_deg = np.degrees(phi_rad[:, np.isin(phi_res, common)])
+ psi_deg = np.degrees(psi_rad[:, np.isin(psi_res, common)])
+-print(f"Residues with both phi and psi: {len(common)}")
+ ```
+ 
+-Filtering Ramachandran samples to Gly / Pro residues:
++Filter to Gly / Pro residues:
+ 
+ ```python
+-# Residue identity for the columns above
+ res_names = [traj.topology.residue(r).name for r in common]
+ gly_cols  = [i for i, n in enumerate(res_names) if n == "GLY"]
+ pro_cols  = [i for i, n in enumerate(res_names) if n == "PRO"]
+-
+ phi_gly, psi_gly = phi_deg[:, gly_cols].ravel(), psi_deg[:, gly_cols].ravel()
+ phi_pro, psi_pro = phi_deg[:, pro_cols].ravel(), psi_deg[:, pro_cols].ravel()
+-print(f"Gly samples: {len(phi_gly)},  Pro samples: {len(phi_pro)}")
+ ```
+ 
+ ### Module 5: DSSP Secondary Structure (8-state)
+ 
+-`md.compute_dssp(traj, simplified=False)` returns an `(n_frames, n_residues)` array of single-character DSSP codes:
++`md.compute_dssp(traj, simplified=False)` returns `(n_frames, n_residues)` of one-character codes:
+ 
+ | Code | Meaning            |
+ |------|--------------------|
+@@ -209,323 +171,227 @@ print(f"Gly samples: {len(phi_gly)},  Pro samples: {len(phi_pro)}")
+ import mdtraj as md
+ 
+ traj = md.load("rep1.xtc", top="protein.pdb")
+-dssp = md.compute_dssp(traj, simplified=False)        # 8-state
+-# Replace whitespace with explicit 'C' for plotting
++dssp = md.compute_dssp(traj, simplified=False)
+ dssp[dssp == " "] = "C"
+ print(f"DSSP grid: {dssp.shape}  unique codes: {set(dssp.flatten())}")
+ ```
+ 
+-### Module 6: Visualization Helpers (matplotlib)
+-
+-mdtraj returns NumPy arrays — plotting is plain matplotlib/seaborn. Convention used across this skill:
++### Module 6: Hydrogen Bonds and SASA
+ 
+ ```python
+-import matplotlib.pyplot as plt
++import mdtraj as md
++import pandas as pd
+ 
+-# Consistent style for stability metrics
+-plt.rcParams.update({"figure.dpi": 120, "savefig.bbox": "tight",
+-                     "axes.spines.top": False, "axes.spines.right": False})
++traj = md.load("rep1.xtc", top="protein.pdb")
+ 
+-fig, ax = plt.subplots(figsize=(8, 4))
+-ax.plot(time_ns, rmsd_ang, lw=1, label="RMSD")
+-ax.set_xlabel("Time (ns)"); ax.set_ylabel("RMSD (Å)")
+-ax.legend(); fig.savefig("rmsd.png")
++# Baker–Hubbard: returns (n_hbonds, 3) of [donor, H, acceptor] atom indices
++hbonds = md.baker_hubbard(traj, freq=0.5, periodic=False)
++label  = lambda a: f"{traj.topology.atom(a).residue}-{traj.topology.atom(a).name}"
++hbonds_df = pd.DataFrame({"donor": [label(d) for d, _, _ in hbonds],
++                         "acceptor": [label(a) for _, _, a in hbonds]})
++
++# SASA in nm^2 per residue per frame
++sasa_nm2 = md.shrake_rupley(traj, mode="residue")
++total_ang2 = sasa_nm2.sum(axis=1) * 100.0                # nm^2 -> Å^2
++print(f"Persistent H-bonds: {len(hbonds_df)},  <SASA>: {total_ang2.mean():.0f} Å²")
+ ```
+ 
+ ## Key Concepts
+ 
+-### Concept 1: Trajectory units (nm, ps, radians)
++### Units (nm, ps, radians)
+ 
+-mdtraj stores `traj.xyz` in **nm**, `traj.time` in **ps**, and torsions in **radians**. The conversion is your responsibility before plotting:
++`traj.xyz` is in nm, `traj.time` in ps, torsions in radians. Convert before plotting:
+ 
+ ```python
+-xyz_ang   = traj.xyz * 10.0
+-time_ns   = traj.time / 1000.0
+ import numpy as np
+-phi_deg   = np.degrees(phi_rad)
++xyz_ang  = traj.xyz * 10.0
++time_ns  = traj.time / 1000.0
++phi_deg  = np.degrees(phi_rad)
+ ```
+ 
+-### Concept 2: Pair indices vs residue indices
++### Pair indices vs `resSeq`
+ 
+-`md.compute_contacts(..., contacts="all")` returns `(n_pairs, 2)` of **residue indices** (0-based, contiguous across chains). Reshape into a square `(n_res, n_res)` matrix before plotting heatmaps. Don't confuse with `resSeq` (PDB numbering, may have gaps and chain repeats).
++`md.compute_contacts(..., contacts="all")` returns **0-based residue indices** (contiguous across chains), not PDB `resSeq`. Reshape into `(n_res, n_res)` before heatmaps. Map back via `traj.topology.residue(i).resSeq` only when labeling.
+ 
+-### Concept 3: 8-state vs simplified DSSP
++### 8-state vs simplified DSSP
+ 
+-`simplified=False` → 8 states (H/B/E/G/I/T/S/' '). `simplified=True` → 3 states (H/E/C). The 8-state output is required to distinguish 3_10 (G), pi-helix (I), beta-bridge (B), bend (S), and turn (T) — collapsing to 3 states loses these signals.
++`simplified=False` → 8 states. `simplified=True` → 3 states (H/E/C), which loses 3_10 (G), pi-helix (I), beta-bridge (B), bend (S), turn (T).
+ 
+ ## Common Workflows
+ 
+ ### Workflow 1: Multi-Replicate Stability + Flexibility + Contacts + Ramachandran + DSSP
+ 
+-**Goal**: full structural-analysis report for three MD replicates — RMSD/Rg over time, per-residue RMSF, residue contact frequency map (replica 1), Ramachandran (general + Gly + Pro for replica 1), and DSSP 8-state time series (replica 1). Produces the figures described in the user's analysis brief.
++**Goal**: structural-analysis report for three MD replicates — RMSD/Rg over time, per-residue RMSF, residue contact frequency map (rep1), Ramachandran general + Gly + Pro (rep1), DSSP 8-state time series (rep1). Plots use matplotlib defaults; the consumer picks palette downstream.
+ 
+ ```python
+-import mdtraj as md
+-import numpy as np
+-import matplotlib.pyplot as plt
+-import matplotlib.colors as mcolors
+-from matplotlib.colors import LinearSegmentedColormap, ListedColormap
+-import seaborn as sns
++import mdtraj as md, numpy as np, matplotlib.pyplot as plt
+ from pathlib import Path
+ 
+-# --- Inputs -----------------------------------------------------------------
++replicas = {"rep1": "rep1.xtc", "rep2": "rep2.xtc", "rep3": "rep3.xtc"}
+ topology = "protein.pdb"
+-replicas = {
+-    "rep1": "rep1.xtc",
+-    "rep2": "rep2.xtc",
+-    "rep3": "rep3.xtc",
+-}
+ outdir = Path("figures"); outdir.mkdir(exist_ok=True)
+ 
+-# --- Load all three replicates ---------------------------------------------
+-trajs = {name: md.load(path, top=topology) for name, path in replicas.items()}
++trajs = {name: md.load(p, top=topology) for name, p in replicas.items()}
+ ca    = next(iter(trajs.values())).topology.select("name CA")
+ 
+-# ============================================================================
+-# 1. RMSD vs time + Radius of gyration (Å) for all three replicates
+-# ============================================================================
++# 1. RMSD vs time + Rg (Å) for all replicates
+ fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+-colors = {"rep1": "#1f77b4", "rep2": "#ff7f0e", "rep3": "#2ca02c"}
+-
+ for name, traj in trajs.items():
+     traj.superpose(traj, frame=0, atom_indices=ca)
+-    rmsd_ang = md.rmsd(traj, traj, frame=0, atom_indices=ca) * 10.0
+-    rg_ang   = md.compute_rg(traj) * 10.0
+-    t_ns     = traj.time / 1000.0
+-    ax1.plot(t_ns, rmsd_ang, color=colors[name], lw=1, label=name)
+-    ax2.plot(t_ns, rg_ang,   color=colors[name], lw=1, label=name)
+-
+-ax1.set(xlabel="Time (ns)", ylabel="RMSD (Å)", title="Backbone RMSD vs reference")
++    ax1.plot(traj.time / 1000.0, md.rmsd(traj, traj, frame=0, atom_indices=ca) * 10.0, lw=1, label=name)
++    ax2.plot(traj.time / 1000.0, md.compute_rg(traj) * 10.0, lw=1, label=name)
++ax1.set(xlabel="Time (ns)", ylabel="RMSD (Å)", title="Backbone RMSD")
+ ax2.set(xlabel="Time (ns)", ylabel="Rg (Å)",   title="Radius of gyration")
+ for ax in (ax1, ax2): ax.legend(frameon=False)
+-fig.tight_layout(); fig.savefig(outdir / "01_rmsd_rg.png", dpi=200)
+-plt.close(fig)
++fig.tight_layout(); fig.savefig(outdir / "01_rmsd_rg.png"); plt.close(fig)
+ 
+-# ============================================================================
+-# 2. Per-residue RMSF (Å) across three replicates
+-# ============================================================================
++# 2. Per-residue RMSF (Å) across replicates
+ fig, ax = plt.subplots(figsize=(10, 4))
+ for name, traj in trajs.items():
+-    ca_traj = traj.atom_slice(ca)
+-    ca_traj.superpose(ca_traj, frame=0)
+-    diff     = ca_traj.xyz - ca_traj.xyz.mean(axis=0)
+-    rmsf_ang = np.sqrt((diff ** 2).sum(axis=2).mean(axis=0)) * 10.0
+-    res_ids  = [a.residue.resSeq for a in ca_traj.topology.atoms]
+-    ax.plot(res_ids, rmsf_ang, color=colors[name], lw=1, label=name)
++    ct = traj.atom_slice(ca); ct.superpose(ct, frame=0)
++    rmsf = np.sqrt(((ct.xyz - ct.xyz.mean(axis=0)) ** 2).sum(axis=2).mean(axis=0)) * 10.0
++    ax.plot([a.residue.resSeq for a in ct.topology.atoms], rmsf, lw=1, label=name)
+ ax.set(xlabel="Residue", ylabel="RMSF (Å)", title="Per-residue flexibility")
+ ax.legend(frameon=False); fig.tight_layout()
+-fig.savefig(outdir / "02_rmsf.png", dpi=200); plt.close(fig)
++fig.savefig(outdir / "02_rmsf.png"); plt.close(fig)
+ 
+-# ============================================================================
+-# 3. Contact frequency map for replica 1 (white -> blue)
+-# ============================================================================
++# 3. Contact frequency map (rep1, 5 Å cutoff)
+ rep1 = trajs["rep1"]
+ dist_nm, pairs = md.compute_contacts(rep1, contacts="all", scheme="closest-heavy")
+-cutoff_nm  = 0.5                                         # 5 Å
+-freq       = (dist_nm < cutoff_nm).mean(axis=0)
+-n_res      = rep1.n_residues
+-freq_map   = np.zeros((n_res, n_res))
++freq = (dist_nm < 0.5).mean(axis=0)
++freq_map = np.zeros((rep1.n_residues, rep1.n_residues))
+ for (i, j), f in zip(pairs, freq):
+     freq_map[i, j] = freq_map[j, i] = f
+ np.fill_diagonal(freq_map, 1.0)
+-
+-cmap_contact = LinearSegmentedColormap.from_list("white_blue", ["white", "#08306b"])
+ fig, ax = plt.subplots(figsize=(6, 5))
+-im = ax.imshow(freq_map, cmap=cmap_contact, vmin=0, vmax=1, origin="lower")
+-ax.set(xlabel="Residue", ylabel="Residue", title="Contact frequency (rep1, 5 Å cutoff)")
++im = ax.imshow(freq_map, vmin=0, vmax=1, origin="lower")
++ax.set(xlabel="Residue", ylabel="Residue", title="Contact frequency (rep1)")
+ fig.colorbar(im, ax=ax, label="Fraction of frames in contact")
+-fig.tight_layout(); fig.savefig(outdir / "03_contact_map.png", dpi=200)
+-plt.close(fig)
++fig.tight_layout(); fig.savefig(outdir / "03_contact_map.png"); plt.close(fig)
+ 
+-# ============================================================================
+-# 4. Ramachandran (replica 1) — density colored blue (low) -> red (high)
+-# ============================================================================
++# 4. Ramachandran (rep1) — phi/psi 2D density
+ phi_ix, phi_rad = md.compute_phi(rep1)
+ psi_ix, psi_rad = md.compute_psi(rep1)
+-
+-def res_of(indices, traj):
+-    return np.array([traj.topology.atom(ix[1]).residue.index for ix in indices])
+-
+-phi_res = res_of(phi_ix, rep1); psi_res = res_of(psi_ix, rep1)
+-common  = np.intersect1d(phi_res, psi_res)
++def res_of(ix, t): return np.array([t.topology.atom(i[1]).residue.index for i in ix])
++phi_res, psi_res = res_of(phi_ix, rep1), res_of(psi_ix, rep1)
++common = np.intersect1d(phi_res, psi_res)
+ phi_deg = np.degrees(phi_rad[:, np.isin(phi_res, common)]).ravel()
+ psi_deg = np.degrees(psi_rad[:, np.isin(psi_res, common)]).ravel()
+-
+-cmap_density = LinearSegmentedColormap.from_list("blue_red", ["#08306b", "white", "#a50f15"])
++H, _, _ = np.histogram2d(phi_deg, psi_deg, bins=72, range=[[-180, 180], [-180, 180]])
+ fig, ax = plt.subplots(figsize=(5, 5))
+-H, xe, ye = np.histogram2d(phi_deg, psi_deg, bins=72, range=[[-180, 180], [-180, 180]])
+-ax.imshow(H.T, origin="lower", extent=[-180, 180, -180, 180],
+-          cmap=cmap_density, aspect="equal")
+-ax.set(xlabel=r"$\phi$ (°)", ylabel=r"$\psi$ (°)",
+-       title="Ramachandran (rep1) — density")
+-fig.tight_layout(); fig.savefig(outdir / "04_ramachandran_all.png", dpi=200)
+-plt.close(fig)
+-
+-# ============================================================================
+-# 5. Glycine + proline Ramachandran (frequency-colored blue -> red)
+-# ============================================================================
+-res_names = [rep1.topology.residue(r).name for r in common]
+-gly_cols  = [i for i, n in enumerate(res_names) if n == "GLY"]
+-pro_cols  = [i for i, n in enumerate(res_names) if n == "PRO"]
++ax.imshow(H.T, origin="lower", extent=[-180, 180, -180, 180], aspect="equal")
++ax.set(xlabel=r"$\phi$ (°)", ylabel=r"$\psi$ (°)", title="Ramachandran (rep1)")
++fig.tight_layout(); fig.savefig(outdir / "04_ramachandran_all.png"); plt.close(fig)
+ 
+-for label, cols, fname in [("Glycine", gly_cols, "05_rama_gly.png"),
+-                           ("Proline", pro_cols, "06_rama_pro.png")]:
+-    if not cols:
+-        continue
++# 5. Glycine + proline Ramachandran
++res_names = [rep1.topology.residue(r).name for r in common]
++for label, cols, fname in [("Glycine", [i for i, n in enumerate(res_names) if n == "GLY"], "05_rama_gly.png"),
++                           ("Proline", [i for i, n in enumerate(res_names) if n == "PRO"], "06_rama_pro.png")]:
++    if not cols: continue
+     phi = np.degrees(phi_rad[:, cols]).ravel()
+     psi = np.degrees(psi_rad[:, cols]).ravel()
+     H, _, _ = np.histogram2d(phi, psi, bins=60, range=[[-180, 180], [-180, 180]])
+     fig, ax = plt.subplots(figsize=(5, 5))
+-    ax.imshow(H.T, origin="lower", extent=[-180, 180, -180, 180],
+-              cmap=cmap_density, aspect="equal")
+-    ax.set(xlabel=r"$\phi$ (°)", ylabel=r"$\psi$ (°)",
+-           title=f"{label} Ramachandran (rep1, frequency)")
+-    fig.tight_layout(); fig.savefig(outdir / fname, dpi=200); plt.close(fig)
+-
+-# ============================================================================
+-# 6. DSSP 8-state time series for replica 1
+-# ============================================================================
+-dssp = md.compute_dssp(rep1, simplified=False)
+-dssp[dssp == " "] = "C"
++    ax.imshow(H.T, origin="lower", extent=[-180, 180, -180, 180], aspect="equal")
++    ax.set(xlabel=r"$\phi$ (°)", ylabel=r"$\psi$ (°)", title=f"{label} Ramachandran (rep1)")
++    fig.tight_layout(); fig.savefig(outdir / fname); plt.close(fig)
+ 
+-dssp_colors = {
+-    "C": "#ffffff",  # coil — white
+-    "E": "#fbb4ae",  # beta-sheet — pastel red
+-    "B": "#000000",  # beta-bridge — black
+-    "S": "#ccebc5",  # bend — pastel green
+-    "T": "#ffffcc",  # turn — pastel yellow
+-    "H": "#b3cde3",  # alpha-helix — pastel blue
+-    "I": "#decbe4",  # pi-helix — pastel purple
+-    "G": "#bdbdbd",  # 3_10-helix — grey
+-}
++# 6. DSSP 8-state time series (rep1)
++dssp = md.compute_dssp(rep1, simplified=False); dssp[dssp == " "] = "C"
+ codes_order = ["C", "E", "B", "S", "T", "H", "I", "G"]
+ code_to_int = {c: i for i, c in enumerate(codes_order)}
+-dssp_int    = np.vectorize(lambda c: code_to_int.get(c, 0))(dssp)    # (n_frames, n_res)
+-
+-cmap_dssp = ListedColormap([dssp_colors[c] for c in codes_order])
++dssp_int = np.vectorize(lambda c: code_to_int.get(c, 0))(dssp)
+ fig, ax = plt.subplots(figsize=(10, 5))
+-ax.imshow(dssp_int.T, aspect="auto", cmap=cmap_dssp, vmin=-0.5, vmax=len(codes_order) - 0.5,
+-          origin="lower", interpolation="nearest",
++ax.imshow(dssp_int.T, aspect="auto", origin="lower", interpolation="nearest",
+           extent=[rep1.time[0] / 1000.0, rep1.time[-1] / 1000.0, 0, rep1.n_residues])
+-ax.set(xlabel="Time (ns)", ylabel="Residue", title="DSSP 8-state evolution (rep1)")
+-
+-# Discrete legend
+-from matplotlib.patches import Patch
+-labels = {"C": "Coil", "E": "β-sheet", "B": "β-bridge", "S": "Bend",
+-          "T": "Turn", "H": "α-helix", "I": "π-helix", "G": "3_10-helix"}
+-patches = [Patch(facecolor=dssp_colors[c], edgecolor="black", label=labels[c]) for c in codes_order]
+-ax.legend(handles=patches, bbox_to_anchor=(1.02, 1), loc="upper left", frameon=False)
+-fig.tight_layout(); fig.savefig(outdir / "07_dssp_8state.png", dpi=200)
+-plt.close(fig)
++ax.set(xlabel="Time (ns)", ylabel="Residue", title="DSSP 8-state (rep1)")
++fig.tight_layout(); fig.savefig(outdir / "07_dssp_8state.png"); plt.close(fig)
+ 
++# Dump DSSP code mapping so downstream code can pick its own legend/palette
++np.savez(outdir / "07_dssp_8state.npz", dssp=dssp, dssp_int=dssp_int, codes_order=codes_order)
+ print("All figures written to figures/")
+ ```
+ 
+-### Workflow 2: Hydrogen-Bond Persistence + SASA Time Series
++### Workflow 2: H-Bond Persistence + SASA Across Replicates
+ 
+-**Goal**: classify hydrogen bonds present in >50% of frames (Baker–Hubbard) and track solvent-accessible surface area over time.
++**Goal**: persistent hydrogen bonds (≥50% of frames) and total SASA time series per replicate.
+ 
+ ```python
+-import mdtraj as md
+-import numpy as np
+-import pandas as pd
++import mdtraj as md, numpy as np, pandas as pd
+ 
+-traj = md.load("rep1.xtc", top="protein.pdb")
+-
+-# Baker–Hubbard H-bonds: returns (n_hbonds, 3) of [donor, H, acceptor] atom indices
+-hbonds = md.baker_hubbard(traj, freq=0.5, periodic=False)
+-label  = lambda a: f"{traj.topology.atom(a).residue}-{traj.topology.atom(a).name}"
+-hbonds_df = pd.DataFrame({
+-    "donor":     [label(d) for d, _, _ in hbonds],
+-    "acceptor":  [label(a) for _, _, a in hbonds],
+-})
+-print(f"Persistent H-bonds (>=50% frames): {len(hbonds_df)}")
+-
+-# SASA in nm^2 per residue per frame; sum residues for total
+-sasa_nm2 = md.shrake_rupley(traj, mode="residue")     # (n_frames, n_residues)
+-total_ang2 = sasa_nm2.sum(axis=1) * 100.0              # nm^2 -> Å^2
+-print(f"<Total SASA> = {total_ang2.mean():.0f} ± {total_ang2.std():.0f} Å²")
++replicas = {"rep1": "rep1.xtc", "rep2": "rep2.xtc", "rep3": "rep3.xtc"}
++top = "protein.pdb"
++rows = []
++for name, p in replicas.items():
++    t = md.load(p, top=top)
++    hbonds = md.baker_hubbard(t, freq=0.5, periodic=False)
++    sasa_ang2 = (md.shrake_rupley(t, mode="residue").sum(axis=1) * 100.0)
++    rows.append({"replica": name, "n_persistent_hbonds": len(hbonds),
++                 "sasa_mean_ang2": sasa_ang2.mean(), "sasa_std_ang2": sasa_ang2.std()})
++print(pd.DataFrame(rows).to_string(index=False))
+ ```
+ 
+ ## Key Parameters
+ 
+ | Parameter | Module | Default | Range / Options | Effect |
+ |-----------|--------|---------|-----------------|--------|
+-| `chunk` (`md.iterload`) | I/O | `100` | `100`-`5000` | Frames per streamed chunk; raise for speed, lower for RAM |
+-| `atom_indices` (`md.rmsd`) | Stability | `None` (all) | array of ints | Restrict superposition + RMSD to subset (e.g., CA only) |
+-| `frame` (`md.rmsd`) | Stability | `0` | `0`-`n_frames-1` | Reference frame for RMSD |
+-| `contacts` (`md.compute_contacts`) | Contacts | `"all"` | `"all"`, `[(i,j),...]` | Compute every residue pair, or a custom pair list |
++| `chunk` (`md.iterload`) | I/O | `100` | `100`-`5000` | Frames per stream chunk; trade speed vs RAM |
++| `atom_indices` (`md.rmsd`) | Stability | `None` | array of ints | Restrict superposition + RMSD (e.g., CA only) |
++| `frame` (`md.rmsd`) | Stability | `0` | `0`-`n_frames-1` | Reference frame |
++| `contacts` (`md.compute_contacts`) | Contacts | `"all"` | `"all"`, `[(i,j),...]` | All residue pairs or custom list |
+ | `scheme` (`md.compute_contacts`) | Contacts | `"closest-heavy"` | `"ca"`, `"closest"`, `"closest-heavy"`, `"sidechain"`, `"sidechain-heavy"` | Atom subset for inter-residue distance |
+-| `cutoff` (contact threshold, user-defined) | Contacts | `0.5` nm | `0.4`-`0.8` nm | Distance below which pair counts as in contact (5 Å is standard for CA, 4 Å for closest-heavy) |
+-| `simplified` (`md.compute_dssp`) | Secondary structure | `True` | `True`/`False` | `False` returns 8-state codes; `True` returns 3-state H/E/C |
+-| `freq` (`md.baker_hubbard`) | H-bonds | `0.1` | `0.0`-`1.0` | Min fraction of frames an H-bond must appear to be reported |
++| `cutoff` (contact threshold, user-set) | Contacts | `0.5` nm | `0.4`-`0.8` nm | In-contact distance (5 Å for CA, 4 Å for closest-heavy) |
++| `simplified` (`md.compute_dssp`) | DSSP | `True` | `True`/`False` | `False` → 8-state codes |
++| `freq` (`md.baker_hubbard`) | H-bonds | `0.1` | `0.0`-`1.0` | Min frame fraction to report |
+ | `mode` (`md.shrake_rupley`) | SASA | `"atom"` | `"atom"`, `"residue"` | Per-atom or summed per residue |
+-| `probe_radius` (`md.shrake_rupley`) | SASA | `0.14` nm | `0.12`-`0.20` nm | Solvent probe radius (1.4 Å is the convention) |
+-| `periodic` (geometry funcs) | Geometry | `True` | bool | Apply minimum-image convention if box info is present |
++| `probe_radius` (`md.shrake_rupley`) | SASA | `0.14` nm | `0.12`-`0.20` nm | Solvent probe (1.4 Å standard) |
++| `periodic` (geometry funcs) | Geometry | `True` | bool | Minimum-image convention if box info present |
+ 
+ ## Best Practices
+ 
+-1. **Always convert units before plotting**: mdtraj returns nm / ps / radians. Multiply by 10 (Å), divide by 1000 (ns), wrap in `np.degrees()` (deg). Forgetting this is the #1 cause of "my RMSD looks 10× too small".
+-
+-   ```python
+-   rmsd_ang = md.rmsd(traj, traj, 0) * 10.0
+-   ```
+-
+-2. **Superpose before RMSD/RMSF**: `md.rmsd` superposes internally each call. For RMSF you compute manually — call `traj.superpose(...)` first or RMSF will include rigid-body motion.
+-
+-3. **Use `md.iterload` for trajectories that don't fit in RAM**: a 1 µs all-atom trajectory at 1 ps/frame is millions of frames. Streaming avoids OOM and is often faster than `md.load` for selective metrics.
+-
+-4. **Don't trust `simplified=True` DSSP for fine-grained analysis**: collapsing 8 states to 3 hides 3_10 / pi-helix / bend transitions. Use `simplified=False` whenever the secondary structure signal matters.
+-
+-5. **Pair indices, not `resSeq`**: `md.compute_contacts` returns **0-based residue indices** (contiguous across chains), not the PDB `resSeq`. Map back via `traj.topology.residue(i).resSeq` only when labeling.
+-
+-6. **Strip waters early**: `traj = traj.atom_slice(traj.topology.select("protein"))` before downstream analysis cuts memory and speed by 5–20× on solvated systems.
++1. **Convert units before plotting** — nm → Å (×10), ps → ns (÷1000), rad → deg (`np.degrees`). #1 cause of "my RMSD is 10× too small".
++2. **Superpose before RMSF** — `md.rmsd` superposes internally; RMSF doesn't. Without explicit `traj.superpose(...)`, RMSF picks up rigid-body motion.
++3. **`md.iterload` for big trajectories** — 1 µs at 1 ps/frame is millions of frames. Streaming avoids OOM.
++4. **`simplified=False` for fine-grained DSSP** — 3-state collapses 3_10 / pi-helix / bend transitions.
++5. **Pair indices, not `resSeq`** — `md.compute_contacts` returns 0-based contiguous indices. Map to `resSeq` only for labeling.
++6. **Strip waters early** — `traj.atom_slice(traj.topology.select("protein"))` cuts memory/time 5–20× on solvated systems.
+ 
+ ## Common Recipes
+ 
+ ### Recipe: Convert Trajectory Format
+ 
+-When to use: convert AMBER NetCDF to GROMACS XTC, or DCD to multi-frame PDB.
+-
+ ```python
+ import mdtraj as md
+ 
+ traj = md.load("input.nc", top="topology.parm7")
+ traj.save_xtc("output.xtc")
+-traj.save_pdb("output.pdb")             # whole trajectory in one multi-MODEL PDB
+-print(f"Converted {traj.n_frames} frames → output.xtc")
++traj.save_pdb("output.pdb")
++print(f"Converted {traj.n_frames} frames -> output.xtc")
+ ```
+ 
+-### Recipe: Compute Per-Residue Average RMSF Across Replicates
++### Recipe: Per-Residue Mean ± SD RMSF Across Replicates
+ 
+-When to use: ensemble-averaged flexibility, used as input to flexibility-aware docking or homology refinement.
++Ensemble flexibility input for flexibility-aware docking or homology refinement.
+ 
+ ```python
+-import mdtraj as md
+-import numpy as np
+-import pandas as pd
++import mdtraj as md, numpy as np, pandas as pd
+ 
+ paths = {"rep1": "rep1.xtc", "rep2": "rep2.xtc", "rep3": "rep3.xtc"}
+-top   = "protein.pdb"
+-rmsf_per_rep = {}
+-
++top = "protein.pdb"
++rmsf_by_rep = {}
+ for name, p in paths.items():
+     t  = md.load(p, top=top)
+-    ca = t.topology.select("name CA")
+-    ct = t.atom_slice(ca); ct.superpose(ct, frame=0)
+-    diff = ct.xyz - ct.xyz.mean(axis=0)
+-    rmsf_per_rep[name] = np.sqrt((diff ** 2).sum(axis=2).mean(axis=0)) * 10.0
+-
+-df = pd.DataFrame(rmsf_per_rep)
+-df["mean"] = df.mean(axis=1)
+-df["std"]  = df.std(axis=1)
++    ct = t.atom_slice(t.topology.select("name CA")); ct.superpose(ct, frame=0)
++    rmsf_by_rep[name] = np.sqrt(((ct.xyz - ct.xyz.mean(axis=0)) ** 2).sum(axis=2).mean(axis=0)) * 10.0
++
++df = pd.DataFrame(rmsf_by_rep)
++df["mean"], df["std"] = df.mean(axis=1), df.std(axis=1)
+ df.to_csv("rmsf_replicates.csv", index_label="residue_index")
+-print(df.head())
+ ```
+ 
+-### Recipe: Save Only Frames Where RMSD > Threshold
++### Recipe: Save Frames Above RMSD Threshold
+ 
+-When to use: cluster late conformational states or build a curated set of "open" conformations.
++Curate "open" conformations for clustering or downstream analysis.
+ 
+ ```python
+ import mdtraj as md
+@@ -535,27 +401,19 @@ ca   = traj.topology.select("name CA")
+ traj.superpose(traj, frame=0, atom_indices=ca)
+ rmsd_ang = md.rmsd(traj, traj, frame=0, atom_indices=ca) * 10.0
+ 
+-open_state = traj[rmsd_ang > 4.0]                  # frames with RMSD > 4 Å
++open_state = traj[rmsd_ang > 4.0]
+ open_state.save_dcd("open_state.dcd")
+-print(f"Saved {open_state.n_frames}/{traj.n_frames} frames as open state")
++print(f"Saved {open_state.n_frames}/{traj.n_frames} frames")
+ ```
+ 
+-### Recipe: Cross-Replicate DSSP Helix Fraction
+-
+-When to use: quantitative summary of secondary structure stability across replicates.
++### Recipe: Cross-Replicate Helix Fraction
+ 
+ ```python
+-import mdtraj as md
+-import numpy as np
++import mdtraj as md, numpy as np
+ 
+ paths = ["rep1.xtc", "rep2.xtc", "rep3.xtc"]
+-top   = "protein.pdb"
+-helix_fracs = []
+-for p in paths:
+-    t = md.load(p, top=top)
+-    dssp = md.compute_dssp(t, simplified=False)
+-    helix_fracs.append((dssp == "H").mean())
+-print(f"α-helix fraction per replicate: {[f'{h:.2f}' for h in helix_fracs]}")
++helix_fracs = [(md.compute_dssp(md.load(p, top="protein.pdb"), simplified=False) == "H").mean() for p in paths]
++print(f"α-helix per replicate: {[f'{h:.2f}' for h in helix_fracs]}")
+ print(f"Mean ± std: {np.mean(helix_fracs):.2f} ± {np.std(helix_fracs):.2f}")
+ ```
+ 
+@@ -563,29 +421,29 @@ print(f"Mean ± std: {np.mean(helix_fracs):.2f} ± {np.std(helix_fracs):.2f}")
+ 
+ | Problem | Cause | Solution |
+ |---------|-------|----------|
+-| `RuntimeError: No topology` | Trajectory format (XTC/DCD/TRR) carries no topology | Pass `top="protein.pdb"` or `top="topology.prmtop"` to `md.load` |
+-| RMSD values 10× too small | mdtraj returns nm, not Å | Multiply by `10.0` before plotting/reporting |
+-| RMSF spikes at termini | Termini have higher intrinsic flexibility; not a bug | Slice them off (`ct.atom_slice(ct.topology.select("residue 2 to -2"))`) or report explicitly |
+-| `md.compute_dssp` returns only `H/E/C` | `simplified=True` is the default | Pass `simplified=False` for 8-state output |
+-| Empty DSSP cells / `' '` codes | Spaces represent coil — they aren't missing | Replace with `'C'` before plotting: `dssp[dssp == " "] = "C"` |
+-| Memory error on large trajectory | Whole trajectory loaded into RAM | Switch to `md.iterload(path, top=top, chunk=500)` |
+-| Phi/psi arrays have different residue counts | First residue has no phi; last has no psi | Intersect the residue index sets before pairing |
+-| Ramachandran plot off-center | Forgot `np.degrees(...)`; angles are radians | Wrap with `np.degrees` and set `range=[[-180, 180], [-180, 180]]` in `histogram2d` |
+-| `md.compute_contacts` returns NaNs | Some pairs lack heavy atoms for `closest-heavy` (e.g., glycine sidechain) | Use `scheme="closest"` or `"ca"`; drop NaN columns before plotting |
+-| Contact-map heatmap is asymmetric | Only filled the upper triangle | Mirror with `freq_map[j, i] = freq_map[i, j]` after filling |
+-| Trajectory has no `time` array | Some writers store every step as `time=0` | Reconstruct: `traj.time = np.arange(traj.n_frames) * dt_ps` |
++| `RuntimeError: No topology` | XTC/DCD/TRR carry no topology | Pass `top="protein.pdb"` (or `.prmtop`) to `md.load` |
++| RMSD 10× too small | mdtraj returns nm | Multiply by 10.0 |
++| RMSF spikes at termini | Intrinsic terminal flexibility, not a bug | Slice termini off or report explicitly |
++| DSSP returns only `H/E/C` | `simplified=True` default | Pass `simplified=False` |
++| Empty/`' '` DSSP cells | Space = coil, not missing | `dssp[dssp == " "] = "C"` |
++| MemoryError on big trajectory | Whole trajectory in RAM | Switch to `md.iterload(..., chunk=500)` |
++| phi/psi arrays differ in residue count | First residue has no phi; last has no psi | Intersect residue index sets before pairing |
++| Ramachandran off-center | Angles still in radians | Wrap with `np.degrees`; set `range=[[-180, 180], [-180, 180]]` |
++| `md.compute_contacts` returns NaN | Some pairs lack heavy atoms for `closest-heavy` (e.g., glycine sidechain) | Use `scheme="closest"` or `"ca"`; drop NaN columns |
++| Contact map asymmetric | Only filled upper triangle | Mirror: `freq_map[j, i] = freq_map[i, j]` |
++| `traj.time` all zeros | Some writers leave time blank | Reconstruct: `traj.time = np.arange(traj.n_frames) * dt_ps` |
+ 
+ ## Related Skills
+ 
+-- **mdanalysis-trajectory** — alternative trajectory library with richer atom-selection grammar and the AnalysisBase framework
+-- **autodock-vina-docking** / **smina-molecular-docking** — feed representative frames from MD as docking targets
+-- **opentargets-database** / **chembl-database-bioactivity** — fetch ligand bioactivity to overlay on MD-derived flexibility maps
++- **mdanalysis-trajectory** — richer atom-selection grammar and AnalysisBase framework
++- **autodock-vina-docking** / **smina-molecular-docking** — feed representative MD frames as docking targets
++- **chembl-database-bioactivity** — overlay ligand bioactivity on MD-derived flexibility maps
+ 
+ ## References
+ 
+ - [mdtraj documentation](https://mdtraj.org/) — official docs, API reference, tutorials
+ - [McGibbon et al. (2015)](https://doi.org/10.1016/j.bpj.2015.08.015) — "MDTraj: A Modern Open Library for the Analysis of Molecular Dynamics Trajectories", *Biophys J*
+-- [DSSP algorithm](https://doi.org/10.1002/bip.360221211) — Kabsch & Sander (1983) "Dictionary of protein secondary structure"
+-- [Baker–Hubbard H-bond criterion](https://doi.org/10.1016/S0006-3495(99)77244-7) — Baker & Hubbard (1984) "Hydrogen bonding in globular proteins"
+-- [Shrake–Rupley SASA](https://doi.org/10.1016/0022-2836(73)90011-9) — Shrake & Rupley (1973) "Environment and exposure to solvent of protein atoms"
+-- [mdtraj on GitHub](https://github.com/mdtraj/mdtraj) — source, issue tracker, examples
++- [DSSP algorithm](https://doi.org/10.1002/bip.360221211) — Kabsch & Sander (1983)
++- [Baker–Hubbard H-bond criterion](https://doi.org/10.1016/S0006-3495(99)77244-7) — Baker & Hubbard (1984)
++- [Shrake–Rupley SASA](https://doi.org/10.1016/0022-2836(73)90011-9) — Shrake & Rupley (1973)
++- [mdtraj GitHub](https://github.com/mdtraj/mdtraj) — source, issues, examples
+diff --git a/skills/structural-biology-drug-discovery/smina-molecular-docking/SKILL.md b/skills/structural-biology-drug-discovery/smina-molecular-docking/SKILL.md
+index 39d477e..43ef860 100644
+--- a/skills/structural-biology-drug-discovery/smina-molecular-docking/SKILL.md
++++ b/skills/structural-biology-drug-discovery/smina-molecular-docking/SKILL.md
+@@ -8,82 +8,68 @@ license: "GPL-2.0"
+ 
+ ## Overview
+ 
+-smina is a fork of AutoDock Vina 1.1.2 (David Koes, University of Pittsburgh) focused on flexible scoring and minimization. It accepts SDF/MOL2/PDB ligands directly (no manual PDBQT conversion), supports autoboxing from a reference ligand, exposes six built-in scoring functions and arbitrary user-defined terms via `--custom_scoring`, and prints per-atom score contributions. The tool is CLI-only; this skill drives it from Python via `subprocess`, with RDKit + OpenBabel for ligand prep and ADFR Suite (`prepare_receptor`) for receptor PDBQT generation.
++smina is an AutoDock Vina 1.1.2 fork focused on flexible scoring and minimization. Accepts SDF/MOL2/PDB ligands directly (no manual PDBQT), autoboxes from a reference ligand, ships six built-in scoring functions plus arbitrary `--custom_scoring` terms, and prints per-atom score contributions. CLI-only — drive from Python via `subprocess`.
+ 
+ ## When to Use
+ 
+-- Re-scoring or locally minimizing an existing protein–ligand pose (`--local_only`, `--minimize`) without running a full conformational search
+-- Computing a single-pose binding energy estimate without docking (`--score_only`)
+-- Running a docking protocol with a custom or empirical scoring function tuned on your target class
+-- Docking from SDF/MOL2/multi-ligand files without converting each ligand to PDBQT manually
+-- Autoboxing the search grid around a co-crystallized reference ligand instead of supplying explicit center/size
+-- Getting per-atom energy decomposition (`--atom_term_data`) to interpret which ligand atoms drive binding
+-- Batch virtual screening when you want a single self-contained CLI process per ligand (easier to parallelize across nodes than the Python API)
+-- Use **autodock-vina-docking** instead when you need the Vina Python bindings, Vinardo scoring, or Vina 1.2's expanded force field; use **diffdock-blind-docking** when the binding site is unknown
++- Re-scoring or locally minimizing an existing pose (`--local_only`, `--minimize`) without a full search
++- Single-pose binding energy without docking (`--score_only`)
++- Docking with a custom or empirical scoring function tuned to a target class
++- SDF/MOL2/multi-ligand input without per-ligand PDBQT conversion
++- Autoboxing the grid around a co-crystallized reference ligand
++- Per-atom energy decomposition (`--atom_term_data`) for medchem analog design
++- Batch virtual screening that parallelizes well across nodes (one CLI process per ligand)
++- Use **autodock-vina-docking** instead when you need Vina Python bindings, Vinardo scoring, or Vina 1.2's expanded force field; use **diffdock-blind-docking** when the binding site is unknown
+ 
+ ## Prerequisites
+ 
+-- **smina binary**: install via conda-forge (or download from SourceForge / build from source)
+-- **Python packages**: `rdkit`, `openbabel-wheel` (or system `openbabel`), `prody`, `pandas`, `py3Dmol`
+-- **External tools**: `ADFR Suite` for `prepare_receptor` (receptor PDBQT). Ligands can go in as SDF/MOL2/PDB — smina handles them internally.
+-- **Data**: protein structure (PDB / PDB ID), ligand(s) as SMILES / SDF / MOL2
++- **smina binary** — conda-forge or SourceForge build
++- **Python**: `rdkit`, `openbabel-wheel` (or system `openbabel`), `prody`, `pandas`, `py3Dmol`
++- **ADFR Suite** for `prepare_receptor` (receptor PDBQT only — ligands handled by smina)
++- **Data**: protein (PDB / PDB ID), ligand(s) as SMILES / SDF / MOL2
+ 
+-Before installing, check whether `smina` is already on PATH (it usually is inside a pixi or conda env). If `command -v smina` succeeds, skip the install step. Inside a pixi project invoke as `pixi run smina ...` to use the pinned binary.
++Check before installing — inside a pixi/conda env smina is usually already on PATH. If `command -v smina` succeeds, skip install; inside a pixi project invoke as `pixi run smina ...`.
+ 
+ ```bash
+-# Check first; install only if missing
+ command -v smina || conda install -c conda-forge smina openbabel
+ pip install rdkit prody pandas py3Dmol
+-# ADFR Suite ships prepare_receptor — install separately
+-# https://ccsb.scripps.edu/adfr/downloads/
++# ADFR Suite: https://ccsb.scripps.edu/adfr/downloads/
+ ```
+ 
+ ## Quick Start
+ 
+-Minimal end-to-end docking using autobox from a reference ligand (no explicit grid coordinates needed):
++End-to-end docking using autobox from a reference ligand:
+ 
+ ```python
+ import subprocess
+-from pathlib import Path
+-
+-# Inputs: receptor PDBQT, reference ligand PDB (for autobox), candidate ligand SDF
+-receptor = "1hpv_receptor.pdbqt"
+-ref_lig  = "1hpv_ref_ligand.pdb"
+-ligand   = "candidate.sdf"
+-out      = "candidate_docked.sdf"
+ 
+ result = subprocess.run([
+     "smina",
+-    "-r", receptor,
+-    "-l", ligand,
+-    "--autobox_ligand", ref_lig,
+-    "--autobox_add", "8",          # 8 Å padding around reference
+-    "-o", out,
++    "-r", "1hpv_receptor.pdbqt",
++    "-l", "candidate.sdf",
++    "--autobox_ligand", "1hpv_ref_ligand.pdb",
++    "--autobox_add", "8",          # padding around reference (Å)
++    "-o", "candidate_docked.sdf",
+     "--exhaustiveness", "16",
+     "--num_modes", "9",
+     "--seed", "42",
+ ], check=True, capture_output=True, text=True)
+ 
+-print(result.stdout.splitlines()[-15:])  # affinity table at end of stdout
+-print(f"Docked poses: {out}")
++print(result.stdout.splitlines()[-15:])  # affinity table at stdout tail
+ ```
+ 
+ ## Workflow
+ 
+ ### Step 1: Prepare the Receptor (PDBQT)
+ 
+-smina requires receptor in PDBQT. Use ADFR Suite's `prepare_receptor` after stripping waters/hetatms.
++Strip waters/hetatms, then run ADFR Suite's `prepare_receptor`.
+ 
+ ```python
+-import subprocess
+-import prody
++import subprocess, prody
+ 
+ pdb_id = "1HPV"
+ prody.fetchPDB(pdb_id, compressed=False)
+-structure = prody.parsePDB(f"{pdb_id}.pdb")
+-
+-# Save protein-only PDB (no water, no ligand, no ion)
+-protein = structure.select("protein")
++protein = prody.parsePDB(f"{pdb_id}.pdb").select("protein")
+ prody.writePDB(f"{pdb_id}_protein.pdb", protein)
+ 
+ receptor_pdbqt = f"{pdb_id}_receptor.pdbqt"
+@@ -96,87 +82,77 @@ subprocess.run([
+ print(f"Receptor: {receptor_pdbqt} ({protein.numAtoms()} atoms)")
+ ```
+ 
+-### Step 2: Prepare the Ligand (SDF, no manual PDBQT)
++### Step 2: Prepare the Ligand (SDF)
+ 
+-Unlike Vina, smina reads SDF/MOL2 directly. Generate 3D coordinates with RDKit and write SDF — smina handles the rest.
++smina reads SDF directly. Generate 3D coords with RDKit.
+ 
+ ```python
+ from rdkit import Chem
+ from rdkit.Chem import AllChem
+ 
+-smiles = "CC(C)(C)NC(=O)[C@@H]1CN(CCc2ccccc2)C[C@H]1O"  # example
+-mol = Chem.MolFromSmiles(smiles)
++mol = Chem.MolFromSmiles("CC(C)(C)NC(=O)[C@@H]1CN(CCc2ccccc2)C[C@H]1O")
+ mol = Chem.AddHs(mol)
+ AllChem.EmbedMolecule(mol, randomSeed=42)
+ AllChem.MMFFOptimizeMolecule(mol)
+ 
+-writer = Chem.SDWriter("candidate.sdf")
+-writer.write(mol)
+-writer.close()
++w = Chem.SDWriter("candidate.sdf"); w.write(mol); w.close()
+ print(f"Ligand SDF: candidate.sdf ({mol.GetNumAtoms()} atoms)")
+ ```
+ 
+ ### Step 3: Extract a Reference Ligand for Autoboxing
+ 
+-smina's `--autobox_ligand` derives the grid from a reference structure. Pull the co-crystallized ligand out of the original PDB.
++`--autobox_ligand` derives the grid from a reference structure.
+ 
+ ```python
+ import prody
+ 
+-structure = prody.parsePDB(f"{pdb_id}.pdb")
+-ref = structure.select("hetero and not water and not ion")
++ref = prody.parsePDB(f"{pdb_id}.pdb").select("hetero and not water and not ion")
+ if ref is None:
+-    raise RuntimeError("No reference ligand in PDB — supply explicit --center_x/--size_x")
+-
++    raise RuntimeError("No reference ligand — supply explicit --center_x/--size_x")
+ prody.writePDB(f"{pdb_id}_ref_ligand.pdb", ref)
+-center = ref.getCoords().mean(axis=0)
+-print(f"Reference ligand: {ref.numAtoms()} atoms, center {center.round(2)}")
++print(f"Ref ligand: {ref.numAtoms()} atoms, center {ref.getCoords().mean(axis=0).round(2)}")
+ ```
+ 
+ ### Step 4: Run Docking with Autobox
+ 
+-Drive smina via `subprocess`. Capture stdout — the affinity table is printed there, not just in the output SDF.
++Affinity table is printed to stdout — capture it.
+ 
+ ```python
+ import subprocess
+ 
+-cmd = [
++proc = subprocess.run([
+     "smina",
+     "-r", receptor_pdbqt,
+     "-l", "candidate.sdf",
+     "--autobox_ligand", f"{pdb_id}_ref_ligand.pdb",
+-    "--autobox_add", "8",            # padding (Å) on each side of reference
++    "--autobox_add", "8",
+     "-o", "candidate_docked.sdf",
+     "--exhaustiveness", "16",
+     "--num_modes", "9",
+     "--energy_range", "3",
+     "--cpu", "4",
+     "--seed", "42",
+-]
+-proc = subprocess.run(cmd, check=True, capture_output=True, text=True)
++], check=True, capture_output=True, text=True)
+ 
+-# Affinity table appears at end of stdout
+ for line in proc.stdout.splitlines()[-15:]:
+     print(line)
+ ```
+ 
+-### Step 5: Parse Poses and Affinities from Output SDF
++### Step 5: Parse Poses and Affinities
+ 
+-smina writes affinity into the SDF `<minimizedAffinity>` and `<CNNscore>`-style tags. Read them with RDKit.
++Affinities go into the SDF `<minimizedAffinity>` property.
+ 
+ ```python
+ from rdkit import Chem
+ import pandas as pd
+ 
+-suppl = Chem.SDMolSupplier("candidate_docked.sdf", removeHs=False)
+ rows = []
+-for i, mol in enumerate(suppl):
++for i, mol in enumerate(Chem.SDMolSupplier("candidate_docked.sdf", removeHs=False)):
+     if mol is None:
+         continue
+-    aff = mol.GetProp("minimizedAffinity") if mol.HasProp("minimizedAffinity") else None
+-    rmsd_lb = mol.GetProp("minimizedRMSD") if mol.HasProp("minimizedRMSD") else None
+-    rows.append({"pose": i + 1, "affinity_kcal_mol": float(aff) if aff else None,
+-                 "rmsd_to_best": float(rmsd_lb) if rmsd_lb else None})
++    aff = float(mol.GetProp("minimizedAffinity")) if mol.HasProp("minimizedAffinity") else None
++    rmsd = float(mol.GetProp("minimizedRMSD")) if mol.HasProp("minimizedRMSD") else None
++    rows.append({"pose": i + 1, "affinity_kcal_mol": aff, "rmsd_to_best": rmsd})
+ 
+ df = pd.DataFrame(rows).sort_values("affinity_kcal_mol")
+ print(df.to_string(index=False))
+@@ -185,12 +161,11 @@ print(f"Best: {df.iloc[0]['affinity_kcal_mol']:.2f} kcal/mol")
+ 
+ ### Step 6: Local Minimization of an Existing Pose
+ 
+-When you already have a candidate pose (from MD, manual placement, or another docker), use `--local_only` to refine it without a global search.
++`--local_only` refines an input pose without global search.
+ 
+ ```python
+ import subprocess
+ 
+-# minimize_only_iters set via --minimize; --local_only runs the local search
+ subprocess.run([
+     "smina",
+     "-r", receptor_pdbqt,
+@@ -209,74 +184,52 @@ print("Local minimization complete: candidate_min.sdf")
+ ```python
+ import py3Dmol
+ 
+-with open(f"{pdb_id}_protein.pdb") as f:
+-    rec = f.read()
+-with open("candidate_docked.sdf") as f:
+-    lig = f.read()
++with open(f"{pdb_id}_protein.pdb") as f: rec = f.read()
++with open("candidate_docked.sdf") as f: lig = f.read()
+ 
+ view = py3Dmol.view(width=800, height=600)
+-view.addModel(rec, "pdb")
+-view.setStyle({"model": 0}, {"cartoon": {"color": "lightgrey"}})
+-
+-# First docked pose (first molecule block in SDF)
+-first_pose = lig.split("$$$$")[0] + "$$$$"
+-view.addModel(first_pose, "sdf")
+-view.setStyle({"model": 1}, {"stick": {"colorscheme": "cyanCarbon"}})
+-view.zoomTo({"model": 1})
+-view.show()
+-print("3D view rendered")
++view.addModel(rec, "pdb"); view.setStyle({"model": 0}, {"cartoon": {}})
++view.addModel(lig.split("$$$$")[0] + "$$$$", "sdf")
++view.setStyle({"model": 1}, {"stick": {}})
++view.zoomTo({"model": 1}); view.show()
+ ```
+ 
+ ### Step 8: Batch Virtual Screening
+ 
+-Single smina process per ligand parallelizes well across cores or cluster nodes. Concatenate SMILES into one SDF, then loop.
++One smina process per ligand parallelizes well across cores or cluster nodes.
+ 
+ ```python
+-import subprocess
+-import pandas as pd
++import subprocess, pandas as pd
+ from rdkit import Chem
+ from rdkit.Chem import AllChem
+ 
+ library = pd.DataFrame({
+     "name":   ["cpd_001", "cpd_002", "cpd_003"],
+-    "smiles": [
+-        "CC(=O)Oc1ccccc1C(=O)O",
+-        "CC(C)Cc1ccc(cc1)C(C)C(=O)O",
+-        "OC(=O)c1ccccc1O",
+-    ],
++    "smiles": ["CC(=O)Oc1ccccc1C(=O)O",
++               "CC(C)Cc1ccc(cc1)C(C)C(=O)O",
++               "OC(=O)c1ccccc1O"],
+ })
+ 
+ results = []
+ for _, row in library.iterrows():
+-    lig_sdf = f"{row['name']}.sdf"
+-    out_sdf = f"{row['name']}_docked.sdf"
+-
+-    mol = Chem.MolFromSmiles(row["smiles"])
+-    mol = Chem.AddHs(mol)
+-    AllChem.EmbedMolecule(mol, randomSeed=42)
+-    AllChem.MMFFOptimizeMolecule(mol)
++    lig_sdf, out_sdf = f"{row['name']}.sdf", f"{row['name']}_docked.sdf"
++    mol = Chem.MolFromSmiles(row["smiles"]); mol = Chem.AddHs(mol)
++    AllChem.EmbedMolecule(mol, randomSeed=42); AllChem.MMFFOptimizeMolecule(mol)
+     w = Chem.SDWriter(lig_sdf); w.write(mol); w.close()
+ 
+     proc = subprocess.run([
+-        "smina",
+-        "-r", receptor_pdbqt,
+-        "-l", lig_sdf,
+-        "--autobox_ligand", f"{pdb_id}_ref_ligand.pdb",
+-        "--autobox_add", "8",
+-        "-o", out_sdf,
+-        "--exhaustiveness", "8",
+-        "--num_modes", "1",
+-        "--cpu", "2",
+-        "--seed", "42",
++        "smina", "-r", receptor_pdbqt, "-l", lig_sdf,
++        "--autobox_ligand", f"{pdb_id}_ref_ligand.pdb", "--autobox_add", "8",
++        "-o", out_sdf, "--exhaustiveness", "8", "--num_modes", "1",
++        "--cpu", "2", "--seed", "42",
+     ], capture_output=True, text=True)
+ 
+     if proc.returncode != 0:
+-        results.append({"name": row["name"], "affinity_kcal_mol": None, "error": proc.stderr[-200:]})
++        results.append({"name": row["name"], "affinity_kcal_mol": None})
+         continue
+-
+     docked = next(iter(Chem.SDMolSupplier(out_sdf, removeHs=False)))
+     aff = float(docked.GetProp("minimizedAffinity")) if docked and docked.HasProp("minimizedAffinity") else None
+-    results.append({"name": row["name"], "affinity_kcal_mol": aff, "error": None})
++    results.append({"name": row["name"], "affinity_kcal_mol": aff})
+ 
+ ranked = pd.DataFrame(results).sort_values("affinity_kcal_mol")
+ ranked.to_csv("screening_results.csv", index=False)
+@@ -287,41 +240,37 @@ print(ranked.to_string(index=False))
+ 
+ | Parameter | Default | Range / Options | Effect |
+ |-----------|---------|-----------------|--------|
+-| `--exhaustiveness` | `8` | `1`-`128` | Monte Carlo search effort; 16–32 for production, 64+ for publication |
+-| `--num_modes` | `9` | `1`-`20` | Number of poses written to output SDF |
+-| `--energy_range` | `3` | `1`-`5` (kcal/mol) | Max ΔE from best pose included in output |
+-| `--scoring` | `default` | `default`, `vina`, `vinardo`, `dkoes_scoring`, `dkoes_scoring_old`, `ad4_scoring` | Built-in scoring function (`default` ≈ Vina) |
+-| `--custom_scoring` | — | path to terms file | User-defined weighted terms; overrides `--scoring` |
+-| `--autobox_ligand` | — | PDB/SDF path | Derive grid from reference structure |
+-| `--autobox_add` | `4` | `2`-`12` (Å) | Padding added around autobox extent |
+-| `--center_x/y/z`, `--size_x/y/z` | — | Å | Manual grid placement (alternative to autobox) |
+-| `--local_only` | off | flag | Skip global search; only local optimization of input pose |
+-| `--score_only` | off | flag | Compute energy without minimization or search |
+-| `--minimize` | off | flag | Energy-minimize ligand without scoring search |
+-| `--minimize_iters` | `0` (auto) | `0`-`100000` | Max iterations for local minimizer |
+-| `--atom_term_data` | off | flag | Print per-atom score contributions in output SDF |
+-| `--cpu` | all cores | `1`-`N` | Threads per dock job |
+-| `--seed` | random | any int | RNG seed for reproducible docking |
+-| `--no_lig` | off | flag | Allow scoring receptor-only as reference baseline |
++| `--exhaustiveness` | `8` | `1`-`128` | MC search effort; 16-32 production, 64+ publication |
++| `--num_modes` | `9` | `1`-`20` | Poses written to output SDF |
++| `--energy_range` | `3` | `1`-`5` kcal/mol | Max ΔE from best pose in output |
++| `--scoring` | `default` | `default`, `vina`, `vinardo`, `dkoes_scoring`, `dkoes_scoring_old`, `ad4_scoring` | Built-in scoring (default ≈ Vina) |
++| `--custom_scoring` | — | path | User-defined weighted terms; overrides `--scoring` |
++| `--autobox_ligand` | — | PDB/SDF path | Derive grid from reference |
++| `--autobox_add` | `4` | `2`-`12` Å | Padding around autobox extent |
++| `--center_x/y/z`, `--size_x/y/z` | — | Å | Manual grid (alternative to autobox) |
++| `--local_only` | off | flag | Skip global search; local optimization only |
++| `--score_only` | off | flag | Energy without minimization or search |
++| `--minimize` | off | flag | Energy-minimize without scoring search |
++| `--minimize_iters` | `0` (auto) | `0`-`100000` | Local minimizer iterations |
++| `--atom_term_data` | off | flag | Per-atom score contributions in output |
++| `--cpu` | all | `1`-`N` | Threads per job |
++| `--seed` | random | int | RNG seed for reproducibility |
++| `--no_lig` | off | flag | Score receptor-only as baseline |
+ 
+ ## Common Recipes
+ 
+ ### Recipe: Score-Only (Single-Point Energy)
+ 
+-When to use: comparing the binding energy of a pose between scoring functions without re-docking.
++Compare pose energy between scoring functions without re-docking.
+ 
+ ```python
+ import subprocess
+ 
+ proc = subprocess.run([
+-    "smina",
+-    "-r", "receptor.pdbqt",
+-    "-l", "pose.sdf",
+-    "--score_only",
+-    "--scoring", "vinardo",       # try vina, vinardo, dkoes_scoring
++    "smina", "-r", "receptor.pdbqt", "-l", "pose.sdf",
++    "--score_only", "--scoring", "vinardo",   # try vina, vinardo, dkoes_scoring
+ ], capture_output=True, text=True, check=True)
+ 
+-# Affinity line: "## Name Affinity Intramolecular ...
+ for line in proc.stdout.splitlines():
+     if line.startswith("Affinity:"):
+         print(line)
+@@ -329,51 +278,42 @@ for line in proc.stdout.splitlines():
+ 
+ ### Recipe: Custom Scoring Function
+ 
+-When to use: target class for which a tuned empirical scoring set outperforms defaults; reproducing the dkoes scoring family or a custom-fit set from your own benchmark.
++Target-class-tuned empirical scoring; reproduce dkoes terms or a custom-fit set.
+ 
+ ```python
+-# 1. Write the terms file
+-custom_terms = """\
++import subprocess
++
++with open("my_scoring.txt", "w") as f:
++    f.write("""\
+ -0.035579    gauss(o=0,_w=0.5,_c=8)
+ -0.005156    gauss(o=3,_w=2,_c=8)
+ 0.840245     repulsion(o=0,_c=8)
+ -0.035069    hydrophobic(g=0.5,_b=1.5,_c=8)
+ -0.587439    non_dir_h_bond(g=-0.7,_b=0,_c=8)
+ 1.923        num_tors_div
+-"""
+-with open("my_scoring.txt", "w") as f:
+-    f.write(custom_terms)
++""")
+ 
+-import subprocess
+ subprocess.run([
+-    "smina",
+-    "-r", "receptor.pdbqt",
+-    "-l", "candidate.sdf",
++    "smina", "-r", "receptor.pdbqt", "-l", "candidate.sdf",
+     "--custom_scoring", "my_scoring.txt",
+     "--autobox_ligand", "ref.pdb", "--autobox_add", "8",
+-    "-o", "custom_docked.sdf",
+-    "--exhaustiveness", "16",
++    "-o", "custom_docked.sdf", "--exhaustiveness", "16",
+ ], check=True)
+ ```
+ 
+ ### Recipe: Per-Atom Score Decomposition
+ 
+-When to use: interpreting which ligand atoms drive binding affinity (medchem analog design).
++Identify which ligand atoms drive binding.
+ 
+ ```python
+ import subprocess
+ from rdkit import Chem
+ 
+ subprocess.run([
+-    "smina",
+-    "-r", "receptor.pdbqt",
+-    "-l", "pose.sdf",
+-    "--score_only",
+-    "--atom_term_data",
+-    "-o", "pose_decomp.sdf",
++    "smina", "-r", "receptor.pdbqt", "-l", "pose.sdf",
++    "--score_only", "--atom_term_data", "-o", "pose_decomp.sdf",
+ ], check=True)
+ 
+-# Per-atom terms appear in SDF properties (e.g., 'atom_term_0', 'atom_term_1', ...)
+ mol = next(iter(Chem.SDMolSupplier("pose_decomp.sdf", removeHs=False)))
+ for prop in mol.GetPropNames():
+     if "atom_term" in prop:
+@@ -382,62 +322,55 @@ for prop in mol.GetPropNames():
+ 
+ ### Recipe: Re-Docking Validation
+ 
+-When to use: protocol validation — re-dock the co-crystallized ligand and confirm RMSD < 2.0 Å.
++Re-dock the co-crystallized ligand; confirm RMSD < 2.0 Å.
+ 
+ ```python
+ import subprocess
+ from rdkit import Chem
+ from rdkit.Chem import AllChem
+ 
+-# Dock the reference ligand back into the receptor
+ subprocess.run([
+-    "smina",
+-    "-r", "receptor.pdbqt",
+-    "-l", "ref_ligand.sdf",
+-    "--autobox_ligand", "ref_ligand.sdf",
+-    "--autobox_add", "8",
+-    "-o", "redocked.sdf",
+-    "--exhaustiveness", "32",
+-    "--num_modes", "1",
+-    "--seed", "42",
++    "smina", "-r", "receptor.pdbqt", "-l", "ref_ligand.sdf",
++    "--autobox_ligand", "ref_ligand.sdf", "--autobox_add", "8",
++    "-o", "redocked.sdf", "--exhaustiveness", "32",
++    "--num_modes", "1", "--seed", "42",
+ ], check=True)
+ 
+-ref     = next(iter(Chem.SDMolSupplier("ref_ligand.sdf", removeHs=False)))
+-docked  = next(iter(Chem.SDMolSupplier("redocked.sdf",   removeHs=False)))
+-rmsd    = AllChem.GetBestRMS(ref, docked)
++ref = next(iter(Chem.SDMolSupplier("ref_ligand.sdf", removeHs=False)))
++docked = next(iter(Chem.SDMolSupplier("redocked.sdf", removeHs=False)))
++rmsd = AllChem.GetBestRMS(ref, docked)
+ print(f"Re-docking RMSD: {rmsd:.2f} Å  ->  {'PASS' if rmsd < 2.0 else 'FAIL'}")
+ ```
+ 
+ ## Expected Outputs
+ 
+-- `*_docked.sdf` — multi-model SDF with one molecule per pose; affinities in `<minimizedAffinity>` property, RMSD-to-best in `<minimizedRMSD>`
+-- `screening_results.csv` — tabular: name, SMILES, affinity (kcal/mol)
+-- `*_receptor.pdbqt` — PDBQT receptor ready for repeated docking
+-- stdout — affinity table: pose index, affinity (kcal/mol), rmsd lower bound, rmsd upper bound
+-- Optional 3D visualization (py3Dmol interactive view or HTML export)
++- `*_docked.sdf` — multi-model SDF, one molecule per pose; affinity in `<minimizedAffinity>`, RMSD-to-best in `<minimizedRMSD>`
++- `screening_results.csv` — name, SMILES, affinity (kcal/mol)
++- `*_receptor.pdbqt` — prepared receptor
++- stdout — affinity table: pose, affinity (kcal/mol), rmsd lower/upper bound
+ 
+ ## Troubleshooting
+ 
+ | Problem | Cause | Solution |
+ |---------|-------|----------|
+-| `smina: command not found` | Binary not on PATH | `conda install -c conda-forge smina` or use full path; in pixi env run `pixi run smina ...` |
+-| `Parse error on line ...` in ligand | Malformed SDF/MOL2 | Re-export with RDKit `SDWriter` after `Chem.AddHs` + `EmbedMolecule` |
+-| `Could not figure out box dimensions` | Missing both `--autobox_ligand` and `--center_x/--size_x` | Supply either autobox reference or explicit grid coords |
+-| Highly positive affinities (>0) | Ligand outside grid or steric clash on input pose | Increase `--autobox_add`; verify reference pose is inside binding site |
+-| `--local_only` returns input pose unchanged | `--minimize_iters 0` interpreted as "no minimization" in some builds | Set `--minimize_iters 1000` explicitly |
+-| Identical poses across runs | `--seed` fixed but `--exhaustiveness` too low | Increase `--exhaustiveness` to 32+; vary `--seed` for ensemble |
+-| Receptor PDBQT generation fails | `prepare_receptor` not in PATH | Install ADFR Suite and add `<adfr>/bin` to PATH |
+-| SDF output empty after dock | smina aborted silently | Re-run without `capture_output` or inspect `proc.stderr`; check receptor charges |
+-| Different affinity between `--score_only` and `--local_only` | Local opt moves the pose; score-only does not | Expected — report score-only for fixed-pose comparison, local-only for refined energy |
+-| `--custom_scoring` file rejected | Term name typo or missing weight column | Each line must be `<weight><whitespace><term_name(args)>`; whitespace strict |
+-| Per-atom decomposition empty | Used with `--minimize` or `--dock`, not `--score_only` | `--atom_term_data` is most reliable with `--score_only` |
++| `smina: command not found` | Binary not on PATH | `conda install -c conda-forge smina`; in pixi env use `pixi run smina` |
++| `Parse error on line ...` (ligand) | Malformed SDF/MOL2 | Re-export with RDKit `SDWriter` after `AddHs` + `EmbedMolecule` |
++| `Could not figure out box dimensions` | Missing both `--autobox_ligand` and `--center_x/--size_x` | Supply autobox reference or explicit grid |
++| Highly positive affinities (>0) | Ligand outside grid or steric clash on input | Raise `--autobox_add`; verify reference pose is inside binding site |
++| `--local_only` returns input unchanged | `--minimize_iters 0` = "no minimization" in some builds | Set `--minimize_iters 1000` explicitly |
++| Identical poses across runs | Fixed `--seed` + low `--exhaustiveness` | Raise to 32+; vary `--seed` for ensemble |
++| Receptor PDBQT generation fails | `prepare_receptor` not on PATH | Install ADFR Suite, add `<adfr>/bin` to PATH |
++| Empty SDF after dock | smina aborted silently | Drop `capture_output`, inspect `proc.stderr`; check receptor charges |
++| Score differs between `--score_only` and `--local_only` | Local opt moves the pose | Expected — score-only for fixed pose, local-only for refined energy |
++| `--custom_scoring` file rejected | Term typo or missing weight column | Each line: `<weight><whitespace><term_name(args)>` — whitespace strict |
++| Per-atom decomposition empty | Used with `--minimize` / dock, not `--score_only` | `--atom_term_data` most reliable with `--score_only` |
+ 
+ ## References
+ 
+-- [smina on SourceForge](https://sourceforge.net/projects/smina/) — original distribution, source, and binary releases
+-- [smina GitHub mirror](https://github.com/mwojcikowski/smina) — actively maintained fork with builds
+-- [Koes, Baumgartner, Camacho (2013)](https://doi.org/10.1021/ci300604z) — "Lessons Learned in Empirical Scoring with smina from the CSAR 2011 Benchmarking Exercise", *J Chem Inf Model* (smina + dkoes scoring paper)
+-- [Trott & Olson (2010)](https://doi.org/10.1002/jcc.21334) — "AutoDock Vina: improving the speed and accuracy of docking", *J Comput Chem* (upstream Vina paper)
+-- [ADFR Suite](https://ccsb.scripps.edu/adfr/downloads/) — provides `prepare_receptor` for receptor PDBQT
+-- [RDKit documentation](https://www.rdkit.org/docs/) — ligand 3D generation and SDF I/O (BSD)
+-- [Open Babel](https://openbabel.org/docs/) — alternative ligand format conversion (GPL-2.0)
++- [smina on SourceForge](https://sourceforge.net/projects/smina/) — original distribution
++- [smina GitHub mirror](https://github.com/mwojcikowski/smina) — maintained builds
++- [Koes, Baumgartner, Camacho (2013)](https://doi.org/10.1021/ci300604z) — smina + dkoes scoring paper, *J Chem Inf Model*
++- [Trott & Olson (2010)](https://doi.org/10.1002/jcc.21334) — upstream Vina paper, *J Comput Chem*
++- [ADFR Suite](https://ccsb.scripps.edu/adfr/downloads/) — `prepare_receptor` for receptor PDBQT
++- [RDKit documentation](https://www.rdkit.org/docs/) — ligand 3D generation and SDF I/O
++- [Open Babel](https://openbabel.org/docs/) — alternative ligand format conversion

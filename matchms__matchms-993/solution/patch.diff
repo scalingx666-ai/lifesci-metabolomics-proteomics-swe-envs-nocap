@@ -1,0 +1,89 @@
+diff --git a/.github/workflows/CI_build.yml b/.github/workflows/CI_build.yml
+index 1160c686f..8fd60b82b 100644
+--- a/.github/workflows/CI_build.yml
++++ b/.github/workflows/CI_build.yml
+@@ -99,12 +99,12 @@ jobs:
+           python-version: '3.13'
+           enable-cache: true
+       - name: Install docs dependencies
+-        run: uv sync --frozen --group docs
++        run: uv sync --locked --group docs --extra all
+       - name: Build docs and run doctests
+         working-directory: readthedocs/
+         env:
+           SPHINXOPTS: '-n'
+-        run: uv run --frozen --group docs make coverage doctest html
++        run: uv run --locked --group docs make coverage doctest html
+       - name: Check documentation coverage threshold
+         shell: bash
+         run: |
+diff --git a/matchms/filtering/__init__.py b/matchms/filtering/__init__.py
+index b0953dd3c..0b6e07ee7 100644
+--- a/matchms/filtering/__init__.py
++++ b/matchms/filtering/__init__.py
+@@ -20,7 +20,7 @@
+ 
+ For example, using the ``pesticides.mgf`` test dataset included with matchms:
+ 
+-.. testcode::
++.. code-block:: python
+ 
+     from pathlib import Path
+ 
+@@ -32,13 +32,6 @@
+     print(type(collection).__name__)
+     print(collection.n_spectra > 0)
+ 
+-Should output
+-
+-.. testoutput::
+-
+-    SpectraCollection
+-    True
+-
+ 
+ Processing with SpectraProcessor
+ ================================
+@@ -63,7 +56,7 @@
+ A processor is created from a list of filters. Filters can be specified by name,
+ or together with a dictionary containing non-default parameters.
+ 
+-.. testcode::
++.. code-block:: python
+ 
+     from pathlib import Path
+ 
+@@ -86,12 +79,6 @@
+     print(type(processed_collection).__name__)
+     print(processed_collection.n_spectra <= collection.n_spectra)
+ 
+-Should output
+-
+-.. testoutput::
+-
+-    SpectraCollection
+-    True
+ 
+ ``SpectraProcessor`` orders known matchms filters according to the recommended
+ matchms filter order. Custom filter functions can also be added to the same
+@@ -159,7 +146,7 @@
+ 
+ For example:
+ 
+-.. testcode::
++.. code-block:: python
+ 
+     from pathlib import Path
+ 
+@@ -176,11 +163,6 @@
+ 
+     print(type(processed_collection).__name__)
+ 
+-Should output
+-
+-.. testoutput::
+-
+-    SpectraCollection
+ 
+ For filters that remove spectra, behavior depends on the input type. A
+ :class:`~matchms.Spectrum` that does not meet the filter requirement returns

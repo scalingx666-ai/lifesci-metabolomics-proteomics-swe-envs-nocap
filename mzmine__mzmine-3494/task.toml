@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3494"
+description = "NPE in GC networking when NIST spectral match present"
+
+[metadata]
+difficulty = "easy"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "0801807942127f836aa595cff12d6ae5d7eae730"
+reference = "https://github.com/mzmine/mzmine/pull/3494"
+source_access = "auto"
+built_at = "2026-11-16T08:44:27.149060+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:673722b828ef09c6102a244bdd2f612202d6130cca556e7f7828f9c7a36d5ca4"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-09-16T11:58:21Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/networking/visual/enums/NodeAtt.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 3
+difficulty = "trivial"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

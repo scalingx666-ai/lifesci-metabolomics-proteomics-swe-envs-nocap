@@ -1,0 +1,1162 @@
+diff --git a/.github/workflows/CI_build.yml b/.github/workflows/CI_build.yml
+index 02d349bdd..93bc8bfae 100644
+--- a/.github/workflows/CI_build.yml
++++ b/.github/workflows/CI_build.yml
+@@ -105,7 +105,7 @@ jobs:
+       fail-fast: false
+       matrix:
+         os: ['ubuntu-latest', 'macos-latest', 'windows-latest']
+-        python-version: ['3.10', '3.11', '3.12', '3.13']
++        python-version: ['3.11', '3.12', '3.13']
+         exclude:
+           - os: 'macos-latest'
+             python-version: ['3.11']
+diff --git a/matchms/similarity/BaseEmbeddingSimilarity.py b/matchms/similarity/BaseEmbeddingSimilarity.py
+index cc544e52f..b9bc8d0c4 100644
+--- a/matchms/similarity/BaseEmbeddingSimilarity.py
++++ b/matchms/similarity/BaseEmbeddingSimilarity.py
+@@ -1,10 +1,11 @@
+ import pickle
+ from abc import abstractmethod
+-from collections.abc import Iterable
++from collections.abc import Iterable, Sequence
+ from pathlib import Path
+ from typing import Any
+ import numpy as np
+ from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
++from matchms.Scores import Scores
+ from matchms.similarity.BaseSimilarity import BaseSimilarity
+ from matchms.typing import SpectrumType
+ 
+@@ -39,6 +40,9 @@ class BaseEmbeddingSimilarity(BaseSimilarity):
+     index_k : int
+         Number of nearest neighbors used in the ANN index; if index is built.
+     """
++    is_commutative = True
++    score_datatype = np.float64
++    score_fields = ("score",)
+ 
+     def __init__(self, similarity: str = "cosine"):
+         self.similarity = similarity
+@@ -99,16 +103,16 @@ def get_embeddings(
+ 
+         if npy_path is not None:
+             if Path(npy_path).exists():
+-                # If file path is provided and exists, load embeddings
+-                embs = self.load_embeddings(npy_path)
++                embeddings = self.load_embeddings(npy_path)
+             else:
+-                # If file path is provided and does not exist, compute embeddings and store them
+-                embs = self.compute_embeddings(spectra)
+-                self.store_embeddings(npy_path, embs)
++                if spectra is None:
++                    raise ValueError("Spectra must be provided when storing newly computed embeddings.")
++                embeddings = self.compute_embeddings(spectra)
++                self.store_embeddings(npy_path, embeddings)
+         else:
+-            # If no file path is provided, compute embeddings
+-            embs = self.compute_embeddings(spectra)
+-        return embs
++            embeddings = self.compute_embeddings(spectra)
++
++        return self._validate_embeddings(embeddings)
+ 
+     def pair(self, spectrum_1: SpectrumType, spectrum_2: SpectrumType) -> float:
+         """Compute similarity between a pair of spectra.
+@@ -119,32 +123,32 @@ def pair(self, spectrum_1: SpectrumType, spectrum_2: SpectrumType) -> float:
+             Reference spectrum.
+         spectrum_2 : SpectrumType
+             Query spectrum.
+-
+-        Returns
+-        -------
+-        float
+-            Similarity score between the spectra.
+         """
+-        return self.matrix([spectrum_1], [spectrum_2])[0, 0]
++        score = self.matrix([spectrum_1], [spectrum_2], progress_bar=False).to_array()[0, 0]
++        return np.asarray(score, dtype=self.score_datatype)
+ 
+     def matrix(
+-            self,
+-            spectra_1: list[SpectrumType],
+-            spectra_2: list[SpectrumType],
+-            array_type: str = "numpy",
+-            is_symmetric: bool = True) -> np.ndarray:
++        self,
++        spectra_1: Sequence[SpectrumType],
++        spectra_2: Sequence[SpectrumType] | None = None,
++        score_fields: Sequence[str] | None = None,
++        progress_bar: bool = True,
++    ) -> Scores:
+         """Compute similarity matrix between spectra_1 and spectra_2.
+ 
+         Parameters
+         ----------
+-        spectra_1:
+-            List of spectra.
+-        spectra_2:
+-            List of input spectra.
+-        array_type:
+-            Type of array to return. Must be "numpy".
+-        is_symmetric:
+-            Whether the matrix is symmetric. Must be True.
++        spectra_1
++            First collection of spectra.
++        spectra_2
++            Second collection of spectra. If ``None``, compare ``spectra_1``
++            against itself.
++        score_fields
++            Requested score fields. Embedding similarities expose only
++            ``("score",)``.
++        progress_bar
++            Included for API compatibility. Embeddings are computed in batch and
++            this implementation currently does not display a progress bar.
+ 
+         Returns
+         -------
+@@ -156,15 +160,46 @@ def matrix(
+         ValueError
+             If array_type is not "numpy" or is_symmetric is False.
+         """
+-        if array_type != "numpy" or not is_symmetric:
+-            raise ValueError("Any embedding base similarity matrix is supposed to be dense and symmetric.")
++        del progress_bar  # Not used in this implementation, but included for API compatibility.
+ 
+-        # Compute embeddings
+-        embs_ref = self.compute_embeddings(spectra_1)
+-        embs_query = self.compute_embeddings(spectra_2)
++        selected_fields = self._resolve_score_fields(score_fields)
++        if selected_fields != ("score",):
++            raise NotImplementedError(
++                f"{self.__class__.__name__}.matrix() supports only score_fields=('score',)."
++            )
++
++        spectra_2, is_symmetric = self._prepare_inputs(spectra_1, spectra_2)
+ 
+-        # Compute pairwise similarities matrix
+-        return self.pairwise_similarity_fn(embs_ref, embs_query)
++        embeddings_1 = self._validate_embeddings(self.compute_embeddings(spectra_1))
++        if is_symmetric:
++            embeddings_2 = embeddings_1
++        else:
++            embeddings_2 = self._validate_embeddings(self.compute_embeddings(spectra_2))
++
++        similarity_matrix = self.pairwise_similarity_fn(embeddings_1, embeddings_2)
++        similarity_matrix = np.asarray(similarity_matrix, dtype=self.score_datatype)
++
++        if similarity_matrix.shape != (len(spectra_1), len(spectra_2)):
++            raise ValueError(
++                "Embedding similarity matrix has unexpected shape "
++                f"{similarity_matrix.shape}; expected {(len(spectra_1), len(spectra_2))}."
++            )
++
++        return Scores({"score": similarity_matrix})
++
++    def compute_similarity_matrix_from_embeddings(
++        self,
++        embeddings_1: np.ndarray,
++        embeddings_2: np.ndarray | None = None,
++    ) -> np.ndarray:
++        """Compute a raw NumPy similarity matrix from precomputed embeddings.
++
++        This helper keeps the old raw-array use case available without changing
++        the public :meth:`matrix` contract inherited from ``BaseSimilarity``.
++        """
++        embeddings_1 = self._validate_embeddings(embeddings_1)
++        embeddings_2 = embeddings_1 if embeddings_2 is None else self._validate_embeddings(embeddings_2)
++        return np.asarray(self.pairwise_similarity_fn(embeddings_1, embeddings_2), dtype=self.score_datatype)
+ 
+     def build_ann_index(
+             self,
+@@ -201,7 +236,7 @@ def build_ann_index(
+             If an unsupported index_backend is specified.
+         """
+         # Compute reference embeddings
+-        embs_ref = self.get_embeddings(reference_spectra, embeddings_path)
++        embeddings_reference = self.get_embeddings(reference_spectra, embeddings_path)
+ 
+         if index_backend == "pynndescent":
+             if not pynndescent:
+@@ -210,12 +245,15 @@ def build_ann_index(
+             self.index_k = k
+             self.index_kwargs = index_kwargs
+ 
+-            # Build ANN index
+-            index = pynndescent.NNDescent(embs_ref, metric=self.similarity, n_neighbors=k, **index_kwargs)
++            index = pynndescent.NNDescent(
++                embeddings_reference,
++                metric=self.similarity,
++                n_neighbors=k,
++                **index_kwargs,
++            )
+         else:
+             raise ValueError(f"Only pynndescent is supported for now. Got {index_backend}.")
+ 
+-        # Keep index in memory
+         self.index = index
+         return self.index
+ 
+@@ -252,16 +290,12 @@ def get_anns(
+             raise ValueError(f"k ({k}) is larger than the k used to build the index ({self.index_k}).")
+ 
+         if isinstance(query_spectra, np.ndarray):
+-            embs_query = query_spectra
+-            if embs_query.ndim != 2:
+-                raise ValueError(f"Expected 2D embeddings array, got {embs_query.ndim}D array.")
++            embeddings_query = self._validate_embeddings(query_spectra)
+         else:
+-            # Compute query embeddings
+-            embs_query = self.compute_embeddings(query_spectra)
++            embeddings_query = self._validate_embeddings(self.compute_embeddings(query_spectra))
+ 
+-        # Get ANN indices
+         if self.index_backend == "pynndescent":
+-            neighbors, distances = self.index.query(embs_query, k=k)
++            neighbors, distances = self.index.query(embeddings_query, k=k)
+             similarities = self._distances_to_similarities(distances)
+         else:
+             raise ValueError(f"Only pynndescent is supported for now. Got {self.index_backend}.")
+@@ -310,6 +344,16 @@ def _distances_to_similarities(self, distances: np.ndarray) -> np.ndarray:
+             return -distances
+         raise ValueError(f"Only cosine and euclidean similarities are supported for now. Got {self.similarity}.")
+ 
++    @staticmethod
++    def _validate_embeddings(embeddings: np.ndarray) -> np.ndarray:
++        """Validate and return embeddings as a two-dimensional float array."""
++        embeddings = np.asarray(embeddings)
++        if embeddings.ndim != 2:
++            raise ValueError(f"Expected 2D embeddings array, got {embeddings.ndim}D array.")
++        if not np.issubdtype(embeddings.dtype, np.number):
++            raise ValueError("Embeddings must contain numeric values.")
++        return embeddings
++
+     @staticmethod
+     def load_embeddings(npy_path: str | Path) -> np.ndarray:
+         """Load embeddings from a numpy file.
+@@ -329,23 +373,22 @@ def load_embeddings(npy_path: str | Path) -> np.ndarray:
+         ValueError
+             If loaded array is not 2D.
+         """
+-        embs = np.load(npy_path)
+-        if embs.ndim != 2:
+-            raise ValueError(f"Expected 2D embeddings array, got {embs.ndim}D array.")
+-        return embs
++        embeddings = np.load(npy_path)
++        return BaseEmbeddingSimilarity._validate_embeddings(embeddings)
+ 
+     @staticmethod
+-    def store_embeddings(npy_path: str | Path, embs: np.ndarray) -> None:
++    def store_embeddings(npy_path: str | Path, embeddings: np.ndarray) -> None:
+         """Store embeddings in a numpy file.
+ 
+         Parameters
+         ----------
+         npy_path : Union[str, Path]
+             Path to save the embeddings to.
+-        embs : np.ndarray
++        embeddings : np.ndarray
+             Embeddings array to store.
+         """
+-        np.save(npy_path, embs)
++        embeddings = BaseEmbeddingSimilarity._validate_embeddings(embeddings)
++        np.save(npy_path, embeddings)
+ 
+     def save_ann_index(self, path: str | Path) -> None:
+         """Save the ANN index to disk.
+@@ -368,7 +411,7 @@ def save_ann_index(self, path: str | Path) -> None:
+             "backend": self.index_backend,
+             "similarity": self.similarity,
+             "index_kwargs": self.index_kwargs,
+-            "index_k": self.index_k
++            "index_k": self.index_k,
+         }
+ 
+         with open(path, "wb") as f:
+diff --git a/matchms/similarity/BinnedEmbeddingSimilarity.py b/matchms/similarity/BinnedEmbeddingSimilarity.py
+index d8386b5c8..d52f252de 100644
+--- a/matchms/similarity/BinnedEmbeddingSimilarity.py
++++ b/matchms/similarity/BinnedEmbeddingSimilarity.py
+@@ -5,21 +5,25 @@
+ 
+ 
+ class BinnedEmbeddingSimilarity(BaseEmbeddingSimilarity):
+-    """A similarity measure that bins spectra into a fixed number of bins and uses the binned
+-    intensities as embedding features. By default, the similarity between spectra is computed as the cosine
+-    similarity between their binned representations.
++    """Compare spectra by cosine/euclidean similarity of binned intensities.
++
++    Spectra are converted to fixed-length vectors by summing intensities in
++    equally spaced m/z bins. Each vector is normalized to its maximum bin
++    intensity when that maximum is positive. Empty spectra, spectra without peaks
++    in the configured m/z range, and spectra with only zero intensities produce a
++    zero vector instead of NaNs.
+ 
+     Parameters
+     ----------
+-    similarity : str, optional
+-        The similarity measure to use for comparing embeddings. Default is "cosine".
+-        Options are "cosine" or "euclidean".
+-    max_mz : float, optional
+-        The maximum m/z value to consider when binning. Default is 1005.
+-    bin_width : float, optional
+-        The width of each bin in m/z units. Default is 1.
+-    intensity_power:
+-        The power to raise the peak intensities. Default is 1.
++    similarity
++        Similarity measure used for comparing embeddings. Supported values are
++        ``"cosine"`` and ``"euclidean"``.
++    max_mz
++        Maximum m/z value to include. Values outside ``[0, max_mz]`` are ignored.
++    bin_width
++        Width of each m/z bin.
++    intensity_power
++        Power applied to peak intensities before binning.
+     """
+     def __init__(
+         self, similarity: str = "cosine",
+@@ -28,10 +32,20 @@ def __init__(
+         intensity_power: float = 1
+     ):
+         super().__init__(similarity=similarity)
++        if max_mz <= 0:
++            raise ValueError("max_mz must be > 0.")
++        if bin_width <= 0:
++            raise ValueError("bin_width must be > 0.")
++
+         self.max_mz = max_mz
+         self.bin_width = bin_width
+         self.intensity_power = intensity_power
+ 
++    @property
++    def n_bins(self) -> int:
++        """Number of bins used for each embedding vector."""
++        return int(np.floor(self.max_mz / self.bin_width)) + 1
++
+     def _bin_spectrum(self, spectrum: SpectrumType) -> np.ndarray:
+         """Bin a spectrum's peaks into fixed-width m/z bins.
+ 
+@@ -45,31 +59,27 @@ def _bin_spectrum(self, spectrum: SpectrumType) -> np.ndarray:
+         np.ndarray
+             Array of binned and normalized intensities.
+         """
+-        # NOTE: copypaste from https://github.com/pluskal-lab/MassSpecGym/blob/f525a5e55a39ec4caa4f1a51e64acd046713179e/massspecgym/data/transforms.py#L97
+         mzs = spectrum.peaks.mz
+-        intensities = spectrum.peaks.intensities ** self.intensity_power
+-
+-        # Calculate the number of bins
+-        num_bins = int(np.ceil(self.max_mz / self.bin_width))
++        intensities = spectrum.peaks.intensities
++        binned_intensities = np.zeros(self.n_bins, dtype=np.float64)
+ 
+-        # Calculate the bin indices for each mass
+-        bin_indices = np.floor(mzs / self.bin_width).astype(int)
++        if mzs.size == 0:
++            return binned_intensities
+ 
+-        # Filter out mzs that exceed max_mz
+-        valid_indices = bin_indices[mzs <= self.max_mz]
+-        valid_intensities = intensities[mzs <= self.max_mz]
++        valid_mask = (mzs >= 0) & (mzs <= self.max_mz)
++        if not np.any(valid_mask):
++            return binned_intensities
+ 
+-        # Clip bin indices to ensure they are within the valid range
+-        valid_indices = np.clip(valid_indices, 0, num_bins - 1)
++        valid_mzs = mzs[valid_mask]
++        valid_intensities = intensities[valid_mask] ** self.intensity_power
+ 
+-        # Initialize an array to store the binned intensities
+-        binned_intensities = np.zeros(num_bins)
++        bin_indices = np.floor(valid_mzs / self.bin_width).astype(np.int64)
++        bin_indices = np.clip(bin_indices, 0, self.n_bins - 1)
++        np.add.at(binned_intensities, bin_indices, valid_intensities)
+ 
+-        # Use np.add.at to sum intensities in the appropriate bins
+-        np.add.at(binned_intensities, valid_indices, valid_intensities)
+-
+-        # Normalize the intensities to relative intensities
+-        binned_intensities /= np.max(binned_intensities)
++        max_intensity = np.max(binned_intensities)
++        if max_intensity > 0:
++            binned_intensities /= max_intensity
+ 
+         return binned_intensities
+ 
+@@ -86,11 +96,7 @@ def compute_embeddings(self, spectra: Iterable[SpectrumType]) -> np.ndarray:
+         np.ndarray
+             Array of shape (n_spectra, n_bins) containing the binned embeddings.
+         """
+-        spectra_list = list(spectra)
+-        embeddings = []
+-
+-        for spectrum in spectra_list:
+-            binned_spectrum = self._bin_spectrum(spectrum)
+-            embeddings.append(binned_spectrum)
+-
+-        return np.array(embeddings)
++        embeddings = [self._bin_spectrum(spectrum) for spectrum in spectra]
++        if not embeddings:
++            return np.zeros((0, self.n_bins), dtype=np.float64)
++        return np.vstack(embeddings)
+diff --git a/matchms/similarity/CosineLinear.py b/matchms/similarity/CosineLinear.py
+index b212e5f5f..910654aa5 100644
+--- a/matchms/similarity/CosineLinear.py
++++ b/matchms/similarity/CosineLinear.py
+@@ -63,7 +63,7 @@ def __init__(self, tolerance: float = 0.1, mz_power: float = 0.0, intensity_powe
+         self.mz_power = mz_power
+         self.intensity_power = intensity_power
+ 
+-    def pair(self, reference: SpectrumType, query: SpectrumType) -> np.ndarray:  # type: ignore[override]
++    def pair(self, reference: SpectrumType, query: SpectrumType) -> tuple[float, int]:
+         """Calculate linear cosine score between two spectra.
+ 
+         Parameters
+@@ -97,7 +97,7 @@ def matrix(
+         spectra_2: Sequence[SpectrumType] | None = None,
+         score_fields: Sequence[str] | None = None,
+         progress_bar: bool = True,
+-    ) -> np.ndarray:
++    ):
+         """Optimized matrix computation that precomputes merged spectra.
+ 
+         Each spectrum is merged once (N+M calls to sirius_merge_close_peaks)
+@@ -158,5 +158,3 @@ def matrix(
+                     )
+ 
+         return Scores(result)
+-
+-
+diff --git a/tests/similarity/test_base_embedding_similarity.py b/tests/similarity/test_base_embedding_similarity.py
+index 8593c9ee8..457ab9c4b 100644
+--- a/tests/similarity/test_base_embedding_similarity.py
++++ b/tests/similarity/test_base_embedding_similarity.py
+@@ -1,6 +1,7 @@
+ from collections.abc import Iterable
+ import numpy as np
+ import pytest
++from matchms import Scores, SpectraCollection
+ from matchms.similarity.BaseEmbeddingSimilarity import BaseEmbeddingSimilarity
+ from matchms.typing import SpectrumType
+ from tests.builder_Spectrum import SpectrumBuilder
+@@ -11,35 +12,45 @@ def __init__(self, similarity: str = "cosine"):
+         super().__init__(similarity=similarity)
+ 
+     def compute_embeddings(self, spectra: Iterable[SpectrumType]) -> np.ndarray:
+-        return np.array([[0.1, 0.2, 0.3]])
++        spectra = list(spectra)
++        if len(spectra) == 0:
++            return np.zeros((0, 3), dtype=np.float64)
++        base_embedding = np.array([0.1, 0.2, 0.3], dtype=np.float64)
++        return np.tile(base_embedding, (len(spectra), 1))
+ 
+ 
+ @pytest.fixture
+-def spectra():
++def spectra_collection():
+     a = "CCC(C)C(C(=O)O)NC(=O)CCl"
+     b = "C(C(=O)O)(NC(=O)O)S"
+ 
+     builder = SpectrumBuilder()
+-    spectrum_1 = builder.with_mz(np.array([100, 150, 200.])) \
+-        .with_intensities(np.array([0.7, 0.2, 0.1])) \
+-        .with_metadata({"id": "spectrum1", "precursor_mz": 210, "parent_mass": 210, "smiles": a}) \
++    spectrum_1 = (
++        builder.with_mz(np.array([100, 150, 200.]))
++        .with_intensities(np.array([0.7, 0.2, 0.1]))
++        .with_metadata({"id": "spectrum1", "precursor_mz": 210, "parent_mass": 210, "smiles": a})
+         .build()
+-    spectrum_2 = builder.with_mz(np.array([100, 140, 190.])) \
+-        .with_intensities(np.array([0.4, 0.2, 0.1])) \
+-        .with_metadata({"id": "spectrum2", "precursor_mz": 200, "parent_mass": 200, "smiles": a}) \
++    )
++    spectrum_2 = (
++        builder.with_mz(np.array([100, 140, 190.]))
++        .with_intensities(np.array([0.4, 0.2, 0.1]))
++        .with_metadata({"id": "spectrum2", "precursor_mz": 200, "parent_mass": 200, "smiles": a})
+         .build()
+-    spectrum_3 = builder.with_mz(np.array([110, 140, 195.])) \
+-        .with_intensities(
+-        np.array([0.6, 0.2, 0.1])) \
+-        .with_metadata({"id": "spectrum3", "precursor_mz": 205, "parent_mass": 205, "smiles": b}) \
++    )
++    spectrum_3 = (
++        builder.with_mz(np.array([110, 140, 195.]))
++        .with_intensities(np.array([0.6, 0.2, 0.1]))
++        .with_metadata({"id": "spectrum3", "precursor_mz": 205, "parent_mass": 205, "smiles": b})
+         .build()
+-    spectrum_4 = builder.with_mz(np.array([100, 150, 200.])) \
+-        .with_intensities(
+-        np.array([0.6, 0.1, 0.6])) \
+-        .with_metadata({"id": "spectrum4", "precursor_mz": 210, "parent_mass": 210, "smiles": b}) \
++    )
++    spectrum_4 = (
++        builder.with_mz(np.array([100, 150, 200.]))
++        .with_intensities(np.array([0.6, 0.1, 0.6]))
++        .with_metadata({"id": "spectrum4", "precursor_mz": 210, "parent_mass": 210, "smiles": b})
+         .build()
++    )
+ 
+-    yield [spectrum_1, spectrum_2, spectrum_3, spectrum_4]
++    return SpectraCollection([spectrum_1, spectrum_2, spectrum_3, spectrum_4])
+ 
+ 
+ def test_compute_embeddings_not_implemented():
+@@ -47,8 +58,8 @@ class DummyEmbeddingSimilarity(BaseEmbeddingSimilarity):
+         def compute_embeddings(self, spectra):
+             return super().compute_embeddings(spectra)
+ 
++    base_similarity = DummyEmbeddingSimilarity()
+     with pytest.raises(NotImplementedError, match="Subclasses must implement this method."):
+-        base_similarity = DummyEmbeddingSimilarity()
+         base_similarity.compute_embeddings([])
+ 
+ 
+@@ -59,26 +70,66 @@ def test_no_input_specified_error():
+         base_similarity.get_embeddings(spectra=None, npy_path=None)
+ 
+ 
+-def test_matrix_asymmetric_false_error(spectra):
+-    base_similarity = MockEmbeddingSimilarity()
++def test_get_embeddings_accepts_spectra_collection(spectra_collection):
++    similarity = MockEmbeddingSimilarity()
++
++    embeddings = similarity.get_embeddings(spectra_collection)
++
++    assert embeddings.shape == (len(spectra_collection), 3)
++    assert np.allclose(embeddings[0], [0.1, 0.2, 0.3])
++
++
++def test_matrix_returns_scores_for_spectra_collection(spectra_collection):
++    similarity = MockEmbeddingSimilarity()
++
++    scores = similarity.matrix(spectra_collection, spectra_collection, progress_bar=False)
++
++    assert isinstance(scores, Scores)
++    assert scores.shape == (len(spectra_collection), len(spectra_collection))
++    assert scores.score_fields == ("score",)
++    assert np.allclose(scores.to_array(), 1.0)
++
++
++def test_matrix_self_comparison_uses_spectra_collection(spectra_collection):
++    similarity = MockEmbeddingSimilarity()
++
++    scores = similarity.matrix(spectra_collection, progress_bar=False)
++
++    assert isinstance(scores, Scores)
++    assert scores.shape == (len(spectra_collection), len(spectra_collection))
++    assert np.allclose(scores.to_array(), scores.to_array().T)
++
++
++def test_pair_uses_standard_matrix_contract(spectra_collection):
++    similarity = MockEmbeddingSimilarity()
++
++    score = similarity.pair(spectra_collection[0], spectra_collection[1])
++
++    assert score == pytest.approx(1.0)
++
++
++def test_compute_similarity_matrix_from_embeddings_returns_raw_array():
++    similarity = MockEmbeddingSimilarity()
++    embeddings = np.array([[1.0, 0.0], [0.0, 1.0]])
+ 
+-    spectra_1 = spectra[1:3]
+-    spectra_2 = spectra
++    matrix = similarity.compute_similarity_matrix_from_embeddings(embeddings)
+ 
+-    with pytest.raises(ValueError, match="Any embedding base similarity matrix is supposed to be dense and symmetric."):
+-        base_similarity.matrix(spectra_1, spectra_2, is_symmetric=False)
++    assert isinstance(matrix, np.ndarray)
++    assert matrix.shape == (2, 2)
++    assert np.allclose(matrix, np.eye(2))
+ 
+ 
+-def test_build_ann_index_missing_backend(spectra):
++def test_build_ann_index_missing_backend(spectra_collection):
+     similarity = MockEmbeddingSimilarity()
+ 
+     with pytest.raises(ValueError, match="Only pynndescent is supported for now. Got missing."):
+-        similarity.build_ann_index(spectra, index_backend="missing")
++        similarity.build_ann_index(spectra_collection, index_backend="missing")
+ 
+ 
+-def test_get_anns_incorrect_query_dim_error(spectra):
++def test_get_anns_incorrect_query_dim_error(spectra_collection):
++    pytest.importorskip("pynndescent")
+     similarity = MockEmbeddingSimilarity()
+ 
++    similarity.build_ann_index(spectra_collection, k=2)
+     with pytest.raises(ValueError, match="Expected 2D embeddings array, got 1D array."):
+-        similarity.build_ann_index(spectra)
+-        similarity.get_anns(query_spectra=np.array([100, 200, 300]))
++        similarity.get_anns(query_spectra=np.array([100, 200, 300]), k=1)
+diff --git a/tests/similarity/test_binned_embedding_similarity.py b/tests/similarity/test_binned_embedding_similarity.py
+index 21c6bad8f..1049e5260 100644
+--- a/tests/similarity/test_binned_embedding_similarity.py
++++ b/tests/similarity/test_binned_embedding_similarity.py
+@@ -1,102 +1,153 @@
+ import numpy as np
+ import pytest
+ from numpy.linalg import norm as lnorm
+-from matchms import Spectrum
++from matchms import Scores, SpectraCollection, Spectrum
+ from matchms.similarity import BinnedEmbeddingSimilarity
+ 
+ 
++def _spectrum(mz, intensities):
++    return Spectrum(
++        mz=np.asarray(mz, dtype="float"),
++        intensities=np.asarray(intensities, dtype="float"),
++    )
++
++
++def _expected_binned_vector(similarity, mz, intensities):
++    expected = np.zeros(similarity.n_bins, dtype=np.float64)
++    mz = np.asarray(mz, dtype="float")
++    intensities = np.asarray(intensities, dtype="float") ** similarity.intensity_power
++
++    valid_mask = (mz >= 0) & (mz <= similarity.max_mz)
++    if not np.any(valid_mask):
++        return expected
++
++    bin_indices = np.floor(mz[valid_mask] / similarity.bin_width).astype(np.int64)
++    bin_indices = np.clip(bin_indices, 0, similarity.n_bins - 1)
++    np.add.at(expected, bin_indices, intensities[valid_mask])
++
++    max_intensity = expected.max()
++    if max_intensity > 0:
++        expected /= max_intensity
++    return expected
++
++
++def _cosine_score(vec_1, vec_2):
++    denominator = lnorm(vec_1) * lnorm(vec_2)
++    if denominator == 0:
++        return 0.0
++    return np.dot(vec_1, vec_2) / denominator
++
++
++@pytest.fixture
++def spectra_collection():
++    return SpectraCollection([
++        _spectrum([100, 200, 300], [0.1, 0.2, 1.0]),
++        _spectrum([110, 190, 290], [0.5, 0.2, 1.0]),
++    ])
++
++
+ def test_binned_embedding_similarity_without_parameters():
+     """Test binned embedding similarity with default parameters."""
+-    spectrum_1 = Spectrum(mz=np.array([100, 200, 300, 500, 510], dtype="float"),
+-                         intensities=np.array([0.1, 0.2, 1.0, 0.3, 0.4], dtype="float"))
+-
+-    spectrum_2 = Spectrum(mz=np.array([100, 200, 290, 490, 510], dtype="float"),
+-                         intensities=np.array([0.1, 0.2, 1.0, 0.3, 0.4], dtype="float"))
++    spectrum_1 = _spectrum([100, 200, 300, 500, 510], [0.1, 0.2, 1.0, 0.3, 0.4])
++    spectrum_2 = _spectrum([100, 200, 290, 490, 510], [0.1, 0.2, 1.0, 0.3, 0.4])
+ 
+     similarity = BinnedEmbeddingSimilarity()
+     score = similarity.pair(spectrum_1, spectrum_2)
+ 
+-    # Calculate expected binned vectors
+-    expected_vec1 = np.zeros(1005)
+-    expected_vec2 = np.zeros(1005)
+-    
+-    # Fill bins for spectrum 1
+-    expected_vec1[[100, 200, 300, 500, 510]] = [0.1, 0.2, 1.0, 0.3, 0.4]
+-    expected_vec1 /= np.max(expected_vec1)
+-    
+-    # Fill bins for spectrum 2 
+-    expected_vec2[[100, 200, 290, 490, 510]] = [0.1, 0.2, 1.0, 0.3, 0.4]
+-    expected_vec2 /= np.max(expected_vec2)
++    expected_vec1 = _expected_binned_vector(similarity, [100, 200, 300, 500, 510], [0.1, 0.2, 1.0, 0.3, 0.4])
++    expected_vec2 = _expected_binned_vector(similarity, [100, 200, 290, 490, 510], [0.1, 0.2, 1.0, 0.3, 0.4])
++    expected_score = _cosine_score(expected_vec1, expected_vec2)
++
++    assert score == pytest.approx(expected_score, rel=1e-6)
+ 
+-    # Calculate expected cosine similarity
+-    expected_score = np.dot(expected_vec1, expected_vec2) / (lnorm(expected_vec1) * lnorm(expected_vec2))
+ 
+-    assert score == pytest.approx(expected_score, rel=1e-6), "Expected different cosine score"
++def test_binned_embedding_similarity_matrix_uses_spectra_collection(spectra_collection):
++    """Test binned embedding similarity matrix computation for SpectraCollection."""
++    similarity = BinnedEmbeddingSimilarity()
+ 
++    scores = similarity.matrix(spectra_collection, spectra_collection, progress_bar=False)
+ 
+-def test_binned_embedding_similarity_matrix():
+-    """Test binned embedding similarity matrix computation."""
+-    spectrum_1 = Spectrum(mz=np.array([100, 200, 300], dtype="float"),
+-                         intensities=np.array([0.1, 0.2, 1.0], dtype="float"))
+-    spectrum_2 = Spectrum(mz=np.array([110, 190, 290], dtype="float"),
+-                         intensities=np.array([0.5, 0.2, 1.0], dtype="float"))
++    expected_vec1 = _expected_binned_vector(similarity, [100, 200, 300], [0.1, 0.2, 1.0])
++    expected_vec2 = _expected_binned_vector(similarity, [110, 190, 290], [0.5, 0.2, 1.0])
++    expected_score = _cosine_score(expected_vec1, expected_vec2)
+ 
+-    spectra = [spectrum_1, spectrum_2]
+-    similarity = BinnedEmbeddingSimilarity()
+-    scores = similarity.matrix(spectra, spectra)
++    assert isinstance(scores, Scores)
++    assert scores.shape == (2, 2)
++    assert scores[0, 1] == pytest.approx(expected_score, rel=1e-6)
++    assert scores[0, 0] == pytest.approx(1.0, rel=1e-6)
++    assert scores[1, 1] == pytest.approx(1.0, rel=1e-6)
++    assert scores[0, 1] == pytest.approx(scores[1, 0], rel=1e-6)
+ 
+-    # Calculate expected binned vectors
+-    expected_vec1 = np.zeros(1005)
+-    expected_vec2 = np.zeros(1005)
+-    
+-    expected_vec1[[100, 200, 300]] = [0.1, 0.2, 1.0]
+-    expected_vec1 /= np.max(expected_vec1)
+-    
+-    expected_vec2[[110, 190, 290]] = [0.5, 0.2, 1.0]
+-    expected_vec2 /= np.max(expected_vec2)
+ 
+-    # Calculate expected cosine similarity
+-    expected_score = np.dot(expected_vec1, expected_vec2) / (lnorm(expected_vec1) * lnorm(expected_vec2))
++def test_binned_embedding_similarity_matrix_self_comparison_uses_spectra_collection(spectra_collection):
++    similarity = BinnedEmbeddingSimilarity()
+ 
+-    assert scores[0, 1] == pytest.approx(expected_score, rel=1e-6), "Expected different cosine score"
+-    assert np.allclose(scores[0, 0], scores[1, 1], atol=1e-6), "Expected perfect self-similarity"
+-    assert np.allclose(scores[0, 1], scores[1, 0], atol=1e-6), "Expected symmetric matrix"
++    scores = similarity.matrix(spectra_collection, progress_bar=False)
+ 
++    assert isinstance(scores, Scores)
++    assert scores.shape == (2, 2)
++    assert np.allclose(scores.to_array(), scores.to_array().T)
+ 
+-def test_binned_embedding_similarity_parameters():
++
++def test_binned_embedding_similarity_parameters_with_spectra_collection():
+     """Test binned embedding similarity with different parameters."""
+-    spectrum = Spectrum(mz=np.array([100, 200, 300], dtype="float"),
+-                       intensities=np.array([0.1, 0.2, 1.0], dtype="float"))
++    spectra = SpectraCollection([
++        _spectrum([100, 200, 300], [0.1, 0.2, 1.0])
++    ])
+ 
+     similarity_1 = BinnedEmbeddingSimilarity(max_mz=500, bin_width=1)
+     similarity_2 = BinnedEmbeddingSimilarity(max_mz=500, bin_width=10)
+ 
+-    embedding_1 = similarity_1.compute_embeddings([spectrum])
+-    embedding_2 = similarity_2.compute_embeddings([spectrum])
++    embedding_1 = similarity_1.compute_embeddings(spectra)
++    embedding_2 = similarity_2.compute_embeddings(spectra)
+ 
+-    assert embedding_1.shape[1] == 500, "Expected 500 bins"
+-    assert embedding_2.shape[1] == 50, "Expected 50 bins"
++    assert embedding_1.shape == (1, similarity_1.n_bins)
++    assert embedding_1.shape[1] == 501
++    assert embedding_2.shape == (1, similarity_2.n_bins)
++    assert embedding_2.shape[1] == 51
+ 
+-    # Check if binning is correct for bin_width=10
+-    expected_vec = np.zeros(50)
+-    expected_vec[[10, 20, 30]] = [0.1, 0.2, 1.0]  # 100/10=10, 200/10=20, 300/10=30
++    expected_vec = np.zeros(similarity_2.n_bins)
++    expected_vec[[10, 20, 30]] = [0.1, 0.2, 1.0]
+     expected_vec /= np.max(expected_vec)
+ 
+-    assert np.allclose(embedding_2[0], expected_vec), "Expected different binned values"
++    assert np.allclose(embedding_2[0], expected_vec)
++
++
++def test_binned_embedding_similarity_empty_and_zero_spectra_do_not_create_nans():
++    spectra = SpectraCollection([
++        _spectrum([], []),
++        _spectrum([2000, 3000], [1.0, 2.0]),
++        _spectrum([100, 200], [0.0, 0.0]),
++    ])
++    similarity = BinnedEmbeddingSimilarity()
++
++    embeddings = similarity.compute_embeddings(spectra)
++    scores = similarity.matrix(spectra, progress_bar=False)
++
++    assert embeddings.shape == (3, similarity.n_bins)
++    assert np.all(np.isfinite(embeddings))
++    assert np.allclose(embeddings, 0.0)
++    assert np.all(np.isfinite(scores.to_array()))
++    assert np.allclose(scores.to_array(), 0.0)
++
++
++def test_binned_embedding_similarity_empty_iterable_shape():
++    similarity = BinnedEmbeddingSimilarity()
++
++    embeddings = similarity.compute_embeddings([])
++
++    assert embeddings.shape == (0, similarity.n_bins)
+ 
+ 
+ def test_binned_embedding_similarity_euclidean():
+     """Test binned embedding similarity with euclidean distance."""
+-    spectrum_1 = Spectrum(mz=np.array([100, 200, 300], dtype="float"),
+-                         intensities=np.array([0.1, 0.2, 1.0], dtype="float"))
+-    spectrum_2 = Spectrum(mz=np.array([110, 210, 310], dtype="float"),
+-                         intensities=np.array([0.1, 0.2, 1.0], dtype="float"))
++    spectrum_1 = _spectrum([100, 200, 300], [0.1, 0.2, 1.0])
++    spectrum_2 = _spectrum([110, 210, 310], [0.1, 0.2, 1.0])
+ 
+     similarity = BinnedEmbeddingSimilarity(similarity="euclidean")
+     score = similarity.pair(spectrum_1, spectrum_2)
+ 
+-    # For shifted peaks, expect non-zero distance
+-    assert score < 0, "Expected negative score for euclidean similarity"
++    assert score < 0
+ 
+ 
+ def test_binned_embedding_similarity_invalid_similarity():
+@@ -105,94 +156,97 @@ def test_binned_embedding_similarity_invalid_similarity():
+         BinnedEmbeddingSimilarity(similarity="invalid")
+ 
+ 
++@pytest.mark.parametrize(
++    "kwargs, message",
++    [
++        ({"max_mz": 0}, "max_mz must be > 0"),
++        ({"bin_width": 0}, "bin_width must be > 0"),
++    ],
++)
++def test_binned_embedding_similarity_invalid_parameters(kwargs, message):
++    with pytest.raises(ValueError, match=message):
++        BinnedEmbeddingSimilarity(**kwargs)
++
++
+ def test_binned_embedding_similarity_ann():
+     """Test approximate nearest neighbor search functionality."""
+-    # Create 10 test spectra with slightly varying peaks
+-    reference_spectra = []
+-    for i in range(10):
+-        mz = np.array([100 + i, 200 + i, 300 + i], dtype="float")
+-        intensities = np.array([0.1 + i*0.01, 0.2 + i*0.01, 1.0 - i*0.01], dtype="float") 
+-        spectrum = Spectrum(mz=mz, intensities=intensities)
+-        reference_spectra.append(spectrum)
+-
+-    # Create query spectrum similar to first reference spectrum
+-    query_spectrum = Spectrum(
+-        mz=np.array([100, 200, 300], dtype="float"),
+-        intensities=np.array([0.11, 0.21, 0.99], dtype="float")
+-    )
++    pytest.importorskip("pynndescent")
++
++    reference_spectra = SpectraCollection([
++        _spectrum(
++            [100 + i, 200 + i, 300 + i],
++            [0.1 + i * 0.01, 0.2 + i * 0.01, 1.0 - i * 0.01],
++        )
++        for i in range(10)
++    ])
++    query_spectra = SpectraCollection([
++        _spectrum([100, 200, 300], [0.11, 0.21, 0.99])
++    ])
+ 
+     similarity = BinnedEmbeddingSimilarity()
+-    
+-    # Build index
+     similarity.build_ann_index(reference_spectra, k=5)
+-    
+-    # Test get_anns
+-    neighbors, similarities = similarity.get_anns([query_spectrum], k=3)
+-    assert neighbors.shape == (1, 3), "Expected shape (1,3) for neighbors"
+-    assert similarities.shape == (1, 3), "Expected shape (1,3) for similarities"
+-    
+-    # Query spectrum should be most similar to first reference spectrum
+-    assert neighbors[0,0] == 0, "Expected first spectrum to be closest neighbor"
+-    
+-    # Test get_index_anns
++
++    neighbors, similarities = similarity.get_anns(query_spectra, k=3)
++    assert neighbors.shape == (1, 3)
++    assert similarities.shape == (1, 3)
++    assert neighbors[0, 0] == 0
++
+     neighbors, similarities = similarity.get_index_anns()
+-    assert neighbors.shape == (10, 5), "Expected shape (10,5) for index neighbors"
+-    assert similarities.shape == (10, 5), "Expected shape (10,5) for index similarities"
++    assert neighbors.shape == (10, 5)
++    assert similarities.shape == (10, 5)
+ 
+-    # Test against exact nearest neighbor
+-    exact_neighbors, exact_similarities = similarity.get_anns([query_spectrum], k=1)
+-    assert exact_neighbors.shape == (1, 1), "Expected shape (1,1) for exact neighbors"
+-    assert exact_similarities.shape == (1, 1), "Expected shape (1,1) for exact similarities"
+-    assert exact_neighbors[0,0] == 0, "Expected first spectrum to be exact nearest neighbor"
++    exact_neighbors, exact_similarities = similarity.get_anns(query_spectra, k=1)
++    assert exact_neighbors.shape == (1, 1)
++    assert exact_similarities.shape == (1, 1)
++    assert exact_neighbors[0, 0] == 0
+ 
+ 
+ def test_binned_embedding_similarity_ann_save_load(tmp_path):
+     """Test saving and loading ANN index."""
+-    # Create 10 test spectra
+-    reference_spectra = []
+-    for i in range(10):
+-        mz = np.array([100 + i, 200 + i, 300 + i], dtype="float")
+-        intensities = np.array([0.1 + i*0.01, 0.2 + i*0.01, 1.0 - i*0.01], dtype="float")
+-        spectrum = Spectrum(mz=mz, intensities=intensities)
+-        reference_spectra.append(spectrum)
+-    
++    pytest.importorskip("pynndescent")
++
++    reference_spectra = SpectraCollection([
++        _spectrum(
++            [100 + i, 200 + i, 300 + i],
++            [0.1 + i * 0.01, 0.2 + i * 0.01, 1.0 - i * 0.01],
++        )
++        for i in range(10)
++    ])
++
+     similarity = BinnedEmbeddingSimilarity()
+     similarity.build_ann_index(reference_spectra, k=5)
+-    
+-    # Save index
++
+     index_path = tmp_path / "test_index.pkl"
+     similarity.save_ann_index(index_path)
+-    
+-    # Load index in new instance
++
+     similarity_2 = BinnedEmbeddingSimilarity()
+     similarity_2.load_ann_index(index_path)
+-    
+-    # Test loaded index with first spectrum
+-    neighbors, similarities = similarity_2.get_anns([reference_spectra[0]], k=1)
+-    assert neighbors.shape == (1, 1), "Expected shape (1,1) for neighbors"
+-    assert similarities.shape == (1, 1), "Expected shape (1,1) for similarities"
+-    assert neighbors[0,0] == 0, "Expected self as nearest neighbor"
++
++    query_spectra = SpectraCollection([reference_spectra[0]])
++    neighbors, similarities = similarity_2.get_anns(query_spectra, k=1)
++    assert neighbors.shape == (1, 1)
++    assert similarities.shape == (1, 1)
++    assert neighbors[0, 0] == 0
+ 
+ 
+ def test_binned_embedding_similarity_ann_errors():
+     """Test error handling in ANN functionality."""
+-    # Create 10 test spectra
+-    reference_spectra = []
+-    for i in range(10):
+-        mz = np.array([100 + i, 200 + i, 300 + i], dtype="float")
+-        intensities = np.array([0.1 + i*0.01, 0.2 + i*0.01, 1.0 - i*0.01], dtype="float")
+-        spectrum = Spectrum(mz=mz, intensities=intensities)
+-        reference_spectra.append(spectrum)
+-    
++    pytest.importorskip("pynndescent")
++
++    reference_spectra = SpectraCollection([
++        _spectrum(
++            [100 + i, 200 + i, 300 + i],
++            [0.1 + i * 0.01, 0.2 + i * 0.01, 1.0 - i * 0.01],
++        )
++        for i in range(10)
++    ])
++
+     similarity = BinnedEmbeddingSimilarity()
+-    
+-    # Test error when getting ANNs without building index
++
+     with pytest.raises(ValueError, match="No index built yet"):
+-        similarity.get_anns([reference_spectra[0]])
+-    
+-    # Build index
++        similarity.get_anns(SpectraCollection([reference_spectra[0]]))
++
+     similarity.build_ann_index(reference_spectra, k=1)
+-    
+-    # Test error when k is larger than index k
++
+     with pytest.raises(ValueError, match="k .* is larger than"):
+-        similarity.get_anns([reference_spectra[0]], k=2)
++        similarity.get_anns(SpectraCollection([reference_spectra[0]]), k=2)
+diff --git a/tests/similarity/test_cosine.py b/tests/similarity/test_cosine.py
+index 9c052abf6..c34c27d9d 100644
+--- a/tests/similarity/test_cosine.py
++++ b/tests/similarity/test_cosine.py
+@@ -1,6 +1,6 @@
+ import numpy as np
+ import pytest
+-from matchms import Spectrum
++from matchms import SpectraCollection, Spectrum
+ from matchms.similarity import (
+     Cosine,
+     CosineFlash,
+@@ -64,10 +64,14 @@ def test_cosine_pair_matches_hungarian_when_use_hungarian_true():
+     assert wrapped_score["matches"] == direct_score["matches"]
+ 
+ 
+-def test_cosine_matrix_matches_flash_cosine_when_use_hungarian_false():
++@pytest.mark.parametrize("use_collection", [True, False])
++def test_cosine_matrix_matches_flash_cosine_when_use_hungarian_false(use_collection):
+     spectrum_1, spectrum_2, spectrum_3 = _make_test_spectra()
+     spectra = [spectrum_1, spectrum_2, spectrum_3]
+ 
++    if use_collection:
++        spectra = SpectraCollection(spectra)
++
+     wrapped = Cosine(tolerance=0.1, use_hungarian=False)
+     direct = CosineFlash(matching_mode="fragment", tolerance=0.1)
+ 
+@@ -89,9 +93,12 @@ def test_cosine_matrix_matches_flash_cosine_when_use_hungarian_false():
+     )
+ 
+ 
+-def test_cosine_matrix_matches_hungarian_when_use_hungarian_true():
++@pytest.mark.parametrize("use_collection", [True, False])
++def test_cosine_matrix_matches_hungarian_when_use_hungarian_true(use_collection):
+     spectrum_1, spectrum_2, spectrum_3 = _make_test_spectra()
+     spectra = [spectrum_1, spectrum_2, spectrum_3]
++    if use_collection:
++        spectra = SpectraCollection(spectra)
+ 
+     wrapped = Cosine(tolerance=0.1, use_hungarian=True)
+     direct = CosineHungarian(tolerance=0.1)
+@@ -114,10 +121,14 @@ def test_cosine_matrix_matches_hungarian_when_use_hungarian_true():
+     )
+ 
+ 
+-def test_cosine_matrix_score_field_selection():
++@pytest.mark.parametrize("use_collection", [True, False])
++def test_cosine_matrix_score_field_selection(use_collection):
+     spectrum_1, spectrum_2, spectrum_3 = _make_test_spectra()
+     spectra = [spectrum_1, spectrum_2, spectrum_3]
+ 
++    if use_collection:
++        spectra = SpectraCollection(spectra)
++
+     scores = Cosine(use_hungarian=False).matrix(
+         spectra,
+         score_fields=("score",),
+@@ -147,11 +158,15 @@ def test_cosine_pair_and_matrix_are_consistent_for_single_pair():
+     assert matrix_scores["matches"].to_array()[0, 0] == pair_score["matches"]
+ 
+ 
++@pytest.mark.parametrize("use_collection", [True, False])
+ @pytest.mark.parametrize("use_hungarian", [False, True])
+-def test_cosine_symmetric_matrix_has_expected_fields_and_shape(use_hungarian):
++def test_cosine_symmetric_matrix_has_expected_fields_and_shape(use_hungarian, use_collection):
+     spectrum_1, spectrum_2, spectrum_3 = _make_test_spectra()
+     spectra = [spectrum_1, spectrum_2, spectrum_3]
+ 
++    if use_collection:
++        spectra = SpectraCollection(spectra)
++
+     kwargs = {"progress_bar": False}
+     if not use_hungarian:
+         kwargs["n_jobs"] = 1
+diff --git a/tests/similarity/test_metadata_match.py b/tests/similarity/test_metadata_match.py
+index 003abad2c..b4fdce1bd 100644
+--- a/tests/similarity/test_metadata_match.py
++++ b/tests/similarity/test_metadata_match.py
+@@ -1,6 +1,7 @@
+ import numpy as np
+ import pytest
+ from scipy.sparse import coo_array
++from matchms import SpectraCollection
+ from matchms.Scores import Scores
+ from matchms.similarity.MetadataMatch import MetadataMatch
+ from tests.builder_Spectrum import SpectrumBuilder
+@@ -148,6 +149,7 @@ def test_metadata_match_numerical_matrix(spectra, tolerance, expected):
+     np.testing.assert_array_equal(scores.to_array(), expected)
+ 
+ 
++@pytest.mark.parametrize("use_collection", [True, False])
+ @pytest.mark.parametrize(
+     "tolerance, expected",
+     [
+@@ -157,11 +159,15 @@ def test_metadata_match_numerical_matrix(spectra, tolerance, expected):
+         (0.1, [[False, False], [False, False]]),
+     ],
+ )
+-def test_metadata_match_numerical_sparse_matrix(spectra, tolerance, expected):
++def test_metadata_match_numerical_sparse_matrix(use_collection, spectra, tolerance, expected):
+     """Test sparse metadata matching for numerical entries."""
+     spectra_1 = spectra[:2]
+     spectra_2 = spectra[2:]
+ 
++    if use_collection:
++        spectra_1 = SpectraCollection(spectra_1)
++        spectra_2 = SpectraCollection(spectra_2)
++
+     similarity = MetadataMatch(
+         field="retention_time",
+         matching_type="difference",
+diff --git a/tests/similarity/test_modified_cosine.py b/tests/similarity/test_modified_cosine.py
+index 1cdc8f3dc..d0b28fdbc 100644
+--- a/tests/similarity/test_modified_cosine.py
++++ b/tests/similarity/test_modified_cosine.py
+@@ -1,6 +1,6 @@
+ import numpy as np
+ import pytest
+-from matchms import Spectrum
++from matchms import SpectraCollection, Spectrum
+ from matchms.similarity import (
+     CosineFlash,
+     ModifiedCosine,
+@@ -64,10 +64,14 @@ def test_modified_cosine_pair_matches_hungarian_when_use_hungarian_true():
+     assert wrapped_score["matches"] == direct_score["matches"]
+ 
+ 
+-def test_modified_cosine_matrix_matches_flash_cosine_when_use_hungarian_false():
++@pytest.mark.parametrize("use_collection", [True, False])
++def test_modified_cosine_matrix_matches_flash_cosine_when_use_hungarian_false(use_collection):
+     spectrum_1, spectrum_2, spectrum_3 = _make_test_spectra()
+     spectra = [spectrum_1, spectrum_2, spectrum_3]
+ 
++    if use_collection:
++        spectra = SpectraCollection(spectra)
++
+     wrapped = ModifiedCosine(tolerance=0.1, use_hungarian=False)
+     direct = CosineFlash(matching_mode="hybrid", tolerance=0.1)
+ 
+@@ -89,10 +93,14 @@ def test_modified_cosine_matrix_matches_flash_cosine_when_use_hungarian_false():
+     )
+ 
+ 
+-def test_modified_cosine_matrix_matches_hungarian_when_use_hungarian_true():
++@pytest.mark.parametrize("use_collection", [True, False])
++def test_modified_cosine_matrix_matches_hungarian_when_use_hungarian_true(use_collection):
+     spectrum_1, spectrum_2, spectrum_3 = _make_test_spectra()
+     spectra = [spectrum_1, spectrum_2, spectrum_3]
+ 
++    if use_collection:
++        spectra = SpectraCollection(spectra)
++
+     wrapped = ModifiedCosine(tolerance=0.1, use_hungarian=True)
+     direct = ModifiedCosineHungarian(tolerance=0.1)
+ 
+@@ -114,10 +122,14 @@ def test_modified_cosine_matrix_matches_hungarian_when_use_hungarian_true():
+     )
+ 
+ 
+-def test_modified_cosine_matrix_score_field_selection():
++@pytest.mark.parametrize("use_collection", [True, False])
++def test_modified_cosine_matrix_score_field_selection(use_collection):
+     spectrum_1, spectrum_2, spectrum_3 = _make_test_spectra()
+     spectra = [spectrum_1, spectrum_2, spectrum_3]
+ 
++    if use_collection:
++        spectra = SpectraCollection(spectra)
++
+     scores = ModifiedCosine(use_hungarian=False).matrix(
+         spectra,
+         score_fields=("score",),
+@@ -148,10 +160,14 @@ def test_modified_cosine_pair_and_matrix_are_consistent_for_single_pair():
+ 
+ 
+ @pytest.mark.parametrize("use_hungarian", [False, True])
+-def test_modified_cosine_symmetric_matrix_has_expected_fields_and_shape(use_hungarian):
++@pytest.mark.parametrize("use_collection", [True, False])
++def test_modified_cosine_symmetric_matrix_has_expected_fields_and_shape(use_hungarian, use_collection):
+     spectrum_1, spectrum_2, spectrum_3 = _make_test_spectra()
+     spectra = [spectrum_1, spectrum_2, spectrum_3]
+ 
++    if use_collection:
++        spectra = SpectraCollection(spectra)
++
+     kwargs = {"progress_bar": False}
+     if not use_hungarian:
+         kwargs["n_jobs"] = 1

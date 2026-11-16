@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/scverse__gget-175"
+description = "[muscle] remove temp fasta even if output is not specified"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "gget",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "scverse/gget"
+ref = "07afc3ff34cdb23ebffa5a7219541c7e7ef0e052"
+reference = "https://github.com/scverse/gget/pull/175"
+source_access = "auto"
+built_at = "2026-11-15T21:05:24.257390+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:c0a3e960fef80ef28104bee299649a3ced1833dfe463438d0aec2156610fcb38"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-04-04T18:49:16Z"
+diff_format = "unified"
+context_files = [
+    "gget/gget_muscle.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 8
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

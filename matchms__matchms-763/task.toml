@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-763"
+description = "Issues/604"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "d46de7649a36c70b27c284d88d8a77b3781c6121"
+reference = "https://github.com/matchms/matchms/pull/763"
+source_access = "auto"
+built_at = "2026-11-16T12:55:07.130940+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:43cb8f0c3799713d6ceeb0b2b613d0836c42bd51e710c90f40753a5555587e51"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-03-31T08:35:16Z"
+diff_format = "unified"
+context_files = [
+    "matchms/Metadata.py",
+    "matchms/data/export_key_conversions.csv",
+    "matchms/data/known_key_conversions.csv",
+    "matchms/exporting/save_as_msp.py",
+    "matchms/filtering/metadata_processing/add_retention.py",
+    "matchms/importing/load_from_msp.py",
+    "matchms/utils.py",
+    "pyproject.toml",
+    "tests/importing/test_load_from_msp.py",
+    "tests/testdata/edge_golm.msp",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 307
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

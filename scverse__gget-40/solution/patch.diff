@@ -1,0 +1,67 @@
+diff --git a/gget/__init__.py b/gget/__init__.py
+index 784d7ed4f..8fa2c1631 100644
+--- a/gget/__init__.py
++++ b/gget/__init__.py
+@@ -19,6 +19,6 @@
+ # Mute numexpr threads info
+ logging.getLogger("numexpr").setLevel(logging.WARNING)
+ 
+-__version__ = "0.3.9"
++__version__ = "0.3.10"
+ __author__ = "Laura Luebbert"
+ __email__ = "lauraluebbert@caltech.edu"
+diff --git a/gget/gget_alphafold.py b/gget/gget_alphafold.py
+index 5622e82a0..5cf41eaf0 100644
+--- a/gget/gget_alphafold.py
++++ b/gget/gget_alphafold.py
+@@ -16,6 +16,7 @@
+ import shutil
+ import sys
+ import glob
++import json
+ import subprocess
+ import platform
+ import collections
+@@ -667,10 +668,23 @@ def alphafold(
+         ## Save the predicted aligned error
+         pae_output_path = os.path.join(abs_out_path, "predicted_aligned_error.json")
+         if pae_outputs:
+-            # Save predicted aligned error in the same format as the AF EMBL DB.
+-            pae_data = notebook_utils.get_pae_json(pae=pae, max_pae=max_pae.item())
+-            with open(pae_output_path, "w") as f:
+-                f.write(pae_data)
++            # Check the PAE array is the correct shape
++            if pae.ndim != 2 or pae.shape[0] != pae.shape[1]:
++                raise ValueError(f"PAE must be a square matrix, got {pae.shape}")
++
++            # Round the predicted aligned errors to 1 decimal place
++            rounded_errors = np.round(pae.astype(np.float64), decimals=1)
++
++            # Create dictionary with PAE and pLDDT
++            formatted_output = {
++                "predicted_aligned_error": rounded_errors.tolist(),
++                "max_predicted_aligned_error": max_pae.item(),
++                "plddt": plddts[best_model_name].tolist(),
++                "final_atom_mask": final_atom_mask.tolist(),
++            }
++
++            with open(pae_output_path, "w", encoding="utf-8") as f:
++                json.dump(formatted_output, f, ensure_ascii=False, indent=4)
+ 
+     ## Plotting
+     if plot:
+diff --git a/tests/test_gget_enrichr.py b/tests/test_gget_enrichr.py
+index ba3d3b08e..95f0ded89 100644
+--- a/tests/test_gget_enrichr.py
++++ b/tests/test_gget_enrichr.py
+@@ -764,10 +764,6 @@ def test_enrichr_plot(self):
+             "No matplotlib plt object was created.",
+         )
+ 
+-    def test_enrichr_bad_db(self):
+-        result = enrichr(["HAND1", "HAND2", "HEG1", "HRAT17"], database="banana")
+-        self.assertIsNone(result, "Invalid database result is not None.")
+-
+     def test_enrichr_bad_gene(self):
+         df = enrichr("banana", database="ontology")
+         self.assertTrue(df.empty, "Invalid gene result is not empty data frame.")

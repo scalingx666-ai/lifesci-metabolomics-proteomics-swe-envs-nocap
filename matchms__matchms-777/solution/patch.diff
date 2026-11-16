@@ -1,0 +1,83 @@
+diff --git a/.github/workflows/CI_generate_dev_requirements.yml b/.github/workflows/CI_generate_dev_requirements.yml
+new file mode 100644
+index 000000000..95651eb87
+--- /dev/null
++++ b/.github/workflows/CI_generate_dev_requirements.yml
+@@ -0,0 +1,44 @@
++name: CI Generate Dev Requirements
++
++on:
++  push:
++    branches:
++      - master
++    paths:
++      - pyproject.toml
++  workflow_dispatch:
++    inputs:
++      tag:
++        description: Tag for manually running CI first code check workflow
++        required: False
++        default: ''
++
++jobs:
++  generate-requirements:
++    runs-on: ubuntu-latest
++
++    steps:
++      - uses: actions/checkout@v4
++
++      - name: Set up Python
++        uses: actions/setup-python@v5
++        with:
++          python-version: '3.11'
++
++      - name: Build package and create dev environment
++        run: |
++          python -m pip install --upgrade pip poetry
++          poetry self add poetry-plugin-export
++          poetry install
++
++      - name: Export dev dependencies to dev-requirements.txt
++        run: |
++          poetry export --with dev -f requirements.txt -o dev-requirements.txt --without-hashes
++
++      - name: Commit and push dev-requirements.txt
++        run: |
++          git config user.name "github-actions[bot]"
++          git config user.email "github-actions[bot]@users.noreply.github.com"
++          git add dev-requirements.txt
++          git commit -m "Update dev-requirements.txt"
++          git push
+diff --git a/README.rst b/README.rst
+index 097852749..72378fe9b 100644
+--- a/README.rst
++++ b/README.rst
+@@ -320,8 +320,13 @@ To install matchms, do:
+   cd matchms
+   conda create --name matchms-dev python=3.11
+   conda activate matchms-dev
+-  conda install poetry=1.8
+-  poetry install
++
++  # If you use poetry
++  poetry install --with-dev
++
++  # If you use pip
++  pip install -r dev-requirements.txt
++  pip install --editable .
+ 
+ Run the linter with:
+ 
+diff --git a/pyproject.toml b/pyproject.toml
+index 4fe93e90a..4dd7b9ca5 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -54,7 +54,7 @@ pytest = "^7.4.0"
+ pytest-cov = "^4.1.0"
+ yapf = "^0.40.1"
+ testfixtures = "^7.1.0"
+-twine = "^5.1.0"
++twine = "^6.1.0"
+ black = "^23.7.0"
+ poetry-bumpversion = "^0.3.1"
+ 

@@ -1,0 +1,13 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/chromatogramandspectra/ChromatogramAndSpectraVisualizer.java b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/chromatogramandspectra/ChromatogramAndSpectraVisualizer.java
+index 877f1b0c9d6..1f17c7d24f5 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/chromatogramandspectra/ChromatogramAndSpectraVisualizer.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/chromatogramandspectra/ChromatogramAndSpectraVisualizer.java
+@@ -547,7 +547,7 @@ private void updateFeatureDataSets(final double mz) {
+     // only do this with smaller sample set size
+     var maxSamples = parameters.getValue(
+         ChromatogramAndSpectraVisualizerParameters.maxSamplesFeaturePick);
+-    if (getRawDataFiles().size() <= maxSamples) {
++    if (getRawDataFiles().size() <= maxSamples && !pnChromControls.cbXIC.isSelected()) {
+       chromDelay.setOnFinished((event) -> delayedFeatureDataUpdate(mz));
+       chromDelay.playFromStart();
+     }

@@ -1,0 +1,140 @@
+diff --git a/matchms/filtering/__init__.py b/matchms/filtering/__init__.py
+index d5148db90..b70180916 100644
+--- a/matchms/filtering/__init__.py
++++ b/matchms/filtering/__init__.py
+@@ -128,6 +128,8 @@
+     require_formula
+ from matchms.filtering.metadata_processing.require_matching_adduct_and_ionmode import \
+     require_matching_adduct_and_ionmode
++from matchms.filtering.metadata_processing.require_matching_adduct_precursor_mz_parent_mass import \
++    require_matching_adduct_precursor_mz_parent_mass
+ from matchms.filtering.metadata_processing.require_parent_mass_match_smiles import \
+     require_parent_mass_match_smiles
+ from matchms.filtering.metadata_processing.require_precursor_mz import (
+@@ -199,6 +201,7 @@
+     "derive_annotation_from_compound_name",
+     "repair_not_matching_annotation",
+     "require_valid_annotation",
++    "require_matching_adduct_precursor_mz_parent_mass",
+     "require_parent_mass_match_smiles",
+     "require_matching_adduct_and_ionmode",
+     "require_minimum_number_of_peaks",
+diff --git a/matchms/filtering/default_pipelines.py b/matchms/filtering/default_pipelines.py
+index 25d01272c..de255496f 100644
+--- a/matchms/filtering/default_pipelines.py
++++ b/matchms/filtering/default_pipelines.py
+@@ -42,6 +42,7 @@
+ ]
+ REQUIRE_COMPLETE_ANNOTATION = [(msfilters.require_parent_mass_match_smiles, {'mass_tolerance': 0.1}),
+                                msfilters.require_valid_annotation,
++                               msfilters.require_matching_adduct_precursor_mz_parent_mass,
+                                msfilters.require_matching_adduct_and_ionmode]
+ CLEAN_PEAKS = [(msfilters.select_by_mz, {"mz_from": 0, "mz_to": 1000}),
+                (msfilters.select_by_relative_intensity, {"intensity_from": 0.001}),
+diff --git a/matchms/filtering/filter_order.py b/matchms/filtering/filter_order.py
+index 543047f17..5d9a0a9b8 100644
+--- a/matchms/filtering/filter_order.py
++++ b/matchms/filtering/filter_order.py
+@@ -39,6 +39,7 @@
+                msfilters.require_formula,
+                msfilters.require_precursor_below_mz,
+                msfilters.require_parent_mass_match_smiles,
++               msfilters.require_matching_adduct_precursor_mz_parent_mass,
+                msfilters.require_retention_index,
+                msfilters.require_retention_time,
+                msfilters.require_matching_adduct_and_ionmode,
+diff --git a/matchms/filtering/metadata_processing/require_matching_adduct_precursor_mz_parent_mass.py b/matchms/filtering/metadata_processing/require_matching_adduct_precursor_mz_parent_mass.py
+new file mode 100644
+index 000000000..9cbc5cda9
+--- /dev/null
++++ b/matchms/filtering/metadata_processing/require_matching_adduct_precursor_mz_parent_mass.py
+@@ -0,0 +1,45 @@
++import logging
++import math
++from matchms.filtering.filter_utils.interpret_unknown_adduct import \
++    get_multiplier_and_mass_from_adduct
++
++
++logger = logging.getLogger("matchms")
++
++
++def require_matching_adduct_precursor_mz_parent_mass(spectrum,
++                                                     tolerance=0.1):
++    """Checks if the adduct precursor mz and parent mass match within the tolerance"""
++    if spectrum is None:
++        return None
++
++    adduct = spectrum.get("adduct")
++
++    if adduct is None:
++        logger.info("Spectrum is removed since adduct is None")
++        return None
++    if spectrum.get("parent_mass") is None:
++        logger.info("Spectrum is removed since parent mass is None")
++        return None
++    if spectrum.get("precursor_mz") is None:
++        logger.info("Spectrum is removed since precursor mz is None")
++        return None
++    try:
++        precursor_mz = float(spectrum.get("precursor_mz"))
++        parent_mass = float(spectrum.get("parent_mass"))
++    except (TypeError, ValueError):
++        logger.warning("precursor_mz or parent mass could not be converted to float, "
++                       "please run add_parent_mass and add_precursor_mz first")
++        return spectrum
++
++    multiplier, correction_mass = get_multiplier_and_mass_from_adduct(adduct)
++    if multiplier is None:
++        logger.info("Spectrum is removed since adduct: %s could not be parsed", adduct)
++        return None
++    expected_parent_mass = (precursor_mz - correction_mass) / multiplier
++    if not math.isclose(parent_mass, expected_parent_mass, abs_tol=tolerance):
++        logger.info("Spectrum is removed because the adduct : %s and precursor_mz: %s suggest a parent mass of %s, "
++                    "but parent mass %s is given",
++                    adduct, precursor_mz, expected_parent_mass, parent_mass)
++        return None
++    return spectrum
+diff --git a/tests/filtering/test_all_filter_order.py b/tests/filtering/test_all_filter_order.py
+index d8142884e..134364c7f 100644
+--- a/tests/filtering/test_all_filter_order.py
++++ b/tests/filtering/test_all_filter_order.py
+@@ -39,6 +39,11 @@
+     [[msfilters.derive_adduct_from_name, ], [msfilters.clean_adduct]],
+     [[msfilters.derive_annotation_from_compound_name, ], DERIVE_ANNOTATION_FILTERS],
+     [[msfilters.derive_formula_from_name, ], [msfilters.require_formula]],
++    [[msfilters.remove_profiled_spectra,], [msfilters.remove_peaks_around_precursor_mz]],
++    [[msfilters.clean_adduct, msfilters.derive_adduct_from_name, msfilters.repair_adduct_based_on_parent_mass,
++      msfilters.repair_adduct_and_parent_mass_based_on_smiles, msfilters.add_precursor_mz,
++      msfilters.require_precursor_mz, msfilters.add_parent_mass, msfilters.repair_parent_mass_is_molar_mass],
++     [msfilters.require_matching_adduct_precursor_mz_parent_mass]],
+     [[msfilters.repair_adduct_based_on_parent_mass, msfilters.repair_adduct_and_parent_mass_based_on_smiles,
+       msfilters.clean_adduct, msfilters.require_correct_ionmode, msfilters.derive_ionmode,
+       msfilters.derive_adduct_from_name],
+diff --git a/tests/filtering/test_require_matching_adduct_precursor_mz_parent_mass.py b/tests/filtering/test_require_matching_adduct_precursor_mz_parent_mass.py
+new file mode 100644
+index 000000000..2e7c5ede7
+--- /dev/null
++++ b/tests/filtering/test_require_matching_adduct_precursor_mz_parent_mass.py
+@@ -0,0 +1,22 @@
++import pytest
++from matchms.filtering.metadata_processing.require_matching_adduct_precursor_mz_parent_mass import \
++    require_matching_adduct_precursor_mz_parent_mass
++from ..builder_Spectrum import SpectrumBuilder
++
++
++@pytest.mark.parametrize("adduct, parent_mass, precursor_mz, should_be_removed", [
++    ["[M+H]+", 100, 100, True],  # incorrect matches
++    ["[M+H]+blabla", 100, 100, True],  # wrong adduct
++    ["[M+H]+", "blabal", 100, True],  # wrong parent mass
++    ["[M+H]+", 100, "bla", True],  # wrong precursor mz
++    ["[M+H]+", 100, None, True],  # wrong precursor mz
++    ["[M+H]+", 100.0, 101.0, False],  # wrong precursor mz
++])
++def test_require_matching_adduct_precursor_mz_parent_mass(adduct, parent_mass, precursor_mz, should_be_removed):
++    spectrum_in = SpectrumBuilder().with_metadata({"adduct": adduct, "parent_mass": parent_mass,
++                                                   "precursor_mz": precursor_mz}).build()
++    result = require_matching_adduct_precursor_mz_parent_mass(spectrum_in)
++    if result is None:
++        assert should_be_removed
++    else:
++        assert spectrum_in == result

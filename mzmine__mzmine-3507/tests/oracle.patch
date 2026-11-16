@@ -1,0 +1,336 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/order/MassDetectionCondition.java b/mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/order/MassDetectionCondition.java
+index 61706a592bd..a8de7f58d30 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/order/MassDetectionCondition.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/order/MassDetectionCondition.java
+@@ -28,17 +28,27 @@
+ import io.github.mzmine.modules.MZmineProcessingModule;
+ import io.github.mzmine.modules.MZmineProcessingStep;
+ import io.github.mzmine.modules.dataprocessing.featdet_massdetection.MassDetectionModule;
++import io.github.mzmine.modules.dataprocessing.featdet_massdetection.MassDetectionParameters;
+ import io.github.mzmine.modules.io.import_rawdata_all.AdvancedSpectraImportParameters;
+ import io.github.mzmine.modules.io.import_rawdata_all.AllSpectralDataImportModule;
+ import io.github.mzmine.modules.io.import_rawdata_all.AllSpectralDataImportParameters;
++import io.github.mzmine.modules.visualization.spectra.simplespectra.datapointprocessing.datamodel.MSLevel;
+ import io.github.mzmine.parameters.ParameterSet;
++import io.github.mzmine.parameters.parametertypes.combowithinput.MsLevelFilter;
++import io.github.mzmine.parameters.parametertypes.selectors.ScanSelection;
+ import org.jetbrains.annotations.NotNull;
+ 
+ /**
+  * Accepts mass detection as a preceding batch step or as part of advanced spectral data import.
+  */
+ public enum MassDetectionCondition implements ModuleOrderCondition {
+-  INSTANCE;
++  MS1(MSLevel.MSONE), MSn(MSLevel.MSMS), MSany(MSLevel.MSANY);
++
++  final MSLevel msLevel;
++
++  MassDetectionCondition(MSLevel msLevel) {
++    this.msLevel = msLevel;
++  }
+ 
+   @Override
+   public @NotNull String description() {
+@@ -48,11 +58,25 @@ public enum MassDetectionCondition implements ModuleOrderCondition {
+   @Override
+   public boolean matches(
+       @NotNull final MZmineProcessingStep<? extends MZmineProcessingModule> step) {
+-    return step.getModule() instanceof MassDetectionModule || hasAdvancedImportMassDetection(step);
++    return matchesMassDetectionStep(step) || matchesAdvancedImportMassDetection(step);
++  }
++
++  private boolean matchesMassDetectionStep(@NotNull final MZmineProcessingStep<?> step) {
++    if (!(step.getModule() instanceof MassDetectionModule)) {
++      return false;
++    }
++    final ParameterSet param = step.getParameterSet();
++    final ScanSelection scanSelection = param.getValue(MassDetectionParameters.scanSelection);
++    final MsLevelFilter msLevelFilter = scanSelection.getMsLevelFilter();
++
++    return switch (this) {
++      case MS1 -> msLevelFilter.accept(1);
++      case MSn -> msLevelFilter.accept(2);
++      case MSany -> msLevelFilter.accept(1) && msLevelFilter.accept(2);
++    };
+   }
+ 
+-  private static boolean hasAdvancedImportMassDetection(
+-      @NotNull final MZmineProcessingStep<?> step) {
++  private boolean matchesAdvancedImportMassDetection(@NotNull final MZmineProcessingStep<?> step) {
+     if (!(step.getModule() instanceof AllSpectralDataImportModule)) {
+       return false;
+     }
+@@ -68,8 +92,15 @@ private static boolean hasAdvancedImportMassDetection(
+       return false;
+     }
+ 
+-    // decision: Either MS1 or MSn mass detection establishes a configured import-time source.
+-    return Boolean.TRUE.equals(advanced.getValue(AdvancedSpectraImportParameters.msMassDetection))
+-        || Boolean.TRUE.equals(advanced.getValue(AdvancedSpectraImportParameters.ms2MassDetection));
++    return switch (this) {
++      case MS1 ->
++          Boolean.TRUE.equals(advanced.getValue(AdvancedSpectraImportParameters.msMassDetection));
++      case MSn ->
++          Boolean.TRUE.equals(advanced.getValue(AdvancedSpectraImportParameters.ms2MassDetection));
++      case MSany ->
++          Boolean.TRUE.equals(advanced.getValue(AdvancedSpectraImportParameters.msMassDetection))
++              || Boolean.TRUE.equals(
++              advanced.getValue(AdvancedSpectraImportParameters.ms2MassDetection));
++    };
+   }
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/order/Ms2ScanPairingCondition.java b/mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/order/Ms2ScanPairingCondition.java
+index 94c5729973f..c34b503127a 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/order/Ms2ScanPairingCondition.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/order/Ms2ScanPairingCondition.java
+@@ -29,6 +29,7 @@
+ import io.github.mzmine.modules.MZmineProcessingStep;
+ import io.github.mzmine.modules.dataprocessing.featdet_chromatogramdeconvolution.FeatureResolverModule;
+ import io.github.mzmine.modules.dataprocessing.featdet_chromatogramdeconvolution.GeneralResolverParameters;
++import io.github.mzmine.modules.dataprocessing.featdet_spectraldeconvolutiongc.SpectralDeconvolutionGCModule;
+ import io.github.mzmine.modules.dataprocessing.filter_diams2.DiaMs2CorrModule;
+ import io.github.mzmine.modules.dataprocessing.filter_groupms2.GroupMS2Module;
+ import io.github.mzmine.parameters.ParameterSet;
+@@ -43,15 +44,17 @@ public enum Ms2ScanPairingCondition implements ModuleOrderCondition {
+   @Override
+   public @NotNull String description() {
+     return """
+-        MS2 spectra are paired by a feature resolver ("%s" parameter), "%s" module, or "%s" module""".formatted(GeneralResolverParameters.groupMS2Parameters.getName(),
+-        GroupMS2Module.MODULE_NAME, DiaMs2CorrModule.NAME);
++        MS2 spectra are paired by a feature resolver ("%s" parameter), "%s" module, or "%s" module""".formatted(
++        GeneralResolverParameters.groupMS2Parameters.getName(), GroupMS2Module.MODULE_NAME,
++        DiaMs2CorrModule.NAME);
+   }
+ 
+   @Override
+   public boolean matches(
+       @NotNull final MZmineProcessingStep<? extends MZmineProcessingModule> step) {
+     return step.getModule() instanceof GroupMS2Module
+-        || step.getModule() instanceof DiaMs2CorrModule || hasResolverMs2ScanPairing(step);
++        || step.getModule() instanceof DiaMs2CorrModule || hasResolverMs2ScanPairing(step)
++        || step.getModule() instanceof SpectralDeconvolutionGCModule;
+   }
+ 
+   private static boolean hasResolverMs2ScanPairing(@NotNull final MZmineProcessingStep<?> step) {
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_adapchromatogrambuilder/ModularADAPChromatogramBuilderModule.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_adapchromatogrambuilder/ModularADAPChromatogramBuilderModule.java
+index db3e0b34658..8f095981188 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_adapchromatogrambuilder/ModularADAPChromatogramBuilderModule.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_adapchromatogrambuilder/ModularADAPChromatogramBuilderModule.java
+@@ -60,7 +60,7 @@ public class ModularADAPChromatogramBuilderModule implements MZmineProcessingMod
+   public @NotNull List<@NotNull ModuleOrderRecommendation> getModuleOrderRecommendations() {
+     return List.of(new ModuleOrderRecommendation(
+         "Chromatogram building requires centroided and noise filtered data",
+-        ModuleOrderRule.mustRunAfter(MassDetectionCondition.INSTANCE)));
++        ModuleOrderRule.mustRunAfter(MassDetectionCondition.MS1)));
+   }
+ 
+   @Override
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_masscalibration/MassCalibrationModule.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_masscalibration/MassCalibrationModule.java
+index d8c715d6982..c77dd1c7565 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_masscalibration/MassCalibrationModule.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_masscalibration/MassCalibrationModule.java
+@@ -62,7 +62,7 @@ public class MassCalibrationModule implements MZmineProcessingModule {
+   public @NotNull List<@NotNull ModuleOrderRecommendation> getModuleOrderRecommendations() {
+     return List.of(new ModuleOrderRecommendation(
+         "Mass calibration estimates and corrects centroided and noise filtered data",
+-        ModuleOrderRule.mustRunAfter(MassDetectionCondition.INSTANCE)));
++        ModuleOrderRule.mustRunAfter(MassDetectionCondition.MSany)));
+   }
+ 
+   @Override
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_mobilityscanmerger/MobilityScanMergerModule.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_mobilityscanmerger/MobilityScanMergerModule.java
+index 028517015d7..fbbd7bd217f 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_mobilityscanmerger/MobilityScanMergerModule.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_mobilityscanmerger/MobilityScanMergerModule.java
+@@ -69,7 +69,7 @@ public String getDescription() {
+   public @NotNull List<@NotNull ModuleOrderRecommendation> getModuleOrderRecommendations() {
+     return List.of(new ModuleOrderRecommendation(
+         "Mobility scan merging reads centroid mass lists from the mobility scans",
+-        ModuleOrderRule.mustRunAfter(MassDetectionCondition.INSTANCE)));
++        ModuleOrderRule.mustRunAfter(MassDetectionCondition.MSany)));
+   }
+ 
+   @NotNull
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_shoulderpeaksfilter/ShoulderPeaksFilterModule.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_shoulderpeaksfilter/ShoulderPeaksFilterModule.java
+index fae395f097e..3e50ea0a87c 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_shoulderpeaksfilter/ShoulderPeaksFilterModule.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_shoulderpeaksfilter/ShoulderPeaksFilterModule.java
+@@ -61,7 +61,7 @@ public class ShoulderPeaksFilterModule implements MZmineProcessingModule {
+   public @NotNull List<@NotNull ModuleOrderRecommendation> getModuleOrderRecommendations() {
+     return List.of(new ModuleOrderRecommendation(
+         "The shoulder-peak filter requires centroided and noise filtered data",
+-        ModuleOrderRule.mustRunAfter(MassDetectionCondition.INSTANCE)));
++        ModuleOrderRule.mustRunAfter(MassDetectionCondition.MSany)));
+   }
+ 
+   @Override
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_localcsvsearch/LocalCSVDatabaseSearchModule.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_localcsvsearch/LocalCSVDatabaseSearchModule.java
+index ead6dc0f769..9e95b31451e 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_localcsvsearch/LocalCSVDatabaseSearchModule.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_localcsvsearch/LocalCSVDatabaseSearchModule.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2022 The MZmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -85,7 +85,7 @@ public ExitCode runModule(@NotNull MZmineProject project, @NotNull ParameterSet
+   @Override
+   public @NotNull List<@NotNull ModuleOrderRecommendation> getModuleOrderRecommendations() {
+     return List.of(new ModuleOrderRecommendation("Annotations are not preserved during alignment",
+-        ModuleOrderRule.ifPresentMustRunAfter(
++        ModuleOrderRule.ifPresentShouldRunAfter(
+             ModuleCategoryOrderCondition.of(MZmineModuleCategory.ALIGNMENT))));
+   }
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_spectral_library_analog_search/AnalogSpectralLibrarySearchModule.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_spectral_library_analog_search/AnalogSpectralLibrarySearchModule.java
+index 5b432acaef9..4dfa9aa2bf5 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_spectral_library_analog_search/AnalogSpectralLibrarySearchModule.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_spectral_library_analog_search/AnalogSpectralLibrarySearchModule.java
+@@ -90,7 +90,7 @@ public AnalogSpectralLibrarySearchModule() {
+             "Analog search requires that MS2 spectra are assigned to features.",
+             ModuleOrderRule.mustRunAfter(Ms2ScanPairingCondition.INSTANCE)),
+         new ModuleOrderRecommendation("Annotations are not preserved during alignment",
+-            ModuleOrderRule.ifPresentMustRunAfter(
++            ModuleOrderRule.ifPresentShouldRunAfter(
+                 ModuleCategoryOrderCondition.of(MZmineModuleCategory.ALIGNMENT))));
+   }
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_spectral_library_match/SpectralLibrarySearchModule.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_spectral_library_match/SpectralLibrarySearchModule.java
+index 20a3e3548b4..5268fa9a952 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_spectral_library_match/SpectralLibrarySearchModule.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_spectral_library_match/SpectralLibrarySearchModule.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2022 The MZmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -107,7 +107,7 @@ public ExitCode runModule(@NotNull MZmineProject project, @NotNull ParameterSet
+             "Spectral networking requires that MS2 spectra are assigned to features.",
+             ModuleOrderRule.mustRunAfter(Ms2ScanPairingCondition.INSTANCE)),
+         new ModuleOrderRecommendation("Annotations are not preserved during alignment",
+-            ModuleOrderRule.ifPresentMustRunAfter(
++            ModuleOrderRule.ifPresentShouldRunAfter(
+                 ModuleCategoryOrderCondition.of(MZmineModuleCategory.ALIGNMENT))));
+   }
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_msn_tree/MSnTreeExportModule.java b/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_msn_tree/MSnTreeExportModule.java
+index 2ddf9053baa..66dca98feca 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_msn_tree/MSnTreeExportModule.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_msn_tree/MSnTreeExportModule.java
+@@ -64,7 +64,7 @@ public class MSnTreeExportModule implements MZmineProcessingModule {
+   public @NotNull List<@NotNull ModuleOrderRecommendation> getModuleOrderRecommendations() {
+     return List.of(new ModuleOrderRecommendation(
+         "MSn tree export requires centroided and noise filtered MS2 data",
+-        ModuleOrderRule.mustRunAfter(MassDetectionCondition.INSTANCE)));
++        ModuleOrderRule.mustRunAfter(MassDetectionCondition.MSn)));
+   }
+ 
+   @Override
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/modules/batchmode/order/MassDetectionConditionTest.java b/mzmine-community/src/test/java/io/github/mzmine/modules/batchmode/order/MassDetectionConditionTest.java
+index 66074d4d9c4..f7a3a7695a2 100644
+--- a/mzmine-community/src/test/java/io/github/mzmine/modules/batchmode/order/MassDetectionConditionTest.java
++++ b/mzmine-community/src/test/java/io/github/mzmine/modules/batchmode/order/MassDetectionConditionTest.java
+@@ -28,34 +28,38 @@
+ import io.github.mzmine.modules.MZmineProcessingModule;
+ import io.github.mzmine.modules.batchmode.BatchQueue;
+ import io.github.mzmine.modules.dataprocessing.featdet_massdetection.MassDetectionModule;
++import io.github.mzmine.modules.dataprocessing.featdet_massdetection.MassDetectionParameters;
+ import io.github.mzmine.modules.impl.MZmineProcessingStepImpl;
+ import io.github.mzmine.modules.io.import_rawdata_all.AdvancedSpectraImportParameters;
+ import io.github.mzmine.modules.io.import_rawdata_all.AllSpectralDataImportModule;
+ import io.github.mzmine.modules.io.import_rawdata_all.AllSpectralDataImportParameters;
+ import io.github.mzmine.parameters.ParameterSet;
+ import io.github.mzmine.parameters.impl.SimpleParameterSet;
++import io.github.mzmine.parameters.parametertypes.combowithinput.MsLevelFilter;
++import io.github.mzmine.parameters.parametertypes.selectors.ScanSelection;
+ import org.jetbrains.annotations.NotNull;
+ import org.junit.jupiter.api.Assertions;
+ import org.junit.jupiter.api.Test;
+ 
+ class MassDetectionConditionTest {
+ 
+-  @Test
+-  void standaloneMassDetectionBeforeConsumerSatisfiesCondition() {
+-    final BatchQueue queue = queue(step(new MassDetectionModule()), step(massListConsumer()));
+-
+-    Assertions.assertFalse(BatchModuleOrderValidator.validate(queue).hasIssues());
++  private static @NotNull TestSubjectModule massListConsumer() {
++    return new TestSubjectModule(
++        new ModuleOrderRecommendation("The test module requires mass lists",
++            ModuleOrderRule.mustRunAfter(MassDetectionCondition.MSany)));
+   }
+ 
+-  @Test
+-  void standaloneMassDetectionAfterConsumerViolatesCondition() {
+-    final BatchQueue queue = queue(step(massListConsumer()), step(new MassDetectionModule()));
+-
+-    final BatchModuleOrderValidationResult result = BatchModuleOrderValidator.validate(queue);
++  private static @NotNull ParameterSet importParameters(final boolean ms1MassDetection,
++      final boolean msnMassDetection) {
++    final AdvancedSpectraImportParameters advanced = new AdvancedSpectraImportParameters();
++    advanced.setParameter(AdvancedSpectraImportParameters.msMassDetection, ms1MassDetection);
++    advanced.setParameter(AdvancedSpectraImportParameters.ms2MassDetection, msnMassDetection);
+ 
+-    Assertions.assertEquals(1, result.issues().size());
+-    Assertions.assertEquals(TestSubjectModule.class,
+-        queue.get(result.issues().getFirst().stepIndex()).getModule().getClass());
++    final AllSpectralDataImportParameters parameters = new AllSpectralDataImportParameters();
++    parameters.setParameter(AllSpectralDataImportParameters.advancedImport, true);
++    parameters.getParameter(AllSpectralDataImportParameters.advancedImport)
++        .setEmbeddedParameters(advanced);
++    return parameters;
+   }
+ 
+   @Test
+@@ -96,23 +100,33 @@ void massDetectionInPreviousConcatenatedPipelineDoesNotSatisfyCondition() {
+         importParameters(ms1MassDetection, msnMassDetection)), step(massListConsumer()));
+   }
+ 
+-  private static @NotNull TestSubjectModule massListConsumer() {
+-    return new TestSubjectModule(
+-        new ModuleOrderRecommendation("The test module requires mass lists",
+-            ModuleOrderRule.mustRunAfter(MassDetectionCondition.INSTANCE)));
++  private static @NotNull MassDetectionParameters massDetectionParameters(
++      @NotNull final MsLevelFilter msLevelFilter) {
++    final MassDetectionParameters parameters = (MassDetectionParameters) new MassDetectionParameters().cloneParameterSet();
++    parameters.setParameter(MassDetectionParameters.scanSelection,
++        new ScanSelection(msLevelFilter));
++    return parameters;
+   }
+ 
+-  private static @NotNull ParameterSet importParameters(final boolean ms1MassDetection,
+-      final boolean msnMassDetection) {
+-    final AdvancedSpectraImportParameters advanced = new AdvancedSpectraImportParameters();
+-    advanced.setParameter(AdvancedSpectraImportParameters.msMassDetection, ms1MassDetection);
+-    advanced.setParameter(AdvancedSpectraImportParameters.ms2MassDetection, msnMassDetection);
++  @Test
++  void standaloneMassDetectionBeforeConsumerSatisfiesCondition() {
++    final BatchQueue queue = queue(
++        step(new MassDetectionModule(), massDetectionParameters(MsLevelFilter.ALL_LEVELS)),
++        step(massListConsumer()));
+ 
+-    final AllSpectralDataImportParameters parameters = new AllSpectralDataImportParameters();
+-    parameters.setParameter(AllSpectralDataImportParameters.advancedImport, true);
+-    parameters.getParameter(AllSpectralDataImportParameters.advancedImport)
+-        .setEmbeddedParameters(advanced);
+-    return parameters;
++    Assertions.assertFalse(BatchModuleOrderValidator.validate(queue).hasIssues());
++  }
++
++  @Test
++  void standaloneMassDetectionAfterConsumerViolatesCondition() {
++    final BatchQueue queue = queue(step(massListConsumer()),
++        step(new MassDetectionModule(), massDetectionParameters(MsLevelFilter.ALL_LEVELS)));
++
++    final BatchModuleOrderValidationResult result = BatchModuleOrderValidator.validate(queue);
++
++    Assertions.assertEquals(1, result.issues().size());
++    Assertions.assertEquals(TestSubjectModule.class,
++        queue.get(result.issues().getFirst().stepIndex()).getModule().getClass());
+   }
+ 
+   private static @NotNull MZmineProcessingStepImpl<MZmineProcessingModule> step(

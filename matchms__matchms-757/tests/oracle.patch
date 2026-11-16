@@ -1,0 +1,361 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index c3ae5643b..1a4033758 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+ 
+ ## Unreleased
++### Added
++- Implemented preliminary mzSpecLib export [#757](https://github.com/matchms/matchms/pull/757)
+ 
+ ## [0.28.2] - 2024-11-11
+ 
+diff --git a/matchms/exporting/__init__.py b/matchms/exporting/__init__.py
+index 78d7f65cb..00c1995bf 100644
+--- a/matchms/exporting/__init__.py
++++ b/matchms/exporting/__init__.py
+@@ -9,7 +9,14 @@
+ from .save_as_json import save_as_json
+ from .save_as_mgf import save_as_mgf
+ from .save_as_msp import save_as_msp
++from .save_as_mzspeclib import save_as_mzspeclib
+ from .save_spectra import save_spectra
+ 
+ 
+-__all__ = ["save_as_json", "save_as_mgf", "save_as_msp", "save_spectra"]
++__all__ = [
++    "save_as_json",
++    "save_as_mgf",
++    "save_as_msp",
++    "save_as_mzspeclib",
++    "save_spectra"
++]
+diff --git a/matchms/exporting/save_as_mzspeclib.py b/matchms/exporting/save_as_mzspeclib.py
+new file mode 100644
+index 000000000..98a49cb63
+--- /dev/null
++++ b/matchms/exporting/save_as_mzspeclib.py
+@@ -0,0 +1,201 @@
++import os
++import re
++from typing import List, TextIO
++from matchms.Spectrum import Spectrum
++
++
++ANALYTE_ATTRIBUTES = {
++    'formula': 'MS:1000866|molecular formula',
++    'smiles': 'MS:1000868|SMILES formula',
++    'inchi': 'MS:1003403|InChI',
++    'inchikey': 'MS:1002894|InChIKey'
++}
++
++SPECTRUM_ATTRIBUTES = {
++    'compound_name': 'MS:1003061|library spectrum name',
++    'precursor_mz': 'MS:1003208|experimental precursor monoisotopic m/z',
++    'scans': 'MS:1003057|scan number',
++    'charge': 'MS:1000041|charge state',
++    'ionmode': 'MS:1000465|scan polarity'
++}
++
++MAPPED_SPECTRUM_ATTRIBUTES = {
++    'MS:1000465|scan polarity': {
++        'positive': 'MS:1000130|positive scan',
++        'negative': 'MS:1000129|negative scan'
++    }
++}
++
++STANDARDIZED_SPECTRUM_ATTRIBUTES = {
++    'collision_energy': ['MS:1000045|collision energy', 'UO:0000266|electronvolt'],
++}
++
++
++def save_as_mzspeclib(spectra: List[Spectrum], filename: str) -> None:
++    """
++    Save a list of spectra to a file in mzSpecLib format.
++
++    Parameters:
++    spectra (List[Spectrum]): List of Spectrum objects to save.
++    filename (str): The name of the file to save the spectra to.
++    """
++    with open(filename, 'w', encoding='UTF-8') as file:
++        _write_header(filename, file)
++        for idx, spectrum in enumerate(spectra):
++            _write_spectrum(file, idx, spectrum)
++
++def _write_spectrum(file: TextIO, idx: int, spectrum: Spectrum) -> None:
++    """
++    Write a single spectrum to the file.
++
++    Parameters:
++    file (TextIO): The file object to write to.
++    idx (int): The index of the spectrum in the list.
++    spectrum (Spectrum): The Spectrum object to write.
++    """
++    print(f'<Spectrum={idx + 1}>', file=file)
++    _write_spectrum_attributes(file, spectrum)
++    if _has_analyte(spectrum):
++        _write_analyte(file, spectrum)
++    _write_peaks(file, spectrum)
++    print('', file=file)
++
++def _write_analyte(file: TextIO, spectrum: Spectrum) -> None:
++    """
++    Write analyte information for a spectrum to the file.
++
++    Parameters:
++    file (TextIO): The file object to write to.
++    spectrum (Spectrum): The Spectrum object containing analyte information.
++    """
++    print('<Analyte=1>', file=file)
++    for key, attribute in ANALYTE_ATTRIBUTES.items():
++        value = spectrum.get(key)
++        if value is not None:
++            print(f'{attribute}={value}', file=file)
++
++def _write_spectrum_attributes(file: TextIO, spectrum: Spectrum) -> None:
++    """
++    Write spectrum attributes to the file.
++
++    Parameters:
++    file (TextIO): The file object to write to.
++    spectrum (Spectrum): The Spectrum object containing attributes.
++    """
++    _write_defined_spectrum_attributes(file, spectrum)
++    
++    spectrum_attributes = spectrum.metadata.keys()
++    attr_counter = 1
++    
++    for attr in spectrum_attributes:
++        if attr in STANDARDIZED_SPECTRUM_ATTRIBUTES:
++            _write_spectrum_attribute_with_unit(file, spectrum, attr_counter, attr)
++            attr_counter += 1
++        elif attr not in SPECTRUM_ATTRIBUTES and attr not in ANALYTE_ATTRIBUTES:
++            _write_other_spectrum_attribute(file, spectrum, attr_counter, attr)
++            attr_counter += 1
++
++    print(f'MS:1003059|number of peaks={len(spectrum.peaks)}', file=file)
++
++def _write_other_spectrum_attribute(file: TextIO, spectrum: Spectrum, attr_counter: int, attr: str) -> None:
++    """
++    Write other spectrum attributes to the file.
++
++    Parameters:
++    file (TextIO): The file object to write to.
++    spectrum (Spectrum): The Spectrum object containing attributes.
++    attr_counter (int): The counter for the attribute.
++    attr (str): The attribute name.
++    """
++    value = spectrum.get(attr)
++    print(f'[{attr_counter}]MS:1003275|other attribute name={attr}', file=file)
++    print(f'[{attr_counter}]MS:1003276|other attribute value={value}', file=file)
++
++def _write_spectrum_attribute_with_unit(file: TextIO, spectrum: Spectrum, attr_counter: int, attr: str) -> None:
++    """
++    Write spectrum attributes with units to the file.
++
++    Parameters:
++    file (TextIO): The file object to write to.
++    spectrum (Spectrum): The Spectrum object containing attributes.
++    attr_counter (int): The counter for the attribute.
++    attr (str): The attribute name.
++    """
++    term, unit = STANDARDIZED_SPECTRUM_ATTRIBUTES.get(attr)
++    # remove non-numeric unit identifiers from value
++    value = _extract_numeric_value(spectrum.get(attr)) 
++    print(f'[{attr_counter}]{term}={value}', file=file)
++    print(f'[{attr_counter}]UO:0000000|unit={unit}', file=file)
++
++def _extract_numeric_value(value: str) -> str:
++    """
++    Extract numeric value from a string.
++
++    Parameters:
++    value (str): The string containing numeric value.
++
++    Returns:
++    str: The extracted numeric value.
++    """
++    value = re.findall('[\\d]+[.,\\d]+|[\\d]*[.][\\d]+|[\\d]+', value)[0]
++    return value
++
++def _write_defined_spectrum_attributes(file: TextIO, spectrum: Spectrum) -> None:
++    """
++    Write defined spectrum attributes to the file.
++
++    Parameters:
++    file (TextIO): The file object to write to.
++    spectrum (Spectrum): The Spectrum object containing attributes.
++    """
++    for key, attribute in SPECTRUM_ATTRIBUTES.items():
++        value = spectrum.get(key)
++        if attribute in MAPPED_SPECTRUM_ATTRIBUTES:
++            value = MAPPED_SPECTRUM_ATTRIBUTES[attribute].get(value)        
++        if value is not None:
++            print(f'{attribute}={value}', file=file)
++
++def _write_peaks(file: TextIO, spectrum: Spectrum) -> None:
++    """
++    Write peaks information for a spectrum to the file.
++
++    Parameters:
++    file (TextIO): The file object to write to.
++    spectrum (Spectrum): The Spectrum object containing peaks information.
++    """
++    print('<Peaks>', file=file)
++    peak_comments = spectrum.get('peak_comments', {})
++    for i in range(len(spectrum.peaks)):
++        mz = spectrum.peaks.mz[i]
++        intensities = f'{spectrum.peaks.intensities[i]:.2f}'.rstrip('0').rstrip('.')
++        comment = peak_comments.get(mz, '?')
++        print(f'{mz}\t{intensities}\t{comment}', file=file)
++
++def _has_analyte(spectrum: Spectrum) -> bool:
++    """
++    Check if a spectrum has analyte information.
++
++    Parameters:
++    spectrum (Spectrum): The Spectrum object to check.
++
++    Returns:
++    bool: True if the spectrum has analyte information, False otherwise.
++    """
++    return any(spectrum.get(key) for key in ANALYTE_ATTRIBUTES)
++
++def _write_header(filename: str, file: TextIO) -> None:
++    """
++    Write the header information to the file.
++
++    Parameters:
++    filename (str): The name of the file.
++    file (TextIO): The file object to write to.
++    """
++    basename, _ = os.path.splitext(filename)
++    name = basename.split(os.path.sep)[-1]
++    print('<mzSpecLib>', file=file)
++    print('MS:1003186|library format version=1.0', file=file)
++    print(f'MS:1003188|library name={name}', file=file)
++    print('<AttributeSet Spectrum=all>', file=file)
++    print('<AttributeSet Analyte=all>', file=file)
++    print('<AttributeSet Interpretation=all>', file=file)
+diff --git a/tests/exporting/test_save_as_mzspeclib.py b/tests/exporting/test_save_as_mzspeclib.py
+new file mode 100644
+index 000000000..880aed9b3
+--- /dev/null
++++ b/tests/exporting/test_save_as_mzspeclib.py
+@@ -0,0 +1,91 @@
++import filecmp
++import os
++import numpy as np
++from matchms.exporting import save_as_mzspeclib
++from ..builder_Spectrum import SpectrumBuilder
++
++
++def test_creates_file(tmp_path):
++    outpath = tmp_path / "test.mzspeclib"
++    save_as_mzspeclib([], outpath)
++    assert os.path.isfile(outpath)
++
++def test_has_header(tmp_path):
++    name = 'test'
++    outpath = tmp_path / f"{name}.mzspeclib"
++    save_as_mzspeclib([], outpath)
++
++    with open(outpath,'r', encoding='UTF-8') as file:
++        lines = file.readlines()
++
++        assert lines[0] == '<mzSpecLib>\n'
++        assert lines[1] == 'MS:1003186|library format version=1.0\n'
++        assert lines[2] == 'MS:1003188|library name=test\n'
++        assert lines[3] == '<AttributeSet Spectrum=all>\n'
++        assert lines[4] == '<AttributeSet Analyte=all>\n'
++        assert lines[5] == '<AttributeSet Interpretation=all>\n'
++
++def test_has_spectrum(tmp_path):
++    spectrum = SpectrumBuilder().with_mz(np.array([10, 20, 30], dtype=np.float32)).with_intensities(np.array([100, 150, 80], dtype=np.float32)).build()
++    outpath = tmp_path / "test.mzspeclib"
++    save_as_mzspeclib([spectrum], outpath)
++
++    with open(outpath, 'r', encoding='UTF-8') as file:
++        lines = file.readlines()
++        assert '<Spectrum=1>\n' in lines
++        assert '<Peaks>\n' in lines
++        assert len(lines) == 13
++
++
++def test_has_analyte(tmp_path):
++    mz = np.array([35, 36, 37, 38], dtype=np.float64)
++    intensities = np.array([169.85, 999, 53.95, 323.71], dtype=np.float64)
++    metadata = {'formula': 'ClH', 'compound_name': 'Hydrogen chloride'}
++    spectrum = SpectrumBuilder().with_mz(mz).with_intensities(intensities).with_metadata(metadata).build()
++
++    outpath = tmp_path / "test.mzspeclib"
++    save_as_mzspeclib([spectrum], outpath)
++    expected = 'tests/testdata/Hydrogen_chloride.mzspeclib'
++    assert filecmp.cmp(outpath, expected)
++
++
++def test_write_custom_keys(tmp_path):
++    spectrum = SpectrumBuilder().with_metadata({'instrument': 'GC Orbitrap'}).build()
++    outpath = tmp_path / "test.mzspeclib"
++    save_as_mzspeclib([spectrum], outpath)
++
++    with open(outpath, 'r', encoding='UTF-8') as file:
++        lines = file.readlines()
++        assert '[1]MS:1003275|other attribute name=instrument\n' in lines
++        assert '[1]MS:1003276|other attribute value=GC Orbitrap\n' in lines
++
++
++def test_mapped_attributes(tmp_path):
++    spectrum = SpectrumBuilder().with_metadata({'ionmode': 'positive'}).build()
++    outpath = tmp_path / "test.mzspeclib"
++    save_as_mzspeclib([spectrum], outpath)
++    with open(outpath, 'r', encoding='UTF-8') as file:
++        lines = file.readlines()
++        assert 'MS:1000465|scan polarity=MS:1000130|positive scan\n' in lines
++
++def test_peak_comments(tmp_path):
++    mz = np.array([35.7], dtype=np.float64)
++    intensities = np.array([1337], dtype=np.float64)
++    metadata = {'peak_comments': {35.7: 'test'}}
++    spectrum = SpectrumBuilder().with_mz(mz).with_intensities(intensities).with_metadata(metadata).build()
++    outpath = tmp_path / "test.mzspeclib"
++    
++    save_as_mzspeclib([spectrum], outpath)
++    with open(outpath, 'r', encoding='UTF-8') as file:
++        lines = file.readlines()
++        assert '35.7\t1337\ttest\n' in lines
++
++def test_has_attributes_with_units(tmp_path):
++    spectrum = SpectrumBuilder().with_metadata({'collision_energy': '70eV'}).build()
++    outpath = tmp_path / "test.mzspeclib"
++    save_as_mzspeclib([spectrum], outpath)
++
++    with open(outpath, 'r', encoding='UTF-8') as file:
++        lines = file.readlines()
++        assert '[1]MS:1000045|collision energy=70\n' in lines    
++        assert '[1]UO:0000000|unit=UO:0000266|electronvolt\n' in lines    
+\ No newline at end of file
+diff --git a/tests/testdata/Hydrogen_chloride.mzspeclib b/tests/testdata/Hydrogen_chloride.mzspeclib
+new file mode 100644
+index 000000000..74dc0b86e
+--- /dev/null
++++ b/tests/testdata/Hydrogen_chloride.mzspeclib
+@@ -0,0 +1,17 @@
++<mzSpecLib>
++MS:1003186|library format version=1.0
++MS:1003188|library name=test
++<AttributeSet Spectrum=all>
++<AttributeSet Analyte=all>
++<AttributeSet Interpretation=all>
++<Spectrum=1>
++MS:1003061|library spectrum name=Hydrogen chloride
++MS:1003059|number of peaks=4
++<Analyte=1>
++MS:1000866|molecular formula=ClH
++<Peaks>
++35.0	169.85	?
++36.0	999	?
++37.0	53.95	?
++38.0	323.71	?
++

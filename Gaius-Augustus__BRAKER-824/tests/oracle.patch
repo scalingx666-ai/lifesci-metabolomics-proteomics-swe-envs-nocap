@@ -1,0 +1,15 @@
+diff --git a/scripts/compare_intervals_exact.pl b/scripts/compare_intervals_exact.pl
+old mode 100644
+new mode 100755
+index e86c017..7b736ba
+--- a/scripts/compare_intervals_exact.pl
++++ b/scripts/compare_intervals_exact.pl
+@@ -362,7 +362,7 @@ sub RemoveOverlapping
+ 		while( $i < $size_aa && $j < $size_bb )
+ 		{
+ 			# i.R < j.L
+-			if ( $aa->{$key}[$i][1] < $bb->{$key}[$j][1] )
++			if ( $aa->{$key}[$i][1] < $bb->{$key}[$j][0] )
+ 			{
+ 				$i += 1;
+ 				next;

@@ -1,0 +1,4072 @@
+diff --git a/README.md b/README.md
+index 7b4d272d3..4c2976895 100644
+--- a/README.md
++++ b/README.md
+@@ -7,31 +7,43 @@
+ ![status](https://github.com/pachterlab/gget/workflows/CI/badge.svg)
+ ![Code Coverage](https://img.shields.io/badge/Coverage-83%25-green.svg)  
+ 
++## :sparkles: What's new in version ≥ 0.2.0
++- JSON is now the default output format for the command-line interface for modules that previously returned data frame (CSV) format by default (the output can be converted to data frame/CSV using flag `[-csv][--csv]`). Data frame/CSV remains the default output for Jupyter Lab / Google Colab (and can be converted to JSON with `json=True`).
++- For all modules, the first required argument was converted to a positional argument and should not be named anymore in the command-line, e.g. `gget ref -s human` &rarr; `gget ref human`.
++- `gget info`: `[--expand]` is deprecated. The module will now always return all of the available information.
++- Slight changes to the output returned by `gget info`, including the return of versioned Ensembl IDs.
++- `gget info` and `gget seq` now support :worm: WormBase and :fly: FlyBase IDs.
++- `gget archs4` and `gget enrichr` now also take Ensembl IDs as input with added flag `[-e][--ensembl]` (`ensembl=True` in Jupyter Lab / Google Colab).
++- `gget seq` argument `seqtype` was replaced by flag `[-t][--transcribe]` (`transcribe=True/False` in Jupyter Lab / Google Colab) which will return either nucleotide (`False`) or amino acid (`True`) sequences.
++- `gget search` argument `seqtype` was renamed to `id_type` for clarity (still taking the same arguments 'gene' or 'transcript').
++
++___
++
+ `gget` is a free and open-source command-line tool and Python package that enables efficient querying of genomic databases. `gget`  consists of a collection of separate but interoperable modules, each designed to facilitate one type of database querying in a single line of code.  
+ 
+ If you use `gget` in a publication, please [cite*](#cite):    
+-Luebbert, L. & Pachter, L. (2022). Efficient querying of genomic databases for single-cell RNA-seq with gget. bioRxiv 2022.05.17.492392; doi: https://doi.org/10.1101/2022.05.17.492392
++Luebbert, L. & Pachter, L. (2022). Efficient querying of genomic databases for single-cell RNA-seq with gget. bioRxiv 2022.05.17.492392; doi: https://doi.org/10.1101/2022.05.17.492392  
+   
+ ![alt text](https://github.com/pachterlab/gget/blob/main/figures/gget_overview.png?raw=true)
+   
+ `gget` currently consists of the following nine modules:
+-- [`gget ref`](#gget-ref)  
++- [`gget ref`](#gget-ref-)  
+ Fetch File Transfer Protocols (FTPs) and metadata for reference genomes and annotations from [Ensembl](https://www.ensembl.org/) by species.
+-- [`gget search`](#gget-search)   
++- [`gget search`](#gget-search-)   
+ Fetch genes and transcripts from [Ensembl](https://www.ensembl.org/) using free-form search terms.
+-- [`gget info`](#gget-info)  
++- [`gget info`](#gget-info-)  
+ Fetch extensive gene and transcript metadata from [Ensembl](https://www.ensembl.org/), [UniProt](https://www.uniprot.org/), and [NCBI](https://www.ncbi.nlm.nih.gov/) using Ensembl IDs.  
+-- [`gget seq`](#gget-seq)  
++- [`gget seq`](#gget-seq-)  
+ Fetch nucleotide or amino acid sequences of genes or transcripts from [Ensembl](https://www.ensembl.org/) or [UniProt](https://www.uniprot.org/), respectively.  
+-- [`gget blast`](#gget-blast)  
++- [`gget blast`](#gget-blast-)  
+ BLAST a nucleotide or amino acid sequence to any [BLAST](https://blast.ncbi.nlm.nih.gov/Blast.cgi) database.
+-- [`gget blat`](#gget-blat)  
++- [`gget blat`](#gget-blat-)  
+ Find the genomic location of a nucleotide or amino acid sequence using [BLAT](https://genome.ucsc.edu/cgi-bin/hgBlat).
+-- [`gget muscle`](#gget-muscle)  
++- [`gget muscle`](#gget-muscle-)  
+ Align multiple nucleotide or amino acid sequences to each other using [Muscle5](https://www.drive5.com/muscle/).
+-- [`gget enrichr`](#gget-enrichr)  
++- [`gget enrichr`](#gget-enrichr-)  
+ Perform an enrichment analysis on a list of genes using [Enrichr](https://maayanlab.cloud/Enrichr/).
+-- [`gget archs4`](#gget-archs4)  
++- [`gget archs4`](#gget-archs4-)  
+ Find the most correlated genes to a gene of interest or find the gene's tissue expression atlas using [ARCHS4](https://maayanlab.cloud/archs4/).
+ 
+ 
+@@ -49,41 +61,41 @@ For use in Jupyter Lab / Google Colab:
+ import gget
+ ```
+ 
+-## Quick start guide
++## :magic_wand:  Quick start guide
+ ```bash
+ # Fetch all Homo sapiens reference and annotation FTPs from the latest Ensembl release
+-$ gget ref -s homo_sapiens
++$ gget ref homo_sapiens
+ 
+-# Search human genes with "ace2" AND "angiotensin" in their name/description ([-j] returns results in json format)  
+-$ gget search -sw ace2,angiotensin -s homo_sapiens -ao and -j 
++# Search human genes with "ace2" or "angiotensin converting enzyme 2" in their name/description
++$ gget search -s homo_sapiens 'ace2' 'angiotensin converting enzyme 2'
+ 
+-# Look up gene ENSG00000130234 (ACE2) with expanded info (returns all transcript isoforms for genes)
+-$ gget info -id ENSG00000130234 -e -j
++# Look up gene ENSG00000130234 (ACE2) and its transcript ENST00000252519
++$ gget info ENSG00000130234 ENST00000252519
+ 
+ # Fetch the amino acid sequence of the canonical transcript of gene ENSG00000130234
+-$ gget seq -id ENSG00000130234 --seqtype transcript
++$ gget seq --transcribe ENSG00000130234
+ 
+ # Quickly find the genomic location of (the start of) that amino acid sequence
+-$ gget blat -seq MSSSSWLLLSLVAVTAAQSTIEEQAKTFLDKFNHEAEDLFYQSSLAS -j
++$ gget blat MSSSSWLLLSLVAVTAAQSTIEEQAKTFLDKFNHEAEDLFYQSSLAS
+ 
+ # Blast (the start of) that amino acid sequence
+-$ gget blast -seq MSSSSWLLLSLVAVTAAQSTIEEQAKTFLDKFNHEAEDLFYQSSLAS -j
++$ gget blast MSSSSWLLLSLVAVTAAQSTIEEQAKTFLDKFNHEAEDLFYQSSLAS
+ 
+ # Align nucleotide or amino acid sequences stored in a FASTA file
+-$ gget muscle -fa path/to/file.fa
++$ gget muscle path/to/file.fa
+ 
+-# Use Enrichr to find the ontology of a list of genes
+-$ gget enrichr -g ACE2 AGT AGTR1 ACE AGTRAP AGTR2 ACE3P -db ontology -j
++# Use Enrichr for an ontology analysis of a list of genes
++$ gget enrichr -db ontology ACE2 AGT AGTR1 ACE AGTRAP AGTR2 ACE3P
+ 
+-# Get the human tissue expression atlas of gene ACE2
+-$ gget archs4 -g ACE2 -w tissue -j
++# Get the human tissue expression of gene ACE2
++$ gget archs4 -w tissue ACE2
+ ```
+ Jupyter Lab / Google Colab:
+ ```python  
+ gget.ref("homo_sapiens")
+-gget.search(["ace2", "angiotensin"], "homo_sapiens", andor="and")
+-gget.info("ENSG00000130234", expand=True)
+-gget.seq("ENSG00000130234", seqtype="transcript")
++gget.search(["ace2", "angiotensin"], "homo_sapiens", and=True)
++gget.info(["ENSG00000130234", "ENST00000252519"])
++gget.seq("ENSG00000130234", transcribe=True)
+ gget.blat("MSSSSWLLLSLVAVTAAQSTIEEQAKTFLDKFNHEAEDLFYQSSLAS")
+ gget.blast("MSSSSWLLLSLVAVTAAQSTIEEQAKTFLDKFNHEAEDLFYQSSLAS")
+ gget.muscle("path/to/file.fa")
+@@ -94,16 +106,15 @@ gget.archs4("ACE2", which="tissue")
+ ___
+ 
+ # Manual
+-Jupyter Lab / Google Colab arguments are equivalent to long-option arguments (`--arg`).  
+-All data frame results can be converted to json format using the `--json` flag.  
+-The manual for any gget tool can be called from terminal using the `-h` `--help` flag.  
++Jupyter Lab / Google Colab arguments are equivalent to long-option arguments (`--arg`), unless otherwise specified. Flags are True/False arguments in Jupyter Lab / Google Colab.  
++The manual for any gget tool can be called from the command-line using the `-h` `--help` flag.  
+ 
+-## gget ref
++## gget ref 👣
+ Fetch FTPs and their respective metadata (or use flag `ftp` to only return the links) for reference genomes and annotations from [Ensembl](https://www.ensembl.org/) by species.  
+-Return format: dictionary/json.
++Return format: dictionary/JSON.
+ 
+-**Required arguments**  
+-`-s` `--species`  
++**Positional argument**  
++`species`  
+ Species for which the FTPs will be fetched in the format genus_species, e.g. homo_sapiens.  
+ Note: Not required when calling flag [--list_species].   
+ Supported shortcuts: 'human', 'mouse'
+@@ -111,7 +122,7 @@ Supported shortcuts: 'human', 'mouse'
+ **Optional arguments**  
+ `-w` `--which`  
+ Defines which results to return. Default: 'all' -> Returns all available results.  
+-Possible entries are one or a combination of the following:  
++Possible entries are one or a combination (as comma-separated list) of the following:  
+ 'gtf' - Returns the annotation (GTF).  
+ 'cdna' - Returns the trancriptome (cDNA).  
+ 'dna' - Returns the genome (DNA).  
+@@ -123,7 +134,7 @@ Possible entries are one or a combination of the following:
+ Defines the Ensembl release number from which the files are fetched, e.g. 104. Default: latest Ensembl release.  
+ 
+ `-o` `--out`    
+-Path to the json file the results will be saved in, e.g. path/to/directory/results.json. Default: Standard out.  
++Path to the JSON file the results will be saved in, e.g. path/to/directory/results.json. Default: Standard out.  
+ Jupyter Lab / Google Colab: `save=True` will save the output in the current working directory.
+ 
+ **Flags**  
+@@ -134,19 +145,19 @@ Lists all available species. (Jupyter Lab / Google Colab: combine with `species=
+ Returns only the requested FTP links.  
+ 
+ `-d` `--download`   
+-Downloads the requested FTPs to the current directory (requires [curl](https://curl.se/docs/) to be installed).  
++Command-line only. Downloads the requested FTPs to the current directory (requires [curl](https://curl.se/docs/) to be installed).
+ 
+   
+ ### Examples
+ **Use `gget ref` in combination with [kallisto | bustools](https://www.kallistobus.tools/kb_usage/kb_ref/) to build a reference index:**
+ ```bash
+-kb ref -i INDEX -g T2G -f1 FASTA $(gget ref --ftp -w dna,gtf -s homo_sapiens)
++kb ref -i INDEX -g T2G -f1 FASTA $(gget ref --ftp -w dna,gtf homo_sapiens)
+ ```
+ &rarr; kb ref builds a reference index using the latest DNA and GTF files of species **Homo sapiens** passed to it by `gget ref`.  
+   
+-Get all available genomes:  
++List all available genomes from Ensembl release 103:  
+ ```bash
+-gget ref --list -r 103
++gget ref --list_species -r 103
+ ```
+ ```python
+ # Jupyter Lab / Google Colab:
+@@ -157,13 +168,13 @@ gget.ref(species=None, list_species=True, release=103)
+   
+ Get the genome reference for a specific species:   
+ ```bash
+-gget ref -s homo_sapiens -w gtf dna
++gget ref -w gtf,dna homo_sapiens
+ ```
+ ```python
+ # Jupyter Lab / Google Colab:
+ gget.ref("homo_sapiens", which=["gtf", "dna"])
+ ```
+-&rarr; Returns a json with the latest human GTF and FASTA FTPs, and their respective metadata, in the format:
++&rarr; Returns a JSON with the latest human GTF and FASTA FTPs, and their respective metadata, in the format:
+ ```
+ {
+     "homo_sapiens": {
+@@ -188,14 +199,15 @@ gget.ref("homo_sapiens", which=["gtf", "dna"])
+ #### [More examples](https://github.com/pachterlab/gget_examples)
+ ___
+ 
+-## gget search   
++## gget search 🔎
+ Fetch genes and transcripts from [Ensembl](https://www.ensembl.org/) using free-form search terms.   
+-Return format: data frame (or json).
++Return format: JSON (command-line) or data frame/CSV (Jupyter Lab / Google Colab).
+ 
+-**Required arguments**  
+-`-sw` `--searchwords`   
+-One or more free form search words, e.g. gaba, nmda. (Note: Search is not case-sensitive.)  
++**Positional argument**
++`searchwords`   
++One or more free form search words, e.g. gaba nmda. (Note: Search is not case-sensitive.)
+ 
++**Other required arguments**   
+ `-s` `--species`  
+ Species or database to be searched.  
+ A species can be passed in the format 'genus_species', e.g. 'homo_sapiens'.  
+@@ -204,7 +216,7 @@ All availabale databases can be found [here](http://ftp.ensembl.org/pub/release-
+ Supported shortcuts: 'human', 'mouse'. 
+ 
+ **Optional arguments**  
+-`-st` `--seqtype`  
++`-t` `--id_type`  
+ 'gene' (default) or 'transcript'  
+ Returns genes or transcripts, respectively.
+ 
+@@ -221,8 +233,9 @@ Path to the csv the results will be saved in, e.g. path/to/directory/results.csv
+ Jupyter Lab / Google Colab: `save=True` will save the output in the current working directory.
+ 
+ **Flags**  
+-`-j` `--json`  
+-Return results in json format.  
++`-csv` `--csv`  
++Command-line only. Returns results in CSV format.  
++Jupyter Lab / Google Colab: Use `json=True` to return output in JSON format.
+ 
+ `wrap_text`  
+ Jupyter Lab / Google Colab only. `wrap_text=True` displays data frame with wrapped text for easy reading (default: False).  
+@@ -230,7 +243,7 @@ Jupyter Lab / Google Colab only. `wrap_text=True` displays data frame with wrapp
+     
+ ### Example
+ ```bash
+-gget search -sw gaba gamma-aminobutyric -s homo_sapiens
++gget search -s human gaba gamma-aminobutyric
+ ```
+ ```python
+ # Jupyter Lab / Google Colab:
+@@ -246,27 +259,27 @@ gget.search(["gaba", "gamma-aminobutyric"], "homo_sapiens")
+ #### [More examples](https://github.com/pachterlab/gget_examples)
+ ___
+ 
+-## gget info  
++## gget info 💡
+ Fetch extensive gene and transcript metadata from [Ensembl](https://www.ensembl.org/), [UniProt](https://www.uniprot.org/), and [NCBI](https://www.ncbi.nlm.nih.gov/) using Ensembl IDs.  
+-Return format: data frame (or json).
++Return format: JSON (command-line) or data frame/CSV (Jupyter Lab / Google Colab).
+ 
+-**Required arguments**  
+-`-id` `--ens_ids`   
++**Positional argument**  
++`ens_ids`   
+ One or more Ensembl IDs.
+ 
+ **Optional arguments**  
+ `-o` `--out`   
+-Path to the csv the results will be saved in, e.g. path/to/directory/results.csv (or .json). Default: Standard out.    
++Path to the file the results will be saved in, e.g. path/to/directory/results.csv (or .json). Default: Standard out.    
+ Jupyter Lab / Google Colab: `save=True` will save the output in the current working directory.
+ 
+ **Flags**  
+-`-e` `--expand`   
+-Expands returned information (only for gene and transcript IDs).   
+-For genes, adds information on all known transcripts.  
+-For transcripts, adds information on all known translations and exons.
++`-q` `--quiet`   
++Command-line only. Prevents progress information from being displayed.  
++Jupyter Lab / Google Colab: Use `verbose=False` to prevent progress information from being displayed.  
+ 
+-`-j` `--json`  
+-Return results in json format.  
++`-csv` `--csv`  
++Command-line only. Returns results in CSV format.  
++Jupyter Lab / Google Colab: Use `json=True` to return output in JSON format.
+ 
+ `wrap_text`  
+ Jupyter Lab / Google Colab only. `wrap_text=True` displays data frame with wrapped text for easy reading (default: False).  
+@@ -274,13 +287,13 @@ Jupyter Lab / Google Colab only. `wrap_text=True` displays data frame with wrapp
+   
+ ### Example
+ ```bash
+-gget info -id ENSG00000034713 ENSG00000104853 ENSG00000170296 -e 
++gget info ENSG00000034713 ENSG00000104853 ENSG00000170296
+ ```
+ ```python
+ # Jupyter Lab / Google Colab:
+-gget.info(["ENSG00000034713", "ENSG00000104853", "ENSG00000170296"], expand=True)
++gget.info(["ENSG00000034713", "ENSG00000104853", "ENSG00000170296"])
+ ```
+-&rarr; Returns extensive information about each requested Ensembl ID in data frame format:  
++&rarr; Returns extensive information about each requested Ensembl ID:  
+ 
+ |      | uniprot_id     | ncbi_gene_id     | primary_gene_name | synonyms | protein_names | ensembl_description | uniprot_description | ncbi_description | biotype | canonical_transcript | ... |
+ | -------------- |-------------------------| ------------------------| -------------- | ----------|-----|----|----|----|----|----|----|
+@@ -290,34 +303,33 @@ gget.info(["ENSG00000034713", "ENSG00000104853", "ENSG00000170296"], expand=True
+ #### [More examples](https://github.com/pachterlab/gget_examples)
+ ___
+ 
+-## gget seq  
++## gget seq 🧬
+ Fetch nucleotide or amino acid sequence of a gene (and all its isoforms) or a transcript by Ensembl ID.   
+ Return format: FASTA.
+ 
+-**Required arguments**  
+-`-id` `--ens_ids`   
++**Positional argument**  
++`ens_ids`   
+ One or more Ensembl IDs.
+ 
+ **Optional arguments**  
+-`-st` `--seqtype`  
+-'gene' (default) or 'transcript'.  
+-Defines whether nucleotide or amino acid sequences are returned.  
+-Nucleotide sequences are fetched from [Ensembl](https://www.ensembl.org/).  
+-Amino acid sequences are fetched from [UniProt](https://www.uniprot.org/).
+-
+ `-o` `--out`   
+ Path to the file the results will be saved in, e.g. path/to/directory/results.fa. Default: Standard out.   
+ Jupyter Lab / Google Colab: `save=True` will save the output in the current working directory.
+ 
+ **Flags**  
+-`-i` `--isoforms`   
++`-t` `--transcribe`  
++Returns amino acid (instead of nucleotide) sequences.  
++Nucleotide sequences are fetched from [Ensembl](https://www.ensembl.org/).  
++Amino acid sequences are fetched from [UniProt](https://www.uniprot.org/).
++
++`-iso` `--isoforms`   
+ Returns the sequences of all known transcripts.  
+-(Only for gene IDs in combination with `seqtype=transcript`.)
++(Only for gene IDs.)
+    
+   
+ ### Examples  
+ ```bash
+-gget seq -id ENSG00000034713 ENSG00000104853 ENSG00000170296
++gget seq ENSG00000034713 ENSG00000104853 ENSG00000170296
+ ```
+ ```python
+ # Jupyter Lab / Google Colab:
+@@ -327,23 +339,23 @@ gget.seq(["ENSG00000034713", "ENSG00000104853", "ENSG00000170296"])
+   
+ 
+ ```bash
+-gget seq -id ENSG00000034713 -st transcript -iso
++gget seq -t -iso ENSG00000034713
+ ```
+ ```python
+ # Jupyter Lab / Google Colab:
+-gget.seq("ENSG00000034713", seqtype="transcript", isoforms=True)
++gget.seq("ENSG00000034713", transcribe=True, isoforms=True)
+ ```
+ &rarr; Returns the amino acid sequences of all known transcripts of ENSG00000034713 in FASTA format.
+ 
+ #### [More examples](https://github.com/pachterlab/gget_examples)
+ ___
+ 
+-## gget blast
++## gget blast 💥
+ BLAST a nucleotide or amino acid sequence to any [BLAST](https://blast.ncbi.nlm.nih.gov/Blast.cgi) database.  
+-Return format: data frame (or json).
++Return format: JSON (command-line) or data frame/CSV (Jupyter Lab / Google Colab).
+ 
+-**Required arguments**  
+-`-seq` `--sequence`   
++**Positional argument**  
++`sequence`   
+ Nucleotide or amino acid sequence, or path to FASTA or .txt file.
+ 
+ **Optional arguments**  
+@@ -363,7 +375,7 @@ Limits number of hits to return. Default: 50.
+ Defines the [expect value](https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Web&PAGE_TYPE=BlastDocs&DOC_TYPE=FAQ#expect) cutoff. Default: 10.0.  
+ 
+ `-o` `--out`   
+-Path to the csv the results will be saved in, e.g. path/to/directory/results.csv (or .json). Default: Standard out.   
++Path to the file the results will be saved in, e.g. path/to/directory/results.csv (or .json). Default: Standard out.   
+ Jupyter Lab / Google Colab: `save=True` will save the output in the current working directory.
+ 
+ **Flags**  
+@@ -374,23 +386,25 @@ Turns on [low complexity filter](https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=We
+ Turns off MegaBLAST algorithm. Default: MegaBLAST on (blastn only).  
+ 
+ `-q` `--quiet`   
+-Prevents progress information from being displayed.  
++Command-line only. Prevents progress information from being displayed.  
++Jupyter Lab / Google Colab: Use `verbose=False` to prevent progress information from being displayed.  
+ 
+-`-j` `--json`  
+-Return results in json format.  
++`-csv` `--csv`  
++Command-line only. Returns results in CSV format.  
++Jupyter Lab / Google Colab: Use `json=True` to return output in JSON format.
+ 
+ `wrap_text`  
+ Jupyter Lab / Google Colab only. `wrap_text=True` displays data frame with wrapped text for easy reading (default: False).   
+   
+ ### Example
+ ```bash
+-gget blast -seq MKWMFKEDHSLEHRCVESAKIRAKYPDRVPVIVEKVSGSQIVDIDKRKYLVPSDITVAQFMWIIRKRIQLPSEKAIFLFVDKTVPQSR
++gget blast MKWMFKEDHSLEHRCVESAKIRAKYPDRVPVIVEKVSGSQIVDIDKRKYLVPSDITVAQFMWIIRKRIQLPSEKAIFLFVDKTVPQSR
+ ```
+ ```python
+ # Jupyter Lab / Google Colab:
+ gget.blast("MKWMFKEDHSLEHRCVESAKIRAKYPDRVPVIVEKVSGSQIVDIDKRKYLVPSDITVAQFMWIIRKRIQLPSEKAIFLFVDKTVPQSR")
+ ```
+-&rarr; Returns the BLAST result of the sequence of interest in data frame format. `gget blast` automatically detects this sequence as an amino acid sequence and therefore sets the BLAST program to *blastp* with database *nr*.  
++&rarr; Returns the BLAST result of the sequence of interest. `gget blast` automatically detects this sequence as an amino acid sequence and therefore sets the BLAST program to *blastp* with database *nr*.  
+ 
+ | Description     | Scientific Name	     | Common Name     | Taxid        | Max Score | Total Score | Query Cover | ... |
+ | -------------- |-------------------------| ------------------------| -------------- | ----------|-----|---|---|
+@@ -399,7 +413,7 @@ gget.blast("MKWMFKEDHSLEHRCVESAKIRAKYPDRVPVIVEKVSGSQIVDIDKRKYLVPSDITVAQFMWIIRKRI
+ 
+ BLAST from .fa or .txt file:  
+ ```bash
+-gget blast -seq fasta.fa
++gget blast fasta.fa
+ ```
+ ```python
+ # Jupyter Lab / Google Colab:
+@@ -410,12 +424,12 @@ gget.blast("fasta.fa")
+ #### [More examples](https://github.com/pachterlab/gget_examples)
+ ___
+ 
+-## gget blat
++## gget blat 🎯
+ Find the genomic location of a nucleotide or amino acid sequence using [BLAT](https://genome.ucsc.edu/cgi-bin/hgBlat).   
+-Return format: data frame (or json).
++Return format: JSON (command-line) or data frame/CSV (Jupyter Lab / Google Colab).
+ 
+-**Required arguments**  
+-`-seq` `--sequence`   
++**Positional argument**  
++`sequence`   
+ Nucleotide or amino acid sequence, or path to FASTA or .txt file.
+ 
+ **Optional arguments**  
+@@ -428,23 +442,24 @@ Default: 'DNA' for nucleotide sequences; 'protein' for amino acid sequences.
+ or any of the species assemblies available [here](https://genome.ucsc.edu/cgi-bin/hgBlat) (use short assembly name).
+ 
+ `-o` `--out`   
+-Path to the csv the results will be saved in, e.g. path/to/directory/results.csv (or .json). Default: Standard out.   
++Path to the file the results will be saved in, e.g. path/to/directory/results.csv (or .json). Default: Standard out.   
+ Jupyter Lab / Google Colab: `save=True` will save the output in the current working directory.  
+   
+ **Flags**  
+-`-j` `--json`  
+-Return results in json format.  
++`-csv` `--csv`  
++Command-line only. Returns results in CSV format.  
++Jupyter Lab / Google Colab: Use `json=True` to return output in JSON format.
+   
+ 
+ ### Example
+ ```bash
+-gget blat -seq MKWMFKEDHSLEHRCVESAKIRAKYPDRVPVIVEKVSGSQIVDIDKRKYLVPSDITVAQFMWIIRKRIQLPSEKAIFLFVDKTVPQSR -a taeGut2
++gget blat -a taeGut2 MKWMFKEDHSLEHRCVESAKIRAKYPDRVPVIVEKVSGSQIVDIDKRKYLVPSDITVAQFMWIIRKRIQLPSEKAIFLFVDKTVPQSR
+ ```
+ ```python
+ # Jupyter Lab / Google Colab:
+ gget.blat("MKWMFKEDHSLEHRCVESAKIRAKYPDRVPVIVEKVSGSQIVDIDKRKYLVPSDITVAQFMWIIRKRIQLPSEKAIFLFVDKTVPQSR", assembly="taeGut2")
+ ```
+-&rarr; Returns BLAT results for assembly taeGut2 (zebra finch) in data frame format. In the above example, `gget blat` automatically detects this sequence as an amino acid sequence and therefore sets the BLAT seqtype to *protein*.
++&rarr; Returns BLAT results for assembly taeGut2 (zebra finch). In the above example, `gget blat` automatically detects this sequence as an amino acid sequence and therefore sets the BLAT seqtype to *protein*.
+ 
+ | genome     | query_size     | aligned_start     | aligned_end        | matches | mismatches | %_aligned | ... |
+ | -------------- |-------------------------| ------------------------| -------------- | ----------|-----|---|---|
+@@ -453,12 +468,12 @@ gget.blat("MKWMFKEDHSLEHRCVESAKIRAKYPDRVPVIVEKVSGSQIVDIDKRKYLVPSDITVAQFMWIIRKRIQ
+ #### [More examples](https://github.com/pachterlab/gget_examples)
+ ___
+ 
+-## gget muscle  
++## gget muscle 🦾
+ Align multiple nucleotide or amino acid sequences to each other using [Muscle5](https://www.drive5.com/muscle/).  
+ Return format: ClustalW formatted standard out or aligned FASTA (.afa).  
+ 
+-**Required arguments**  
+-`-fa` `--fasta`   
++**Positional argument**  
++`fasta`   
+ Path to FASTA or .txt file containing the nucleotide or amino acid sequences to be aligned.  
+ 
+ **Optional arguments**  
+@@ -474,7 +489,7 @@ Use for large inputs (a few hundred sequences).
+   
+ ### Example
+ ```bash
+-gget muscle -fa fasta.fa
++gget muscle fasta.fa
+ ```
+ ```python
+ # Jupyter Lab / Google Colab:
+@@ -487,17 +502,19 @@ gget.muscle("fasta.fa")
+ #### [More examples](https://github.com/pachterlab/gget_examples)
+ ___
+ 
+-## gget enrichr
++## gget enrichr 🌌
+ Perform an enrichment analysis on a list of genes using [Enrichr](https://maayanlab.cloud/Enrichr/).  
+-Return format: data frame (or json).
++Return format: JSON (command-line) or data frame/CSV (Jupyter Lab / Google Colab).
+   
+-**Required arguments**  
+-`-g` `--genes`  
+-Short names (gene symbols) of genes to perform enrichment analysis on, e.g. 'PHF14 RBM3 MSL1 PHF21A'.  
++**Positional argument**  
++`genes`  
++Short names (gene symbols) of genes to perform enrichment analysis on, e.g. PHF14 RBM3 MSL1 PHF21A.  
++Alternatively: use flag `--ensembl` to input a list of Ensembl gene IDs, e.g. ENSG00000106443 ENSG00000102317 ENSG00000188895.
+ 
++**Other required arguments**  
+ `-db` `--database`  
+ Database to use as reference for the enrichment analysis.  
+-Supports any database listed [here](https://maayanlab.cloud/Enrichr/#libraries) under 'Gene-set Library' or one of the following shortcuts:  <br />
++Supports any database listed [here](https://maayanlab.cloud/Enrichr/#libraries) under 'Gene-set Library' or one of the following shortcuts:  
+ 'pathway'       (KEGG_2021_Human)  
+ 'transcription'     (ChEA_2016)  
+ 'ontology'      (GO_Biological_Process_2021)  
+@@ -507,12 +524,16 @@ Supports any database listed [here](https://maayanlab.cloud/Enrichr/#libraries)
+   
+ **Optional arguments**  
+ `-o` `--out`   
+-Path to the csv the results will be saved in, e.g. path/to/directory/results.csv (or .json). Default: Standard out.   
++Path to the file the results will be saved in, e.g. path/to/directory/results.csv (or .json). Default: Standard out.   
+ Jupyter Lab / Google Colab: `save=True` will save the output in the current working directory.
+   
+ **Flags**  
+-`-j` `--json`  
+-Return results in json format.  
++`-e` `--ensembl`  
++Add this flag if `genes` are given as Ensembl gene IDs.  
++ 
++`-csv` `--csv`  
++Command-line only. Returns results in CSV format.  
++Jupyter Lab / Google Colab: Use `json=True` to return output in JSON format.
+   
+ `plot`  
+ Jupyter Lab / Google Colab only. `plot=True` provides a graphical overview of the first 15 results (default: False).  
+@@ -520,26 +541,27 @@ Jupyter Lab / Google Colab only. `plot=True` provides a graphical overview of th
+   
+ ### Example
+ ```bash
+-gget enrichr -g ACE2 AGT AGTR1 -db ontology
++gget enrichr -db ontology ACE2 AGT AGTR1
+ ```
+ ```python
+ # Jupyter Lab / Google Colab:
+ gget.enrichr(["ACE2", "AGT", "AGTR1"], database="ontology", plot=True)
+ ```
+-&rarr; Returns pathways/functions involving genes ACE2, AGT, and AGTR1 from the *GO Biological Process 2021* database in data frame format. In Jupyter Lab / Google Colab, `plot=True` returns a graphical overview of the results:
++&rarr; Returns pathways/functions involving genes ACE2, AGT, and AGTR1 from the *GO Biological Process 2021* database. In Jupyter Lab / Google Colab, `plot=True` returns a graphical overview of the results:
+ 
+ ![alt text](https://github.com/pachterlab/gget/blob/main/figures/gget_enrichr_results.png?raw=true)
+ 
+ #### [More examples](https://github.com/pachterlab/gget_examples)
+ ___
+ 
+-## gget archs4
++## gget archs4 🐁
+ Find the most correlated genes to a gene of interest or find the gene's tissue expression atlas using [ARCHS4](https://maayanlab.cloud/archs4/).  
+-Return format: data frame (or json).  
++Return format: JSON (command-line) or data frame/CSV (Jupyter Lab / Google Colab).
+ 
+-**Required arguments**  
+-`-g` `--gene`  
+-Short name (gene symbol) of gene of interest, e.g. 'STAT4'.
++**Positional argument**  
++`gene`  
++Short name (gene symbol) of gene of interest, e.g. STAT4.  
++Alternatively: use flag `--ensembl` to input an Ensembl gene IDs, e.g. ENSG00000138378.
+ 
+ **Optional arguments**  
+  `-w` `--which`  
+@@ -553,23 +575,27 @@ Defines whether to use human or mouse samples from [ARCHS4](https://maayanlab.cl
+ (Only for tissue expression atlas.)
+ 
+ `-o` `--out`   
+-Path to the csv the results will be saved in, e.g. path/to/directory/results.csv (or .json). Default: Standard out.   
++Path to the file the results will be saved in, e.g. path/to/directory/results.csv (or .json). Default: Standard out.   
+ Jupyter Lab / Google Colab: `save=True` will save the output in the current working directory.  
+   
+-**Flags**  
+-`-j` `--json`  
+-Return results in json format.  
++**Flags**   
++`-e` `--ensembl`  
++Add this flag if `gene` is given as an Ensembl gene ID.  
++
++`-csv` `--csv`  
++Command-line only. Returns results in CSV format.  
++Jupyter Lab / Google Colab: Use `json=True` to return output in JSON format.
+   
+   
+ ### Examples
+ ```bash
+-gget archs4 -g ACE2
++gget archs4 ACE2
+ ```
+ ```python
+ # Jupyter Lab / Google Colab:
+ gget.archs4("ACE2")
+ ```
+-&rarr; Returns the 100 most correlated genes to ACE2 in a data frame:  
++&rarr; Returns the 100 most correlated genes to ACE2:  
+ 
+ | gene_symbol     | pearson_correlation     |
+ | -------------- |-------------------------| 
+@@ -578,13 +604,13 @@ gget.archs4("ACE2")
+ | . . . | . . . | 	
+ 
+ ```bash
+-gget archs4 -g ACE2 -w tissue
++gget archs4 -w tissue ACE2
+ ```
+ ```python
+ # Jupyter Lab / Google Colab:
+ gget.archs4("ACE2", which="tissue")
+ ```
+-&rarr; Returns the tissue expression of ACE2 in a data frame (by default, human data is used):
++&rarr; Returns the tissue expression of ACE2 (by default, human data is used):
+ 
+ | id     | min     | q1 |  median | q3 | max |
+ | ------ |--------| ------ |--------| ------ |--------| 
+@@ -600,12 +626,12 @@ ___
+ If you use `gget` in a publication, please cite:   
+ Luebbert L. & Pachter L. (2022). Efficient querying of genomic databases for single-cell RNA-seq with gget. bioRxiv 2022.05.17.492392; doi: https://doi.org/10.1101/2022.05.17.492392
+ 
+-- If using gget archs4, please also cite:   
++- If using `gget archs4`, please also cite:   
+   Lachmann A, Torre D, Keenan AB, Jagodnik KM, Lee HJ, Wang L, Silverstein MC, Ma’ayan A. Massive mining of publicly available RNA-seq data from human and mouse. Nature Communications 9. Article number: 1366 (2018), doi:10.1038/s41467-018-03751-6
+ 
+   Bray NL, Pimentel H, Melsted P and Pachter L, Near optimal probabilistic RNA-seq quantification, Nature Biotechnology 34, p 525--527 (2016). https://doi.org/10.1038/nbt.3519
+ 
+-- If using gget enrichr, please also cite:     
++- If using `gget enrichr`, please also cite:     
+   Chen EY, Tan CM, Kou Y, Duan Q, Wang Z, Meirelles GV, Clark NR, Ma'ayan A.
+ Enrichr: interactive and collaborative HTML5 gene list enrichment analysis tool. BMC Bioinformatics. 2013; 128(14).  
+ 
+@@ -615,13 +641,13 @@ Enrichr: a comprehensive gene set enrichment analysis web server 2016 update. Nu
+   Xie Z, Bailey A, Kuleshov MV, Clarke DJB., Evangelista JE, Jenkins SL, Lachmann A, Wojciechowicz ML, Kropiwnicki E, Jagodnik KM, Jeon M, & Ma’ayan A.
+ Gene set knowledge discovery with Enrichr. Current Protocols, 1, e90. 2021. doi: 10.1002/cpz1.90. 
+ 
+-- If using gget blast, please also cite:  
++- If using `gget blast`, please also cite:  
+   Altschul SF, Gish W, Miller W, Myers EW, Lipman DJ. Basic local alignment search tool. J Mol Biol. 1990 Oct 5;215(3):403-10. doi: 10.1016/S0022-2836(05)80360-2. PMID: 2231712.
+ 
+-- If using gget blat, please also cite:   
++- If using `gget blat`, please also cite:   
+   Kent WJ. BLAT--the BLAST-like alignment tool. Genome Res. 2002 Apr;12(4):656-64. doi: 10.1101/gr.229202. PMID: 11932250; PMCID: PMC187518.
+ 
+-- If using gget muscle, please also cite:  
++- If using `gget muscle`, please also cite:  
+   Edgar RC (2021), MUSCLE v5 enables improved estimates of phylogenetic tree confidence by ensemble bootstrapping, bioRxiv 2021.06.20.449169. https://doi.org/10.1101/2021.06.20.449169.
+   
+ ___
+diff --git a/figures/gget_overview.png b/figures/gget_overview.png
+index af6efdf6b..39da7dcb9 100644
+Binary files a/figures/gget_overview.png and b/figures/gget_overview.png differ
+diff --git a/gget/__init__.py b/gget/__init__.py
+index 26778280a..09cb40247 100644
+--- a/gget/__init__.py
++++ b/gget/__init__.py
+@@ -18,6 +18,6 @@
+ # Mute numexpr threads info
+ logging.getLogger("numexpr").setLevel(logging.WARNING)
+ 
+-__version__ = "0.1.2"
++__version__ = "0.2.0"
+ __author__ = "Laura Luebbert"
+ __email__ = "lauraluebbert@caltech.edu"
+diff --git a/gget/gget_archs4.py b/gget/gget_archs4.py
+index ca75903d2..45fcd4f1f 100644
+--- a/gget/gget_archs4.py
++++ b/gget/gget_archs4.py
+@@ -13,12 +13,21 @@
+ # Mute numexpr threads info
+ logging.getLogger("numexpr").setLevel(logging.WARNING)
+ 
++# Custom functions
++from .gget_info import info
++
+ # Constants
+ from .constants import GENECORR_URL, EXPRESSION_URL
+ 
+ 
+ def archs4(
+-    gene, which="correlation", gene_count=100, species="human", json=False, save=False
++    gene,
++    ensembl=False,
++    which="correlation",
++    gene_count=100,
++    species="human",
++    json=False,
++    save=False,
+ ):
+     """
+     Find the most correlated genes or the tissue expression atlas
+@@ -26,7 +35,9 @@ def archs4(
+     database ARCHS4 (https://maayanlab.cloud/archs4/).
+ 
+     Args:
+-    - gene          Short name (gene symbol) of gene of interest (str), e.g. 'STAT4'.
++    - gene          Short name (Entrez gene symbol) of gene of interest (str), e.g. 'STAT4'.
++                    Set 'ensembl=True' to input an Ensembl gene ID, e.g. ENSG00000138378.
++    - ensembl       Define as 'True' if 'gene' is an Ensembl gene ID. (Default: False)
+     - which         'correlation' (default) or 'tissue'.
+                     - 'correlation' returns a gene correlation table that contains the
+                     100 most correlated genes to the gene of interest. The Pearson
+@@ -56,6 +67,25 @@ def archs4(
+             f"'species' argument specified as {species}. Expected one of: {', '.join(sps)}"
+         )
+ 
++    ## Transform Ensembl IDs to gene symbols
++    if ensembl:
++        info_df = info(gene, verbose=False)
++
++        # Check if Ensembl ID was found
++        if isinstance(info_df, type(None)):
++            logging.error(
++                f"ID '{gene}' not found. Please double-check spelling/arguments and try again."
++            )
++            return
++
++        gene_symbol = info_df.loc[gene]["ensembl_gene_name"]
++
++        # If more than one gene symbol was returned, use first entry
++        if isinstance(gene_symbol, list):
++            gene = gene_symbol[0]
++        else:
++            gene = gene_symbol
++
+     # Make all gene letters uppercase
+     gene = gene.upper()
+ 
+@@ -85,7 +115,8 @@ def archs4(
+         if "error" in corr_data.keys():
+             if corr_data["error"] == f"{gene} not in colids":
+                 logging.error(
+-                    f"Search term '{gene}' did not return any gene correlation results."
++                    f"Gene '{gene}' did not return any gene correlation results. \n"
++                    "If the gene is an Ensembl ID, please set argument 'ensembl=True' (for terminal, add flag: [--ensembl])."
+                 )
+                 return
+             else:
+@@ -145,7 +176,8 @@ def archs4(
+         # Check if any results were returned
+         if len(tissue_exp_df) < 2:
+             logging.error(
+-                f"Search term '{gene}' did not return any tissue expression results."
++                f"Gene '{gene}' did not return any tissue expression results. \n"
++                "If the gene is an Ensembl ID, please set argument 'ensembl=True' (for terminal, add flag: [--ensembl])."
+             )
+             return
+ 
+diff --git a/gget/gget_enrichr.py b/gget/gget_enrichr.py
+index 546bb2ba2..01a9678ec 100644
+--- a/gget/gget_enrichr.py
++++ b/gget/gget_enrichr.py
+@@ -18,17 +18,20 @@
+ from matplotlib.ticker import MaxNLocator
+ import textwrap
+ 
++# Custom functions
++from .gget_info import info
++
+ # Constants
+ from .constants import POST_ENRICHR_URL, GET_ENRICHR_URL
+ 
+ 
+-def enrichr(genes, database, plot=False, json=False, save=False):
++def enrichr(genes, database, ensembl=False, plot=False, json=False, save=False):
+     """
+     Perform an enrichment analysis on a list of genes using Enrichr (https://maayanlab.cloud/Enrichr/).
+ 
+     Args:
+-    - genes       Genes to perform enrichment analysis on, passed as a list of strings,
+-                  e.g. ['PHF14', 'RBM3', 'MSL1', 'PHF21A'].
++    - genes       List of Entrez gene symbols to perform enrichment analysis on, passed as a list of strings, e.g. ['PHF14', 'RBM3', 'MSL1', 'PHF21A'].
++                  Set 'ensembl = True' to input a list of Ensembl gene IDs, e.g. ['ENSG00000106443', 'ENSG00000102317', 'ENSG00000188895'].
+     - database    Database to use as reference for the enrichment analysis.
+                   Supported shortcuts (and their default database):
+                   'pathway' (KEGG_2021_Human)
+@@ -38,6 +41,7 @@ def enrichr(genes, database, plot=False, json=False, save=False):
+                   'celltypes' (PanglaoDB_Augmented_2021)
+                   'kinase_interactions' (KEA_2015)
+                   or any database listed under Gene-set Library at: https://maayanlab.cloud/Enrichr/#libraries
++    - ensembl     Define as 'True' if 'genes' is a list of Ensembl gene IDs. (Default: False)
+     - plot        True/False whether to provide a graphical overview of the first 15 results.
+     - json        If True, returns results in json format instead of data frame. Default: False.
+     - save        True/False whether to save the results in the local directory.
+@@ -84,24 +88,52 @@ def enrichr(genes, database, plot=False, json=False, save=False):
+         )
+     else:
+         database = database
+-
+-    logging.info(f"Performing Enichr analysis using database {database}.")
++        logging.info(f"Performing Enichr analysis using database {database}.")
+ 
+     # If single gene passed as string, convert to list
+     if type(genes) == str:
+         genes = [genes]
+ 
+-    # Remove any NaNs/Nones from the gene list
++    ## Transform Ensembl IDs to gene symbols
++    if ensembl:
++        genes_v2 = []
++        for gene_id in genes:
++            info_df = info(gene_id, verbose=False)
++
++            # Check if Ensembl ID was found
++            if isinstance(info_df, type(None)):
++                logging.warning(
++                    f"ID '{gene_id}' not found. Please double-check spelling/arguments."
++                )
++                continue
++
++            gene_symbol = info_df.loc[gene_id]["ensembl_gene_name"]
++
++            # If more than one gene symbol was returned, use first entry
++            if isinstance(gene_symbol, list):
++                genes_v2.append(gene_symbol[0])
++            else:
++                genes_v2.append(gene_symbol)
++
++    else:
++        genes_v2 = genes
++
++    ## Remove any NaNs/Nones from the gene list
+     genes_clean = []
+-    for gene in genes:
+-        if not gene == np.NaN and not gene is None:
++    for gene in genes_v2:
++        if not gene == np.NaN and not gene is None and not isinstance(gene, float):
+             genes_clean.append(gene)
++
++    if len(genes_clean) == 0 and ensembl:
++        logging.error("No gene symbols found for given Ensembl IDs.")
++        return
++
+     # Join genes from list
+-    genes_clean = "\n".join(genes_clean)
++    genes_clean_final = "\n".join(genes_clean)
+ 
+     ## Submit gene list to Enrichr API
+     args_dict = {
+-        "list": (None, genes_clean),
++        "list": (None, genes_clean_final),
+         "description": (None, "gget client gene list"),
+     }
+ 
+@@ -133,8 +165,8 @@ def enrichr(genes, database, plot=False, json=False, save=False):
+     # Return error if no results were found
+     if len(enrichr_results) > 1:
+         logging.error(
+-            f"No Enrichr results were found for your genes in database {database}. "
+-            "Please double-check the arguments and try again."
++            f"No Enrichr results were found for genes {genes_clean} and database {database}. \n"
++            "If the genes are Ensembl IDs, please set argument 'ensembl=True' (for terminal, add flag: [--ensembl])."
+         )
+         return
+ 
+@@ -170,7 +202,8 @@ def enrichr(genes, database, plot=False, json=False, save=False):
+ 
+     if len(df) == 0:
+         logging.warning(
+-            f"No Enrichr results were found for genes {genes_clean} and database {database}."
++            f"No Enrichr results were found for genes {genes_clean} and database {database}. \n"
++            "If the genes are Ensembl IDs, please set argument 'ensembl=True' (for terminal, add flag: [--ensembl])."
+         )
+ 
+     ## Plot if plot=True
+diff --git a/gget/gget_info.py b/gget/gget_info.py
+index 944ec526b..788358945 100644
+--- a/gget/gget_info.py
++++ b/gget/gget_info.py
+@@ -23,23 +23,28 @@
+ from .constants import ENSEMBL_REST_API, UNIPROT_REST_API, NCBI_URL
+ 
+ ## gget info
+-def info(ens_ids, expand=False, wrap_text=False, json=False, verbose=True, save=False):
++def info(ens_ids, wrap_text=False, expand=False, json=False, verbose=True, save=False):
+     """
+     Fetch gene and transcript metadata using Ensembl IDs.
+ 
+     Args:
+     - ens_ids       One or more Ensembl IDs to look up (string or list of strings).
+                     Also supports WormBase and Flybase IDs.
+-    - expand        True/False wether to expand returned information (only for genes and transcripts). Default: False.
+-                    For genes, this adds transcript isoform information.
+-                    For transcripts, this adds translation and exon information.
+     - wrap_text     If True, displays data frame with wrapped text for easy reading. Default: False.
+     - json          If True, returns results in json/dictionary format instead of data frame. Default: False.
+     - verbose       True/False whether to print progress information. Default True.
+     - save          True/False wether to save csv with query results in current working directory. Default: False.
+ 
+-    Returns a data frame containing the requested information about the Ensembl IDs.
++    Returns a data frame containing the requested information.
++
++    Deprecated arguments: 'expand' (gget info now always returns all of the available information)
+     """
++    # Handle deprecated arguments
++    if expand:
++        logging.info(
++            "'expand' argument deprecated! gget info now always returns all of the available information."
++        )
++
+     # Define Ensembl REST API server
+     server = ENSEMBL_REST_API
+     # Define type of returned content from REST
+@@ -68,23 +73,22 @@ def info(ens_ids, expand=False, wrap_text=False, json=False, verbose=True, save=
+         else:
+             ens_ids_clean.append(ensembl_ID)
+ 
+-    # Initiate dictionary to save results for all IDs in
+-    master_dict = {}
+-
++    # Remove duplicates in the Ensembl ID list without changing their order
++    ens_ids_clean = sorted(set(ens_ids_clean), key=ens_ids_clean.index)
+     # Create second clean list of Ensembl IDs which will not include IDs that were not found
+     ens_ids_clean_2 = ens_ids_clean.copy()
+ 
++    # Initiate dictionary to save results for all IDs in
++    master_dict = {}
++
+     # Query REST APIs from https://rest.ensembl.org/
+     for ensembl_ID in ens_ids_clean:
+         # Create dict to save query results
+         results_dict = {ensembl_ID: {}}
+ 
+-        ## lookup/id/ query: Find the species and database for a single identifier
+         # Define the REST query
+-        if expand:
+-            query = "lookup/id/" + ensembl_ID + "?" + "expand=1"
+-        else:
+-            query = "lookup/id/" + ensembl_ID + "?"
++        query = "lookup/id/" + ensembl_ID + "?" + "expand=1"
++
+         # Submit query
+         try:
+             df_temp = rest_query(server, query, content_type)
+@@ -115,10 +119,10 @@ def info(ens_ids, expand=False, wrap_text=False, json=False, verbose=True, save=
+ 
+             # Log error if this also did not work
+             except RuntimeError:
+-                logging.warning(
+-                    f"ID '{ensembl_ID}' not found. "
+-                    "Please double-check spelling/arguments and try again."
+-                )
++                if verbose is True:
++                    logging.warning(
++                        f"ID '{ensembl_ID}' not found. Please double-check spelling/arguments and try again."
++                    )
+ 
+                 # Remove IDs that were not found from ID list
+                 ens_ids_clean_2.remove(ensembl_ID)
+@@ -318,114 +322,162 @@ def info(ens_ids, expand=False, wrap_text=False, json=False, verbose=True, save=
+         ]
+     )
+ 
+-    if expand:
+-        ens_ids = []
+-        # Dictionary to save clean info
+-        data = {
+-            "all_transcripts": [],
+-            "transcript_biotypes": [],
+-            "transcript_names": [],
+-            "all_exons": [],
+-            "exon_starts": [],
+-            "exon_ends": [],
+-            "all_translations": [],
+-            "translation_starts": [],
+-            "translation_ends": [],
+-        }
++    ens_ids = []
++    # Dictionary to save clean info
++    data = {
++        "all_transcripts": [],
++        "transcript_biotypes": [],
++        "transcript_names": [],
++        "transcript_strands": [],
++        "transcript_starts": [],
++        "transcript_ends": [],
++        "all_exons": [],
++        "exon_starts": [],
++        "exon_ends": [],
++        "all_translations": [],
++        "translation_starts": [],
++        "translation_ends": [],
++    }
++
++    # Collect the transcripts info for each ID in separate lists
++    for ens_id in df.columns:
++        # Record Ensembl ID
++        ens_ids.append(ens_id)
++
++        # Clean up transcript info, if available
++        all_transcripts = []
++        transcript_biotypes = []
++        transcript_names = []
++        transcript_strands = []
++        transcript_starts = []
++        transcript_ends = []
+ 
+-        # Collect the transcripts info for each ID in separate lists
+-        for ens_id in df.columns:
+-            # Record Ensembl ID
+-            ens_ids.append(ens_id)
+-
+-            # Clean up transcript info, if available
+-            all_transcripts = []
+-            transcript_biotypes = []
+-            transcript_names = []
+-            try:
+-                for trans_dict in df[ens_id]["Transcript"]:
++        try:
++            for trans_dict in df[ens_id]["Transcript"]:
++                try:
+                     try:
++                        # Add Transcript ID with latest version if available
++                        versioned_trans_id = (
++                            str(trans_dict["id"]) + "." + str(trans_dict["version"])
++                        )
++                        all_transcripts.append(versioned_trans_id)
++                    except KeyError:
++                        # Just add ID if no version found
+                         all_transcripts.append(trans_dict["id"])
+-                    except:
+-                        all_transcripts.append(np.NaN)
+-                    try:
+-                        transcript_names.append(trans_dict["display_name"])
+-                    except:
+-                        transcript_names.append(np.NaN)
+-                    try:
+-                        transcript_biotypes.append(trans_dict["biotype"])
+-                    except:
+-                        transcript_biotypes.append(np.NaN)
+-
+-                data["all_transcripts"].append(all_transcripts)
+-                data["transcript_biotypes"].append(transcript_biotypes)
+-                data["transcript_names"].append(transcript_names)
+-
+-            except:
+-                data["all_transcripts"].append(np.NaN)
+-                data["transcript_biotypes"].append(np.NaN)
+-                data["transcript_names"].append(np.NaN)
+-
+-            # Clean up exon info, if available
+-            all_exons = []
+-            exon_starts = []
+-            exon_ends = []
+-            try:
+-                for exon_dict in df[ens_id]["Exon"]:
++                except:
++                    all_transcripts.append(np.NaN)
++                try:
++                    transcript_names.append(trans_dict["display_name"])
++                except:
++                    transcript_names.append(np.NaN)
++                try:
++                    transcript_biotypes.append(trans_dict["biotype"])
++                except:
++                    transcript_biotypes.append(np.NaN)
++                try:
++                    transcript_starts.append(trans_dict["start"])
++                except:
++                    transcript_starts.append(np.NaN)
++                try:
++                    transcript_ends.append(trans_dict["end"])
++                except:
++                    transcript_ends.append(np.NaN)
++                try:
++                    transcript_strands.append(trans_dict["strand"])
++                except:
++                    transcript_strands.append(np.NaN)
++
++            data["all_transcripts"].append(all_transcripts)
++            data["transcript_biotypes"].append(transcript_biotypes)
++            data["transcript_names"].append(transcript_names)
++            data["transcript_strands"].append(transcript_strands)
++            data["transcript_starts"].append(transcript_starts)
++            data["transcript_ends"].append(transcript_ends)
++
++        except:
++            data["all_transcripts"].append(np.NaN)
++            data["transcript_biotypes"].append(np.NaN)
++            data["transcript_names"].append(np.NaN)
++            data["transcript_strands"].append(np.NaN)
++            data["transcript_starts"].append(np.NaN)
++            data["transcript_ends"].append(np.NaN)
++
++        # Clean up exon info, if available
++        all_exons = []
++        exon_starts = []
++        exon_ends = []
++        try:
++            for exon_dict in df[ens_id]["Exon"]:
++                try:
+                     try:
++                        # Add ID with latest version if available
++                        versioned_id = (
++                            str(exon_dict["id"]) + "." + str(exon_dict["version"])
++                        )
++                        all_exons.append(versioned_id)
++                    except KeyError:
++                        # Just add ID if no version found
+                         all_exons.append(exon_dict["id"])
+-                    except:
+-                        all_exons.append(np.NaN)
+-                    try:
+-                        exon_starts.append(exon_dict["start"])
+-                    except:
+-                        exon_starts.append(np.NaN)
+-                    try:
+-                        exon_ends.append(exon_dict["end"])
+-                    except:
+-                        exon_ends.append(np.NaN)
+-
+-                data["all_exons"].append(all_exons)
+-                data["exon_starts"].append(exon_starts)
+-                data["exon_ends"].append(exon_ends)
+-
+-            except:
+-                data["all_exons"].append(np.NaN)
+-                data["exon_starts"].append(np.NaN)
+-                data["exon_ends"].append(np.NaN)
+-
+-            # Clean up translation info, if available
+-            all_translations = []
+-            translation_starts = []
+-            translation_ends = []
+-            try:
+-                for transl_dict in df[ens_id]["Exon"]:
++                except:
++                    all_exons.append(np.NaN)
++                try:
++                    exon_starts.append(exon_dict["start"])
++                except:
++                    exon_starts.append(np.NaN)
++                try:
++                    exon_ends.append(exon_dict["end"])
++                except:
++                    exon_ends.append(np.NaN)
++
++            data["all_exons"].append(all_exons)
++            data["exon_starts"].append(exon_starts)
++            data["exon_ends"].append(exon_ends)
++
++        except:
++            data["all_exons"].append(np.NaN)
++            data["exon_starts"].append(np.NaN)
++            data["exon_ends"].append(np.NaN)
++
++        # Clean up translation info, if available
++        all_translations = []
++        translation_starts = []
++        translation_ends = []
++        try:
++            for transl_dict in df[ens_id]["Exon"]:
++                try:
+                     try:
++                        # Add ID with latest version if available
++                        versioned_id = (
++                            str(transl_dict["id"]) + "." + str(transl_dict["version"])
++                        )
++                        all_translations.append(versioned_id)
++                    except KeyError:
++                        # Just add ID if no version found
+                         all_translations.append(transl_dict["id"])
+-                    except:
+-                        all_translations.append(np.NaN)
+-                    try:
+-                        translation_starts.append(transl_dict["start"])
+-                    except:
+-                        translation_starts.append(np.NaN)
+-                    try:
+-                        translation_ends.append(transl_dict["end"])
+-                    except:
+-                        translation_ends.append(np.NaN)
+-
+-                data["all_translations"].append(all_translations)
+-                data["translation_starts"].append(translation_starts)
+-                data["translation_ends"].append(translation_ends)
+-
+-            except:
+-                data["all_translations"].append(np.NaN)
+-                data["translation_starts"].append(np.NaN)
+-                data["translation_ends"].append(np.NaN)
+-
+-        # Append cleaned up info to df_final
+-        df_final = pd.concat(
+-            [df_final, pd.DataFrame.from_dict(data, orient="index", columns=ens_ids)]
+-        )
++                except:
++                    all_translations.append(np.NaN)
++                try:
++                    translation_starts.append(transl_dict["start"])
++                except:
++                    translation_starts.append(np.NaN)
++                try:
++                    translation_ends.append(transl_dict["end"])
++                except:
++                    translation_ends.append(np.NaN)
++
++            data["all_translations"].append(all_translations)
++            data["translation_starts"].append(translation_starts)
++            data["translation_ends"].append(translation_ends)
++
++        except:
++            data["all_translations"].append(np.NaN)
++            data["translation_starts"].append(np.NaN)
++            data["translation_ends"].append(np.NaN)
++
++    # Append cleaned up info to df_final
++    df_final = pd.concat(
++        [df_final, pd.DataFrame.from_dict(data, orient="index", columns=ens_ids)]
++    )
+ 
+     ## Transpose data frame so each row corresponds to one Ensembl ID
+     df_final = df_final.T
+@@ -439,6 +491,95 @@ def info(ens_ids, expand=False, wrap_text=False, json=False, verbose=True, save=
+ 
+     if json:
+         results_dict = json_package.loads(df_final.to_json(orient="index"))
++
++        # Restructure transcripts, translations and exons lists into lists of dictionaries
++        for ens_id in df_final.index.values:
++            ## Get info for all transcripts
++            transcript_ids = results_dict[ens_id]["all_transcripts"]
++            transcript_biotypes = results_dict[ens_id]["transcript_biotypes"]
++            transcript_names = results_dict[ens_id]["transcript_names"]
++            transcript_strands = results_dict[ens_id]["transcript_strands"]
++            transcript_starts = results_dict[ens_id]["transcript_starts"]
++            transcript_ends = results_dict[ens_id]["transcript_ends"]
++
++            # Delete old keys
++            results_dict[ens_id].pop("all_transcripts", None)
++            results_dict[ens_id].pop("transcript_biotypes", None)
++            results_dict[ens_id].pop("transcript_names", None)
++            results_dict[ens_id].pop("transcript_strands", None)
++            results_dict[ens_id].pop("transcript_starts", None)
++            results_dict[ens_id].pop("transcript_ends", None)
++
++            # Build new dictionary entries
++            results_dict[ens_id].update({"all_transcripts": []})
++            for (
++                transcript_id,
++                transcript_biotype,
++                transcript_name,
++                transcript_strand,
++                transcript_start,
++                transcript_end,
++            ) in zip(
++                transcript_ids or [],
++                transcript_biotypes or [],
++                transcript_names or [],
++                transcript_strands or [],
++                transcript_starts or [],
++                transcript_ends or [],
++            ):
++                results_dict[ens_id]["all_transcripts"].append(
++                    {
++                        "transcript_id": transcript_id,
++                        "transcript_biotype": transcript_biotype,
++                        "transcript_name": transcript_name,
++                        "transcript_strand": transcript_strand,
++                        "transcript_start": transcript_start,
++                        "transcript_end": transcript_end,
++                    }
++                )
++
++            ## Get info for all exons
++            exon_ids = results_dict[ens_id]["all_exons"]
++            exon_starts = results_dict[ens_id]["exon_starts"]
++            exon_ends = results_dict[ens_id]["exon_ends"]
++
++            # Delete old keys
++            results_dict[ens_id].pop("all_exons", None)
++            results_dict[ens_id].pop("exon_starts", None)
++            results_dict[ens_id].pop("exon_ends", None)
++
++            # Build new dictionary entries
++            results_dict[ens_id].update({"all_exons": []})
++            for exon_id, exon_start, exon_end in zip(
++                exon_ids or [], exon_starts or [], exon_ends or []
++            ):
++                results_dict[ens_id]["all_exons"].append(
++                    {"exon_id": exon_id, "exon_start": exon_start, "exon_end": exon_end}
++                )
++
++            ## Get info for all translations
++            translation_ids = results_dict[ens_id]["all_translations"]
++            translation_starts = results_dict[ens_id]["translation_starts"]
++            translation_ends = results_dict[ens_id]["translation_ends"]
++
++            # Delete old keys
++            results_dict[ens_id].pop("all_translations", None)
++            results_dict[ens_id].pop("translation_starts", None)
++            results_dict[ens_id].pop("translation_ends", None)
++
++            # Build new dictionary entries
++            results_dict[ens_id].update({"all_translations": []})
++            for translation_id, translation_start, translation_end in zip(
++                translation_ids or [], translation_starts or [], translation_ends or []
++            ):
++                results_dict[ens_id]["all_translations"].append(
++                    {
++                        "translation_id": translation_id,
++                        "translation_start": translation_start,
++                        "translation_end": translation_end,
++                    }
++                )
++
+         if save:
+             with open("gget_info_results.json", "w", encoding="utf-8") as f:
+                 json_package.dump(results_dict, f, ensure_ascii=False, indent=4)
+diff --git a/gget/gget_search.py b/gget/gget_search.py
+index 784f20480..e0d1fe13c 100644
+--- a/gget/gget_search.py
++++ b/gget/gget_search.py
+@@ -26,7 +26,8 @@
+ def search(
+     searchwords,
+     species,
+-    seqtype="gene",
++    id_type="gene",
++    seqtype=None,
+     andor="or",
+     limit=None,
+     wrap_text=False,
+@@ -43,7 +44,7 @@ def search(
+     - species         Species can be passed in the format "genus_species", e.g. "homo_sapiens".
+                       To pass a specific database, enter the name of the core database, e.g. 'mus_musculus_dba2j_core_105_1'.
+                       All availabale species databases can be found here: http://ftp.ensembl.org/pub/release-106/mysql/
+-    - seqtype         "gene" (default) or "transcript"
++    - id_type         "gene" (default) or "transcript"
+                       Defines whether genes or transcripts matching the searchwords are returned.
+     - andor           "or" (default) or "and"
+                       "or": Returns all genes that INCLUDE AT LEAST ONE of the searchwords in their name/description.
+@@ -54,19 +55,28 @@ def search(
+     - save            If True, the data frame is saved as a csv in the current directory (default: False).
+ 
+     Returns a data frame with the query results.
++
++    Deprecated arguments: 'seqtype' (renamed to id_type)
+     """
++    # Handle deprecated arguments
++    if seqtype:
++        logging.error(
++            "'seqtype' argument deprecated! Please use argument 'id_type' instead."
++        )
++        return
++
+     start_time = time.time()
+ 
+     # Find latest Ensembl release
+     ens_rel = find_latest_ens_rel()
+ 
+     ## Check validity or arguments
+-    # Check if seqtype is valid
+-    seqtypes = ["gene", "transcript"]
+-    seqtype = seqtype.lower()
+-    if seqtype not in seqtypes:
++    # Check if id_type is valid
++    id_types = ["gene", "transcript"]
++    id_type = id_type.lower()
++    if id_type not in id_types:
+         raise ValueError(
+-            f"Sequence type specified is {seqtype}. Expected one of {', '.join(seqtypes)}"
++            f"ID type (id_type) specified is '{id_type}'. Expected one of: {', '.join(id_types)}"
+         )
+ 
+     # Check if 'andor' arg is valid
+@@ -137,7 +147,7 @@ def search(
+ 
+     ## Find genes
+     for i, searchword in enumerate(searchwords):
+-        if seqtype == "gene":
++        if id_type == "gene":
+             query = f"""
+             SELECT gene.stable_id, xref.display_label, gene.description, xref.description, gene.biotype
+             FROM gene
+@@ -169,7 +179,7 @@ def search(
+                     val = np.intersect1d(df["stable_id"], df_temp["stable_id"])
+                     df = df[df.stable_id.isin(val)]
+ 
+-        if seqtype == "transcript":
++        if id_type == "transcript":
+             query = f"""
+             SELECT transcript.stable_id, xref.display_label, transcript.description, xref.description, transcript.biotype
+             FROM transcript
+diff --git a/gget/gget_seq.py b/gget/gget_seq.py
+index d3dd27547..253d14efc 100644
+--- a/gget/gget_seq.py
++++ b/gget/gget_seq.py
+@@ -21,7 +21,8 @@
+ 
+ def seq(
+     ens_ids,
+-    seqtype="gene",
++    transcribe=False,
++    seqtype=None,
+     isoforms=False,
+     save=False,
+ ):
+@@ -30,28 +31,28 @@ def seq(
+     (and all its isoforms) or transcript by Ensembl, WormBase or FlyBase ID.
+ 
+     Args:
+-    - ens_ids   One or more Ensembl IDs (passed as string or list of strings).
+-                Also supports WormBase and FlyBase IDs.
+-    - seqtype   'gene' (default) or 'transcript'.
+-                Defines whether nucleotide or amino acid sequences are returned.
+-                Nucleotide sequences are fetched from the Ensembl REST API server.
+-                Amino acid sequences are fetched from the UniProt REST API server.
+-    - isoforms  If True, returns the sequences of all known transcripts (default: False).
+-                (Only for gene Ensembl IDs.)
+-    - save      If True: Save output FASTA to current directory.
++    - ens_ids       One or more Ensembl IDs (passed as string or list of strings).
++                    Also supports WormBase and FlyBase IDs.
++    - transcribe    True/False (default: False -> returns nucleotide sequences).
++                    Defines whether nucleotide or amino acid sequences are returned.
++                    Nucleotide sequences are fetched from the Ensembl REST API server.
++                    Amino acid sequences are fetched from the UniProt REST API server.
++    - isoforms      If True, returns the sequences of all known transcripts (default: False).
++                    (Only for gene IDs.)
++    - save          If True, saves output FASTA to current directory (default: False).
+ 
+     Returns a list (or FASTA file if 'save=True') containing the requested sequences.
+-    """
+ 
+-    ## Clean up arguments
+-    # Check if seqtype is valid
+-    seqtypes = ["gene", "transcript"]
+-    seqtype = seqtype.lower()
+-    if seqtype not in seqtypes:
+-        raise ValueError(
+-            f"Argument 'seqtype' was specified as '{seqtype}'. Expected one of {', '.join(seqtypes)}"
++    Deprecated arguments: 'seqtype' (use True/False flag 'transcribe' instead.)
++    """
++    # Handle deprecated arguments
++    if seqtype:
++        logging.error(
++            "'seqtype' argument deprecated! Please use True/False argument 'transcribe' instead."
+         )
++        return
+ 
++    ## Clean up arguments
+     # Clean up Ensembl IDs
+     # If single Ensembl ID passed as string, convert to list
+     if type(ens_ids) == str:
+@@ -78,7 +79,7 @@ def seq(
+     fasta = []
+ 
+     ## Fetch nucleotide sequece
+-    if seqtype == "gene":
++    if transcribe is False:
+         # Define Ensembl REST API server
+         server = ENSEMBL_REST_API
+         # Define type of returned content from REST
+@@ -124,13 +125,12 @@ def seq(
+             # If isoforms true, fetch sequences of isoforms instead
+             if isoforms == True:
+                 # Get ID type (gene, transcript, ...) using gget info
+-                info_df = info(ensembl_ID, expand=True, verbose=False)
++                info_df = info(ensembl_ID, verbose=False)
+ 
+-                # Check that Ensembl ID was found
++                # Check if Ensembl ID was found
+                 if isinstance(info_df, type(None)):
+-                    logging.error(
+-                        f"ID {ensembl_ID} not found. "
+-                        "Please double-check spelling/arguments and try again."
++                    logging.warning(
++                        f"ID '{ensembl_ID}' not found. Please double-check spelling/arguments."
+                     )
+                     continue
+ 
+@@ -143,6 +143,9 @@ def seq(
+                     )
+ 
+                     for transcipt_id in info_df.loc[ensembl_ID]["all_transcripts"]:
++                        # Remove version number for Ensembl IDs (not for flybase/wormbase IDs)
++                        if transcipt_id.startswith("ENS"):
++                            transcipt_id = transcipt_id.split(".")[0]
+ 
+                         # Try if query is valid
+                         try:
+@@ -217,8 +220,8 @@ def seq(
+                     fasta.append(master_dict[ens_ID][key]["seq"])
+ 
+     ## Fetch amino acid sequences from UniProt
+-    if seqtype == "transcript":
+-        if isoforms == False:
++    if transcribe:
++        if isoforms is False:
+             # List to collect transcript IDs
+             trans_ids = []
+ 
+@@ -228,9 +231,8 @@ def seq(
+ 
+                 # Check that Ensembl ID was found
+                 if isinstance(info_df, type(None)):
+-                    logging.error(
+-                        f"ID {ensembl_ID} not found. "
+-                        "Please double-check spelling/arguments and try again."
++                    logging.warning(
++                        f"ID '{ensembl_ID}' not found. Please double-check spelling/arguments."
+                     )
+                     continue
+ 
+@@ -242,8 +244,8 @@ def seq(
+                     can_trans = info_df.loc[ensembl_ID]["canonical_transcript"]
+ 
+                     if ensembl_ID.startswith("ENS"):
+-                        temp_trans_id = can_trans.split(".")[0]
+                         # Remove Ensembl ID version from transcript IDs and append to transcript IDs list
++                        temp_trans_id = can_trans.split(".")[0]
+                         trans_ids.append(temp_trans_id)
+ 
+                     elif ensembl_ID.startswith("WB"):
+@@ -297,13 +299,12 @@ def seq(
+ 
+             for ensembl_ID in ens_ids_clean:
+                 # Get ID type (gene, transcript, ...) using gget info
+-                info_df = info(ensembl_ID, expand=True, verbose=False)
++                info_df = info(ensembl_ID, verbose=False)
+ 
+                 # Check that Ensembl ID was found
+                 if isinstance(info_df, type(None)):
+-                    logging.error(
+-                        f"ID {ensembl_ID} not found. "
+-                        "Please double-check spelling/arguments and try again."
++                    logging.warning(
++                        f"ID '{ensembl_ID}' not found. Please double-check spelling/arguments."
+                     )
+                     continue
+ 
+@@ -317,12 +318,15 @@ def seq(
+                             # Append transcript ID (without Ensembl version number) to list of transcripts to fetch
+                             trans_ids.append(transcipt_id.split(".")[0])
+ 
+-                        else:
+-                            # Remove added "." at the end of other transcript IDs
+-                            # Note: No need to remove the version number for WormBase IDs here, because "all_transcripts" are returned without version numbers
++                        elif ensembl_ID.startswith("WB"):
++                            # For WormBase transcript IDs, remove the version number for submission to UniProt API
+                             temp_trans_id = ".".join(transcipt_id.split(".")[:-1])
+                             trans_ids.append(temp_trans_id)
+ 
++                        else:
++                            # Note: No need to remove the added "." at the end of unversioned transcripts here, because "all_transcripts" are returned without it
++                            trans_ids.append(transcipt_id)
++
+                     logging.info(
+                         f"Requesting amino acid sequences of all transcripts of gene {ensembl_ID} from UniProt."
+                     )
+diff --git a/gget/main.py b/gget/main.py
+index 6bc4383eb..90e7b7096 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -58,13 +58,12 @@ def main():
+     )
+     # ref parser arguments
+     parser_ref.add_argument(
+-        "-s",
+-        "--species",
+-        default=None,
++        "species",
+         type=str,
++        nargs="?",
++        default=None,
+         help="Species for which the FTPs will be fetched, e.g. homo_sapiens.",
+     )
+-    # ref parser arguments
+     parser_ref.add_argument(
+         "-l",
+         "--list_species",
+@@ -83,19 +82,19 @@ def main():
+         "--which",
+         default="all",
+         type=str,
+-        nargs="+",
+         required=False,
+         help=(
+             """
+-        Defines which results to return. 
+-        Default: 'all' -> Returns all available results.
+-        Possible entries are one or a combination (as a list of strings) of the following: 
+-        'gtf' - Returns the annotation (GTF).
+-        'cdna' - Returns the trancriptome (cDNA).
+-        'dna' - Returns the genome (DNA).
+-        'cds - Returns the coding sequences corresponding to Ensembl genes. (Does not contain UTR or intronic sequence.)
+-        'cdrna' - Returns transcript sequences corresponding to non-coding RNA genes (ncRNA).
+-        'pep' - Returns the protein translations of Ensembl genes.
++        Defines which results to return. \n
++        Default: 'all' -> Returns all available results. \n
++        Possible entries are one or a combination (as a comma-separated list) of the following: \n
++        'gtf' - Returns the annotation (GTF). \n
++        'cdna' - Returns the trancriptome (cDNA). \n
++        'dna' - Returns the genome (DNA). \n
++        'cds - Returns the coding sequences corresponding to Ensembl genes. (Does not contain UTR or intronic sequence.) \n
++        'cdrna' - Returns transcript sequences corresponding to non-coding RNA genes (ncRNA). \n
++        'pep' - Returns the protein translations of Ensembl genes. \n
++        Example: '-w dna,gtf'
+         """
+         ),
+     )
+@@ -105,7 +104,7 @@ def main():
+         default=None,
+         type=int,
+         required=False,
+-        help="Ensemble release the FTPs will be fetched from, e.g. 104 (default: latest Ensembl release).",
++        help="Ensembl release the FTPs will be fetched from, e.g. 104 (default: latest Ensembl release).",
+     )
+     parser_ref.add_argument(
+         "-ftp",
+@@ -113,7 +112,7 @@ def main():
+         default=False,
+         action="store_true",
+         required=False,
+-        help="Return only the FTP link instead of a json.",
++        help="Return only the FTP link(s).",
+     )
+     parser_ref.add_argument(
+         "-d",
+@@ -129,10 +128,18 @@ def main():
+         type=str,
+         required=False,
+         help=(
+-            "Path to the json file the results will be saved in, e.g. path/to/directory/results.json.\n"
++            "Path to the file the results will be saved in, e.g. path/to/directory/results.json.\n"
+             "Default: Standard out."
+         ),
+     )
++    parser_ref.add_argument(
++        "-s",
++        "--species",
++        type=str,
++        required=False,
++        dest="species_deprecated",
++        help="DEPRECATED - use positional argument instead. Species for which the FTPs will be fetched, e.g. homo_sapiens.",
++    )
+ 
+     ## gget search subparser
+     search_desc = (
+@@ -147,12 +154,11 @@ def main():
+     )
+     # Search parser arguments
+     parser_gget.add_argument(
+-        "-sw",
+-        "--searchwords",
++        "searchwords",
+         type=str,
+-        nargs="+",
+-        required=True,
+-        help="One or more free form search words for the query, e.g. gaba, nmda.",
++        nargs="*",
++        default=None,
++        help="One or more free form search words, e.g. gaba, nmda.",
+     )
+     parser_gget.add_argument(
+         "-s",
+@@ -163,7 +169,7 @@ def main():
+     )
+     parser_gget.add_argument(
+         "-t",
+-        "--seqtype",
++        "--id_type",
+         choices=["gene", "transcript"],
+         default="gene",
+         type=str,
+@@ -194,12 +200,12 @@ def main():
+         help="Limits the number of results, e.g. 10 (default: None).",
+     )
+     parser_gget.add_argument(
+-        "-j",
+-        "--json",
+-        default=False,
+-        action="store_true",
++        "-csv",
++        "--csv",
++        default=True,
++        action="store_false",
+         required=False,
+-        help="Returns results in json/dictionary format instead of data frame.",
++        help="Returns results in csv format instead of json.",
+     )
+     parser_gget.add_argument(
+         "-o",
+@@ -207,10 +213,34 @@ def main():
+         type=str,
+         required=False,
+         help=(
+-            "Path to the json file the results will be saved in, e.g. path/to/directory/results.json.\n"
++            "Path to the file the results will be saved in, e.g. path/to/directory/results.json.\n"
+             "Default: Standard out."
+         ),
+     )
++    parser_gget.add_argument(
++        "-sw",
++        "--searchwords",
++        type=str,
++        nargs="+",
++        required=False,
++        dest="sw_deprecated",
++        help="DEPRECATED - use positional argument instead. One or more free form search words, e.g. gaba, nmda.",
++    )
++    parser_gget.add_argument(
++        "--seqtype",
++        default=None,
++        type=str,
++        required=False,
++        help="DEPRECATED - use argument 'id_type' instead.",
++    )
++    parser_gget.add_argument(
++        "-j",
++        "--json",
++        default=False,
++        action="store_true",
++        required=False,
++        help="DEPRECATED - json is now the default output format (convert to csv using flag [--csv]).",
++    )
+ 
+     ## gget info subparser
+     info_desc = "Fetch gene and transcript metadata using Ensembl IDs."
+@@ -219,12 +249,11 @@ def main():
+     )
+     # info parser arguments
+     parser_info.add_argument(
+-        "-id",
+-        "--ens_ids",
++        "ens_ids",
+         type=str,
+-        nargs="+",
+-        required=True,
+-        help="One or more Ensembl IDs (also supports WormBase and FlyBase IDs).",
++        nargs="*",
++        default=None,
++        help="One or more Ensembl, WormBase or FlyBase IDs).",
+     )
+     parser_info.add_argument(
+         "-e",
+@@ -232,19 +261,15 @@ def main():
+         default=False,
+         action="store_true",
+         required=False,
+-        help=(
+-            "Expand returned information (only for genes and transcripts) (default: False). "
+-            "For genes: add isoform information. "
+-            "For transcripts: add translation and exon information."
+-        ),
++        help=("DEPRECATED - gget info now always returns all available information."),
+     )
+     parser_info.add_argument(
+-        "-j",
+-        "--json",
+-        default=False,
+-        action="store_true",
++        "-csv",
++        "--csv",
++        default=True,
++        action="store_false",
+         required=False,
+-        help="Returns results in json/dictionary format instead of data frame.",
++        help="Returns results in csv format instead of json.",
+     )
+     parser_info.add_argument(
+         "-q",
+@@ -260,10 +285,27 @@ def main():
+         type=str,
+         required=False,
+         help=(
+-            "Path to the json file the results will be saved in, e.g. path/to/directory/results.json.\n"
++            "Path to file the results will be saved as, e.g. path/to/directory/results.json.\n"
+             "Default: Standard out."
+         ),
+     )
++    parser_info.add_argument(
++        "-id",
++        "--ens_ids",
++        type=str,
++        nargs="+",
++        required=False,
++        dest="id_deprecated",
++        help="DEPRECATED - use positional argument instead. One or more Ensembl, WormBase or FlyBase IDs).",
++    )
++    parser_info.add_argument(
++        "-j",
++        "--json",
++        default=False,
++        action="store_true",
++        required=False,
++        help="DEPRECATED - json is now the default output format (convert to csv using flag [--csv]).",
++    )
+ 
+     ## gget seq subparser
+     seq_desc = "Fetch nucleotide or amino acid sequence (FASTA) of a gene (and all isoforms) or transcript by Ensembl, WormBase or FlyBase ID. "
+@@ -272,23 +314,20 @@ def main():
+     )
+     # seq parser arguments
+     parser_seq.add_argument(
+-        "-id",
+-        "--ens_ids",
++        "ens_ids",
+         type=str,
+-        nargs="+",
+-        required=True,
++        nargs="*",
++        default=None,
+         help="One or more Ensembl, WormBase or FlyBase IDs.",
+     )
+     parser_seq.add_argument(
+-        "-st",
+-        "--seqtype",
+-        choices=["gene", "transcript"],
+-        default="gene",
+-        type=str,
++        "-t",
++        "--transcribe",
++        default=False,
++        action="store_true",
+         required=False,
+         help=(
+-            "'gene': Returns nucleotide sequences of the Ensembl IDs from Ensembl (default).\n"
+-            "'transcript': Returns amino acid sequences of the Ensembl IDs from UniProt. \n"
++            "Returns amino acid sequences from UniProt. (Otherwise returns nucleotide sequences from Ensembl.)"
+         ),
+     )
+     parser_seq.add_argument(
+@@ -297,7 +336,7 @@ def main():
+         default=False,
+         action="store_true",
+         required=False,
+-        help="Returns sequences of all known transcripts (default: False). (Only for gene Ensembl IDs.)",
++        help="Returns sequences of all known transcripts (default: False). (Only for gene IDs.)",
+     )
+     parser_seq.add_argument(
+         "-o",
+@@ -309,6 +348,22 @@ def main():
+             "Default: Standard out."
+         ),
+     )
++    parser_seq.add_argument(
++        "-id",
++        "--ens_ids",
++        type=str,
++        nargs="+",
++        required=False,
++        dest="id_deprecated",
++        help="DEPRECATED - use positional argument instead. One or more Ensembl, WormBase or FlyBase IDs.",
++    )
++    parser_seq.add_argument(
++        "--seqtype",
++        default=None,
++        type=str,
++        required=False,
++        help="DEPRECATED - use True/False flag 'transcribe' instead.",
++    )
+ 
+     ## gget muscle subparser
+     muscle_desc = "Align multiple nucleotide or amino acid sequences against each other (using the Muscle v5 algorithm)."
+@@ -321,10 +376,10 @@ def main():
+     )
+     # muscle parser arguments
+     parser_muscle.add_argument(
+-        "-fa",
+-        "--fasta",
++        "fasta",
+         type=str,
+-        required=True,
++        nargs="?",
++        default=None,
+         help="Path to fasta file containing the sequences to be aligned.",
+     )
+     parser_muscle.add_argument(
+@@ -346,9 +401,17 @@ def main():
+             "Default: 'None' -> Standard out in Clustal format."
+         ),
+     )
++    parser_muscle.add_argument(
++        "-fa",
++        "--fasta",
++        type=str,
++        required=False,
++        dest="fasta_deprecated",
++        help="DEPRECATED - use positional argument instead. Path to fasta file containing the sequences to be aligned.",
++    )
+ 
+     ## gget blast subparser
+-    blast_desc = "BLAST a nucleotide or amino acid sequence against any BLAST DB."
++    blast_desc = "BLAST a nucleotide or amino acid sequence against any BLAST database."
+     parser_blast = parent_subparsers.add_parser(
+         "blast",
+         parents=[parent],
+@@ -358,11 +421,11 @@ def main():
+     )
+     # blast parser arguments
+     parser_blast.add_argument(
+-        "-seq",
+-        "--sequence",
++        "sequence",
+         type=str,
+-        required=True,
+-        help="Sequence (str) or path to fasta file containing one sequence.",
++        nargs="?",
++        default=None,
++        help="Sequence (str) or path to fasta file.",
+     )
+     parser_blast.add_argument(
+         "-p",
+@@ -438,12 +501,12 @@ def main():
+         help="Do not print progress information.",
+     )
+     parser_blast.add_argument(
+-        "-j",
+-        "--json",
+-        default=False,
+-        action="store_true",
++        "-csv",
++        "--csv",
++        default=True,
++        action="store_false",
+         required=False,
+-        help="Returns results in json/dictionary format instead of data frame.",
++        help="Returns results in csv format instead of json.",
+     )
+     parser_blast.add_argument(
+         "-o",
+@@ -455,6 +518,22 @@ def main():
+             "Default: Standard out."
+         ),
+     )
++    parser_blast.add_argument(
++        "-seq",
++        "--sequence",
++        type=str,
++        required=False,
++        dest="seq_deprecated",
++        help="DEPRECATED - use positional argument instead. Sequence (str) or path to fasta file.",
++    )
++    parser_blast.add_argument(
++        "-j",
++        "--json",
++        default=False,
++        action="store_true",
++        required=False,
++        help="DEPRECATED - json is now the default output format (convert to csv using flag [--csv]).",
++    )
+ 
+     ## gget blat subparser
+     blat_desc = (
+@@ -465,11 +544,11 @@ def main():
+     )
+     # blat parser arguments
+     parser_blat.add_argument(
+-        "-seq",
+-        "--sequence",
++        "sequence",
+         type=str,
+-        required=True,
+-        help="Sequence (str) or path to fasta file containing one sequence.",
++        nargs="?",
++        default=None,
++        help="Sequence (str) or path to fasta file.",
+     )
+     parser_blat.add_argument(
+         "-st",
+@@ -496,12 +575,12 @@ def main():
+         ),
+     )
+     parser_blat.add_argument(
+-        "-j",
+-        "--json",
+-        default=False,
+-        action="store_true",
++        "-csv",
++        "--csv",
++        default=True,
++        action="store_false",
+         required=False,
+-        help="Returns results in json/dictionary format instead of data frame.",
++        help="Returns results in csv format instead of json.",
+     )
+     parser_blat.add_argument(
+         "-o",
+@@ -513,6 +592,22 @@ def main():
+             "Default: Standard out."
+         ),
+     )
++    parser_blat.add_argument(
++        "-seq",
++        "--sequence",
++        type=str,
++        required=False,
++        dest="seq_deprecated",
++        help="DEPRECATED - use positional argument instead. Sequence (str) or path to fasta file.",
++    )
++    parser_blat.add_argument(
++        "-j",
++        "--json",
++        default=False,
++        action="store_true",
++        required=False,
++        help="DEPRECATED - json is now the default output format (convert to csv using flag [--csv]).",
++    )
+ 
+     ## gget enrichr subparser
+     enrichr_desc = "Perform an enrichment analysis on a list of genes using Enrichr."
+@@ -525,12 +620,11 @@ def main():
+     )
+     # enrichr parser arguments
+     parser_enrichr.add_argument(
+-        "-g",
+-        "--genes",
++        "genes",
+         type=str,
+-        nargs="+",
+-        required=True,
+-        help="Genes to perform enrichment analysis on.",
++        nargs="*",
++        default=None,
++        help="List of gene symbols or Ensembl gene IDs to perform enrichment analysis on.",
+     )
+     parser_enrichr.add_argument(
+         "-db",
+@@ -543,12 +637,20 @@ def main():
+         ),
+     )
+     parser_enrichr.add_argument(
+-        "-j",
+-        "--json",
++        "-e",
++        "--ensembl",
+         default=False,
+         action="store_true",
+         required=False,
+-        help="Returns results in json/dictionary format instead of data frame.",
++        help="Add this flag if genes are given as Ensembl gene IDs.",
++    )
++    parser_enrichr.add_argument(
++        "-csv",
++        "--csv",
++        default=True,
++        action="store_false",
++        required=False,
++        help="Returns results in csv format instead of json.",
+     )
+     parser_enrichr.add_argument(
+         "-o",
+@@ -560,6 +662,23 @@ def main():
+             "Default: Standard out."
+         ),
+     )
++    parser_enrichr.add_argument(
++        "-g",
++        "--genes",
++        type=str,
++        nargs="+",
++        required=False,
++        dest="genes_deprecated",
++        help="DEPRECATED - use positional argument instead. List of gene symbols or Ensembl gene IDs to perform enrichment analysis on.",
++    )
++    parser_enrichr.add_argument(
++        "-j",
++        "--json",
++        default=False,
++        action="store_true",
++        required=False,
++        help="DEPRECATED - json is now the default output format (convert to csv using flag [--csv]).",
++    )
+ 
+     ## gget archs4 subparser
+     archs4_desc = "Find the most correlated genes or the tissue expression atlas of a gene using data from the human and mouse RNA-seq database ARCHS4 (https://maayanlab.cloud/archs4/)."
+@@ -572,11 +691,19 @@ def main():
+     )
+     # archs4 parser arguments
+     parser_archs4.add_argument(
+-        "-g",
+-        "--gene",
++        "gene",
+         type=str,
+-        required=True,
+-        help="Short name (gene symbol) of gene of interest (str), e.g. 'STAT4'.",
++        nargs="?",
++        default=None,
++        help="Gene symbol or Ensembl gene ID of gene of interest (str), e.g. 'STAT4'.",
++    )
++    parser_archs4.add_argument(
++        "-e",
++        "--ensembl",
++        default=False,
++        action="store_true",
++        required=False,
++        help="Add this flag if gene is given as an Ensembl gene ID.",
+     )
+     parser_archs4.add_argument(
+         "-w",
+@@ -625,12 +752,12 @@ def main():
+         help="'human' (default) or 'mouse'. (Only for tissue expression atlas.)",
+     )
+     parser_archs4.add_argument(
+-        "-j",
+-        "--json",
+-        default=False,
+-        action="store_true",
++        "-csv",
++        "--csv",
++        default=True,
++        action="store_false",
+         required=False,
+-        help="Returns results in json/dictionary format instead of data frame.",
++        help="Returns results in csv format instead of json.",
+     )
+     parser_archs4.add_argument(
+         "-o",
+@@ -642,16 +769,52 @@ def main():
+             "Default: Standard out."
+         ),
+     )
++    parser_archs4.add_argument(
++        "-g",
++        "--gene",
++        type=str,
++        required=False,
++        dest="gene_deprecated",
++        help="DEPRECATED - use positional argument instead. Gene symbol or Ensembl gene ID of gene of interest (str), e.g. 'STAT4'.",
++    )
++    parser_archs4.add_argument(
++        "-j",
++        "--json",
++        default=False,
++        action="store_true",
++        required=False,
++        help="DEPRECATED - json is now the default output format (convert to csv using flag [--csv]).",
++    )
+ 
+-    ## Show help when no arguments are given
++    ### Define return values
++    # Show help when no arguments are given
+     if len(sys.argv) == 1:
+         parent_parser.print_help(sys.stderr)
+         sys.exit(1)
+ 
++    # Show  module specific help if only module but no further arguments are given
++    command_to_parser = {
++        "muscle": parser_muscle,
++        "ref": parser_ref,
++        "search": parser_gget,
++        "seq": parser_seq,
++        "info": parser_info,
++        "blast": parser_blast,
++        "blat": parser_blat,
++        "enrichr": parser_enrichr,
++        "archs4": parser_archs4,
++    }
++
++    if len(sys.argv) == 2:
++        if sys.argv[1] in command_to_parser:
++            command_to_parser[sys.argv[1]].print_help(sys.stderr)
++        else:
++            parent_parser.print_help(sys.stderr)
++        sys.exit(1)
++
+     args = parent_parser.parse_args()
+ 
+-    ### Define return values
+-    ## Help return
++    # Help return
+     if args.help:
+         # Retrieve all subparsers from the parent parser
+         subparsers_actions = [
+@@ -671,26 +834,39 @@ def main():
+ 
+     ## blat return
+     if args.command == "blat":
++        # Handle deprecated flags for backwards compatibility
++        if args.seq_deprecated and args.sequence:
++            logging.warning(
++                "The [-seq][--sequence] argument is deprecated, using positional argument [sequence] instead."
++            )
++        if args.seq_deprecated and not args.sequence:
++            args.sequence = args.seq_deprecated
++            logging.warning(
++                "The [-seq][--sequence] argument is deprecated, please use positional argument [sequence] instead."
++            )
++        if not args.seq_deprecated and not args.sequence:
++            parser_blat.error("the following arguments are required: sequence")
++
+         # Run gget blast function
+         blat_results = blat(
+             sequence=args.sequence,
+             seqtype=args.seqtype,
+             assembly=args.assembly,
+-            json=args.json,
++            json=args.csv,
+         )
+ 
+         # Check if the function returned something
+         if not isinstance(blat_results, type(None)):
+             # Save blat results if args.out specified
+-            if args.out and not args.json:
++            if args.out and not args.csv:
+                 # Create saving directory
+                 directory = "/".join(args.out.split("/")[:-1])
+                 if directory != "":
+                     os.makedirs(directory, exist_ok=True)
+-                # Save data frame to csv
++                # Save to csv
+                 blat_results.to_csv(args.out, index=False)
+ 
+-            if args.out and args.json:
++            if args.out and args.csv:
+                 # Create saving directory
+                 directory = "/".join(args.out.split("/")[:-1])
+                 if directory != "":
+@@ -700,13 +876,26 @@ def main():
+                     json.dump(blat_results, f, ensure_ascii=False, indent=4)
+ 
+             # Print results if no directory specified
+-            if not args.out and not args.json:
++            if not args.out and not args.csv:
+                 blat_results.to_csv(sys.stdout, index=False)
+-            if not args.out and args.json:
++            if not args.out and args.csv:
+                 print(json.dumps(blat_results, ensure_ascii=False, indent=4))
+ 
+     ## blast return
+     if args.command == "blast":
++        # Handle deprecated flags for backwards compatibility
++        if args.seq_deprecated and args.sequence:
++            logging.warning(
++                "The [-seq][--sequence] argument is deprecated, using positional argument [sequence] instead."
++            )
++        if args.seq_deprecated and not args.sequence:
++            args.sequence = args.seq_deprecated
++            logging.warning(
++                "The [-seq][--sequence] argument is deprecated, please use positional argument [sequence] instead."
++            )
++        if not args.seq_deprecated and not args.sequence:
++            parser_blast.error("the following arguments are required: sequence")
++
+         # Run gget blast function
+         blast_results = blast(
+             sequence=args.sequence,
+@@ -717,21 +906,21 @@ def main():
+             low_comp_filt=args.low_comp_filt,
+             megablast=args.megablast_off,
+             verbose=args.quiet,
+-            json=args.json,
++            json=args.csv,
+         )
+ 
+         # Check if the function returned something
+         if not isinstance(blast_results, type(None)):
+             # Save blast results if args.out specified
+-            if args.out and not args.json:
++            if args.out and not args.csv:
+                 # Create saving directory
+                 directory = "/".join(args.out.split("/")[:-1])
+                 if directory != "":
+                     os.makedirs(directory, exist_ok=True)
+-                # Save data frame to csv
++                # Save to csv
+                 blast_results.to_csv(args.out, index=False)
+ 
+-            if args.out and args.json:
++            if args.out and args.csv:
+                 # Create saving directory
+                 directory = "/".join(args.out.split("/")[:-1])
+                 if directory != "":
+@@ -741,34 +930,48 @@ def main():
+                     json.dump(blast_results, f, ensure_ascii=False, indent=4)
+ 
+             # Print results if no directory specified
+-            if not args.out and not args.json:
++            if not args.out and not args.csv:
+                 blast_results.to_csv(sys.stdout, index=False)
+-            if not args.out and args.json:
++            if not args.out and args.csv:
+                 print(json.dumps(blast_results, ensure_ascii=False, indent=4))
+ 
+     ## archs4 return
+     if args.command == "archs4":
++        # Handle deprecated flags for backwards compatibility
++        if args.gene_deprecated and args.gene:
++            logging.warning(
++                "The [-g][--gene] argument is deprecated, using positional argument [gene] instead."
++            )
++        if args.gene_deprecated and not args.gene:
++            args.gene = args.gene_deprecated
++            logging.warning(
++                "The [-g][--gene] argument is deprecated, please use positional argument [gene] instead."
++            )
++        if not args.gene_deprecated and not args.gene:
++            parser_archs4.error("the following arguments are required: gene")
++
+         # Run gget archs4 function
+         archs4_results = archs4(
+             gene=args.gene,
++            ensembl=args.ensembl,
+             which=args.which,
+             gene_count=args.gene_count,
+             species=args.species,
+-            json=args.json,
++            json=args.csv,
+         )
+ 
+         # Check if the function returned something
+         if not isinstance(archs4_results, type(None)):
+             # Save archs4 results if args.out specified
+-            if args.out and not args.json:
++            if args.out and not args.csv:
+                 # Create saving directory
+                 directory = "/".join(args.out.split("/")[:-1])
+                 if directory != "":
+                     os.makedirs(directory, exist_ok=True)
+-                # Save data frame to csv
++                # Save to csv
+                 archs4_results.to_csv(args.out, index=False)
+ 
+-            if args.out and args.json:
++            if args.out and args.csv:
+                 # Create saving directory
+                 directory = "/".join(args.out.split("/")[:-1])
+                 if directory != "":
+@@ -778,13 +981,26 @@ def main():
+                     json.dump(archs4_results, f, ensure_ascii=False, indent=4)
+ 
+             # Print results if no directory specified
+-            if not args.out and not args.json:
++            if not args.out and not args.csv:
+                 archs4_results.to_csv(sys.stdout, index=False)
+-            if not args.out and args.json:
++            if not args.out and args.csv:
+                 print(json.dumps(archs4_results, ensure_ascii=False, indent=4))
+ 
+     ## muscle return
+     if args.command == "muscle":
++        # Handle deprecated flags for backwards compatibility
++        if args.fasta_deprecated and args.fasta:
++            logging.warning(
++                "The [-fa][--fasta] argument is deprecated, using positional argument [fasta] instead."
++            )
++        if args.fasta_deprecated and not args.fasta:
++            args.fasta = args.fasta_deprecated
++            logging.warning(
++                "The [-fa][--fasta] argument is deprecated, please use positional argument [fasta] instead."
++            )
++        if not args.fasta_deprecated and not args.fasta:
++            parser_muscle.error("the following arguments are required: fasta")
++
+         muscle(fasta=args.fasta, super5=args.super5, out=args.out)
+ 
+     ## ref return
+@@ -797,32 +1013,37 @@ def main():
+             for species in species_list:
+                 print(species)
+ 
++        # Handle deprecated flags for backwards compatibility
++        if args.species_deprecated and args.species:
++            logging.warning(
++                "The [-s][--species] argument is deprecated, using positional argument [species] instead."
++            )
++        if args.species_deprecated and not args.species:
++            args.species = args.species_deprecated
++            logging.warning(
++                "The [-s][--species] argument is deprecated, please use positional argument [species] instead."
++            )
++
+         # Raise error if neither species nor list flag passed
+         if args.species is None and args.list_species is False:
+-            parser_ref.error(
+-                "\n\nThe following arguments are required to fetch FTPs: -s/--species, e.g. '-s homo_sapiens'\n\n"
+-                "gget ref --list -> lists out all available species. "
+-                "Combine with -r (int) to define specific Ensembl release (default: latest release)."
++            parser_ref.error("the following arguments are required: species \n"
++                "'gget ref --list_species' -> lists out all available species. \n"
++                "Combine with '-r [int]' to define a specific Ensembl release (default: latest release). "
+             )
+ 
+         ## Clean up 'which' entry if passed
+-        if type(args.which) != str:
+-            which_clean = []
+-            # Split by comma (spaces are automatically split by nargs:"+")
+-            for which in args.which:
+-                which_clean.append(which.split(","))
+-            # Flatten which_clean
+-            which_clean_final = [item for sublist in which_clean for item in sublist]
+-            # Remove empty strings resulting from split
+-            while "" in which_clean_final:
+-                which_clean_final.remove("")
+-        else:
+-            which_clean_final = args.which
++        # Split by comma
++        which_clean = args.which.split(",")
+ 
+         if args.species:
+ 
+             # Query Ensembl for requested FTPs using function ref
+-            ref_results = ref(args.species, which_clean_final, args.release, args.ftp)
++            ref_results = ref(
++                species=args.species,
++                which=which_clean,
++                release=args.release,
++                ftp=args.ftp,
++            )
+ 
+             # Print or save list of URLs (ftp=True)
+             if args.ftp:
+@@ -906,6 +1127,18 @@ def main():
+ 
+     ## search return
+     if args.command == "search":
++        # Handle deprecated flags for backwards compatibility
++        if args.sw_deprecated and args.searchwords:
++            logging.warning(
++                "The [-sw][--searchwords] argument is deprecated, using positional argument [searchwords] instead."
++            )
++        if args.sw_deprecated and not args.searchwords:
++            args.searchwords = args.sw_deprecated
++            logging.warning(
++                "The [-sw][--searchwords] argument is deprecated, please use positional argument [searchwords] instead."
++            )
++        if not args.sw_deprecated and not args.searchwords:
++            parser_gget.error("the following arguments are required: searchwords")
+ 
+         ## Clean up args.searchwords
+         sw_clean = []
+@@ -922,22 +1155,23 @@ def main():
+         gget_results = search(
+             sw_clean_final,
+             args.species,
++            id_type=args.id_type,
+             seqtype=args.seqtype,
+             andor=args.andor,
+             limit=args.limit,
+-            json=args.json,
++            json=args.csv,
+         )
+ 
+         # Save search results if args.out specified
+-        if args.out and not args.json:
++        if args.out and not args.csv:
+             # Create saving directory
+             directory = "/".join(args.out.split("/")[:-1])
+             if directory != "":
+                 os.makedirs(directory, exist_ok=True)
+-            # Save data frame to csv
++            # Save to csv
+             gget_results.to_csv(args.out, index=False)
+ 
+-        if args.out and args.json:
++        if args.out and args.csv:
+             # Create saving directory
+             directory = "/".join(args.out.split("/")[:-1])
+             if directory != "":
+@@ -947,13 +1181,25 @@ def main():
+                 json.dump(gget_results, f, ensure_ascii=False, indent=4)
+ 
+         # Print results if no directory specified
+-        if not args.out and not args.json:
++        if not args.out and not args.csv:
+             gget_results.to_csv(sys.stdout, index=False)
+-        if not args.out and args.json:
++        if not args.out and args.csv:
+             print(json.dumps(gget_results, ensure_ascii=False, indent=4))
+ 
+     ## enrichr return
+     if args.command == "enrichr":
++        # Handle deprecated flags for backwards compatibility
++        if args.genes_deprecated and args.genes:
++            logging.warning(
++                "The [-g][--genes] argument is deprecated, using positional argument [genes] instead."
++            )
++        if args.genes_deprecated and not args.genes:
++            args.genes = args.genes_deprecated
++            logging.warning(
++                "The [-g][--genes] argument is deprecated, please use positional argument [genes] instead."
++            )
++        if not args.genes_deprecated and not args.genes:
++            parser_enrichr.error("the following arguments are required: genes")
+ 
+         ## Clean up args.genes
+         genes_clean = []
+@@ -968,21 +1214,24 @@ def main():
+ 
+         # Submit Enrichr query
+         enrichr_results = enrichr(
+-            genes=genes_clean_final, database=args.database, json=args.json
++            genes=genes_clean_final,
++            database=args.database,
++            ensembl=args.ensembl,
++            json=args.csv,
+         )
+ 
+         # Check if the function returned something
+         if not isinstance(enrichr_results, type(None)):
+             # Save enrichr results if args.out specified
+-            if args.out and not args.json:
++            if args.out and not args.csv:
+                 # Create saving directory
+                 directory = "/".join(args.out.split("/")[:-1])
+                 if directory != "":
+                     os.makedirs(directory, exist_ok=True)
+-                # Save data frame to csv
++                # Save to csv
+                 enrichr_results.to_csv(args.out, index=False)
+ 
+-            if args.out and args.json:
++            if args.out and args.csv:
+                 # Create saving directory
+                 directory = "/".join(args.out.split("/")[:-1])
+                 if directory != "":
+@@ -992,13 +1241,25 @@ def main():
+                     json.dump(enrichr_results, f, ensure_ascii=False, indent=4)
+ 
+             # Print results if no directory specified
+-            if not args.out and not args.json:
++            if not args.out and not args.csv:
+                 enrichr_results.to_csv(sys.stdout, index=False)
+-            if not args.out and args.json:
++            if not args.out and args.csv:
+                 print(json.dumps(enrichr_results, ensure_ascii=False, indent=4))
+ 
+     ## info return
+     if args.command == "info":
++        # Handle deprecated flags for backwards compatibility
++        if args.id_deprecated and args.ens_ids:
++            logging.warning(
++                "The [-id][--ens_ids] argument is deprecated, using positional argument [ens_ids] instead."
++            )
++        if args.id_deprecated and not args.ens_ids:
++            args.ens_ids = args.id_deprecated
++            logging.warning(
++                "The [-id][--genes] argument is deprecated, please use positional argument [ens_ids] instead."
++            )
++        if not args.id_deprecated and not args.ens_ids:
++            parser_info.error("the following arguments are required: ens_ids")
+ 
+         ## Clean up args.ens_ids
+         ids_clean = []
+@@ -1013,21 +1274,21 @@ def main():
+ 
+         # Look up requested Ensembl IDs
+         info_results = info(
+-            ids_clean_final, expand=args.expand, json=args.json, verbose=args.quiet
++            ids_clean_final, expand=args.expand, json=args.csv, verbose=args.quiet
+         )
+ 
+         # Check if the function returned something
+         if not isinstance(info_results, type(None)):
+             # Save info results if args.out specified
+-            if args.out and not args.json:
++            if args.out and not args.csv:
+                 # Create saving directory
+                 directory = "/".join(args.out.split("/")[:-1])
+                 if directory != "":
+                     os.makedirs(directory, exist_ok=True)
+-                # Save data frame to csv
++                # Save to csv
+                 info_results.to_csv(args.out, index=False)
+ 
+-            if args.out and args.json:
++            if args.out and args.csv:
+                 # Create saving directory
+                 directory = "/".join(args.out.split("/")[:-1])
+                 if directory != "":
+@@ -1037,13 +1298,25 @@ def main():
+                     json.dump(info_results, f, ensure_ascii=False, indent=4)
+ 
+             # Print results if no directory specified
+-            if not args.out and not args.json:
++            if not args.out and not args.csv:
+                 info_results.to_csv(sys.stdout, index=False)
+-            if not args.out and args.json:
++            if not args.out and args.csv:
+                 print(json.dumps(info_results, ensure_ascii=False, indent=4))
+ 
+     ## seq return
+     if args.command == "seq":
++        # Handle deprecated flags for backwards compatibility
++        if args.id_deprecated and args.ens_ids:
++            logging.warning(
++                "The [-id][--ens_ids] argument is deprecated, using positional argument [ens_ids] instead."
++            )
++        if args.id_deprecated and not args.ens_ids:
++            args.ens_ids = args.id_deprecated
++            logging.warning(
++                "The [-id][--ens_ids] argument is deprecated, please use positional argument [ens_ids] instead."
++            )
++        if not args.id_deprecated and not args.ens_ids:
++            parser_seq.error("the following arguments are required: ens_ids")
+ 
+         ## Clean up args.ens_ids
+         ids_clean = []
+@@ -1057,7 +1330,12 @@ def main():
+             ids_clean_final.remove("")
+ 
+         # Look up requested Ensembl IDs
+-        seq_results = seq(ids_clean_final, seqtype=args.seqtype, isoforms=args.isoforms)
++        seq_results = seq(
++            ids_clean_final,
++            transcribe=args.transcribe,
++            seqtype=args.seqtype,
++            isoforms=args.isoforms,
++        )
+ 
+         # Save in specified directory if -o specified
+         if args.out and seq_results != None:
+diff --git a/tests/fixtures.py b/tests/fixtures.py
+index d0ddf86ec..f1655fbf6 100644
+--- a/tests/fixtures.py
++++ b/tests/fixtures.py
+@@ -2152,4 +2152,359 @@
+   'q1': 0.113644,
+   'median': 0.113644,
+   'q3': 7.00873,
+-  'max': 9.39521}]
+\ No newline at end of file
++  'max': 9.39521}]
++
++ARCHS4_PHF14_TISSUE_ENSEMBL_MOUSE = [['System.Digestive System.Stomach.GASTRIC EPITHELIAL CELL',
++  10.3364,
++  10.6656,
++  13.5345,
++  13.5883,
++  13.7512],
++ ['System.Immune System.Lymphoid.PLASMACYTOID DENDRITIC CELL',
++  10.9426,
++  11.9425,
++  12.2635,
++  12.542,
++  12.9937],
++ ['System.Urogenital/Reproductive System.Ovary.OOCYTE',
++  9.77437,
++  11.7284,
++  12.2072,
++  12.4409,
++  13.5022],
++ ['System.Integumentary System.Skin.HAIR FOLLICLE',
++  10.913,
++  11.571,
++  12.0136,
++  12.1501,
++  12.4316],
++ ['System.Immune System.Granulocytic.GRANULOCYTE',
++  10.2866,
++  10.9375,
++  11.7813,
++  12.0123,
++  12.2281],
++ ['System.Cardiovascular System.Heart.VALVE',
++  11.3158,
++  11.66,
++  11.7177,
++  12.1369,
++  12.5274],
++ ['System.Nervous System.CNS.CEREBRAL CORTEX',
++  10.0307,
++  10.7979,
++  11.7163,
++  12.1803,
++  12.4308],
++ ['System.Immune System.Myeloid.MICROGLIA',
++  9.0385,
++  10.4892,
++  11.544,
++  12.8861,
++  14.6146],
++ ['System.Immune System.Thymus.THYMOCYTE',
++  10.9338,
++  11.274,
++  11.4807,
++  11.6606,
++  13.1481],
++ ['System.Immune System.Thymus.THYMUS',
++  0.83194,
++  10.9716,
++  11.4084,
++  11.7616,
++  13.7167],
++ ['System.Digestive System.Esophagus.ESOPHAGUS',
++  11.2095,
++  11.2747,
++  11.4059,
++  11.5399,
++  11.6135],
++ ['System.Immune System.Lymphoid.TLYMPHOCYTE',
++  10.7834,
++  11.1336,
++  11.4012,
++  11.8192,
++  11.91],
++ ['System.Nervous System.PNS.MOTOR NEURON',
++  9.39206,
++  10.9048,
++  11.3857,
++  11.8327,
++  12.7899],
++ ['System.Nervous System.CNS.SPINAL CORD',
++  8.88727,
++  10.5466,
++  11.3742,
++  12.7357,
++  13.5595],
++ ['System.Integumentary System.Skin.KERATINOCYTE',
++  10.3648,
++  10.7897,
++  11.2197,
++  11.425,
++  11.6112],
++ ['System.Nervous System.CNS.CEREBELLUM',
++  8.08826,
++  11.054,
++  11.1833,
++  11.325,
++  14.4509],
++ ['System.Connective Tissue.Bone.STROMAL CELL',
++  7.45015,
++  10.2507,
++  11.032,
++  11.8354,
++  13.3632],
++ ['System.Respiratory System.Trachea.TRACHEA',
++  10.5589,
++  10.8143,
++  10.9828,
++  11.192,
++  11.5517],
++ ['System.Urogenital/Reproductive System.Ovary.OVARY',
++  10.593,
++  10.6962,
++  10.9761,
++  11.2443,
++  11.4431],
++ ['System.Immune System.Lymphoid.BLYMPHOCYTE',
++  10.2722,
++  10.609,
++  10.9315,
++  11.2116,
++  12.1853],
++ ['System.Connective Tissue.Adipose tissue.ADIPOCYTE',
++  8.81144,
++  10.4429,
++  10.8881,
++  11.9295,
++  13.5695],
++ ['System.Nervous System.PNS.SENSORY NEURON',
++  9.77154,
++  9.95376,
++  10.8359,
++  11.9416,
++  12.9289],
++ ['System.Digestive System.Pancreas.ALPHA CELL',
++  10.5208,
++  10.8028,
++  10.8351,
++  10.9084,
++  11.1095],
++ ['System.Immune System.Granulocytic.NEUTROPHIL',
++  9.89951,
++  10.5629,
++  10.8095,
++  10.945,
++  12.635],
++ ['System.Digestive System.Pancreas.BETA CELL',
++  10.0099,
++  10.5676,
++  10.7833,
++  11.287,
++  13.9697],
++ ['System.Immune System.Spleen.SPLEEN',
++  9.49178,
++  10.4209,
++  10.7793,
++  11.0758,
++  13.756],
++ ['System.Urogenital/Reproductive System.Kidney.PODOCYTE',
++  9.26513,
++  10.3084,
++  10.7497,
++  10.8675,
++  12.111],
++ ['System.Urogenital/Reproductive System.Testis.TESTIS',
++  9.23714,
++  9.97931,
++  10.7442,
++  11.2031,
++  12.6349],
++ ['System.Integumentary System.Skin.BASAL CELL',
++  10.0648,
++  10.581,
++  10.7268,
++  10.8014,
++  10.851],
++ ['System.Integumentary System.Skin.SKIN',
++  9.53614,
++  10.2517,
++  10.697,
++  11.396,
++  13.0547],
++ ['System.Integumentary System.Skin.SKIN',
++  9.53614,
++  10.2517,
++  10.697,
++  11.396,
++  13.0547],
++ ['System.Muscular System.Skeletal muscle.SKELETAL MUSCLE',
++  9.24949,
++  10.4348,
++  10.6528,
++  10.9214,
++  12.4077],
++ ['System.Digestive System.Intestine.SMALL INTESTINE',
++  9.74039,
++  10.3983,
++  10.6366,
++  10.7752,
++  13.1268],
++ ['System.Muscular System.Skeletal muscle.MYOBLAST',
++  9.63822,
++  10.3927,
++  10.573,
++  10.8103,
++  11.6511],
++ ['System.Cardiovascular System.Heart.VENTRICLE',
++  9.33541,
++  10.2161,
++  10.5386,
++  10.9877,
++  11.9934],
++ ['System.Immune System.Lymphoid.PLASMA CELL',
++  9.62591,
++  10.1868,
++  10.5293,
++  10.5971,
++  11.0784],
++ ['System.Nervous System.CNS.ASTROCYTE',
++  9.94011,
++  10.1293,
++  10.4452,
++  10.6082,
++  11.7001],
++ ['System.Nervous System.CNS.NEURON',
++  0.246494,
++  9.16489,
++  10.4155,
++  11.2993,
++  13.8521],
++ ['System.Urogenital/Reproductive System.Breast.BREAST',
++  9.35063,
++  10.3059,
++  10.3956,
++  10.4571,
++  11.4817],
++ ['System.Nervous System.CNS.OLIGODENDROCYTE',
++  10.0124,
++  10.225,
++  10.3712,
++  11.3676,
++  12.7712],
++ ['System.Digestive System.Liver.HEPATOCYTE',
++  8.92874,
++  10.1319,
++  10.316,
++  10.5112,
++  11.051],
++ ['System.Nervous System.CNS.MEDULLA',
++  0.957962,
++  9.76882,
++  10.2705,
++  10.9613,
++  13.5791],
++ ['System.Digestive System.Intestine.COLON',
++  9.42633,
++  10.046,
++  10.2574,
++  10.5613,
++  13.609],
++ ['System.Urogenital/Reproductive System.Breast.MAMMARY GLAND',
++  2.35867,
++  9.92542,
++  10.2176,
++  10.4783,
++  10.9015],
++ ['System.Urogenital/Reproductive System.Kidney.KIDNEY',
++  6.39706,
++  9.7324,
++  10.1733,
++  11.0727,
++  13.8009],
++ ['System.Digestive System.Intestine.INTESTINAL EPITHELIAL CELL',
++  9.30799,
++  9.95244,
++  10.1291,
++  10.4159,
++  12.117],
++ ['System.Cardiovascular System.Heart.HEART',
++  6.67041,
++  9.77643,
++  10.0697,
++  10.4639,
++  13.4169],
++ ['System.Connective Tissue.Adipose tissue.ADIPOSE',
++  9.05333,
++  9.78747,
++  9.9477,
++  10.2159,
++  13.5019],
++ ['System.Immune System.Myeloid.MACROPHAGE',
++  0.322419,
++  9.43173,
++  9.82842,
++  10.974,
++  13.3358],
++ ['System.Nervous System.Eye.RETINA',
++  0.473216,
++  8.80525,
++  9.59442,
++  10.2519,
++  13.0099],
++ ['System.Respiratory System.Lung.LUNG',
++  0.613514,
++  8.7642,
++  9.41318,
++  10.3441,
++  14.5515],
++ ['System.Integumentary System.Skin.FIBROBLAST',
++  0.0484499,
++  8.38515,
++  9.31101,
++  9.90215,
++  11.6294],
++ ['System.Digestive System.Liver.LIVER',
++  0.0779939,
++  8.39174,
++  8.64137,
++  8.98015,
++  13.0915],
++ ['System.Immune System.Myeloid.DENDRITIC CELL',
++  0.25897,
++  7.08382,
++  8.09501,
++  8.98825,
++  12.4484],
++ ['System.Digestive System.Pancreas.PANCREATIC ISLET',
++  0.204543,
++  6.73103,
++  7.9046,
++  9.25097,
++  12.9158],
++ ['System.Nervous System.CNS.MIDBRAIN',
++  0.253219,
++  5.52845,
++  7.53639,
++  8.8022,
++  12.3231],
++ ['System.Connective Tissue.Bone marrow.BONE MARROW',
++  0.0496937,
++  4.57985,
++  6.25979,
++  7.74479,
++  12.0477],
++ ['System.Nervous System.CNS.THALAMUS',
++  0.0604379,
++  0.594354,
++  5.61607,
++  7.10306,
++  10.4063],
++ ['System.Nervous System.CNS.HYPOTHALAMUS',
++  0.0604379,
++  0.594354,
++  5.61607,
++  7.10306,
++  10.4063]]
+\ No newline at end of file
+diff --git a/tests/test_gget_archs4.py b/tests/test_gget_archs4.py
+index 439cf189d..2907e5a82 100644
+--- a/tests/test_gget_archs4.py
++++ b/tests/test_gget_archs4.py
+@@ -6,6 +6,7 @@
+     ARCHS4_FUNDC1_TISSUE,
+     ARCHS4_FUNDC1_TISSUE_MOUSE,
+     ARCHS4_FUNDC1_TISSUE_JSON,
++    ARCHS4_PHF14_TISSUE_ENSEMBL_MOUSE,
+ )
+ 
+ 
+@@ -36,6 +37,20 @@ def test_archs4_mouse_json(self):
+ 
+         self.assertListEqual(result_to_test, expected_result)
+ 
++    def test_archs4_mouse_json_ensembl(self):
++        result_to_test = archs4(
++            "ENSG00000106443", ensembl=True, gene_count=5, species="mouse", json=True
++        )
++        expected_result = [
++            {"gene_symbol": "MATR3", "pearson_correlation": 0.6124228239},
++            {"gene_symbol": "CEP290", "pearson_correlation": 0.5814768672},
++            {"gene_symbol": "BDP1", "pearson_correlation": 0.579123199},
++            {"gene_symbol": "U2SURP", "pearson_correlation": 0.5699368715},
++            {"gene_symbol": "THOC2", "pearson_correlation": 0.5634998083},
++        ]
++
++        self.assertListEqual(result_to_test, expected_result)
++
+     def test_archs4_tissue(self):
+         df = archs4("fuNdC1", which="tissue")
+         result_to_test = df.values.tolist()
+@@ -56,6 +71,17 @@ def test_archs4_tissue_mouse(self):
+ 
+         self.assertListEqual(result_to_test, expected_result)
+ 
++    def test_archs4_tissue_ensembl(self):
++        df = archs4("ENSG00000106443", ensembl=True, which="tissue", species="mouse")
++        result_to_test = df.values.tolist()
++        expected_result = ARCHS4_PHF14_TISSUE_ENSEMBL_MOUSE
++
++        self.assertListEqual(result_to_test, expected_result)
++
++    def test_archs4_bad_ensembl(self):
++        result = archs4("ENSG00000106443")
++        self.assertIsNone(result, "Invalid gene result is not None.")
++
+     def test_archs4_bad_gene(self):
+         result = archs4("BANANA")
+         self.assertIsNone(result, "Invalid gene result is not None.")
+diff --git a/tests/test_gget_enrichr.py b/tests/test_gget_enrichr.py
+index 643648d90..5a51a1d7c 100644
+--- a/tests/test_gget_enrichr.py
++++ b/tests/test_gget_enrichr.py
+@@ -200,6 +200,283 @@ def test_enrichr_transcription(self):
+ 
+         self.assertListEqual(result_to_test, expected_result)
+ 
++    def test_enrichr_ensembl_ids(self):
++        df = enrichr(
++            [
++                "ENSG00000106443",
++                "ENSG00000102317",
++                "ENSG00000188895",
++                "ENSG00000135365",
++            ],
++            database="ontology",
++            ensembl=True,
++        )
++        result_to_test = df.values.tolist()
++        expected_result = [
++            [
++                1,
++                "histone H3-K14 acetylation (GO:0044154)",
++                0.0013993412035435105,
++                1110.5555555555557,
++                7298.29760572189,
++                ["PHF14"],
++                0.025388147590576983,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                2,
++                "positive regulation of mRNA splicing, via spliceosome (GO:0048026)",
++                0.003595357627375994,
++                391.7450980392157,
++                2204.7852142154165,
++                ["RBM3"],
++                0.025388147590576983,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                3,
++                "histone H4-K16 acetylation (GO:0043984)",
++                0.0037948161126764622,
++                369.962962962963,
++                2062.2177011886433,
++                ["MSL1"],
++                0.025388147590576983,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                4,
++                "positive regulation of mRNA processing (GO:0050685)",
++                0.004592351033521324,
++                302.6363636363636,
++                1629.2014564159526,
++                ["RBM3"],
++                0.025388147590576983,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                5,
++                "positive regulation of RNA splicing (GO:0033120)",
++                0.0061859857715872765,
++                221.84444444444443,
++                1128.183023929502,
++                ["RBM3"],
++                0.025388147590576983,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                6,
++                "regulation of cellular amide metabolic process (GO:0034248)",
++                0.006385055602597088,
++                214.67741935483872,
++                1084.93568598441,
++                ["RBM3"],
++                0.025388147590576983,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                7,
++                "histone H3 acetylation (GO:0043966)",
++                0.008374110589681004,
++                162.2357723577236,
++                775.9104929668098,
++                ["PHF14"],
++                0.025388147590576983,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                8,
++                "posttranscriptional regulation of gene expression (GO:0010608)",
++                0.009168896311972097,
++                147.78518518518518,
++                693.3989791915002,
++                ["RBM3"],
++                0.025388147590576983,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                9,
++                "histone H4 acetylation (GO:0043967)",
++                0.009566110051223143,
++                141.4822695035461,
++                657.8258626058753,
++                ["MSL1"],
++                0.025388147590576983,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                10,
++                "regulation of cellular protein metabolic process (GO:0032268)",
++                0.009764672150221917,
++                138.52777777777777,
++                641.2429069487843,
++                ["RBM3"],
++                0.025388147590576983,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                11,
++                "positive regulation of cellular amide metabolic process (GO:0034250)",
++                0.01610291644199292,
++                82.98333333333333,
++                342.6178422869891,
++                ["RBM3"],
++                0.03759938901014196,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                12,
++                "regulation of mRNA splicing, via spliceosome (GO:0048024)",
++                0.017880053832220178,
++                74.55805243445693,
++                300.0267846683708,
++                ["RBM3"],
++                0.03759938901014196,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                13,
++                "positive regulation of translation (GO:0045727)",
++                0.01985182675975813,
++                66.993265993266,
++                262.5773759432504,
++                ["RBM3"],
++                0.03759938901014196,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                14,
++                "positive regulation of cellular protein metabolic process (GO:0032270)",
++                0.020245824851614903,
++                65.66006600660066,
++                256.06156447186925,
++                ["RBM3"],
++                0.03759938901014196,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                15,
++                "positive regulation of macromolecule biosynthetic process (GO:0010557)",
++                0.02555318334636167,
++                51.739583333333336,
++                189.7287094266052,
++                ["RBM3"],
++                0.04279863436552726,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                16,
++                "RNA metabolic process (GO:0016070)",
++                0.026337621148016778,
++                50.16161616161616,
++                182.4256036925459,
++                ["RBM3"],
++                0.04279863436552726,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                17,
++                "regulation of translation (GO:0006417)",
++                0.03512995315402264,
++                37.32391713747646,
++                124.9866440992687,
++                ["RBM3"],
++                0.048605407652638336,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                18,
++                "RNA processing (GO:0006396)",
++                0.03532465949288908,
++                37.1123595505618,
++                124.0730751467649,
++                ["RBM3"],
++                0.048605407652638336,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                19,
++                "positive regulation of cellular biosynthetic process (GO:0031328)",
++                0.0355193363615434,
++                36.90316573556797,
++                123.17088604991437,
++                ["RBM3"],
++                0.048605407652638336,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                20,
++                "regulation of transcription by RNA polymerase II (GO:0006357)",
++                0.0626874001004503,
++                8.072595281306715,
++                22.35781796909627,
++                ["PHF14", "PHF21A"],
++                0.0814936201305854,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                21,
++                "gene expression (GO:0010467)",
++                0.069326209353562,
++                18.442253521126762,
++                49.221125054940394,
++                ["RBM3"],
++                0.08583244967583867,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                22,
++                "regulation of cellular macromolecule biosynthetic process (GO:2000112)",
++                0.09037183175546923,
++                13.939329050678086,
++                33.5076749781881,
++                ["RBM3"],
++                0.10510467284470977,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                23,
++                "positive regulation of gene expression (GO:0010628)",
++                0.09297721059339711,
++                13.523908523908524,
++                32.12470398208089,
++                ["RBM3"],
++                0.10510467284470977,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                24,
++                "negative regulation of transcription by RNA polymerase II (GO:0000122)",
++                0.12994970041059192,
++                9.425573450463641,
++                19.233898922273635,
++                ["PHF21A"],
++                0.14077884211147457,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                25,
++                "negative regulation of transcription, DNA-templated (GO:0045892)",
++                0.17655229057751712,
++                6.705033438929954,
++                11.62745450199778,
++                ["PHF21A"],
++                0.18361438220061782,
++                "GO_Biological_Process_2021",
++            ],
++            [
++                26,
++                "regulation of transcription, DNA-templated (GO:0006355)",
++                0.3787814091118562,
++                2.6382820627136274,
++                2.5612336660956663,
++                ["PHF14"],
++                0.3787814091118562,
++                "GO_Biological_Process_2021",
++            ],
++        ]
++
++        self.assertListEqual(result_to_test, expected_result)
++
+     def test_enrichr_ontology(self):
+         df = enrichr(
+             [
+diff --git a/tests/test_gget_info.py b/tests/test_gget_info.py
+index 586ab9a9b..4fc20d8b3 100644
+--- a/tests/test_gget_info.py
++++ b/tests/test_gget_info.py
+@@ -29,6 +29,12 @@ def test_info_WB_gene(self):
+                 -1,
+                 6559466,
+                 6562428,
++                ["T14E8.4.1"],
++                ["protein_coding"],
++                [unittest.mock.ANY],
++                [-1],
++                [6559466],
++                [6562428],
+             ]
+         ]
+         self.assertListEqual(result_to_test, expected_result)
+@@ -54,6 +60,72 @@ def test_info_WB_transcript(self):
+                 -1,
+                 6559466,
+                 6562428,
++                [
++                    "T14E8.4.1.e1",
++                    "T14E8.4.1.e2",
++                    "T14E8.4.1.e3",
++                    "T14E8.4.1.e4",
++                    "T14E8.4.1.e5",
++                    "T14E8.4.1.e6",
++                    "T14E8.4.1.e7",
++                    "T14E8.4.1.e8",
++                    "T14E8.4.1.e9",
++                ],
++                [
++                    6562330,
++                    6562225,
++                    6562110,
++                    6561817,
++                    6561252,
++                    6560727,
++                    6560492,
++                    6560197,
++                    6559466,
++                ],
++                [
++                    6562428,
++                    6562286,
++                    6562183,
++                    6562059,
++                    6561378,
++                    6561206,
++                    6560671,
++                    6560443,
++                    6559667,
++                ],
++                [
++                    "T14E8.4.1.e1",
++                    "T14E8.4.1.e2",
++                    "T14E8.4.1.e3",
++                    "T14E8.4.1.e4",
++                    "T14E8.4.1.e5",
++                    "T14E8.4.1.e6",
++                    "T14E8.4.1.e7",
++                    "T14E8.4.1.e8",
++                    "T14E8.4.1.e9",
++                ],
++                [
++                    6562330,
++                    6562225,
++                    6562110,
++                    6561817,
++                    6561252,
++                    6560727,
++                    6560492,
++                    6560197,
++                    6559466,
++                ],
++                [
++                    6562428,
++                    6562286,
++                    6562183,
++                    6562059,
++                    6561378,
++                    6561206,
++                    6560671,
++                    6560443,
++                    6559667,
++                ],
+             ]
+         ]
+         self.assertListEqual(result_to_test, expected_result)
+@@ -83,6 +155,12 @@ def test_info_FB_gene(self):
+                 -1,
+                 7956820,
+                 7968236,
++                ["FBtr0301675", "FBtr0071125", "FBtr0071126"],
++                ["protein_coding", "protein_coding", "protein_coding"],
++                ["sws-RC", "sws-RA", "sws-RB"],
++                [-1, -1, -1],
++                [7956820, 7956820, 7956820],
++                [7968236, 7968236, 7959369],
+             ]
+         ]
+         self.assertListEqual(result_to_test, expected_result)
+@@ -112,6 +190,12 @@ def test_info_gene(self):
+                 -1,
+                 108014596,
+                 108053462,
++                ["ENSMUST00000000001.5"],
++                ["protein_coding"],
++                ["Gnai3-201"],
++                [-1],
++                [108014596],
++                [108053462],
+             ]
+         ]
+         self.assertListEqual(result_to_test, expected_result)
+@@ -134,6 +218,12 @@ def test_info_gene_list_non_model(self):
+                 1,
+                 64990191,
+                 65000159,
++                ["ENSMMUT00000080640.1", "ENSMMUT00000100253.1"],
++                ["lncRNA", "lncRNA"],
++                [unittest.mock.ANY, unittest.mock.ANY],
++                [1, 1],
++                [64990191, 64993715],
++                [65000159, 64999625],
+             ],
+             [
+                 "ENSMMUG00000053116.1",
+@@ -146,6 +236,12 @@ def test_info_gene_list_non_model(self):
+                 -1,
+                 111461994,
+                 111475279,
++                ["ENSMMUT00000091015.1"],
++                ["protein_coding"],
++                [unittest.mock.ANY],
++                [-1],
++                [111461994],
++                [111475279],
+             ],
+             [
+                 "ENSMMUG00000021246.4",
+@@ -158,6 +254,56 @@ def test_info_gene_list_non_model(self):
+                 -1,
+                 98646979,
+                 98755023,
++                [
++                    "ENSMMUT00000029893.4",
++                    "ENSMMUT00000053619.2",
++                    "ENSMMUT00000104418.1",
++                    "ENSMMUT00000087615.1",
++                    "ENSMMUT00000103912.1",
++                    "ENSMMUT00000086824.1",
++                    "ENSMMUT00000029894.4",
++                    "ENSMMUT00000104481.1",
++                    "ENSMMUT00000090481.1",
++                    "ENSMMUT00000026408.4",
++                ],
++                [
++                    "protein_coding",
++                    "protein_coding",
++                    "protein_coding",
++                    "protein_coding",
++                    "protein_coding",
++                    "protein_coding",
++                    "protein_coding",
++                    "protein_coding",
++                    "protein_coding",
++                    "protein_coding",
++                ],
++                [unittest.mock.ANY, unittest.mock.ANY, unittest.mock.ANY, unittest.mock.ANY, unittest.mock.ANY, unittest.mock.ANY, unittest.mock.ANY, unittest.mock.ANY, unittest.mock.ANY, unittest.mock.ANY],
++                [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
++                [
++                    98646979,
++                    98646982,
++                    98646984,
++                    98646984,
++                    98646985,
++                    98662368,
++                    98663259,
++                    98690412,
++                    98737900,
++                    98738870,
++                ],
++                [
++                    98655536,
++                    98656674,
++                    98688669,
++                    98656968,
++                    98656865,
++                    98713982,
++                    98746548,
++                    98713982,
++                    98755023,
++                    98754684,
++                ],
+             ],
+         ]
+ 
+@@ -165,7 +311,7 @@ def test_info_gene_list_non_model(self):
+ 
+     def test_info_gene_list_non_model_json(self):
+         result_to_test = info(
+-            ["ENSMMUG00000054106.1", "ENSMMUG00000053116.1", "ENSMMUG00000021246.4"],
++            ["ENSMMUG00000054106.1", "ENSMMUG00000053116.1", "ENSMMUT00000091015.1"],
+             json=True,
+         )
+         expected_result = {
+@@ -190,6 +336,26 @@ def test_info_gene_list_non_model_json(self):
+                 "strand": 1,
+                 "start": 64990191,
+                 "end": 65000159,
++                "all_transcripts": [
++                    {
++                        "transcript_id": "ENSMMUT00000080640.1",
++                        "transcript_biotype": "lncRNA",
++                        "transcript_name": None,
++                        "transcript_strand": 1,
++                        "transcript_start": 64990191,
++                        "transcript_end": 65000159,
++                    },
++                    {
++                        "transcript_id": "ENSMMUT00000100253.1",
++                        "transcript_biotype": "lncRNA",
++                        "transcript_name": None,
++                        "transcript_strand": 1,
++                        "transcript_start": 64993715,
++                        "transcript_end": 64999625,
++                    },
++                ],
++                "all_exons": [],
++                "all_translations": [],
+             },
+             "ENSMMUG00000053116": {
+                 "ensembl_id": "ENSMMUG00000053116.1",
+@@ -212,136 +378,74 @@ def test_info_gene_list_non_model_json(self):
+                 "strand": -1,
+                 "start": 111461994,
+                 "end": 111475279,
+-            },
+-            "ENSMMUG00000021246": {
+-                "ensembl_id": "ENSMMUG00000021246.4",
+-                "uniprot_id": [
+-                    "A0A1D5QWP5",
+-                    "A0A5F7ZUG9",
+-                    "A0A5F7ZY65",
+-                    "A0A5F7ZZI0",
+-                    "A0A5F8AMK9",
+-                    "F7D2F4",
+-                    "F7HRJ1",
+-                    "F7HRJ3",
+-                    "G7MIX6",
++                "all_transcripts": [
++                    {
++                        "transcript_id": "ENSMMUT00000091015.1",
++                        "transcript_biotype": "protein_coding",
++                        "transcript_name": None,
++                        "transcript_strand": -1,
++                        "transcript_start": 111461994,
++                        "transcript_end": 111475279,
++                    }
+                 ],
++                "all_exons": [],
++                "all_translations": [],
++            },
++            "ENSMMUT00000091015": {
++                "ensembl_id": "ENSMMUT00000091015.1",
++                "uniprot_id": "A0A5F8AEA0",
+                 "ncbi_gene_id": None,
+                 "species": "macaca_mulatta",
+                 "assembly_name": "Mmul_10",
+-                "primary_gene_name": "HHATL",
++                "primary_gene_name": None,
+                 "ensembl_gene_name": None,
+-                "synonyms": ["HHATL", "HIGD1A"],
+-                "parent_gene": None,
+-                "protein_names": [
+-                    "HIG1 domain family member 1A isoform a",
+-                    "HIG1 domain-containing protein",
+-                    "Uncharacterized protein",
+-                ],
++                "synonyms": None,
++                "parent_gene": "ENSMMUG00000053116",
++                "protein_names": "Uncharacterized protein",
+                 "ensembl_description": None,
+-                "uniprot_description": [
+-                    None,
+-                    None,
+-                    None,
+-                    None,
+-                    None,
+-                    None,
+-                    None,
+-                    None,
+-                    None,
+-                ],
++                "uniprot_description": None,
+                 "ncbi_description": None,
+-                "object_type": "Gene",
++                "object_type": "Transcript",
+                 "biotype": "protein_coding",
+-                "canonical_transcript": "ENSMMUT00000029894.4",
+-                "seq_region_name": "2",
++                "canonical_transcript": None,
++                "seq_region_name": "3",
+                 "strand": -1,
+-                "start": 98646979,
+-                "end": 98755023,
++                "start": 111461994,
++                "end": 111475279,
++                "all_transcripts": [],
++                "all_exons": [
++                    {
++                        "exon_id": "ENSMMUE00000479945.1",
++                        "exon_start": 111475069,
++                        "exon_end": 111475279,
++                    },
++                    {
++                        "exon_id": "ENSMMUE00000514646.1",
++                        "exon_start": 111461994,
++                        "exon_end": 111468349,
++                    },
++                ],
++                "all_translations": [
++                    {
++                        "translation_id": "ENSMMUE00000479945.1",
++                        "translation_start": 111475069,
++                        "translation_end": 111475279,
++                    },
++                    {
++                        "translation_id": "ENSMMUE00000514646.1",
++                        "translation_start": 111461994,
++                        "translation_end": 111468349,
++                    },
++                ],
+             },
+         }
+ 
+         self.assertEqual(result_to_test, expected_result)
+ 
+-    def test_info_gene_expand(self):
+-        df = info("ENST00000673726", expand=True)
+-        # Drop NaN columns, since np.nan != np.nan
+-        result_to_test = df.dropna(axis=1).values.tolist()
+-        expected_result = [
+-            [
+-                "ENST00000673726.1",
+-                "A0A669KAY4",
+-                "homo_sapiens",
+-                "GRCh38",
+-                "PCSK9",
+-                "PCSK9-204",
+-                ["PCSK9"],
+-                "ENSG00000169174",
+-                "Proprotein convertase subtilisin/kexin type 9",
+-                "Transcript",
+-                "nonsense_mediated_decay",
+-                "1",
+-                1,
+-                55039447,
+-                55052694,
+-                [
+-                    "ENSE00003897031",
+-                    "ENSE00001279167",
+-                    "ENSE00001279161",
+-                    "ENSE00003897734",
+-                    "ENSE00003897397",
+-                    "ENSE00003897745",
+-                ],
+-                [55039447, 55043843, 55046523, 55051343, 55052278, 55052650],
+-                [55040044, 55044034, 55046646, 55051453, 55052411, 55052694],
+-                [
+-                    "ENSE00003897031",
+-                    "ENSE00001279167",
+-                    "ENSE00001279161",
+-                    "ENSE00003897734",
+-                    "ENSE00003897397",
+-                    "ENSE00003897745",
+-                ],
+-                [55039447, 55043843, 55046523, 55051343, 55052278, 55052650],
+-                [55040044, 55044034, 55046646, 55051453, 55052411, 55052694],
+-            ]
+-        ]
+-
+-        self.assertListEqual(result_to_test, expected_result)
+-
+     def test_info_transcript(self):
+         df = info("ENSMUST00000000001.1")
+         # Drop NaN columns, since np.nan != np.nan
+         result_to_test = df.dropna(axis=1).values.tolist()
+-        expected_result = [
+-            [
+-                "ENSMUST00000000001.5",
+-                "Q9DC51",
+-                "14679",
+-                "mus_musculus",
+-                "GRCm39",
+-                "Gnai3",
+-                "Gnai3-201",
+-                ["AI158965", "AW537698", "Galphai3", "Gnai-3", "Gnai3", "Hg1a"],
+-                "ENSMUSG00000000001",
+-                "Guanine nucleotide-binding protein G(i) subunit alpha-3 (G(i) alpha-3)",
+-                "FUNCTION: Heterotrimeric guanine nucleotide-binding proteins (G proteins) function as transducers downstream of G protein-coupled receptors (GPCRs) in numerous signaling cascades. The alpha chain contains the guanine nucleotide binding site and alternates between an active, GTP-bound state and an inactive, GDP-bound state. Signaling by an activated GPCR promotes GDP release and GTP binding. The alpha subunit has a low GTPase activity that converts bound GTP to GDP, thereby terminating the signal. Both GDP release and GTP hydrolysis are modulated by numerous regulatory proteins. Signaling is mediated via effector proteins, such as adenylate cyclase. Inhibits adenylate cyclase activity, leading to decreased intracellular cAMP levels. Stimulates the activity of receptor-regulated K(+) channels. The active GTP-bound form prevents the association of RGS14 with centrosomes and is required for the translocation of RGS14 from the cytoplasm to the plasma membrane. May play a role in cell division. {ECO:0000250|UniProtKB:P08754}.",
+-                "Predicted to enable several functions, including G-protein beta/gamma-subunit complex binding activity; GDP binding activity; and GTPase activating protein binding activity. Predicted to be involved in several processes, including positive regulation of NAD(P)H oxidase activity; positive regulation of superoxide anion generation; and positive regulation of vascular associated smooth muscle cell proliferation. Predicted to act upstream of or within G protein-coupled receptor signaling pathway. Located in Golgi apparatus. Is expressed in early conceptus; inner ear; and oocyte. Orthologous to human GNAI3 (G protein subunit alpha i3). [provided by Alliance of Genome Resources, Apr 2022]",
+-                "Transcript",
+-                "protein_coding",
+-                "3",
+-                -1,
+-                108014596,
+-                108053462,
+-            ]
+-        ]
+-
+-        self.assertListEqual(result_to_test, expected_result)
+-
+-    def test_info_transcript_expand(self):
+-        df = info("ENSMUST00000000001.1", expand=True)
+-        # Drop NaN columns, since np.nan != np.nan
+-        result_to_test = df.dropna(axis=1).values.tolist()
+         expected_result = [
+             [
+                 "ENSMUST00000000001.5",
+@@ -363,15 +467,15 @@ def test_info_transcript_expand(self):
+                 108014596,
+                 108053462,
+                 [
+-                    "ENSMUSE00000334714",
+-                    "ENSMUSE00000276500",
+-                    "ENSMUSE00000276490",
+-                    "ENSMUSE00000276482",
+-                    "ENSMUSE00000565003",
+-                    "ENSMUSE00000565001",
+-                    "ENSMUSE00000565000",
+-                    "ENSMUSE00000404895",
+-                    "ENSMUSE00000363317",
++                    "ENSMUSE00000334714.4",
++                    "ENSMUSE00000276500.2",
++                    "ENSMUSE00000276490.2",
++                    "ENSMUSE00000276482.2",
++                    "ENSMUSE00000565003.2",
++                    "ENSMUSE00000565001.2",
++                    "ENSMUSE00000565000.2",
++                    "ENSMUSE00000404895.2",
++                    "ENSMUSE00000363317.3",
+                 ],
+                 [
+                     108053204,
+@@ -396,15 +500,15 @@ def test_info_transcript_expand(self):
+                     108016632,
+                 ],
+                 [
+-                    "ENSMUSE00000334714",
+-                    "ENSMUSE00000276500",
+-                    "ENSMUSE00000276490",
+-                    "ENSMUSE00000276482",
+-                    "ENSMUSE00000565003",
+-                    "ENSMUSE00000565001",
+-                    "ENSMUSE00000565000",
+-                    "ENSMUSE00000404895",
+-                    "ENSMUSE00000363317",
++                    "ENSMUSE00000334714.4",
++                    "ENSMUSE00000276500.2",
++                    "ENSMUSE00000276490.2",
++                    "ENSMUSE00000276482.2",
++                    "ENSMUSE00000565003.2",
++                    "ENSMUSE00000565001.2",
++                    "ENSMUSE00000565000.2",
++                    "ENSMUSE00000404895.2",
++                    "ENSMUSE00000363317.3",
+                 ],
+                 [
+                     108053204,
+@@ -485,7 +589,7 @@ def test_info_mix(self):
+         self.assertListEqual(result_to_test, expected_result)
+ 
+     def test_info_exon_expand(self):
+-        df = info(["ENSTGUEE00000179311"], expand=True)
++        df = info("ENSTGUEE00000179311")
+         # Drop NaN columns, since np.nan != np.nan
+         result_to_test = df.dropna(axis=1).values.tolist()
+         expected_result = [
+@@ -506,7 +610,3 @@ def test_info_exon_expand(self):
+     def test_info_bad_id(self):
+         result = info(["banana"])
+         self.assertIsNone(result, "Invalid ID output is not None.")
+-
+-    def test_info_bad_id_expand(self):
+-        result = info(["banana"], expand=True)
+-        self.assertIsNone(result, "Invalid ID output is not None.")
+diff --git a/tests/test_gget_search.py b/tests/test_gget_search.py
+index a65bff91c..093ff11ad 100644
+--- a/tests/test_gget_search.py
++++ b/tests/test_gget_search.py
+@@ -9,7 +9,7 @@ def test_search_gene_one_sw(self):
+         df = search(
+             searchwords,
+             species,
+-            seqtype="gene",
++            id_type="gene",
+             limit=None,
+         )
+ 
+@@ -33,7 +33,7 @@ def test_search_gene_one_sw_json(self):
+         result_to_test = search(
+             searchwords,
+             species,
+-            seqtype="gene",
++            id_type="gene",
+             json=True,
+         )
+ 
+@@ -56,7 +56,7 @@ def test_search_gene_two_sw_or(self):
+         df = search(
+             searchwords,
+             species,
+-            seqtype="gene",
++            id_type="gene",
+             andor="or",
+             limit=None,
+         )
+@@ -89,7 +89,7 @@ def test_search_gene_two_sw_and(self):
+         df = search(
+             searchwords,
+             species,
+-            seqtype="gene",
++            id_type="gene",
+             andor="and",
+             limit=None,
+         )
+@@ -115,7 +115,7 @@ def test_search_gene_one_sw_limit(self):
+         df = search(
+             searchwords,
+             species,
+-            seqtype="gene",
++            id_type="gene",
+             limit=limit,
+         )
+ 
+@@ -155,7 +155,7 @@ def test_search_transcript_one_sw(self):
+         df = search(
+             searchwords,
+             species,
+-            seqtype="transcript",
++            id_type="transcript",
+             limit=None,
+         )
+ 
+@@ -195,7 +195,7 @@ def test_search_transcript_two_sw_or(self):
+         df = search(
+             searchwords,
+             species,
+-            seqtype="transcript",
++            id_type="transcript",
+             andor="or",
+             limit=5,
+         )
+@@ -252,7 +252,7 @@ def test_search_transcript_two_sw_and(self):
+         df = search(
+             searchwords,
+             species,
+-            seqtype="transcript",
++            id_type="transcript",
+             andor="and",
+             limit=None,
+         )
+@@ -286,7 +286,7 @@ def test_search_gene_two_sw_limit(self):
+         df = search(
+             searchwords,
+             species,
+-            seqtype="transcript",
++            id_type="transcript",
+             andor="and",
+             limit=limit,
+         )
+@@ -330,7 +330,7 @@ def test_search_gene_bad_species(self):
+             search(
+                 searchwords,
+                 species,
+-                seqtype="gene",
++                id_type="gene",
+                 andor="and",
+                 limit=None,
+             )
+@@ -343,7 +343,7 @@ def test_search_transcript_bad_species(self):
+             search(
+                 searchwords,
+                 species,
+-                seqtype="transcript",
++                id_type="transcript",
+                 andor="or",
+                 limit=None,
+             )
+@@ -357,7 +357,7 @@ def test_search_gene_bad_andor(self):
+             search(
+                 searchwords,
+                 species,
+-                seqtype="gene",
++                id_type="gene",
+                 andor=andor,
+                 limit=None,
+             )
+@@ -371,7 +371,7 @@ def test_search_transcript_bad_andor(self):
+             search(
+                 searchwords,
+                 species,
+-                seqtype="transcript",
++                id_type="transcript",
+                 andor=andor,
+                 limit=None,
+             )
+diff --git a/tests/test_gget_seq.py b/tests/test_gget_seq.py
+index 140e7420e..cb446c4f8 100644
+--- a/tests/test_gget_seq.py
++++ b/tests/test_gget_seq.py
+@@ -3,7 +3,7 @@
+ 
+ 
+ class TestSeq(unittest.TestCase):
+-    def test_gene(self):
++    def test_seq_gene(self):
+         result_to_test = seq("ENSG00000241794")
+         expected_result = [
+             ">ENSG00000241794 chromosome:GRCh38:1:153056120:153057512:-1",
+@@ -12,8 +12,8 @@ def test_gene(self):
+ 
+         self.assertEqual(result_to_test, expected_result)
+ 
+-    def test_transcript_gene_WB(self):
+-        result_to_test = seq("WBGene00043981", seqtype="transcript")
++    def test_seq_transcript_gene_WB(self):
++        result_to_test = seq("WBGene00043981", transcribe=True)
+         expected_result = [
+             ">T14E8.4 uniprot_id: Q5WRS0 ensembl_id: T14E8.4 gene_name(s): aaim-1 T14E8.4 organism: Caenorhabditis elegans sequence_length: 515",
+             "MRLLFFFSILYTASLCCQLKDFLPCVMQLSAQKVDFNMNPIEVIFNITTEAKLMHTCRTYSRILPCFDQKMVQCGKPSEKTQLERGKRLHSYLCAPFSLQRQKIFLRRSKCIQDVLAEPQSSVCNRNDTVFADKLQSCREMCTRPDCVSKIELSEVSTCTYINIGKKCTAEAAQFFAQMQQVLTNKEYPMQCQYDLRKKPESELKKGLPIESLVAQTTSSTTYVTVHPPALPSVIDGVVTRTSLPIMRRTDPNSKFKPRPTTSQSNGPVIKTVIVDERGAPMNQPTSTQKPKVVHKFLPNPYTTKNPNTLKNDIIRTTRTIIPVVDKHTYVPWNYKVDAVQVSTLTSALAPVKPTETVISSPPVAFNFKLPAEQTSTQPFRVEINWHDDEVKQEPTKAPGVFVSPWYLKTPSHIPPEIEFATPTPLISSPLEAVSPILSQLKSNSLNFTELGNQANNYFSAALSAFAETKKEMAHNDPWRTIIDAVAPTIHKFSPDVIPRIREEINRIQPHQQKN",
+@@ -21,8 +21,8 @@ def test_transcript_gene_WB(self):
+ 
+         self.assertEqual(result_to_test, expected_result)
+ 
+-    def test_transcript_transcript_WB(self):
+-        result_to_test = seq("T14E8.4.1", seqtype="transcript")
++    def test_seq_transcript_transcript_WB(self):
++        result_to_test = seq("T14E8.4.1", transcribe=True)
+         expected_result = [
+             ">T14E8.4 uniprot_id: Q5WRS0 ensembl_id: T14E8.4 gene_name(s): aaim-1 T14E8.4 organism: Caenorhabditis elegans sequence_length: 515",
+             "MRLLFFFSILYTASLCCQLKDFLPCVMQLSAQKVDFNMNPIEVIFNITTEAKLMHTCRTYSRILPCFDQKMVQCGKPSEKTQLERGKRLHSYLCAPFSLQRQKIFLRRSKCIQDVLAEPQSSVCNRNDTVFADKLQSCREMCTRPDCVSKIELSEVSTCTYINIGKKCTAEAAQFFAQMQQVLTNKEYPMQCQYDLRKKPESELKKGLPIESLVAQTTSSTTYVTVHPPALPSVIDGVVTRTSLPIMRRTDPNSKFKPRPTTSQSNGPVIKTVIVDERGAPMNQPTSTQKPKVVHKFLPNPYTTKNPNTLKNDIIRTTRTIIPVVDKHTYVPWNYKVDAVQVSTLTSALAPVKPTETVISSPPVAFNFKLPAEQTSTQPFRVEINWHDDEVKQEPTKAPGVFVSPWYLKTPSHIPPEIEFATPTPLISSPLEAVSPILSQLKSNSLNFTELGNQANNYFSAALSAFAETKKEMAHNDPWRTIIDAVAPTIHKFSPDVIPRIREEINRIQPHQQKN",
+@@ -30,8 +30,8 @@ def test_transcript_transcript_WB(self):
+ 
+         self.assertEqual(result_to_test, expected_result)
+ 
+-    def test_transcript_gene_WB_iso(self):
+-        result_to_test = seq("WBGene00043981", seqtype="transcript", isoforms=True)
++    def test_seq_transcript_gene_WB_iso(self):
++        result_to_test = seq("WBGene00043981", transcribe=True, isoforms=True)
+         expected_result = [
+             ">T14E8.4 uniprot_id: Q5WRS0 ensembl_id: T14E8.4 gene_name(s): aaim-1 T14E8.4 organism: Caenorhabditis elegans sequence_length: 515",
+             "MRLLFFFSILYTASLCCQLKDFLPCVMQLSAQKVDFNMNPIEVIFNITTEAKLMHTCRTYSRILPCFDQKMVQCGKPSEKTQLERGKRLHSYLCAPFSLQRQKIFLRRSKCIQDVLAEPQSSVCNRNDTVFADKLQSCREMCTRPDCVSKIELSEVSTCTYINIGKKCTAEAAQFFAQMQQVLTNKEYPMQCQYDLRKKPESELKKGLPIESLVAQTTSSTTYVTVHPPALPSVIDGVVTRTSLPIMRRTDPNSKFKPRPTTSQSNGPVIKTVIVDERGAPMNQPTSTQKPKVVHKFLPNPYTTKNPNTLKNDIIRTTRTIIPVVDKHTYVPWNYKVDAVQVSTLTSALAPVKPTETVISSPPVAFNFKLPAEQTSTQPFRVEINWHDDEVKQEPTKAPGVFVSPWYLKTPSHIPPEIEFATPTPLISSPLEAVSPILSQLKSNSLNFTELGNQANNYFSAALSAFAETKKEMAHNDPWRTIIDAVAPTIHKFSPDVIPRIREEINRIQPHQQKN",
+@@ -39,8 +39,8 @@ def test_transcript_gene_WB_iso(self):
+ 
+         self.assertEqual(result_to_test, expected_result)
+ 
+-    def test_transcript_gene(self):
+-        result_to_test = seq("ENSG00000241794", seqtype="transcript")
++    def test_seq_transcript_gene(self):
++        result_to_test = seq("ENSG00000241794", transcribe=True)
+         # This should return the amino acid sequence of the canonical transcript of ENSG00000241794 which is ENST00000392653
+         expected_result = [
+             ">ENST00000392653 uniprot_id: P35326 ensembl_id: ENST00000392653 gene_name(s): SPRR2A organism: Homo sapiens (Human) sequence_length: 72",
+@@ -49,8 +49,8 @@ def test_transcript_gene(self):
+ 
+         self.assertEqual(result_to_test, expected_result)
+ 
+-    def test_transcript(self):
+-        result_to_test = seq("ENST00000392653", seqtype="transcript")
++    def test_seq_transcript(self):
++        result_to_test = seq("ENST00000392653", transcribe=True)
+         expected_result = [
+             ">ENST00000392653 uniprot_id: P35326 ensembl_id: ENST00000392653 gene_name(s): SPRR2A organism: Homo sapiens (Human) sequence_length: 72",
+             "MSYQQQQCKQPCQPPPVCPTPKCPEPCPPPKCPEPCPPPKCPQPCPPQQCQQKYPPVTPSPPCQSKYPPKSK",
+@@ -58,7 +58,7 @@ def test_transcript(self):
+ 
+         self.assertEqual(result_to_test, expected_result)
+ 
+-    def test_gene_iso(self):
++    def test_seq_gene_iso(self):
+         result_to_test = seq("ENSG00000241794", isoforms=True)
+         # Since ENSG00000241794 only has one transcript, the expected results is the same as above
+         expected_result = [
+@@ -68,7 +68,7 @@ def test_gene_iso(self):
+ 
+         self.assertEqual(result_to_test, expected_result)
+ 
+-    def test_gene_transcript_iso(self):
++    def test_seq_gene_transcript_iso(self):
+         result_to_test = seq("ENST00000392653", isoforms=True)
+         # The isoform should not change the output for transcripts
+         expected_result = [
+@@ -78,8 +78,8 @@ def test_gene_transcript_iso(self):
+ 
+         self.assertEqual(result_to_test, expected_result)
+ 
+-    def test_transcript_gene_iso(self):
+-        result_to_test = seq("ENSG00000241794", isoforms=True, seqtype="transcript")
++    def test_seq_transcript_gene_iso(self):
++        result_to_test = seq("ENSG00000241794", isoforms=True, transcribe=True)
+         # Since ENSG00000241794 only has one transcript, the expected results is the AA sequence of ENST00000392653
+         expected_result = [
+             ">ENST00000392653 uniprot_id: P35326 ensembl_id: ENST00000392653 gene_name(s): SPRR2A organism: Homo sapiens (Human) sequence_length: 72",
+@@ -88,8 +88,8 @@ def test_transcript_gene_iso(self):
+ 
+         self.assertEqual(result_to_test, expected_result)
+ 
+-    def test_transcript_transcript_iso(self):
+-        result_to_test = seq("ENST00000392653.2", isoforms=True, seqtype="transcript")
++    def test_seq_transcript_transcript_iso(self):
++        result_to_test = seq("ENST00000392653.2", isoforms=True, transcribe=True)
+         # The isoform should not change the output for transcripts
+         expected_result = [
+             ">ENST00000392653 uniprot_id: P35326 ensembl_id: ENST00000392653 gene_name(s): SPRR2A organism: Homo sapiens (Human) sequence_length: 72",
+@@ -100,22 +100,22 @@ def test_transcript_transcript_iso(self):
+ 
+     # These will not work because bad type output was changed to logging error instead of Python error
+     # ## Test bad input errors
+-    # def test_gene_bad_type(self):
++    # def test_seq_gene_bad_type(self):
+     #     data = "banana"
+     #     with self.assertRaises(RuntimeError):
+     #         result = seq(data)
+ 
+-    # def test_gene_iso_bad_type(self):
++    # def test_seq_gene_iso_bad_type(self):
+     #     data = "banana"
+     #     with self.assertRaises(RuntimeError):
+     #         result = seq(data, isoform=True)
+ 
+-    # def test_transcript_bad_type(self):
++    # def test_seq_transcript_bad_type(self):
+     #     data = "banana"
+     #     with self.assertRaises(RuntimeError):
+-    #         result = seq(data, seqtype="transcript")
++    #         result = seq(data, transcribe=True)
+ 
+-    # def test_transcript_iso_bad_type(self):
++    # def test_seq_transcript_iso_bad_type(self):
+     #     data = "banana"
+     #     with self.assertRaises(RuntimeError):
+-    #         result = seq(data, isoform=True, seqtype="transcript")
++    #         result = seq(data, isoform=True, transcribe=True)

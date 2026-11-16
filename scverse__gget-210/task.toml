@@ -1,0 +1,70 @@
+version = "1.0"
+
+[task]
+name = "default/scverse__gget-210"
+description = "Virus extended features"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "gget",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "scverse/gget"
+ref = "ee21c507e92b9e2c3851dd18713d84294c199f85"
+reference = "https://github.com/scverse/gget/pull/210"
+source_access = "auto"
+built_at = "2026-11-15T21:04:56.023941+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:a73c0257224dc5a7b61dffc2445940ba00cff0e4ff513b0d242d9ebb8b8e2063"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-05-23T15:42:44Z"
+diff_format = "unified"
+context_files = [
+    "docs/src/en/virus.md",
+    "docs/src/es/virus.md",
+    "gget/bins/Darwin/datasets",
+    "gget/bins/Linux/datasets",
+    "gget/bins/Windows/datasets.exe",
+    "gget/constants.py",
+    "gget/gget_virus.py",
+    "gget/main.py",
+    "tests/test_virus.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 7776
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

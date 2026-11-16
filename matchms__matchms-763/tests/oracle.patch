@@ -1,0 +1,422 @@
+diff --git a/matchms/Metadata.py b/matchms/Metadata.py
+index e0c3e7989..d653e0a6c 100644
+--- a/matchms/Metadata.py
++++ b/matchms/Metadata.py
+@@ -63,6 +63,7 @@ def __init__(self, metadata: dict = None,
+         if metadata is None:
+             self._data = PickyDict({})
+         elif isinstance(metadata, Mapping):
++
+             self._data = PickyDict(metadata)
+         else:
+             raise ValueError("Unexpected data type for metadata (should be dictionary, or None).")
+diff --git a/matchms/data/export_key_conversions.csv b/matchms/data/export_key_conversions.csv
+index 71e505c61..1027d7c12 100644
+--- a/matchms/data/export_key_conversions.csv
++++ b/matchms/data/export_key_conversions.csv
+@@ -1,113 +1,114 @@
+-matchms,massbank,nist,riken,gnps
+-spectrum_id,ACCESSION,DB#,,SPECTRUMID
+-title,RECORD TITLE,,,TITLE
+-record_date,DATE,,,
+-authors,AUTHORS,,,
+-license,LICENSE,,,
+-copyright,COPYRIGHT,,,
+-publication,PUBLICATION,,,
+-comment,COMMENT,Comments,Comment,
+-file_name,COMMENT:FILENAME,,,FILENAME
+-scans,COMMENT:SCANS,,,SCANS
+-principal_investigator,COMMENT:PI,,,PI
+-data_collector,COMMENT:DATACOLLECTOR,,,DATACOLLECTOR
+-submit_user,COMMENT:SUBMITUSER,,,SUBMITUSER
+-analysis_id,COMMENT:ANALYSIS_ID,,,
+-analysis_name,COMMENT:ANALYSIS_NAME,,,
+-confidence,COMMENT:CONFIDENCE,,,LIBRARYQUALITY
+-compound_name,CH$NAME,Name,NAME,NAME
+-compound_class,CH$COMPOUND_CLASS,Compound_type,Ontology,
+-formula,CH$FORMULA,Formula,FORMULA,
+-parent_mass,CH$EXACT_MASS,ExactMass,,
+-nominal_mass,CH$NOMINAL_MASS,MW,,
+-salt,COMMENT:SALT,Salt,,
+-salt_mix_cas,COMMENT:SALT_MIX_CAS,Salt_mix_cas,,
+-peptide_sequence,COMMENT:PEPTIDE_SEQUENCE,Peptide_sequence,,SEQ
+-peptide_modifications,COMMENT:PEPTIDE_MODIFICATIONS,Peptide_mods,,
+-smiles,CH$SMILES,,SMILES,SMILES
+-inchi,CH$IUPAC,,INCHI,INCHI
+-inchi_aux,COMMENT:INCHIAUX,,,INCHIAUX
+-structure,COMMENT:STRUCTURE,,,
+-cas,CH$LINK:CAS,Related_cas#,,
+-chebi,CH$LINK:CHEBI,,,
+-chempdb,CH$LINK:CHEMPDB,,,
+-chemspider,CH$LINK:CHEMSPIDER,,,
+-inchikey,CH$LINK:INCHIKEY,InChIKey,INCHIKEY,INCHIKEY
+-kegg,CH$LINK:KEGG,,,
+-knapsack,CH$LINK:KNAPSACK,,,
+-lipidbank,CH$LINK:LIPIDBANK,,,
+-lipidmaps,CH$LINK:LIPIDMAPS,,,
+-pubchem,CH$LINK:PUBCHEM,,,
+-pubmed,CH$LINK:PUBMED,,,PUBMED
+-nist_id,CH$LINK:NIST,,,
+-united_nations_number,CH$LINK:UNITED_NATIONS,,,
+-link,CH$LINK:MISC,Link,,
+-organism_name,SP$SCIENTIFIC_NAME,,,ORGANISM
+-organism_lineage,SP$LINEAGE,,,
+-sample_link,SP$LINK,,,
+-sample,SP$SAMPLE,,,
+-instrument,AC$INSTRUMENT,Instrument,,INSTRUMENT
+-instrument_type,AC$INSTRUMENT_TYPE,Instrument_type,INSTRUMENTTYPE,SOURCE_INSTRUMENT
+-ms_level,AC$MASS_SPECTROMETRY:MS_TYPE,Spectrum_type,,MSLEVEL
+-ionmode,AC$MASS_SPECTROMETRY:ION_MODE,Ion_mode,IONMODE,IONMODE
+-charge,AC$MASS_SPECTROMETRY:CHARGE,Charge,,CHARGE
+-collision_energy,AC$MASS_SPECTROMETRY:COLLISION_ENERGY,Collision_energy,COLLISIONENERGY,
+-collision_gas,AC$MASS_SPECTROMETRY:COLLSION_GAS,Collision_gas,,
+-collection_date,AC$MASS_SPECTROMETRY:DATE,,,
+-desolvation_gas,AC$MASS_SPECTROMETRY:DESOLVATION_GAS_FLOW,,,
+-fragmentation_mode,AC$MASS_SPECTROMETRY:FRAGMENTATION_MODE,Special_fragmentation,,
+-insource_voltage,AC$MASS_SPECTROMETRY:INSOURCE_VOLTAGE,Cone_voltage,,
+-ionization_energy,AC$MASS_SPECTROMETRY:IONIZATION_ENERGY,,,
+-ionization,AC$MASS_SPECTROMETRY:IONIZATION,Ionization,,
+-known_impurity,AC$MASS_SPECTROMETRY:KNOWN_IMPURITY,Known_impurity,,
+-maldi_laser,AC$MASS_SPECTROMETRY:LASER,,,
+-maldi_matrix,AC$MASS_SPECTROMETRY:MATRIX,,,
+-mass_accuracy,AC$MASS_SPECTROMETRY:MASS_ACCURACY,,,
+-gc_reagent_gas,AC$MASS_SPECTROMETRY:REAGENT_GAS,,,
+-scanning,AC$MASS_SPECTROMETRY:SCANNING,,,
+-mass_range_mz,AC$MASS_SPECTROMETRY:MASS_RANGE_M/Z,Mass_range,,
+-msn_pathway,AC$MASS_SPECTROMETRY:MSN_PATHWAY,MSn_pathway,,
+-reflector_mode,AC$MASS_SPECTROMETRY:REFLECTOR_MODE,,,
+-post_source_decay,AC$MASS_SPECTROMETRY:POST_SOURCE_DECAY,,,
+-trap_drive_value,AC$MASS_SPECTROMETRY:TRAP_DRIVE,,,
+-skim_1_value,AC$MASS_SPECTROMETRY:SKIM_1,,,
+-target_gas,AC$MASS_SPECTROMETRY:TARGET_GAS,,,
+-target_gas_pressure,AC$MASS_SPECTROMETRY:TARGET_GAS_PRESSURE,,,
+-reagent_ion,AC$MASS_SPECTROMETRY:REAGENT_ION,,,
+-reagent_gas_pressure,AC$MASS_SPECTROMETRY:REAGENT_GAS_PRESSURE,,,
+-ion_mobility_type,AC$MASS_SPECTROMETRY:ION_MOBILITY_TYPE,,,
+-ion_mobility_voltage,AC$MASS_SPECTROMETRY:ION_MOBILITY_VOLTAGE,,,
+-ion_mobility_drift_gas,AC$MASS_SPECTROMETRY:ION_MOBILITY_DRIFT_GAS,,,
+-capillary_voltage,AC$CHROMATOGRAPHY:CAPILLARY_VOLTAGE,,,
+-column_name,AC$CHROMATOGRAPHY:COLUMN_NAME,,,
+-column_temperature,AC$CHROMATOGRAPHY:COLUMN_TEMPERATURE,,,
+-gradient,AC$CHROMATOGRAPHY:FLOW_GRADIENT,,,
+-flow_rate,AC$CHROMATOGRAPHY:FLOW_RATE,,,
+-retention_time,AC$CHROMATOGRAPHY:RETENTION_TIME,,RETENTIONTIME,
+-retention_index,AC$CHROMATOGRAPHY:RETENTION_INDEX,Retention_index,RETENTIONINDEX,
+-solvent,AC$CHROMATOGRPAHY:SOLVENT,,,
+-column_pressure,AC$CHROMATOGRPAHY:COLUMN_PRESSURE,Pressure,,
+-sample_inlet,AC$CHROMATOGRPAHY:SAMPLE_INLET,Sample_inlet,,
+-drift_time,AC$CHROMATOGRPAHY:DRIFT_TIME,,,
+-inverse_reduced_mobility,AC$CHROMATOGRPAHY:INVERSE_REDUCED_MOBILITY,,,
+-collisional_cross_section,AC$CHROMATOGRPAHY:COLLISIONAL_CROSS_SECTION,,,
+-base_peak,MS$FOCUSED_ION:BASE_PEAK,,,
+-base_peak_intensity,MS$FOCUSED_ION:BASE_PEAK_INTENSITY,Maximum_intensity,,
+-derivative_formula,MS$FOCUSED_ION:DERIVATIVE_FORM,,,
+-derivative_mass,MS$FOCUSED_ION:DERIVATIVE_MASS,,,
+-derivative_type,MS$FOCUSED_ION:DERIVATIVE_TYPE,,,
+-ion_type,MS$FOCUSED_ION:ION_TYPE,,,
+-precursor_mz,MS$FOCUSED_ION:PRECURSOR_M/Z,PrecursorMZ,PRECURSORMZ,PEPMASS
+-adduct,MS$FOCUSED_ION:PRECURSOR_TYPE,Precursor_type,PRECURSORTYPE,
+-isolation_window_target_mz,MS$FOCUSED_ION:ISOLATION_WIDTH,,,
+-peak_width,MS$FOCUSED_ION:PEAK_WIDTH,,,
+-isolation_window_lower_offset,MS$FOCUSED_ION:ISOLATION_WINDOW_LOWER_OFFSET,,,
+-isolation_window_upper_offset,MS$FOCUSED_ION:ISOLATION_WINDOW_UPPER_OFFSET,,,
+-precursor_ion_purity,MS$FOCUSED_ION:PRECURSOR_ION_PURITY,,,
+-data_processing_find_peak,MS$DATA_PROCESSING:FIND_PEAK,,,
+-data_processing_whole,MS$DATA_PROCESSING:WHOLE,,,
+-charge_deconvolved,MS$DATA_PROCESSING:CHARGE_DECONVOLUTED,,,
+-software_system_id,MS$DATA_PROCESSING:SOFTWARE_SYSTEM_ID,,,
+-splash,PK$SPLASH,,,
+-peakAnnotations,PK$ANNOTATION,,,
+-num_peaks,PK$NUM_PEAK,Num Peaks,Num Peaks,
+\ No newline at end of file
++matchms,massbank,nist,riken,gnps,golm
++spectrum_id,ACCESSION,DB#,,SPECTRUMID,spectrum_id,
++title,RECORD TITLE,,,TITLE,title,
++record_date,DATE,,,,record_date,
++authors,AUTHORS,,,,authors,
++license,LICENSE,,,,license,
++copyright,COPYRIGHT,,,,copyright,
++publication,PUBLICATION,,,,publication,
++comment,COMMENT,Comments,Comment,,comment,
++file_name,COMMENT:FILENAME,,,FILENAME,file_name,
++scans,COMMENT:SCANS,,,SCANS,scans,
++principal_investigator,COMMENT:PI,,,PI,principal_investigator,
++data_collector,COMMENT:DATACOLLECTOR,,,DATACOLLECTOR,data_collector,
++submit_user,COMMENT:SUBMITUSER,,,SUBMITUSER,submit_user,
++analysis_id,COMMENT:ANALYSIS_ID,,,,analysis_id,
++analysis_name,COMMENT:ANALYSIS_NAME,,,,analysis_name,
++confidence,COMMENT:CONFIDENCE,,,LIBRARYQUALITY,confidence,
++compound_name,CH$NAME,Name,NAME,NAME,NAME,
++compound_class,CH$COMPOUND_CLASS,Compound_type,Ontology,,compound_class,
++formula,CH$FORMULA,Formula,FORMULA,,formula,
++parent_mass,CH$EXACT_MASS,ExactMass,,,parent_mass,
++nominal_mass,CH$NOMINAL_MASS,MW,,,nominal_mass,
++salt,COMMENT:SALT,Salt,,,salt,
++salt_mix_cas,COMMENT:SALT_MIX_CAS,Salt_mix_cas,,,salt_mix_cas,
++peptide_sequence,COMMENT:PEPTIDE_SEQUENCE,Peptide_sequence,,SEQ,peptide_sequence,
++peptide_modifications,COMMENT:PEPTIDE_MODIFICATIONS,Peptide_mods,,,peptide_modifications,
++smiles,CH$SMILES,,SMILES,SMILES,smiles,
++inchi,CH$IUPAC,,INCHI,INCHI,Synon: METB InChI,
++inchi_aux,COMMENT:INCHIAUX,,,INCHIAUX,inchi_aux,
++structure,COMMENT:STRUCTURE,,,,structure,
++cas,CH$LINK:CAS,Related_cas#,,,Synon: METB CAS,
++chebi,CH$LINK:CHEBI,,,,chebi,
++chempdb,CH$LINK:CHEMPDB,,,,chempdb,
++chemspider,CH$LINK:CHEMSPIDER,,,,chemspider,
++inchikey,CH$LINK:INCHIKEY,InChIKey,INCHIKEY,INCHIKEY,Synon: METB InChIKey,
++kegg,CH$LINK:KEGG,,,,Synon: METB KEGG,
++knapsack,CH$LINK:KNAPSACK,,,,knapsack,
++lipidbank,CH$LINK:LIPIDBANK,,,,lipidbank,
++lipidmaps,CH$LINK:LIPIDMAPS,,,,lipidmaps,
++pubchem,CH$LINK:PUBCHEM,,,,pubchem,
++pubmed,CH$LINK:PUBMED,,,PUBMED,pubmed,
++nist_id,CH$LINK:NIST,,,,nist_id,
++united_nations_number,CH$LINK:UNITED_NATIONS,,,,united_nations_number,
++link,CH$LINK:MISC,Link,,,link,
++organism_name,SP$SCIENTIFIC_NAME,,,ORGANISM,organism_name,
++organism_lineage,SP$LINEAGE,,,,organism_lineage,
++sample_link,SP$LINK,,,,sample_link,
++sample,SP$SAMPLE,,,,sample,
++instrument,AC$INSTRUMENT,Instrument,,INSTRUMENT,instrument,
++instrument_type,AC$INSTRUMENT_TYPE,Instrument_type,INSTRUMENTTYPE,SOURCE_INSTRUMENT,instrument_type,
++ms_level,AC$MASS_SPECTROMETRY:MS_TYPE,Spectrum_type,,MSLEVEL,ms_level,
++ionmode,AC$MASS_SPECTROMETRY:ION_MODE,Ion_mode,IONMODE,IONMODE,ionmode,
++charge,AC$MASS_SPECTROMETRY:CHARGE,Charge,,CHARGE,charge,
++collision_energy,AC$MASS_SPECTROMETRY:COLLISION_ENERGY,Collision_energy,COLLISIONENERGY,,collision_energy,
++collision_gas,AC$MASS_SPECTROMETRY:COLLSION_GAS,Collision_gas,,,collision_gas,
++collection_date,AC$MASS_SPECTROMETRY:DATE,,,,collection_date,
++desolvation_gas,AC$MASS_SPECTROMETRY:DESOLVATION_GAS_FLOW,,,,desolvation_gas,
++fragmentation_mode,AC$MASS_SPECTROMETRY:FRAGMENTATION_MODE,Special_fragmentation,,,fragmentation_mode,
++insource_voltage,AC$MASS_SPECTROMETRY:INSOURCE_VOLTAGE,Cone_voltage,,,insource_voltage,
++ionization_energy,AC$MASS_SPECTROMETRY:IONIZATION_ENERGY,,,,ionization_energy,
++ionization,AC$MASS_SPECTROMETRY:IONIZATION,Ionization,,,ionization,
++known_impurity,AC$MASS_SPECTROMETRY:KNOWN_IMPURITY,Known_impurity,,,known_impurity,
++maldi_laser,AC$MASS_SPECTROMETRY:LASER,,,,maldi_laser,
++maldi_matrix,AC$MASS_SPECTROMETRY:MATRIX,,,,maldi_matrix,
++mass_accuracy,AC$MASS_SPECTROMETRY:MASS_ACCURACY,,,,mass_accuracy,
++gc_reagent_gas,AC$MASS_SPECTROMETRY:REAGENT_GAS,,,,gc_reagent_gas,
++scanning,AC$MASS_SPECTROMETRY:SCANNING,,,,scanning,
++mass_range_mz,AC$MASS_SPECTROMETRY:MASS_RANGE_M/Z,Mass_range,,,mass_range_mz,
++msn_pathway,AC$MASS_SPECTROMETRY:MSN_PATHWAY,MSn_pathway,,,msn_pathway,
++reflector_mode,AC$MASS_SPECTROMETRY:REFLECTOR_MODE,,,,reflector_mode,
++post_source_decay,AC$MASS_SPECTROMETRY:POST_SOURCE_DECAY,,,,post_source_decay,
++trap_drive_value,AC$MASS_SPECTROMETRY:TRAP_DRIVE,,,,trap_drive_value,
++skim_1_value,AC$MASS_SPECTROMETRY:SKIM_1,,,,skim_1_value,
++target_gas,AC$MASS_SPECTROMETRY:TARGET_GAS,,,,target_gas,
++target_gas_pressure,AC$MASS_SPECTROMETRY:TARGET_GAS_PRESSURE,,,,target_gas_pressure,
++reagent_ion,AC$MASS_SPECTROMETRY:REAGENT_ION,,,,reagent_ion,
++reagent_gas_pressure,AC$MASS_SPECTROMETRY:REAGENT_GAS_PRESSURE,,,,reagent_gas_pressure,
++ion_mobility_type,AC$MASS_SPECTROMETRY:ION_MOBILITY_TYPE,,,,ion_mobility_type,
++ion_mobility_voltage,AC$MASS_SPECTROMETRY:ION_MOBILITY_VOLTAGE,,,,ion_mobility_voltage,
++ion_mobility_drift_gas,AC$MASS_SPECTROMETRY:ION_MOBILITY_DRIFT_GAS,,,,ion_mobility_drift_gas,
++capillary_voltage,AC$CHROMATOGRAPHY:CAPILLARY_VOLTAGE,,,,capillary_voltage,
++column_name,AC$CHROMATOGRAPHY:COLUMN_NAME,,,,column_name,
++column_temperature,AC$CHROMATOGRAPHY:COLUMN_TEMPERATURE,,,,column_temperature,
++gradient,AC$CHROMATOGRAPHY:FLOW_GRADIENT,,,,gradient,
++flow_rate,AC$CHROMATOGRAPHY:FLOW_RATE,,,,flow_rate,
++retention_time,AC$CHROMATOGRAPHY:RETENTION_TIME,,RETENTIONTIME,,retention_time,
++retention_index,AC$CHROMATOGRAPHY:RETENTION_INDEX,Retention_index,RETENTIONINDEX,,Synon: RI,
++solvent,AC$CHROMATOGRPAHY:SOLVENT,,,,solvent,
++column_pressure,AC$CHROMATOGRPAHY:COLUMN_PRESSURE,Pressure,,,column_pressure,
++sample_inlet,AC$CHROMATOGRPAHY:SAMPLE_INLET,Sample_inlet,,,Sample_inlet,
++drift_time,AC$CHROMATOGRPAHY:DRIFT_TIME,,,,drift_time,
++inverse_reduced_mobility,AC$CHROMATOGRPAHY:INVERSE_REDUCED_MOBILITY,,,,inverse_reduced_mobility,
++collisional_cross_section,AC$CHROMATOGRPAHY:COLLISIONAL_CROSS_SECTION,,,,collisional_cross_section,
++base_peak,MS$FOCUSED_ION:BASE_PEAK,,,,base_peak,
++base_peak_intensity,MS$FOCUSED_ION:BASE_PEAK_INTENSITY,Maximum_intensity,,,base_peak_intensity,
++derivative_formula,MS$FOCUSED_ION:DERIVATIVE_FORM,,,,derivative_formula,
++derivative_mass,MS$FOCUSED_ION:DERIVATIVE_MASS,,,,derivative_mass,
++derivative_type,MS$FOCUSED_ION:DERIVATIVE_TYPE,,,,derivative_type,
++ion_type,MS$FOCUSED_ION:ION_TYPE,,,,ion_type,
++precursor_mz,MS$FOCUSED_ION:PRECURSOR_M/Z,PrecursorMZ,PRECURSORMZ,PEPMASS,precursor_mz,
++adduct,MS$FOCUSED_ION:PRECURSOR_TYPE,Precursor_type,PRECURSORTYPE,,adduct,
++isolation_window_target_mz,MS$FOCUSED_ION:ISOLATION_WIDTH,,,,isolation_window_target_mz,
++peak_width,MS$FOCUSED_ION:PEAK_WIDTH,,,,peak_width,
++isolation_window_lower_offset,MS$FOCUSED_ION:ISOLATION_WINDOW_LOWER_OFFSET,,,,isolation_window_lower_offset,
++isolation_window_upper_offset,MS$FOCUSED_ION:ISOLATION_WINDOW_UPPER_OFFSET,,,,isolation_window_upper_offset,
++precursor_ion_purity,MS$FOCUSED_ION:PRECURSOR_ION_PURITY,,,,precursor_ion_purity,
++data_processing_find_peak,MS$DATA_PROCESSING:FIND_PEAK,,,,data_processing_find_peak,
++data_processing_whole,MS$DATA_PROCESSING:WHOLE,,,,data_processing_whole,
++charge_deconvolved,MS$DATA_PROCESSING:CHARGE_DECONVOLUTED,,,,charge_deconvolved,
++software_system_id,MS$DATA_PROCESSING:SOFTWARE_SYSTEM_ID,,,,software_system_id,
++splash,PK$SPLASH,,,,splash,
++peakAnnotations,PK$ANNOTATION,,,,peakAnnotations,
++num_peaks,PK$NUM_PEAK,Num Peaks,Num Peaks,,num_peaks,
++synonyms,,,,,Synon: METB N,
+diff --git a/matchms/data/known_key_conversions.csv b/matchms/data/known_key_conversions.csv
+index b3c586106..f7bc22c8f 100644
+--- a/matchms/data/known_key_conversions.csv
++++ b/matchms/data/known_key_conversions.csv
+@@ -204,3 +204,10 @@ record title,title
+ title,title
+ ac$mass_spectrometry:trap_drive,trap_drive_value
+ ch$link:united_nations,united_nations_number
++synon_metb_inchi,inchi
++synon_metb_inchikey,inchikey
++synon_ri,retention_index
++synon_metb_class,compound_class
++synon_metb_kegg,kegg
++synon_metb_n,synonyms
++synon_metb_cas,cas
+diff --git a/matchms/exporting/save_as_msp.py b/matchms/exporting/save_as_msp.py
+index 2c1f55394..b91e348b6 100644
+--- a/matchms/exporting/save_as_msp.py
++++ b/matchms/exporting/save_as_msp.py
+@@ -100,7 +100,11 @@ def _write_peaks(peaks: Fragments, peak_comments: Spectrum.peak_comments, outfil
+ def _write_metadata(metadata: dict, outfile: IO):
+     for key, value in metadata.items():
+         if not (_is_num_peaks(key) or _is_peak_comments(key) or _is_fingerprint(key)):
+-            outfile.write(f"{key.upper()}: {value}\n")
++            if key.upper().strip() == "SYNON: METB N": # Special case for GOLM
++                for val in value:
++                    outfile.write(f"{key.upper()}: {val}\n")
++            else:
++                outfile.write(f"{key.upper()}: {value}\n")
+ 
+ 
+ def _format_peak_comment(mz: Union[int, float], peak_comments: Dict):
+diff --git a/matchms/filtering/metadata_processing/add_retention.py b/matchms/filtering/metadata_processing/add_retention.py
+index e8feb2182..910b239f5 100644
+--- a/matchms/filtering/metadata_processing/add_retention.py
++++ b/matchms/filtering/metadata_processing/add_retention.py
+@@ -55,7 +55,7 @@ def _safe_convert_to_float(retention_time: Any) -> Optional[float]:
+ 
+     # logic to read MoNA msp files which specify rt as string with "min" in it
+     if isinstance(retention_time, str):
+-        retention_time = retention_time.strip()
++        retention_time = retention_time.strip().replace(',', '.')  # Replace commas with dots
+         pattern = r'^([+-]?\d*\.?\d+)\s*(min|s|h|ms|sec)$'
+         conversion = {"min": 60, "s": 1, "h": 3600, "ms": 1e-3, "sec": 1}
+         match = re.search(pattern, retention_time)
+diff --git a/matchms/importing/load_from_msp.py b/matchms/importing/load_from_msp.py
+index a7bf0b80c..852262e51 100644
+--- a/matchms/importing/load_from_msp.py
++++ b/matchms/importing/load_from_msp.py
+@@ -80,6 +80,11 @@ def parse_msp_file(filename: str) -> Generator[dict, None, None]:
+             # Obtaining the masses and intensities
+             if int(params['num peaks']) == peakscount:
+                 peakscount = 0
++                # Handles edge cases with GOLM files where the nominal mass is written with a comma instead of a dot
++                nominal_mass = params.get("mw")
++                if nominal_mass and isinstance(nominal_mass, str):
++                    params["mw"] = nominal_mass.replace(',', '.')
++
+                 yield {
+                     'params': (params),
+                     'm/z array': masses,
+@@ -137,6 +142,7 @@ def parse_metadata(rline: str, params: dict):
+     """
+     matches = []
+     splitted_line = rline.split(":", 1)
++
+     if splitted_line[0].lower() == 'comments' and "=" in splitted_line[1]:
+         # This pattern check for different formats.
+         # The first checks for compound="caffeine", the second and third "compound=caffeine and the last for parent_mass=12.1
+@@ -167,6 +173,18 @@ def parse_metadata(rline: str, params: dict):
+     if len(matches) == 0:
+         params[splitted_line[0].lower()] = splitted_line[1].strip()
+ 
++    splitted_line = rline.split(":")
++
++    if splitted_line[0].lower() == 'synon' and len(splitted_line) > 2:
++        key = ":".join(splitted_line[:2]).lower().strip()
++        value = splitted_line[2].strip().replace(',', '.') # Handles edge cases with GOLM files where the nominal mass is written with a comma instead of a dot
++        if key == "synon: metb n":
++            params.setdefault(key, []).append(value)
++        else:
++            params[key] = value
++
++
++
+ 
+ def contains_metadata(rline: str) -> bool:
+     """ Check if line contains Spectrum metadata."""
+diff --git a/matchms/utils.py b/matchms/utils.py
+index 0c6850717..54097ad2c 100644
+--- a/matchms/utils.py
++++ b/matchms/utils.py
+@@ -126,7 +126,6 @@ def _load_key_conversions(file: str, source: str, target: str) -> dict:
+         key_conversions = {}
+         for row in reader:
+             key_conversions[row[source]] = row[target]
+-
+     return key_conversions
+ 
+ 
+diff --git a/pyproject.toml b/pyproject.toml
+index 4fe93e90a..df1894f5b 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -57,6 +57,7 @@ testfixtures = "^7.1.0"
+ twine = "^5.1.0"
+ black = "^23.7.0"
+ poetry-bumpversion = "^0.3.1"
++pre_commit = "4.1.0"
+ 
+ [tool.poetry.group.docs.dependencies]
+ sphinxcontrib-apidoc = "^0.3.0"
+diff --git a/tests/importing/test_load_from_msp.py b/tests/importing/test_load_from_msp.py
+index 95fdedc29..891ac002d 100644
+--- a/tests/importing/test_load_from_msp.py
++++ b/tests/importing/test_load_from_msp.py
+@@ -242,10 +242,15 @@ def test_load_msl():
+ def test_load_golm_style_msp():
+     module_root = os.path.join(os.path.dirname(__file__), "..")
+     spectra_file = os.path.join(module_root, "testdata", "golm.msp")
++    edge_case_spectra_file = os.path.join(module_root, "testdata", "edge_golm.msp")
+     actual = list(load_from_msp(spectra_file))
++    edge_case_actual = list(load_from_msp(edge_case_spectra_file))
+ 
+     assert len(actual) == 3
+     assert len(actual[0].mz) == 50
++    assert len(edge_case_actual[0].metadata["synonyms"]) == 11
++    assert edge_case_actual[0].metadata["retention_index"] == 986.12
++    assert "inchi" in edge_case_actual[0].metadata.keys()
+ 
+ 
+ def test_load_msp_with_comments_including_quotes():
+diff --git a/tests/testdata/edge_golm.msp b/tests/testdata/edge_golm.msp
+new file mode 100644
+index 000000000..2493ea7ae
+--- /dev/null
++++ b/tests/testdata/edge_golm.msp
+@@ -0,0 +1,39 @@
++Name: M000412_A100001-101-xxx_NA_986,12_TRUE_VAR5_ALK_Glyoxylic acid (1MEOX) (1TMS)
++Synon: MST N: Glyoxylic acid (1MEOX) (1TMS)
++Synon: RI: 986,12
++Synon: RI VAR5 ALK: TRUE
++Synon: MST: A100001-101
++Synon: MST ISOTOPE: 101
++Synon: MST ID: A100001-101-xxx_
++Synon: MST SEL MASS: 160|116|89|100|144
++Synon: METB: M000412_no_preferred
++Synon: METB N: alpha-ketoacetic acid
++Synon: METB N: formylformic acid
++Synon: METB N: Glyoxalate
++Synon: METB N: Glyoxalsaeure
++Synon: METB N: Glyoxylate
++Synon: METB N: glyoxylic acid
++Synon: METB N: Glyoxylic acid
++Synon: METB N: Glyoxylsaeure
++Synon: METB N: oxalaldehydic acid
++Synon: METB N: oxoacetic acid
++Synon: METB N: oxoethanoic acid
++Synon: METB CAS: 298-12-4
++Synon: METB KEGG: C00048
++Synon: METB InChI: InChI=1S/C2H2O3/c3-1-2(4)5/h1H,(H,4,5)
++Synon: METB InChIKey: HHLFWLYXYJOTON-UHFFFAOYSA-N
++Synon: METB CLASS: Acid (Oxo)
++Synon: GMD LINK: http://gmd.mpimp-golm.mpg.de/Analytes/60565248-bf50-49fb-b739-3920cf0162da.aspx
++Synon: GMD VERS: 21.Nov.2011 21:54 hummel
++Formula: C6H13NO3Si
++MW: 175,258
++CAS#: 55493-91-9
++Comment: consensus spectrum of 2 spectra per analyte, MPIMP ID and isotopomer, with majority threshold = 60%
++DB#: 21
++Num Peaks: 26
++85:201 86:55 87:10 88:4 89:315
++90:29 91:22 92:1 99:2 100:64
++101:27 102:9 103:4 116:137 117:51
++118:10 128:1 129:5 132:2 144:30
++145:13 146:1 160:1000 161:100 162:38
++163:2

@@ -1,0 +1,349 @@
+diff --git a/javafx-framework/src/main/java/io/github/mzmine/javafx/util/FxIcons.java b/javafx-framework/src/main/java/io/github/mzmine/javafx/util/FxIcons.java
+index fe6365b7b18..84efb66a156 100644
+--- a/javafx-framework/src/main/java/io/github/mzmine/javafx/util/FxIcons.java
++++ b/javafx-framework/src/main/java/io/github/mzmine/javafx/util/FxIcons.java
+@@ -42,7 +42,7 @@ public enum FxIcons implements IconCodeSupplier {
+   DARK_MODE_SWITCH, BATCH,
+ 
+   //
+-  USER, DOCUMENTATION, BUG, WEBSITE, GEAR_PREFERENCES, TOOL, RELOAD, YOUTUBE, DEVELOPMENT, BOOK, //
++  USER, DOCUMENTATION, BUG, WEBSITE, GEAR_PREFERENCES, TOOL, RELOAD, TOGGLE_SWITCH, YOUTUBE, DEVELOPMENT, BOOK, //
+   ROCKET, LIGHTBULB, METADATA_TABLE, TABLE, SPREADSHEET,
+ 
+   // ACTIONS
+@@ -77,6 +77,7 @@ public String getIconCode() {
+       case ARROW_UP -> "bi-arrow-up";
+       case ARROW_DOWN -> "bi-arrow-down";
+       case RELOAD -> "bi-arrow-repeat";
++      case TOGGLE_SWITCH -> "bi-arrow-repeat";
+       case YOUTUBE -> "bi-youtube";
+       case DEVELOPMENT -> "bi-code-slash";
+       case BOOK -> "bi-book";
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/AbundanceMeasure.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/AbundanceMeasure.java
+index a0d85040865..66ca897d2bd 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/AbundanceMeasure.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/AbundanceMeasure.java
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright (c) 2004-2026 The mzmine Development Team
++ *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+  * files (the "Software"), to deal in the Software without
+@@ -125,6 +126,16 @@ public float getOrNaN(@Nullable ModularDataModel featureOrRow,
+   }
+ 
+ 
++  /**
++   * @return the normalized variant. If already normalized returns itself
++   */
++  public @NotNull AbundanceMeasure normalizedVariant() {
++    return switch (this) {
++      case Height, NORMALIZED_HEIGHT -> NORMALIZED_HEIGHT;
++      case Area, NORMALIZED_AREA -> NORMALIZED_AREA;
++    };
++  }
++
+   /**
+    * @return true if normalized
+    */
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/AbstractBoxPlotType.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/AbstractBoxPlotType.java
+index ebdff0382f3..9e46cab159f 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/AbstractBoxPlotType.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/AbstractBoxPlotType.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -48,7 +48,11 @@
+ import io.github.mzmine.project.ProjectService;
+ import java.util.List;
+ import java.util.Map;
++import java.util.Map.Entry;
++import java.util.Objects;
++import javafx.beans.binding.Bindings;
+ import javafx.beans.property.ReadOnlyObjectWrapper;
++import javafx.beans.value.ObservableValue;
+ import javafx.scene.Node;
+ import javafx.scene.control.TreeTableCell;
+ import javafx.scene.control.TreeTableColumn;
+@@ -59,9 +63,29 @@ public abstract class AbstractBoxPlotType extends LinkedGraphicalType implements
+     MinSamplesRequirement {
+ 
+   private final AbundanceMeasure abundanceMeasure;
++  private final @NotNull AbundanceMeasure normalizedAbundanceMeasure;
+ 
+   protected AbstractBoxPlotType(AbundanceMeasure abundanceMeasure) {
++    // only allow height and area type
+     this.abundanceMeasure = abundanceMeasure;
++    this.normalizedAbundanceMeasure = Objects.requireNonNull(abundanceMeasure.normalizedVariant());
++  }
++
++  /**
++   * @return the normalized measure used by this box plot if the user enables it in the header
++   */
++  public @NotNull AbundanceMeasure getNormalizedAbundanceMeasure() {
++    return normalizedAbundanceMeasure;
++  }
++
++  /**
++   * @return the normalized measure if the header check box is shown and selected, otherwise the raw
++   * measure
++   */
++  private @NotNull AbundanceMeasure getEffectiveAbundanceMeasure(
++      @NotNull MetadataHeaderColumn<?, ?> col) {
++    return col.isNormVisible() && col.isNormActiveSelected() ? normalizedAbundanceMeasure
++        : abundanceMeasure;
+   }
+ 
+   @Override
+@@ -81,12 +105,16 @@ public double getPrefColumnWidth() {
+       @Nullable RawDataFile raw, @Nullable SubColumnsFactory parentType, int subColumnIndex) {
+ 
+     final MetadataHeaderColumn<ModularFeatureListRow, Object> col = new MetadataHeaderColumn<>(this,
+-        ProjectService.getMetadata().getSampleTypeColumn());
++        ProjectService.getMetadata().getSampleTypeColumn(), abundanceMeasure);
++
++    final ObservableValue<AbundanceMeasure> measure = Bindings.createObjectBinding(
++        () -> getEffectiveAbundanceMeasure(col), col.normActiveProperty(),
++        col.normVisibleProperty());
+ 
+     // define observable
+     col.setCellFactory(new CountingRowChartCellFactory(
+         (id) -> (TreeTableCell) new AbundanceBoxPlotCell(id, col.selectedColumnProperty(),
+-            abundanceMeasure)));
++            measure)));
+ //    col.setCellValueFactory(new DataTypeCellValueFactory(raw, this, parentType, subColumnIndex));
+     col.setCellValueFactory(cdf -> new ReadOnlyObjectWrapper<>(cdf.getValue().getValue()));
+     return col;
+@@ -108,13 +136,19 @@ public double getPrefColumnWidth() {
+ 
+         final ColumnID colId = new ColumnID(this, ColumnType.ROW_TYPE, null, -1);
+         final Map<TreeTableColumn<ModularFeatureListRow, ?>, ColumnID> map = table.getNewColumnMap();
+-        final MetadataColumn<?> selectedColumn = map.entrySet().stream()
++        final MetadataHeaderColumn<?, ?> headerColumn = map.entrySet().stream()
+             .filter(entry -> entry.getValue().getUniqueIdString().equals(colId.getUniqueIdString()))
+-            .findFirst().map(entry -> ((MetadataHeaderColumn) entry.getKey()).getSelectedColumn())
+-            .orElse(ProjectService.getMetadata().getSampleTypeColumn());
++            .map(Entry::getKey).filter(MetadataHeaderColumn.class::isInstance)
++            .map(c -> (MetadataHeaderColumn<?, ?>) c).findFirst().orElse(null);
++
++        final MetadataColumn<?> selectedColumn =
++            headerColumn != null ? headerColumn.getSelectedColumn()
++                : ProjectService.getMetadata().getSampleTypeColumn();
+ 
+         tab.getController().groupingColumnProperty().set(selectedColumn);
+-        tab.getController().abundanceMeasureProperty().set(abundanceMeasure);
++        // carry over the normalized state of the column header
++        tab.getController().abundanceMeasureProperty().set(
++            headerColumn != null ? getEffectiveAbundanceMeasure(headerColumn) : abundanceMeasure);
+         // master is complex dashboard - open in other window
+         if (masterTableOwner.isOtherComplexDashboard()) {
+           new MZmineWindow().addTab(tab);
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/fx/MetadataHeaderColumn.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/fx/MetadataHeaderColumn.java
+index 325d98f0c85..40242036c1f 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/fx/MetadataHeaderColumn.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/fx/MetadataHeaderColumn.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -12,6 +12,7 @@
+  *
+  * The above copyright notice and this permission notice shall be
+  * included in all copies or substantial portions of the Software.
++ *
+  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+  * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+@@ -24,25 +25,26 @@
+ 
+ package io.github.mzmine.datamodel.features.types.fx;
+ 
++import io.github.mzmine.datamodel.AbundanceMeasure;
+ import io.github.mzmine.datamodel.features.types.DataType;
++import io.github.mzmine.javafx.components.factories.FxLabels;
+ import io.github.mzmine.javafx.components.util.FxLayout;
+-import io.github.mzmine.javafx.concurrent.threading.FxThread;
+-import io.github.mzmine.modules.visualization.projectmetadata.table.MetadataTable;
++import io.github.mzmine.javafx.util.FxIconUtil;
++import io.github.mzmine.javafx.util.FxIcons;
+ import io.github.mzmine.modules.visualization.projectmetadata.table.columns.MetadataColumn;
+-import io.github.mzmine.parameters.parametertypes.metadata.MetadataGroupingComponent;
+ import io.github.mzmine.project.ProjectService;
+-import java.util.Objects;
+-import javafx.animation.PauseTransition;
++import javafx.beans.property.BooleanProperty;
+ import javafx.beans.property.ObjectProperty;
++import javafx.beans.property.SimpleBooleanProperty;
+ import javafx.beans.property.SimpleObjectProperty;
++import javafx.geometry.Insets;
+ import javafx.geometry.Pos;
++import javafx.scene.control.ButtonBase;
+ import javafx.scene.control.ChoiceBox;
+-import javafx.scene.control.ComboBox;
+ import javafx.scene.control.Label;
+ import javafx.scene.control.TreeTableColumn;
+ import javafx.scene.layout.Priority;
+ import javafx.scene.layout.VBox;
+-import javafx.util.Duration;
+ import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+ 
+@@ -56,10 +58,15 @@
+ public class MetadataHeaderColumn<S, T> extends TreeTableColumn<S, T> {
+ 
+   private final ObjectProperty<@Nullable MetadataColumn<?>> selectedColumn = new SimpleObjectProperty<>();
+-  private final PauseTransition delay = new PauseTransition(Duration.millis(100));
++  /**
++   * State of the optional header check box. Only meaningful if a check box label was given and
++   * {@link #normVisibleProperty()} is true.
++   */
++  private final BooleanProperty normActive = new SimpleBooleanProperty(true);
++  private final BooleanProperty normVisible = new SimpleBooleanProperty(false);
+ 
+   public MetadataHeaderColumn(@NotNull DataType<?> dataType,
+-      @Nullable MetadataColumn<?> defaultColumn) {
++      @Nullable MetadataColumn<?> defaultColumn, @NotNull AbundanceMeasure rawAbundanceMeasure) {
+     super();
+ 
+     setUserData(dataType);
+@@ -70,8 +77,17 @@ public MetadataHeaderColumn(@NotNull DataType<?> dataType,
+ 
+     final VBox header = FxLayout.newVBox(Pos.CENTER);
+     header.setFillWidth(true);
+-    final Label title = new Label(dataType.getHeaderString());
+-    header.getChildren().add(title);
++
++    final ButtonBase toggle = FxIconUtil.newIconButton(FxIcons.TOGGLE_SWITCH,
++        FxIconUtil.LIST_ICON_SIZE, () -> normActive.set(!normActive.get()));
++    final Label title = FxLabels.newLabel(normActive.and(normVisible).map(
++        normalized -> (normalized ? "Normalized " + rawAbundanceMeasure.toString().toLowerCase()
++            : rawAbundanceMeasure.toString())));
++
++    toggle.visibleProperty().bind(normVisible);
++    toggle.managedProperty().bind(normVisible);
++
++    header.getChildren().add(FxLayout.newHBox(Pos.CENTER, Insets.EMPTY, 4, toggle, title));
+ 
+     // using a combobox here causes the virtual flow to fail. This lead to the feature table not
+     // jumping to/selecting the row if a loading was selected in the stats dashboard scores plot
+@@ -94,4 +110,24 @@ public MetadataHeaderColumn(@NotNull DataType<?> dataType,
+   public ObjectProperty<@Nullable MetadataColumn<?>> selectedColumnProperty() {
+     return selectedColumn;
+   }
++
++  public BooleanProperty normActiveProperty() {
++    return normActive;
++  }
++
++  public boolean isNormActiveSelected() {
++    return normActive.get();
++  }
++
++  public BooleanProperty normVisibleProperty() {
++    return normVisible;
++  }
++
++  public boolean isNormVisible() {
++    return normVisible.get();
++  }
++
++  public void setNormVisible(final boolean visible) {
++    normVisible.set(visible);
++  }
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/graphicalnodes/AbundanceBoxPlotCell.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/graphicalnodes/AbundanceBoxPlotCell.java
+index 48807cff9f0..069265e60de 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/graphicalnodes/AbundanceBoxPlotCell.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/graphicalnodes/AbundanceBoxPlotCell.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -32,6 +32,7 @@
+ import io.github.mzmine.modules.visualization.projectmetadata.table.columns.MetadataColumn;
+ import java.util.List;
+ import javafx.beans.property.ObjectProperty;
++import javafx.beans.value.ObservableValue;
+ import javafx.scene.control.ContentDisplay;
+ import javafx.scene.layout.Region;
+ import org.jetbrains.annotations.NotNull;
+@@ -45,12 +46,13 @@ public class AbundanceBoxPlotCell extends
+ 
+   public AbundanceBoxPlotCell(int id,
+       @NotNull ObjectProperty<@Nullable MetadataColumn<?>> groupingColumn,
+-      AbundanceMeasure abundanceMeasure) {
++      @NotNull ObservableValue<AbundanceMeasure> abundanceMeasure) {
+     super(id);
+ 
+     boxPlot = new RowsBoxplotController();
+     setMinHeight(GraphicalColumType.DEFAULT_GRAPHICAL_CELL_HEIGHT);
+-    boxPlot.abundanceMeasureProperty().set(abundanceMeasure);
++    // the measure may switch between raw and normalized values in the column header
++    boxPlot.abundanceMeasureProperty().bind(abundanceMeasure);
+     boxPlot.groupingColumnProperty().bindBidirectional(groupingColumn);
+ 
+     boxPlot.showCategoryAxisLabelProperty().set(false);
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FeatureTableFX.java b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FeatureTableFX.java
+index 2cf1755e101..2c3a557b6de 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FeatureTableFX.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FeatureTableFX.java
+@@ -25,6 +25,7 @@
+ 
+ package io.github.mzmine.modules.visualization.featurelisttable_modular;
+ 
++import io.github.mzmine.datamodel.AbundanceMeasure;
+ import io.github.mzmine.datamodel.IMSRawDataFile;
+ import io.github.mzmine.datamodel.ImagingRawDataFile;
+ import io.github.mzmine.datamodel.RawDataFile;
+@@ -38,6 +39,7 @@
+ import io.github.mzmine.datamodel.features.compoundlist.CompoundList;
+ import io.github.mzmine.datamodel.features.compoundlist.CompoundRowSelection;
+ import io.github.mzmine.datamodel.features.compoundlist.ModularCompoundRow;
++import io.github.mzmine.datamodel.features.types.AbstractBoxPlotType;
+ import io.github.mzmine.datamodel.features.types.AreaBoxPlotType;
+ import io.github.mzmine.datamodel.features.types.AreaShareType;
+ import io.github.mzmine.datamodel.features.types.DataType;
+@@ -67,6 +69,7 @@
+ import io.github.mzmine.datamodel.features.types.compoundlist.CompoundIdType;
+ import io.github.mzmine.datamodel.features.types.fx.ColumnID;
+ import io.github.mzmine.datamodel.features.types.fx.ColumnType;
++import io.github.mzmine.datamodel.features.types.fx.MetadataHeaderColumn;
+ import io.github.mzmine.datamodel.features.types.graphicalnodes.CompoundHierarchyTreeTableRow;
+ import io.github.mzmine.datamodel.features.types.modifiers.ExpandableType;
+ import io.github.mzmine.datamodel.features.types.modifiers.MinSamplesRequirement;
+@@ -1027,6 +1030,14 @@ public void addColumn(final TreeTableColumn<ModularFeatureListRow, String> rowCo
+       setupExpandableColumn(dataType, col, ColumnType.ROW_TYPE, null);
+     }
+ 
++    // only offer the normalized option in the box plot header if this feature list has the
++    // normalized feature type - the box plots use the per sample feature values
++    if (col instanceof MetadataHeaderColumn<?, ?> metadataHeader
++        && dataType instanceof AbstractBoxPlotType boxPlotType) {
++      final AbundanceMeasure normalized = boxPlotType.getNormalizedAbundanceMeasure();
++      metadataHeader.setNormVisible(getFeatureList().hasFeatureType(normalized.type()));
++    }
++
+     // Add row column
+     rowCol.getColumns().add(col);
+ 
+@@ -1354,8 +1365,7 @@ public ObservableList<TreeItem<ModularFeatureListRow>> getSelectedTableRows() {
+   @Nullable
+   public ModularFeatureListRow getSelectedRow() {
+     return table.getSelectionModel().getSelectedItem() != null ? table.getSelectionModel()
+-                                                                 .getSelectedItem().getValue()
+-        : null;
++        .getSelectedItem().getValue() : null;
+   }
+ 
+   /**

@@ -1,0 +1,2229 @@
+diff --git a/dev-requirements.txt b/dev-requirements.txt
+index ee7df76cb..3eace89b5 100644
+--- a/dev-requirements.txt
++++ b/dev-requirements.txt
+@@ -3,3 +3,4 @@ pytest>=7.0.0
+ openai<=0.28.1
+ cellxgene-census
+ parameterized==0.9.0
++bravado==11.0.3
+diff --git a/docs/assets/gget_cbio_figure_1.png b/docs/assets/gget_cbio_figure_1.png
+new file mode 100644
+index 000000000..f470e27c1
+Binary files /dev/null and b/docs/assets/gget_cbio_figure_1.png differ
+diff --git a/docs/assets/gget_cbio_figure_2.png b/docs/assets/gget_cbio_figure_2.png
+new file mode 100644
+index 000000000..2171e0a11
+Binary files /dev/null and b/docs/assets/gget_cbio_figure_2.png differ
+diff --git a/docs/assets/gget_cbio_figure_3.png b/docs/assets/gget_cbio_figure_3.png
+new file mode 100644
+index 000000000..f770e5c9b
+Binary files /dev/null and b/docs/assets/gget_cbio_figure_3.png differ
+diff --git a/docs/src/SUMMARY.md b/docs/src/SUMMARY.md
+index f7b04402a..a39effe97 100644
+--- a/docs/src/SUMMARY.md
++++ b/docs/src/SUMMARY.md
+@@ -27,6 +27,7 @@
+ * [gget setup](en/setup.md)  
+ * [gget seq](en/seq.md)  
+ * [gget opentargets](en/opentargets.md)  
++* [gget cbio](en/cbio.md)  
+ 
+ ---
+ 
+diff --git a/docs/src/en/cbio.md b/docs/src/en/cbio.md
+new file mode 100644
+index 000000000..131b9ce81
+--- /dev/null
++++ b/docs/src/en/cbio.md
+@@ -0,0 +1,156 @@
++> Python arguments are equivalent to long-option arguments (`--arg`), unless otherwise specified. Flags are True/False arguments in Python. The manual for any gget tool can be called from the command-line using the `-h` `--help` flag.  
++## gget cbio 📖
++Plot cancer genomics heatmaps using data from [cBioPortal](https://www.cbioportal.org/) using Ensembl IDs or gene names.
++
++**Positional argument**  
++`subcommand`  
++Either `search` or `plot`
++
++### `search` subcommand (Python: `gget.cbio_search`)
++Find cBioPortal study IDs by keyword.   
++Return format: JSON (command-line) or string list (Python).     
++**Note: This does not return studies with mixed cancer types.**
++
++**Positional argument**     
++`keywords`  
++Space-separated list of keywords to search for, e.g. <code>breast&nbsp;lung</code>.
++
++### `plot` subcommand (Python: `gget.cbio_plot`)
++Plot cancer genomics heatmaps using data from cBioPortal.
++Return format: PNG (command-line and Python)
++
++**Required arguments**  
++`-s` `--study_ids`    
++Space-separated list of cBioPortal study IDs, e.g. <code>msk_impact_2017&nbsp;egc_msk_2023</code>.
++
++`-g` `--genes`  
++Space-separated list of gene names or Ensembl IDs, e.g. <code>NOTCH3&nbsp;ENSG00000108375</code>.
++
++**Optional arguments**  
++`-st` `--stratification`    
++Column to stratify the data by. Default: `tissue`.  
++Options:
++- `tissue`
++- `cancer_type`
++- `cancer_type_detailed`
++- `study_id`
++- `sample`
++
++`-vt` `--variation_type`    
++Type of variation to plot. Default: `mutation_occurrences`.     
++Options:
++- `mutation_occurrences`
++- `cna_nonbinary` Note: `stratification` must be `sample` for this option.
++- `sv_occurrences`
++- `cna_occurrences`
++- `Consequence` Note: `stratification` must be `sample` for this option.
++
++`-f` `--filter`     
++Filter the data by a specific value in a specific column, e.g. `study_id:msk_impact_2017`   
++Python: `filter_=(column, value)`
++
++`-dd` `--data_dir`  
++Directory to store data files. Default: `./gget_cbio_cache`.
++
++`-fd` `--figure_dir`    
++Directory to output figures. Default: `./gget_cbio_figures`.
++
++`-dpi` `--dpi`  
++DPI of the output figure. Default: 100.
++
++**Flags**   
++
++`-q` `--quiet`   
++Command-line only. Prevents progress information from being displayed.  
++Python: Use `verbose=False` to prevent progress information from being displayed. 
++
++`-y` `--no_confirm`     
++Command-line only. Skip download confirmation prompts.  
++Python: Use `confirm_download=True` to enable download confirmation prompts.
++
++`-sh` `--show`  
++Show the plot in a window (automatic in Jupyter notebooks).
++  
++  
++### Examples
++
++**Find all cBioPortal studies with cancer types matching specific keywords:**   
++```bash
++gget cbio search esophag ovary ovarian
++```
++```python
++# Python
++import gget
++gget.cbio_search('esophag', 'ovary', 'ovarian')
++```
++&rarr; Returns a list of studies with cancer types matching the keywords `esophag`, `ovary`, or `ovarian`.
++
++```
++['egc_tmucih_2015', 'egc_msk_2017', ..., 'msk_spectrum_tme_2022']
++```
++
++<br/><br/>
++
++**Plot a heatmap of mutation occurrences for specific genes in a specific study:**   
++```bash
++gget cbio plot -s msk_impact_2017 -g AKT1 ALK FLT4 MAP3K1 MLL2 MLL3 NOTCH3 NOTCH4 PDCD1 RNF43 -st tissue -vt mutation_occurrences -dpi 200 -y
++```
++```python
++import gget
++gget.cbio_plot(
++    ['msk_impact_2017'],
++    ['AKT1', 'ALK', 'FLT4', 'MAP3K1', 'MLL2', 'MLL3', 'NOTCH3', 'NOTCH4', 'PDCD1', 'RNF43'],
++    stratification='tissue',
++    variation_type='mutation_occurrences',
++    dpi=200
++)
++```
++
++&rarr; Saves a heatmap of mutation occurrences for the specified genes in the specified study to `./gget_cbio_figures/Heatmap_tissue.png`.
++
++![Heatmap](https://raw.githubusercontent.com/pachterlab/gget/f6b4465eecae0f07c71558f8f6e7b60d36c8d41a/docs/assets/gget_cbio_figure_1.png)
++
++<br/><br/>
++
++**Plot a heatmap of mutation types for specific genes in a specific study:**   
++```bash
++gget cbio plot -s msk_impact_2017 -g AKT1 ALK FLT4 MAP3K1 MLL2 MLL3 NOTCH3 NOTCH4 PDCD1 RNF43 -st sample -vt Consequence -dpi 200 -y
++```
++```python
++import gget
++gget.cbio_plot(
++    ['msk_impact_2017'],
++    ['AKT1', 'ALK', 'FLT4', 'MAP3K1', 'MLL2', 'MLL3', 'NOTCH3', 'NOTCH4', 'PDCD1', 'RNF43'],
++    stratification='sample',
++    variation_type='Consequence',
++    dpi=200,
++)
++```
++
++&rarr; Saves a heatmap of mutation types for the specified genes in the specified study to `./gget_cbio_figures/Heatmap_sample.png`.
++
++![Heatmap](https://raw.githubusercontent.com/pachterlab/gget/f6b4465eecae0f07c71558f8f6e7b60d36c8d41a/docs/assets/gget_cbio_figure_2.png)
++
++<br/><br/>
++
++**Plot a heatmap of mutation types for specific genes in a specific study, filtering by tissue:**
++```bash
++gget cbio plot -s msk_impact_2017 -g AKT1 ALK FLT4 MAP3K1 MLL2 MLL3 NOTCH3 NOTCH4 PDCD1 RNF43 -st sample -vt Consequence -f tissue:intestine -dpi 200 -y
++```
++```python
++import gget
++gget.cbio_plot(
++    ['msk_impact_2017'],
++    ['AKT1', 'ALK', 'FLT4', 'MAP3K1', 'MLL2', 'MLL3', 'NOTCH3', 'NOTCH4', 'PDCD1', 'RNF43'],
++    stratification='sample',
++    variation_type='Consequence',
++    filter_=('tissue', 'intestine'),
++    dpi=200,
++)
++```
++
++&rarr; Saves a heatmap of mutation types for the specified genes in the specified study, filtered by tissue, to `./gget_cbio_figures/Heatmap_sample_intestine.png`.
++
++![Heatmap](https://raw.githubusercontent.com/pachterlab/gget/ef0e8334d87214c17cbac70713028e7b823bba49/docs/assets/gget_cbio_figure_3.png)
++    
++#### [More examples](https://github.com/pachterlab/gget_examples)
+diff --git a/gget/__init__.py b/gget/__init__.py
+index dc26f033a..54fe36fe3 100644
+--- a/gget/__init__.py
++++ b/gget/__init__.py
+@@ -17,6 +17,7 @@
+ from .gget_cosmic import cosmic
+ from .gget_mutate import mutate
+ from .gget_opentargets import opentargets
++from .gget_cbio import cbio_plot, cbio_search
+ 
+ import logging
+ # Mute numexpr threads info
+diff --git a/gget/constants.py b/gget/constants.py
+index eed040362..77aab0bca 100644
+--- a/gget/constants.py
++++ b/gget/constants.py
+@@ -54,3 +54,261 @@
+ 
+ # OpenTargets API endpoint
+ OPENTARGETS_GRAPHQL_API = "https://api.platform.opentargets.org/api/v4/graphql"
++
++# CBIO data
++CBIO_CANCER_TYPE_TO_TISSUE_DICTIONARY = {
++    'Acute Leukemias of Ambiguous Lineage': 'leukemia',
++    'Acute Myeloid Leukemia': 'leukemia',
++    'Acute myeloid leukemia': 'leukemia',
++    'Adenosarcoma': 'mixed',
++    'Adrenal Tumor': 'adrenal_gland',
++    'Adrenocortical Adenoma': 'adrenal_gland',
++    'Adrenocortical Carcinoma': 'adrenal_gland',
++    'Adrenocortical carcinoma': 'adrenal_gland',
++    'Ampullary Cancer': 'ampulla',
++    'Ampullary Carcinoma': 'ampulla',
++    'Anal Cancer': 'intestine',
++    'Appendiceal Cancer': 'appendix',
++    'B-Lymphoblastic Leukemia/Lymphoma': 'lymphoma',
++    'Biliary Tract': 'biliary_tract',
++    'Biliary Tract Cancer, NOS': 'biliary_tract',
++    'Bladder Cancer': 'bladder',
++    'Bladder/Urinary Tract Cancer, NOS': 'bladder',
++    'Blastic Plasmacytoid Dendritic Cell Neoplasm': 'immune',
++    'Blood Cancer, NOS': 'leukemia',
++    'Bone Cancer': 'bone',
++    'Bone Sarcoma': 'bone',
++    'Bowel Cancer, NOS': 'intestine',
++    'Brain Cancer': 'brain',
++    'Breast Cancer': 'breast',
++    'Breast Carcinoma': 'breast',
++    'Breast Sarcoma': 'breast',
++    'CNS Cancer': 'brain',
++    'Cancer of Unknown Primary': 'mixed',
++    'Carcinoma of Uterine Cervix': 'cervix',
++    'Cervical Cancer': 'cervix',
++    'Cholangiocarcinoma': 'biliary_tract',
++    'Choroid Plexus Tumor': 'brain',
++    'Colorectal Cancer': 'intestine',
++    'Colorectal Carcinoma': 'intestine',
++    'Cutaneous malignancy of hair matrix cells': 'skin',
++    'Diffuse Glioma': 'brain',
++    'Embryonal Tumor': 'mixed',
++    'Encapsulated Glioma': 'brain',
++    'Endometrial Cancer': 'uterus',
++    'Endometrial Carcinoma': 'uterus',
++    'Ependymomal Tumor': 'brain',
++    'Esophageal Carcinoma': 'esophagus',
++    'Esophagogastric Cancer': 'esophagus',
++    'Essential Thrombocythemia': 'plasma',
++    'Extrahepatic Cholangiocarcinoma': 'biliary_tract',
++    'Fibrosarcoma': 'soft_tissue',
++    'Gallbladder Carcinoma': 'gallbladder',
++    'Gastric Cancer': 'stomach',
++    'Gastrointestinal Neuroendocrine Tumor': 'intestine',
++    'Gastrointestinal Stromal Tumor': 'intestine',
++    'Germ Cell Tumor': 'testicle',
++    'Gestational Trophoblastic Disease': 'uterus',
++    'Glioblastoma': 'brain',
++    'Glioma': 'brain',
++    'Head and Neck Cancer': 'head_neck',
++    'Head and Neck Cancer, NOS': 'head_neck',
++    'Head and Neck Carcinoma': 'head_neck',
++    'Hepatobiliary Cancer': 'liver',
++    'High-grade glioma/astrocytoma': 'brain',
++    'Histiocytosis': 'immune',
++    'Hodgkin Lymphoma': 'lymphoma',
++    'Hodgkin Lymphoma-like PTLD': 'lymphoma',
++    'Intraductal Papillary Mucinous Neoplasm': 'pancreas',
++    'Intrahepatic Cholangiocarcinoma': 'biliary_tract',
++    'Invasive Breast Carcinoma': 'breast',
++    'Kidney Renal Cell Carcinoma': 'kidney',
++    'Leukemia': 'leukemia',
++    'Liver Hepatocellular Carcinoma': 'liver',
++    'Liver Tumor': 'liver',
++    'Low-grade glioma/astrocytoma': 'brain',
++    'Lung Adenocarcinoma': 'lung',
++    'Lung Cancer': 'lung',
++    'Lung Cancer, NOS': 'lung',
++    'Lung cancer': 'lung',
++    'Lymphoid Neoplasm': 'lymph',
++    'Malignant Rhabdoid Tumor of the Liver': 'liver',
++    'Mastocytosis': 'immune',
++    'Mature B-Cell Neoplasms': 'lymphoma',
++    'Mature B-cell lymphoma': 'lymphoma',
++    'Mature T and NK Neoplasms': 'immune',
++    'Medulloblastoma': 'brain',
++    'Melanoma': 'skin',
++    'Meningioma': 'brain',
++    'Mesothelioma': 'soft_tissue',
++    'Miscellaneous Brain Tumor': 'brain',
++    'Miscellaneous Neuroepithelial Tumor': 'brain',
++    'Mucinous Adenocarcinoma Lymph Node': 'lymph',
++    'Myelodysplastic Syndromes': 'plasma',
++    'Myelodysplastic/Myeloproliferative Neoplasms': 'plasma',
++    'Myeloproliferative Neoplasms': 'plasma',
++    'Nerve Sheath Tumor': 'soft_tissue',
++    'Nested stromal epithelial tumor of the liver': 'liver',
++    'Non Small Cell Lung Cancer': 'lung',
++    'Non-Germinomatous Germ Cell Tumor': 'testicle',
++    'Non-Hodgkin Lymphoma': 'lymphoma',
++    'Non-Seminomatous Germ Cell Tumor': 'testicle',
++    'Non-Small Cell Lung Cancer': 'lung',
++    'Ocular Melanoma': 'eye',
++    'Other': 'mixed',
++    'Ovarian Cancer': 'ovary',
++    'Ovarian Carcinoma': 'ovary',
++    'Ovarian Epithelial Tumor': 'ovary',
++    'Ovarian Germ Cell Tumor': 'ovary',
++    'Ovarian/Fallopian Tube Cancer, NOS': 'ovary',
++    'Pancreatic Cancer': 'pancreas',
++    'Penile Cancer': 'intestine',
++    'Peripheral Nervous System': 'soft_tissue',
++    'Pheochromocytoma': 'adrenal_gland',
++    'Pineal Tumor': 'brain',
++    'Pleural Mesothelioma': 'soft_tissue',
++    'Posttransplant Lymphoproliferative Disorders': 'lymphoma',
++    'Prostate Cancer': 'prostate',
++    'Prostate Cancer, NOS': 'prostate',
++    'Renal Cell Carcinoma': 'kidney',
++    'Renal Clear Cell Carcinoma': 'kidney',
++    'Renal Non-Clear Cell Carcinoma': 'kidney',
++    'Renal cancer': 'kidney',
++    'Retinoblastoma': 'eye',
++    'Rhabdoid Cancer': 'soft_tissue',
++    'Salivary Cancer': 'head_neck',
++    'Salivary Gland Cancer': 'head_neck',
++    'Salivary Gland-Type Tumor of the Lung': 'lung',
++    'Sarcoma': 'soft_tissue',
++    'Sellar Tumor': 'brain',
++    'Seminoma': 'testicle',
++    'Sex Cord Stromal Tumor': 'testicle',
++    'Skin Cancer, Non-Melanoma': 'skin',
++    'Small Bowel Cancer': 'intestine',
++    'Small Bowel Carcinoma': 'intestine',
++    'Small Cell Lung Cancer': 'lung',
++    'Soft Tissue Myoepithelial Carcinoma': 'soft_tissue',
++    'Soft Tissue Sarcoma': 'soft_tissue',
++    'Soft Tissue Tumor': 'soft_tissue',
++    'T-Lymphoblastic Leukemia/Lymphoma': 'leukemia',
++    'Teratoma with Malignant Transformation': 'testicle',
++    'Thymic Epithelial Tumor': 'thymus',
++    'Thymic Tumor': 'thymus',
++    'Thyroid Cancer': 'thyroid',
++    'Thyroid Carcinoma': 'thyroid',
++    'Urothelial Carcinoma': 'bladder',
++    'Uterine Corpus Endometrial Carcinoma': 'uterus',
++    'Uterine Endometrioid Carcinoma': 'uterus',
++    'Uterine Sarcoma': 'uterus',
++    'Vaginal Cancer': 'intestine',
++    'Wilms Tumor': 'kidney'
++}
++
++CBIO_CANCER_TYPE_ACRONYM_TO_TISSUE_DICTIONARY = {
++    'acbc': 'breast',
++    'acc': 'adrenal_gland',
++    'acyc': 'adenoid',
++    'aml': 'leukemia',
++    'ampca': 'ampulla',
++    'angs': 'endothelial',
++    'apad': 'appendix',
++    'bcc': 'skin',
++    'bfn': 'breast',
++    'biliary_tract': 'biliary_tract',
++    'blca': 'bladder',
++    'bll': 'leukemia',
++    'bowel': 'intestine',
++    'brain': 'brain',
++    'brca': 'breast',
++    'breast': 'breast',
++    'ccrcc': 'kidney',
++    'cervix': 'cervix',
++    'cesc': 'cervix',
++    'chol': 'biliary_tract',
++    'chrcc': 'kidney',
++    'cllsll': 'leukemia',
++    'coad': 'intestine',
++    'coadread': 'intestine',
++    'cscc': 'skin',
++    'desm': 'skin',
++    'difg': 'brain',
++    'dlbclnos': 'lymphoma',
++    'egc': 'esophagus',
++    'es': 'bone',
++    'esca': 'esophagus',
++    'escc': 'esophagus',
++    'gbc': 'gallbladder',
++    'gbm': 'brain',
++    'gist': 'stomach',
++    'hcc': 'liver',
++    'hccihch': 'liver',
++    'hdcn': 'immune',
++    'head_neck': 'head_neck',
++    'hgsoc': 'ovary',
++    'hnsc': 'head_neck',
++    'ihch': 'liver',
++    'lgsoc': 'ovary',
++    'liad': 'liver',
++    'luad': 'lung',
++    'lung': 'lung',
++    'lusc': 'lung',
++    'lymph': 'lymph',
++    'mbc': 'breast',
++    'mbl': 'brain',
++    'mbn': 'lymphoma',
++    'mcl': 'lymphoma',
++    'mds': 'leukemia',
++    'mel': 'skin',
++    'mixed': 'mixed',
++    'mng': 'head_neck',
++    'mnm': 'leukemia',
++    'mpn': 'leukemia',
++    'mpnst': 'soft_tissue',
++    'mrt': 'kidney',
++    'mtnn': 'lymphoma',
++    'myeloid': 'leukemia',
++    'nbl': 'adrenal_gland',
++    'nccrcc': 'kidney',
++    'nhl': 'lymphoma',
++    'npc': 'head_neck',
++    'nsclc': 'lung',
++    'nsgct': 'testicle',
++    'nst': 'brain',
++    'odg': 'brain',
++    'ovary': 'ovary',
++    'paac': 'pancreas',
++    'paad': 'pancreas',
++    'pact': 'pancreas',
++    'pancreas': 'pancreas',
++    'panet': 'pancreas',
++    'past': 'brain',
++    'pcm': 'plasma',
++    'pcnsl': 'lymphoma',  # brain?
++    'plmeso': 'lung',
++    'prad': 'prostate',
++    'prcc': 'kidney',
++    'prostate': 'prostate',
++    'rbl': 'eye',
++    'rms': 'muscle',
++    'scco': 'ovary',
++    'sclc': 'lung',
++    'skcm': 'skin',
++    'soft_tissue': 'soft_tissue',
++    'stad': 'stomach',
++    'stmyec': 'soft_tissue',
++    'stomach': 'stomach',
++    'testis': 'testicle',
++    'tet': 'thymus',
++    'thpa': 'thyroid',
++    'thym': 'thymus',
++    'thyroid': 'thyroid',
++    'uccc': 'uterus',
++    'ucec': 'uterus',
++    'ucs': 'uterus',
++    'um': 'eye',
++    'urcc': 'kidney',
++    'usarc': 'uterus',
++    'utuc': 'bladder',
++    'vsc': 'cervix',
++    'wt': 'kidney'
++}
+diff --git a/gget/gget_cbio.py b/gget/gget_cbio.py
+new file mode 100644
+index 000000000..6ae758979
+--- /dev/null
++++ b/gget/gget_cbio.py
+@@ -0,0 +1,1205 @@
++__all__ = ["download_cbioportal_data", "cbio_search", "cbio_plot"]
++
++import json
++import math
++import os
++import subprocess
++from typing import Literal, TypeVar, Callable
++
++import pandas as pd
++import numpy as np
++
++import requests
++from collections import defaultdict, OrderedDict
++
++from .utils import set_up_logger
++
++import matplotlib.pyplot as plt
++from matplotlib.colors import ListedColormap, BoundaryNorm, TwoSlopeNorm
++
++from .constants import CBIO_CANCER_TYPE_TO_TISSUE_DICTIONARY
++
++_K = TypeVar("_K")
++_V = TypeVar("_V")
++
++logger = set_up_logger()
++
++
++def _ints_between(
++    start: int, end: int, max_count: int, min_count: int, verbose: bool = False
++) -> list[int]:
++    """
++    Generate a list of integers between start and end (inclusive) with a maximum count of max_count and a minimum count min_count.
++    The list is guaranteed to contain start and end, and the spacing between the numbers will be as even as possible.
++    If a perfect spacing is not possible, the spacing will omit a number rather than overcrowding.
++
++    This method is designed to be used for plot labels
++    """
++    assert max_count >= 2, "max_count must be at least 2"
++    assert start < end, "start must be less than end"
++
++    if max_count == 2:
++        return [start, end]
++    else:
++        step = int(math.ceil((end - start) / (max_count - 1)))
++        if verbose:
++            print(f"Original step: {step}, {(end - start) % step=}")
++            print(f"{end - start=}")
++        # check if it comes out even
++        while ((end - start) / step) + 1 >= min_count and (end - start) % step != 0:
++            step += 1
++            if verbose:
++                print(f"New step: {step}, {(end - start) % step=}")
++        if (end - start) % step != 0:
++            step = int(math.ceil((end - start) / (max_count - 1)))
++            if verbose:
++                print("Reverted step")
++
++        out = [start]
++        current = start
++        while current + step * 2 <= end:
++            current += step
++            out.append(current)
++        out.append(end)
++        if verbose:
++            print(f"{out=}")
++        return out
++
++
++def _describe_bytes(size: int) -> str:
++    """
++    Describe a size in bytes in human-readable format.
++
++    :param size:    size in bytes
++    """
++
++    steps = ["bytes", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
++
++    unit = steps.pop(0)
++
++    while size >= 1000 and steps:
++        size /= 1000
++        unit = steps.pop(0)
++
++    if unit == "bytes":
++        return f"{size} {unit}"
++    return f"{size:.2f} {unit}"
++
++
++def _download_file_from_git_lfs(
++    target_path: str, oid: str, size: int, verbose: bool = False
++) -> bool:
++    """
++    Download a single object from Git LFS.
++
++    :param target_path:  path to save the downloaded object
++    :param oid:          object ID
++    :param size:         size of the object
++
++    :return:             True if the object was downloaded successfully, False otherwise
++    """
++    lfs_metadata = {
++        "operation": "download",
++        "transfer": ["basic"],
++        "objects": [{"oid": oid, "size": size}],
++    }
++    lfs_metadata_json = json.dumps(lfs_metadata)
++
++    try:
++        github_url = f"https://github.com/cBioPortal/datahub.git/info/lfs/objects/batch"
++
++        curl_command = [
++            "curl",
++            "-X", "POST",
++            "-H", "Accept: application/vnd.git-lfs+json",
++            "-H", "Content-Type: application/json",
++            "-d", lfs_metadata_json,
++            github_url,
++        ]
++
++        result = subprocess.run(curl_command, capture_output=True, text=True)
++        response_json = json.loads(result.stdout)
++
++        href = response_json["objects"][0]["actions"]["download"]["href"]
++
++        response = requests.get(href)
++
++        if not response.ok:
++            logger.error(f"Failed to download object {oid} to {target_path}")
++            return False
++
++        with open(target_path, "wb") as f:
++            f.write(response.content)
++
++        if verbose:
++            logger.info(f"Downloaded object {oid} to {target_path}")
++
++    except Exception as e:
++        logger.error(f"Error downloading object {oid} to {target_path}: {e}")
++        return False
++
++    return True
++
++
++class _LFSDownloadPlan:
++    def __init__(self, verbose: bool = False):
++        self.objects: list[tuple[str, tuple[str, int]]] = []
++        """(target_path, (oid, size))"""
++
++        self.verbose = verbose
++
++    @property
++    def total_size(self) -> int:
++        return sum(size for _, (_, size) in self.objects)
++
++    def add(self, target_path: str, oid: str, size: int):
++        self.objects.append((target_path, (oid, size)))
++
++    def download(self) -> bool:
++        """
++        Download all objects in the plan.
++
++        :return:    True if all objects were downloaded successfully, False otherwise
++        """
++        success = True
++
++        for target_path, (oid, size) in self.objects:
++            success &= _download_file_from_git_lfs(target_path, oid, size)
++
++        return success
++
++
++def download_cbioportal_data(
++    study_ids: list[str],
++    verbose: bool = False,
++    out_dir: str | None = None,
++    confirm_download: bool = False,
++) -> bool:
++    """
++    Download data from cBioPortal studies.
++
++    Args:
++
++    :param study_ids:           list of cBioPortal study IDs
++    :param verbose:             whether to print out progress
++    :param out_dir:             output directory to save the data, default `<current_directory>/gget_cbio_cache/`
++    :param confirm_download:    whether to confirm the download before proceeding
++
++    Return:
++
++    :return:            True if successfully downloaded all needed data, False otherwise
++    """
++
++    actual_out_dir = os.path.abspath(out_dir or "gget_cbio_cache")
++
++    os.makedirs(actual_out_dir, exist_ok=True)
++
++    success = True
++
++    if confirm_download:
++        plan = _LFSDownloadPlan(verbose=verbose)
++    else:
++        plan = None
++
++    for study_id in study_ids:
++        file_types = ["mutations", "cna", "sv", "clinical_patient", "clinical_sample"]
++
++        for file_type in file_types:
++            try:
++                data_folder = os.path.join(actual_out_dir, study_id)
++                filename = os.path.join(data_folder, f"{file_type}.txt")
++
++                if not os.path.exists(data_folder):
++                    os.makedirs(data_folder, exist_ok=True)
++
++                if os.path.exists(filename):
++                    if verbose:
++                        logger.info(f"File {filename} already exists, skipping.")
++                    continue
++
++                # URL to be downloaded
++                url = f"https://raw.githubusercontent.com/cBioPortal/datahub/master/public/{study_id}/data_{file_type}.txt"
++
++                response = requests.get(url)
++
++                if not response.ok:
++                    logger.error(
++                        f"Failed to download {file_type} data for study {study_id}"
++                    )
++                    success = False
++                    continue
++
++                lines = response.content.decode().splitlines(keepends=True)
++
++                fields: dict[str, str] = {}
++
++                for line in lines:
++                    k, v = line.split(" ", 1)
++                    k = k.strip()
++                    v = v.strip()
++                    fields[k] = v
++
++                assert (
++                    fields["version"] == "https://git-lfs.github.com/spec/v1"
++                ), f"Cannot handle git-lfs version {fields['version']}"
++
++                oid: str = fields["oid"].split(":")[1].strip()
++                size: int = int(fields["size"])
++
++                if plan:
++                    plan.add(filename, oid, size)
++                else:
++                    success &= _download_file_from_git_lfs(
++                        filename, oid, size, verbose=verbose
++                    )
++
++            except Exception as e:
++                logger.error(
++                    f"Error downloading {file_type} data for study {study_id}: {e}"
++                )
++                success = False
++
++        if verbose and not confirm_download:
++            logger.info(f"Downloaded all data for study {study_id}")
++
++    # If using a download plan AND there are actually objects to download, ask for confirmation
++    if plan and plan.objects:
++        do_download = (
++            input(
++                f"Do you want to download {_describe_bytes(plan.total_size)} to {actual_out_dir}? (y/n) "
++            )
++            .lower()
++            .strip()
++            == "y"
++        )
++        if do_download:
++            success &= plan.download()
++        else:
++            print("Download aborted")
++            return False
++    elif verbose:
++        logger.info("Downloaded all data for all studies")
++
++    return success
++
++
++def _extract_study_name(name: str) -> str:
++    parenthesis_index = name.find("(")
++    if parenthesis_index != -1:
++        return name[:parenthesis_index].strip()
++    return name
++
++
++def cbio_search(*key_words: str) -> list[str]:
++    """
++    Find cBioPortal study IDs by keyword.
++
++    Args:
++
++    :param key_words:    list of keywords to search for
++
++    Return:
++
++    :return:            list of study IDs that match the keywords
++    """
++
++    try:
++        from bravado.client import SwaggerClient
++    except ImportError:
++        logger.error(
++            """
++            Some third-party dependencies are missing. Please run the following command: 
++            >>> gget.setup('cbio') or $ gget setup cbio
++
++            Alternative: Install the bravado package using pip (https://pypi.org/project/bravado).
++            """
++        )
++        return []
++
++    api = SwaggerClient.from_url(
++        "https://www.cbioportal.org/api/v2/api-docs",
++        config={
++            "validate_requests": False,
++            "validate_responses": False,
++            "validate_swagger_spec": False,
++        },
++    )
++
++    for a in dir(api):
++        setattr(api, a.replace(" ", "_").lower(), getattr(api, a))
++
++    studies = api.Studies.getAllStudiesUsingGET().result()
++
++    cancer_type_acronym_dict = {
++        _extract_study_name(individual_study["name"]): individual_study["cancerTypeId"]
++        for individual_study in studies
++    }
++    cancer_type_acronym_dict = OrderedDict(sorted(cancer_type_acronym_dict.items()))
++
++    cancer_id_list = [
++        cancer_type_acronym
++        for cancer_type, cancer_type_acronym in cancer_type_acronym_dict.items()
++        if any(
++            key_word in cancer_type.lower() or key_word in cancer_type_acronym.lower()
++            for key_word in key_words
++        )
++        and cancer_type_acronym.lower() != "mixed"
++    ]
++
++    matching_study_ids = [
++        individual_study["studyId"]
++        for individual_study in studies
++        if individual_study["cancerTypeId"] in cancer_id_list
++    ]
++
++    return matching_study_ids
++
++
++def _get_ensembl_gene_id(transcript_id: str, verbose: bool = False):
++    try:
++        url = f"https://rest.ensembl.org/lookup/id/{transcript_id}?expand=1"
++        response = requests.get(url, headers={"Content-Type": "application/json"})
++
++        if not response.ok:
++            response.raise_for_status()
++
++        data = response.json()
++
++        return data.get("Parent")
++    except Exception as e:
++        if verbose:
++            print(f"Error for: {transcript_id}")
++        return "Unknown"
++
++
++def _get_ensembl_gene_id_bulk(transcript_ids: list[str]) -> dict[str, str]:
++    if not transcript_ids:
++        return {}
++
++    try:
++        url = f"https://rest.ensembl.org/lookup/id/"
++        response = requests.post(url, json={"ids": transcript_ids}, headers={"Content-Type": "application/json"})
++
++        if not response.ok:
++            response.raise_for_status()
++
++        data = response.json()
++
++        return {transcript_id: data[transcript_id].get("Parent") for transcript_id in transcript_ids if data[transcript_id]}
++    except Exception as e:
++        logger.error(f"Failed to fetch gene IDs from Ensembl: {e}")
++        raise e
++
++
++def _get_ensembl_gene_name_bulk(gene_ids: list[str]) -> dict[str, str]:
++    if not gene_ids:
++        return {}
++
++    try:
++        url = f"https://rest.ensembl.org/lookup/id/"
++        response = requests.post(url, json={"ids": gene_ids}, headers={"Content-Type": "application/json"})
++
++        if not response.ok:
++            response.raise_for_status()
++
++        data = response.json()
++
++        return {gene_id: data[gene_id].get("display_name") for gene_id in gene_ids if data[gene_id]}
++    except Exception as e:
++        logger.error(f"Failed to fetch gene names from Ensembl: {e}")
++        raise e
++
++
++def _get_valid_ensembl_gene_id(
++    row, transcript_column: str = "seq_ID", gene_column: str = "gene_name"
++):
++    ensembl_gene_id = _get_ensembl_gene_id(row[transcript_column])
++    if ensembl_gene_id == "Unknown":
++        return row[gene_column]
++    return ensembl_gene_id
++
++
++def _get_valid_ensembl_gene_id_bulk(df: pd.DataFrame) -> Callable[[pd.Series, str, str], str]:
++    map_: dict[str, str] | None = None
++
++    def f(row: pd.Series, transcript_column: str = "seq_ID", gene_column: str = "gene_name"):
++        # logger.info(f"Row: {row}")
++        nonlocal map_
++        if map_ is None:
++            all_transcript_ids = df[transcript_column].unique()
++            map_ = _get_ensembl_gene_id_bulk(list(all_transcript_ids))
++
++        ensembl_gene_id = map_.get(row[transcript_column], "Unknown")
++        if ensembl_gene_id == "Unknown":
++            return row[gene_column]
++
++        return ensembl_gene_id
++
++    return f
++
++
++def _nested_defaultdict() -> defaultdict[_K, _V | defaultdict[_K]]:
++    return defaultdict(_nested_defaultdict)
++
++
++_ENSEMBL = "Ensembl"
++_SYMBOL = "Symbol"
++
++
++class _GeneAnalysis:
++    def __init__(
++        self,
++        study_ids: list[str],
++        genes: list[str],
++        merge_type: Literal["Symbol", "Ensembl"] = "Symbol",
++        remove_non_ensembl_genes: bool = False,
++        data_dir: str = "gget_cbio_cache",
++        figure_output_dir: str = "gget_cbio_figures",
++    ):
++        self.study_ids = study_ids
++
++        ensembl_transcripts = [gene for gene in genes if gene.startswith("ENST")]
++        map_ = {k: v for k, v in _get_ensembl_gene_id_bulk(ensembl_transcripts).items() if v != "Unknown" and v is not None}
++        genes = [map_.get(gene, gene) for gene in genes]
++
++        ensembl_gene_ids = [gene for gene in genes if gene.startswith("ENSG")]
++        map_ = {k: v for k, v in _get_ensembl_gene_name_bulk(ensembl_gene_ids).items() if v != "Unknown" and v is not None}
++        self.genes = [map_.get(gene, gene) for gene in genes]
++
++        self.merge_type = merge_type
++        self.remove_non_ensembl_genes = remove_non_ensembl_genes
++        self.data_dir = data_dir
++        self.figure_output_dir = figure_output_dir
++
++        os.makedirs(self.figure_output_dir, exist_ok=True)
++
++        # todo "Ensembl_Gene_ID" is not a valid column name in the dataframes...
++        ##assert self.merge_type == _SYMBOL, "Only 'Symbol' merge type is supported for now."
++        assert self.merge_type in [
++            _SYMBOL,
++            _ENSEMBL,
++        ], "merge_type must be either 'Symbol' or 'Ensembl'"
++
++        self.columns_to_keep = [
++            "Tumor_Sample_Barcode",
++            "Hugo_Symbol",
++            "Entrez_Gene_Id",
++            "Consequence",
++        ]
++        self.column_for_merging: str = (
++            "Hugo_Symbol" if self.merge_type == _SYMBOL else "Ensembl_Gene_ID"
++        )
++
++        self.df_collection: dict[str, dict[str, pd.DataFrame]] = {}
++        self.big_combined_df = self._create_study_dataframes()
++
++    def _create_single_study_dataframe(self, study_id: str) -> pd.DataFrame:
++        data_folder = os.path.join(self.data_dir, study_id)
++
++        mutation_df = pd.read_csv(os.path.join(data_folder, "mutations.txt"), sep="\t")
++        sample_df = pd.read_csv(
++            os.path.join(data_folder, "clinical_sample.txt"), sep="\t"
++        )
++
++        self.df_collection[study_id]["mutations"] = mutation_df
++        self.df_collection[study_id]["samples"] = sample_df
++
++        # Merge on gene name
++        if self.merge_type == _ENSEMBL:
++            if (
++                "Gene" in mutation_df.columns
++                and not mutation_df["Gene"].isna().all()
++                and mutation_df["Gene"].str.startswith("ENSG").any()
++            ):
++                mutation_df.rename(columns={"Gene": "Ensembl_Gene_ID"}, inplace=True)
++                if self.remove_non_ensembl_genes:
++                    mutation_df = mutation_df[
++                        mutation_df["Ensembl_Gene_ID"].str.startswith("ENSG")
++                    ]
++            elif (
++                "Transcript_ID" in mutation_df.columns
++                and mutation_df["Transcript_ID"].str.startswith("ENST").any()
++            ):
++                logger.info("Fetching gene IDs from Ensembl")
++                mutation_df["Ensembl_Gene_ID"] = mutation_df.progress_apply(
++                    _get_valid_ensembl_gene_id_bulk(mutation_df),
++                    axis=1,
++                    transcript_column="Transcript_ID",  # rewriting this column
++                    gene_column="Hugo_Symbol",
++                )
++                if self.remove_non_ensembl_genes:
++                    mutation_df = mutation_df[
++                        mutation_df["Ensembl_Gene_ID"].str.startswith("ENSG")
++                    ]
++            else:
++                self.merge_type = _SYMBOL
++                logger.warn(
++                    "No Ensembl gene IDs found in the mutation data. Merging on gene symbol instead."
++                )
++
++        if self.merge_type == _ENSEMBL:
++            self.column_for_merging = "Ensembl_Gene_ID"
++
++            # logger.info(f"Columns: {mutation_df.columns}")
++            # logger.info(f"Transcript column: {mutation_df.head(20)['Transcript_ID']}")
++            # logger.info(f"Gene ID column: {mutation_df.head(20)['Ensembl_Gene_ID']}")
++            aggregated_df = (
++                mutation_df.groupby(["Tumor_Sample_Barcode", self.column_for_merging])
++                .agg(
++                    {
++                        "Hugo_Symbol": lambda x: ",".join(x.unique()),
++                        "Entrez_Gene_Id": lambda x: ",".join(map(str, x.unique())),
++                        "Consequence": lambda x: ",".join(x.unique()),
++                    }
++                )
++                .reset_index()
++            )
++        elif self.merge_type == _SYMBOL:
++            self.column_for_merging = "Hugo_Symbol"
++
++            aggregated_df = (
++                mutation_df.groupby(["Tumor_Sample_Barcode", self.column_for_merging])
++                .agg(
++                    {
++                        "Entrez_Gene_Id": lambda x: ",".join(map(str, x.unique())),
++                        "Consequence": lambda x: ",".join(x.unique()),
++                    }
++                )
++                .reset_index()
++            )
++        else:
++            raise AssertionError(f"Invalid merge type: {self.merge_type}")
++
++        if self.column_for_merging not in self.columns_to_keep:
++            self.columns_to_keep.append(self.column_for_merging)
++
++        aggregated_df["Consequence"] = aggregated_df["Consequence"].apply(
++            lambda x: "Multiple_consequences" if "," in x else x
++        )
++
++        occurrences_df = (
++            aggregated_df.groupby([self.column_for_merging, "Tumor_Sample_Barcode"])
++            .size()
++            .reset_index(name="mutation_occurrences")
++        )
++
++        final_df = pd.merge(
++            aggregated_df,
++            occurrences_df,
++            on=[self.column_for_merging, "Tumor_Sample_Barcode"],
++        )
++
++        # add CNA and SV info
++        if os.path.exists(os.path.join(data_folder, "cna.txt")):
++            cna_df = pd.read_csv(os.path.join(data_folder, "cna.txt"), sep="\t")
++            self.df_collection[study_id]["cna"] = cna_df
++
++            # Exclude 'Hugo_Symbol' column
++            columns_to_transform = self.df_collection[study_id][
++                "cna"
++            ].columns.difference(["Hugo_Symbol"])
++
++            # Apply binary transformation to the selected columns
++            df_binary = self.df_collection[study_id]["cna"][columns_to_transform].map(
++                lambda x: 1 if (pd.notna(x) and x != 0) else x
++            )
++
++            # Add 'Hugo_Symbol' column back to the DataFrame
++            df_binary.insert(
++                0, "Hugo_Symbol", self.df_collection[study_id]["cna"]["Hugo_Symbol"]
++            )
++
++            # Reassign the transformed DataFrame to the collection
++            self.df_collection[study_id]["cna_binary"] = df_binary
++
++            melted_cna = self.df_collection[study_id]["cna_binary"].melt(
++                id_vars=["Hugo_Symbol"],
++                var_name="Tumor_Sample_Barcode",
++                value_name="cna_occurrences",
++            )
++
++            final_df = pd.merge(
++                final_df,
++                melted_cna[["Hugo_Symbol", "Tumor_Sample_Barcode", "cna_occurrences"]],
++                on=["Hugo_Symbol", "Tumor_Sample_Barcode"],
++                how="outer",
++            )
++
++        if os.path.exists(os.path.join(data_folder, "sv.txt")):
++            sv_df = pd.read_csv(os.path.join(data_folder, "sv.txt"), sep="\t")
++            self.df_collection[study_id]["sv"] = sv_df
++
++            # Melt the DataFrame to combine Site1_Hugo_Symbol and Site2_Hugo_Symbol into a single column
++            melted_sv = pd.melt(
++                self.df_collection[study_id]["sv"],
++                id_vars=["Sample_Id"],
++                value_vars=["Site1_Hugo_Symbol", "Site2_Hugo_Symbol"],
++                var_name="site",
++                value_name="Hugo_Symbol",
++            )
++
++            # Drop duplicate rows to ensure each Hugo_Symbol is only counted once per Sample_Id
++            melted_sv = melted_sv.drop_duplicates(subset=["Sample_Id", "Hugo_Symbol"])
++
++            # Count the occurrences of each Hugo_Symbol in each Sample_Id
++            sv_occurrences = (
++                melted_sv.groupby(["Hugo_Symbol", "Sample_Id"])
++                .size()
++                .reset_index(name="sv_occurrences")
++            )
++
++            # Rename columns to match the desired output
++            sv_occurrences = sv_occurrences.rename(
++                columns={"Sample_Id": "Tumor_Sample_Barcode"}
++            )
++
++            final_df = pd.merge(
++                final_df,
++                sv_occurrences[
++                    ["Hugo_Symbol", "Tumor_Sample_Barcode", "sv_occurrences"]
++                ],
++                on=["Hugo_Symbol", "Tumor_Sample_Barcode"],
++                how="outer",
++            )
++
++        final_df["study_id"] = study_id
++
++        if "Sample Identifier" in sample_df.columns:
++            sample_identifier_column = "Sample Identifier"
++        elif "#Sample Identifier" in sample_df.columns:
++            sample_identifier_column = "#Sample Identifier"
++        elif "SAMPLE_ID" in sample_df.columns:
++            sample_identifier_column = "SAMPLE_ID"
++        else:
++            raise AssertionError(
++                "Sample Identifier column not found in the sample dataframe"
++            )
++
++        final_df = pd.merge(
++            final_df,
++            sample_df[
++                [sample_identifier_column, "Cancer Type", "Cancer Type Detailed"]
++            ],
++            left_on="Tumor_Sample_Barcode",
++            right_on=sample_identifier_column,
++            how="left",
++        )
++
++        final_df.rename(
++            columns={
++                "Cancer Type": "cancer_type",
++                "Cancer Type Detailed": "cancer_type_detailed",
++            },
++            inplace=True,
++        )
++
++        final_df["tissue"] = (
++            final_df["cancer_type"]
++            .map(CBIO_CANCER_TYPE_TO_TISSUE_DICTIONARY)
++            .fillna("unclassified")
++        )
++
++        # Drop the redundant SAMPLE_ID column
++        final_df.drop(columns=[sample_identifier_column], inplace=True)
++
++        return final_df
++
++    def _create_study_dataframes(self) -> pd.DataFrame:
++        dataframes = []
++
++        for study_id in self.study_ids:
++            self.df_collection[study_id] = {}
++
++            # clean up data just in case (cut out comments)
++            filename = f"{self.data_dir}/{study_id}/mutations.txt"
++
++            with open(filename, "r") as file:
++                lines = file.readlines()
++
++            changed = False
++            while lines[0].startswith("#"):
++                lines.pop(0)
++                changed = True
++
++            if changed:
++                logger.info(f"Stripped comments from {filename}")
++                # Write the remaining lines back to the file
++                with open(filename, "w") as file:
++                    file.writelines(lines)
++
++            final_df = self._create_single_study_dataframe(study_id=study_id)
++            dataframes.append(final_df)
++
++        return pd.concat(dataframes, ignore_index=True)
++
++    def plot_heatmap(
++        self,
++        stratification: Literal[
++            "tissue", "cancer_type", "cancer_type_detailed", "study_id", "sample"
++        ] = "tissue",
++        filter_category: str | None = None,
++        filter_value: str | None = None,
++        variation_type: Literal[
++            "mutation_occurrences",
++            "cna_nonbinary",
++            "sv_occurrences",
++            "cna_occurrences",
++            "Consequence",
++        ] = "mutation_occurrences",
++        dpi: int = 100,
++        show: bool = False
++    ):
++        if variation_type == "cna_nonbinary" or variation_type == "Consequence":
++            assert (
++                stratification == "sample"
++            ), "Stratification must be 'sample' for cna_nonbinary and Consequence variations"
++
++        if variation_type != "cna_nonbinary":
++            simple_merge_by_stratification: dict[str, list[str]] = {
++                "tissue": ["Tumor_Sample_Barcode", "study_id", "cancer_type", "tissue"],
++                "cancer_type": ["Tumor_Sample_Barcode", "study_id", "cancer_type"],
++                "cancer_type_detailed": [
++                    "Tumor_Sample_Barcode",
++                    "study_id",
++                    "cancer_type_detailed",
++                ],
++                "study_id": ["Tumor_Sample_Barcode", "study_id"],
++                "sample": ["Tumor_Sample_Barcode"],
++            }
++            # stratify by merging specific columns
++            if stratification in simple_merge_by_stratification:
++                merge_on: list[str] = simple_merge_by_stratification[stratification]
++
++                if filter_category is None:  # no filtering
++                    final_df = self.big_combined_df
++                else:
++                    final_df = self.big_combined_df[
++                        self.big_combined_df[filter_category] == filter_value
++                    ]
++
++                columns_to_keep_copy = self.columns_to_keep.copy()
++
++                unique_samples_info = final_df[
++                    [
++                        "Tumor_Sample_Barcode",
++                        "cancer_type",
++                        "cancer_type_detailed",
++                        "study_id",
++                        "tissue",
++                    ]
++                ].drop_duplicates()
++
++                hugo_mask = final_df["Hugo_Symbol"].isin(
++                    [gene for gene in (self.genes) if not gene.startswith("ENSG")]
++                )
++
++                if self.merge_type == _ENSEMBL:
++                    ensg_mask = final_df["Ensembl_Gene_ID"].isin(
++                        [gene for gene in (self.genes) if gene.startswith("ENSG")]
++                    )
++                    combined_mask = ensg_mask | hugo_mask
++                elif self.merge_type == _SYMBOL:
++                    combined_mask = hugo_mask
++                else:
++                    raise AssertionError(f"Invalid merge type: {self.merge_type}")
++
++                filtered_genes_df: pd.DataFrame = final_df[combined_mask]
++
++                if self.merge_type == _ENSEMBL:
++                    existing_genes = set(filtered_genes_df["Ensembl_Gene_ID"]).union(
++                        set(filtered_genes_df["Hugo_Symbol"])
++                    )
++                elif self.merge_type == _SYMBOL:
++                    existing_genes = set(filtered_genes_df["Hugo_Symbol"])
++                else:
++                    raise AssertionError(f"Invalid merge type: {self.merge_type}")
++
++                unexpressed_genes = [
++                    gene for gene in (self.genes) if gene not in existing_genes
++                ]
++
++                # Get all unique Tumor_Sample_Barcode from the original DataFrame
++                all_samples = final_df[merge_on].drop_duplicates()
++
++                all_samples = pd.merge(
++                    all_samples, unique_samples_info, on=merge_on, how="left"
++                )
++
++                if variation_type not in columns_to_keep_copy:
++                    columns_to_keep_copy.append(variation_type)
++
++                must_keep = [
++                    "study_id",
++                    "tissue",
++                    "cancer_type",
++                    "cancer_type_detailed",
++                ]
++                for column_name in must_keep:
++                    if (
++                        column_name in merge_on
++                        and column_name not in columns_to_keep_copy
++                    ):
++                        columns_to_keep_copy.append(column_name)
++
++                # Merge the filtered genes DataFrame with all samples to ensure all samples are included
++                merged_df = pd.merge(
++                    all_samples,
++                    filtered_genes_df[columns_to_keep_copy],
++                    on=merge_on,
++                    how="left",
++                    suffixes=("_sample", "_gene"),
++                )
++
++                if (
++                    stratification != "sample"
++                ):  # no filtering
++                    df_for_heatmap_very_final: pd.DataFrame = (
++                        merged_df.groupby([self.column_for_merging, stratification])[
++                            variation_type
++                        ]
++                        .sum()
++                        .reset_index()
++                    )
++                else:
++                    df_for_heatmap_very_final: pd.DataFrame = merged_df
++
++                df = df_for_heatmap_very_final.copy()
++            else:
++                raise ValueError(
++                    "Invalid stratification value. Please choose from 'tissue', 'cancer_type', 'cancer_type_detailed', 'study_id', 'sample'"
++                )
++
++            # plot heatmap code
++            pivot_column = stratification
++
++            # simple stratification (round 2)
++            if stratification in {
++                "tissue",
++                "cancer_type",
++                "cancer_type_detailed",
++                "study_id",
++            }:
++                pass
++            elif stratification == "sample":
++                pivot_column = "Tumor_Sample_Barcode"
++            else:
++                raise ValueError(
++                    "Invalid stratification value. Please choose from 'tissue', 'cancer_type', 'cancer_type_detailed', 'study_id', 'sample'"
++                )
++
++            pivot_df1 = df.pivot(
++                index=self.column_for_merging,
++                columns=pivot_column,
++                values=variation_type,
++            )
++
++            pivot_df1 = pivot_df1.dropna(how="all")
++
++            sorted_columns = pivot_df1.count().sort_values(ascending=False).index
++            pivot_df1 = pivot_df1[sorted_columns]
++
++            if unexpressed_genes:
++                new_rows = pd.DataFrame(
++                    np.nan, index=unexpressed_genes, columns=pivot_df1.columns
++                )
++                pivot_df1 = pd.concat([pivot_df1, new_rows])
++            title = f"Heatmap of Gene mutations per gene across {stratification}"
++
++            if filter_value:
++                title = title + " - " + filter_value
++
++            if self.column_for_merging == "Ensembl_Gene_ID":
++                logger.info("Fetching gene names from Ensembl...")
++                map_ = _get_ensembl_gene_name_bulk(pivot_df1.index.tolist())
++                logger.info("Fetched gene names from Ensembl")
++                pivot_df1.rename(index=map_, inplace=True)
++
++        else:  # variation_type == "cna_nonbinary"
++            assert (
++                stratification == "sample"
++            ), "stratification must be 'sample' for CNA data"
++            assert (
++                filter_category == "study_id"
++            ), "filter_category must be 'study_id' for CNA data"
++            pivot_df1 = self.df_collection[filter_value]["cna"].copy()
++            pivot_df1.set_index("Hugo_Symbol", inplace=True)
++            pivot_df1 = pivot_df1[pivot_df1.index.isin(self.genes)]
++
++            pivot_df1 = pivot_df1.reset_index()
++            if "Hugo_Symbol" not in pivot_df1.columns:
++                pivot_df1["Hugo_Symbol"] = pivot_df1.index
++
++            # Iterate over the top_mutant_gene_list and add missing entries
++            for gene in self.genes:
++                if gene not in pivot_df1["Hugo_Symbol"].values:
++                    new_row = pd.Series(
++                        {col: np.nan for col in pivot_df1.columns}, name=gene
++                    )
++                    new_row["Hugo_Symbol"] = gene
++                    pivot_df1 = pivot_df1.append(new_row)
++
++            # Set 'Hugo_Symbol' back as index if needed
++            pivot_df1 = pivot_df1.set_index("Hugo_Symbol")
++
++            title = "Heatmap of CNA data across samples"
++
++        if pivot_df1.isna().all().all():
++            print(f"No data to plot for {stratification}")
++            return
++
++        nas_present = True
++
++        # ensure pivot_df1 is sorted by columns before plotting
++        pivot_df1: pd.DataFrame
++        pivot_df1.sort_index(axis="columns", inplace=True)
++
++        # limit to first 500 columns
++        render_divider_lines = True
++        render_column_ids = pivot_df1.shape[1] < 100
++        if (
++            pivot_df1.shape[1] > 372
++        ):  # 372 is fine, 373 is not. There's something wrong with pyplot...
++            print("Warning: Too many columns to plot. Limiting to first 372 columns")
++            pivot_df1 = pivot_df1.iloc[:, :372]
++            render_divider_lines = False
++
++        if variation_type == "cna_nonbinary":
++            min_value = -3
++            max_value = 2
++
++            levels = list(range(min_value + 1, max_value + 1))
++            pivot_df1 = pivot_df1.fillna(min_value)
++
++            colors_list = plt.get_cmap("RdBu_r", max_value - min_value + 1)(
++                range(max_value - min_value + 1)
++            )
++            colors_list = np.vstack(
++                ([[0.5, 0.5, 0.5, 0.3]], colors_list[1:])
++            )  # Grey color for -3
++            cmap = ListedColormap(colors_list)
++
++            # Define the norm with the diverging palette centered at 0
++            norm = TwoSlopeNorm(vmin=min_value, vcenter=0, vmax=max_value)
++
++        elif variation_type == "Consequence":
++            consequences: list[str | float] = list(
++                self.big_combined_df["Consequence"].unique()
++            )
++
++            colors_list = plt.get_cmap("tab20", len(consequences))(
++                range(len(consequences))
++            )
++
++            # if consequences contains nan, ensure the nan value is at the beginning
++            if np.nan in consequences:
++                colors_list = np.vstack(([[1.0, 1.0, 1.0, 0.3]], colors_list[:-1]))
++                consequences = [np.nan] + sorted(
++                    v for v in consequences if not isinstance(v, float)
++                )
++            else:
++                consequences.sort()
++                nas_present = False
++
++            cmap = ListedColormap(colors_list)
++            min_value = 0
++            max_value = len(consequences)
++            norm = BoundaryNorm(
++                boundaries=np.arange(min_value - 0.5, max_value + 0.5, 1),
++                ncolors=cmap.N,
++                clip=False,
++            )
++            levels = list(range(min_value, max_value))
++
++            string_to_int: dict[str | float, int] = {
++                consequence: i for i, consequence in enumerate(consequences)
++            }
++
++            pivot_df1 = pivot_df1.map(lambda x: string_to_int[x])
++
++        else:
++            min_value = int(pivot_df1.min().min())
++
++            if pivot_df1.isna().sum().sum() != 0:
++                min_value -= 1
++            else:
++                nas_present = False
++
++            max_value = max(int(pivot_df1.max().max()), 1)
++
++            levels = list(range(min_value, max_value + 1))
++            pivot_df1 = pivot_df1.fillna(min_value)
++
++            # Create a custom colormap
++            colors_list = plt.get_cmap("Reds", len(levels))(range(len(levels)))
++            if nas_present:
++                colors_list = np.vstack(
++                    ([[0.5, 0.5, 0.5, 0.3]], colors_list)
++                )  # Grey color for -1
++            cmap = ListedColormap(colors_list)
++
++            # Define the norm, with vmin set to -1 and vmax to max_value
++            norm = BoundaryNorm(
++                boundaries=np.arange(min_value - 0.5, max_value + 1.5, 1),
++                ncolors=cmap.N,
++                clip=False,
++            )
++
++        # Create a figure
++        plt.figure(figsize=(18, 4))
++
++        # Display the heatmap with the filled array
++        plt.imshow(pivot_df1, cmap=cmap, norm=norm, aspect="auto")
++
++        colorbar_label = "Number of Mutations"
++        if variation_type == "Consequence":
++            colorbar_label = "Consequence Type"
++        else:
++            # Add colorbar with ticks for all levels, including the placeholder for -1 (NaN)
++            levels = _ints_between(min_value, max_value, 25, 7)
++
++        cbar = plt.colorbar(label=colorbar_label, ticks=levels)
++
++        labels: list[str | int] = levels.copy()
++        if nas_present:
++            labels[0] = "NaN"
++
++        if variation_type == "Consequence":
++            # Guaranteed to be bound by code flow
++            # noinspection PyUnboundLocalVariable
++            # start at 0 if there are no NaN values, otherwise at 1
++            for i, consequence in enumerate(consequences[int(nas_present) :]):
++                labels[i + int(nas_present)] = consequence
++
++        cbar.ax.set_yticklabels(labels)
++
++        plt.grid(
++            which="both",
++            axis="both" if render_divider_lines else "y",
++            color="black",
++            linestyle="-",
++            linewidth=0.5,
++        )
++        if render_column_ids:
++            x_labels = pivot_df1.columns
++        else:
++            x_labels = [""] * len(pivot_df1.columns)
++        plt.xticks(np.arange(len(pivot_df1.columns)), x_labels, rotation=90)
++        plt.yticks(np.arange(len(pivot_df1.index)), pivot_df1.index)
++
++        plt.gca().set_xticks(np.arange(-0.5, len(pivot_df1.columns), 1), minor=True)
++        plt.gca().set_yticks(np.arange(-0.5, len(pivot_df1.index), 1), minor=True)
++
++        plt.grid(which="major", color="white", linestyle="-", linewidth=0.5, alpha=0)
++        plt.gca().tick_params(which="minor", size=0)
++
++        plt.xlabel(stratification)
++        plt.ylabel("Genes")
++        plt.title(title)
++
++        filename = f"Heatmap_{stratification}"
++        if filter_value:
++            filename = f"{filename}_{filter_value}"
++
++        filepath = os.path.join(self.figure_output_dir, f"{filename}.png")
++
++        plt.savefig(filepath, bbox_inches="tight", dpi=dpi)
++
++        if show:
++            plt.show()
++
++        # if nas_present:
++        #     pivot_df1 = pivot_df1.replace(min_value, np.nan)
++
++        # if filter_category is None:  # * no filtering
++        #     self.pivot_df_dict[variation_type] = pivot_df1
++        # else:
++        #     self.pivot_df_dict[selected_group_category][selected_group][variation_type] = pivot_df1
++
++
++def cbio_plot(
++    study_ids: list[str],
++    genes: list[str],
++
++    stratification: Literal[
++        "tissue", "cancer_type", "cancer_type_detailed", "study_id", "sample"
++    ] = "tissue",
++    variation_type: Literal[
++        "mutation_occurrences",
++        "cna_nonbinary",
++        "sv_occurrences",
++        "cna_occurrences",
++        "Consequence",
++    ] = "mutation_occurrences",
++    filter_: tuple[str, str] | None = None,
++
++    merge_type: Literal["Ensembl", "Symbol"] = "Symbol",
++    remove_non_ensembl_genes: bool = False,
++
++    data_dir: str = "gget_cbio_cache",
++    figure_dir: str = "gget_cbio_figures",
++    verbose: bool = True,
++    confirm_download: bool = False,
++    dpi: int = 100,
++    show: bool = False
++) -> bool:
++    """
++    Plot a heatmap of given genes in the given studies.
++
++    Args:
++
++    :param study_ids:                   list of cBioPortal study IDs
++    :param genes:                       list of gene names
++    :param figure_dir:           directory to save the figure in
++
++    :param stratification:              column to group the data by, default 'tissue'
++    :param variation_type:              column to use for the heatmap, default 'mutation_occurrences'
++    :param filter_:                     filter to apply to the data in the format (column_name, value), default None
++
++    :param merge_type:                  gene ID type to group by (e.g. 'IL13' or 'ENSG00000169194'), default 'Symbol'
++    :param remove_non_ensembl_genes:    whether to remove genes without Ensembl IDs, default False
++
++    :param data_dir:                    directory to store the downloaded data, default 'gget_cbio_cache'
++    :param verbose:                     whether to print out progress, default False
++    :param confirm_download:            whether to confirm the download before proceeding, default False
++    :param dpi:                         resolution of the figure, default 100 dots per inch
++    :param show:                        whether to show the plot, default False
++
++    Return:
++
++    :return:                            True if the plot was successful, False otherwise
++    """
++    if verbose:
++        logger.info("Downloading data")
++
++    if not download_cbioportal_data(
++        study_ids, verbose=verbose, out_dir=data_dir, confirm_download=confirm_download
++    ):
++        logger.error("Failed to download data")
++        return False
++
++    if verbose:
++        logger.info("Loading data")
++    gene_analyzer = _GeneAnalysis(
++        study_ids,
++        genes,
++        data_dir=data_dir,
++        figure_output_dir=figure_dir,
++        merge_type=merge_type,
++        remove_non_ensembl_genes=remove_non_ensembl_genes,
++    )
++    if verbose:
++        logger.info("Data loaded")
++        logger.info("Plotting data")
++
++    gene_analyzer.plot_heatmap(
++        stratification=stratification,
++        filter_category=filter_[0] if filter_ else None,
++        filter_value=filter_[1] if filter_ else None,
++        variation_type=variation_type,
++        dpi=dpi,
++        show=show
++    )
++
++    del gene_analyzer
++
++    return True
+diff --git a/gget/gget_setup.py b/gget/gget_setup.py
+index e01f54471..ad826a3d3 100644
+--- a/gget/gget_setup.py
++++ b/gget/gget_setup.py
+@@ -41,6 +41,35 @@
+ PARAMS_PATH = os.path.join(PARAMS_DIR, "params_temp.tar")
+ 
+ 
++def _install(package: str, import_name: str, verbose: bool = True):
++    if verbose:
++        logger.info(f"Installing {package} package (requires pip).")
++    command = f"pip install -q -U {package}"
++    with subprocess.Popen(command, shell=True, stderr=subprocess.PIPE) as process:
++        stderr = process.stderr.read().decode("utf-8")
++    # Exit system if the subprocess returned with an error
++    if process.wait() != 0:
++        if stderr:
++            # Log the standard error if it is not empty
++            sys.stderr.write(stderr)
++        logger.error(
++            f"{package} installation with pip (https://pypi.org/project/{package}) failed."
++        )
++        return
++
++    # Test installation
++    try:
++        exec(f"import {import_name}")
++
++        if verbose:
++            logger.info(f"{import_name} installed succesfully.")
++    except ImportError as e:
++        logger.error(
++            f"{package} installation with pip (https://pypi.org/project/{package}) failed. Import error:\n{e}"
++        )
++        return
++
++
+ def setup(module, verbose=True, out=None):
+     """
+     Function to install third-party dependencies for a specified gget module.
+@@ -48,13 +77,13 @@ def setup(module, verbose=True, out=None):
+     Some modules require curl to be installed (https://everything.curl.dev/get).
+ 
+     Args:
+-    - module    (str) gget module for which dependencies should be installed, e.g. "alphafold", "cellxgene", "elm", or "gpt".
++    - module    (str) gget module for which dependencies should be installed, e.g. "alphafold", "cellxgene", "elm", "gpt", or "cbio".
+     - verbose   True/False whether to print progress information. Default True.
+     - out       (str) Path to directory to save downloaded files in (currently only applies when module='elm').
+                 NOTE: Do not use this argument when downloading the files for use with 'gget.elm'.
+                 Default None (files are saved in the gget installation directory).
+     """
+-    supported_modules = ["alphafold", "cellxgene", "elm", "gpt"]
++    supported_modules = ["alphafold", "cellxgene", "elm", "gpt", "cbio"]
+     if module not in supported_modules:
+         raise ValueError(
+             f"'module' argument specified as {module}. Expected one of: {', '.join(supported_modules)}"
+@@ -88,35 +117,10 @@ def setup(module, verbose=True, out=None):
+             )
+             return
+ 
+-    if module == "cellxgene":
+-        if verbose:
+-            logger.info("Installing cellxgene-census package (requires pip).")
+-        command = "pip install -q -U cellxgene-census"
+-        with subprocess.Popen(command, shell=True, stderr=subprocess.PIPE) as process:
+-            stderr = process.stderr.read().decode("utf-8")
+-        # Exit system if the subprocess returned with an error
+-        if process.wait() != 0:
+-            if stderr:
+-                # Log the standard error if it is not empty
+-                sys.stderr.write(stderr)
+-            logger.error(
+-                "cellxgene-census installation with pip (https://pypi.org/project/cellxgene-census) failed."
+-            )
+-            return
+-
+-        # Test installation
+-        try:
+-            import cellxgene_census
++    elif module == "cellxgene":
++        _install("cellxgene-census", "cellxgene_census", verbose=verbose)
+ 
+-            if verbose:
+-                logger.info(f"cellxgene_census installed succesfully.")
+-        except ImportError as e:
+-            logger.error(
+-                f"cellxgene-census installation with pip (https://pypi.org/project/cellxgene-census) failed. Import error:\n{e}"
+-            )
+-            return
+-
+-    if module == "elm":
++    elif module == "elm":
+         if verbose:
+             logger.info(
+                 "ELM data can be downloaded & distributed for non-commercial use according to the following license: http://elm.eu.org/media/Elm_academic_license.pdf"
+@@ -199,7 +203,7 @@ def setup(module, verbose=True, out=None):
+         else:
+             logger.error("ELM interactions domains file missing.")
+ 
+-    if module == "alphafold":
++    elif module == "alphafold":
+         if platform.system() == "Windows":
+             logger.error(
+                 "gget setup alphafold and gget alphafold are not supported on Windows OS."
+@@ -428,3 +432,6 @@ def setup(module, verbose=True, out=None):
+         else:
+             if verbose:
+                 logger.info("AlphaFold model parameters already downloaded.")
++
++    elif module == "cbio":
++        _install("bravado", "bravado", verbose=verbose)
+diff --git a/gget/main.py b/gget/main.py
+index 7fd9a87a4..1a9b9cd84 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -34,6 +34,7 @@
+ from .gget_cosmic import cosmic
+ from .gget_mutate import mutate
+ from .gget_opentargets import opentargets, OPENTARGETS_RESOURCES
++from .gget_cbio import cbio_plot, cbio_search
+ 
+ 
+ # Custom formatter for help messages that preserved the text formatting and adds the default value to the end of the help message
+@@ -1198,7 +1199,7 @@ def main():
+     parser_setup.add_argument(
+         "module",
+         type=str,
+-        choices=["alphafold", "gpt", "cellxgene", "elm"],
++        choices=["alphafold", "gpt", "cellxgene", "elm", "cbio"],
+         help="gget module for which dependencies should be installed, e.g. 'alphafold'",
+     )
+ 
+@@ -2056,6 +2057,132 @@ def main():
+         help="Use OR instead of AND logic for multiple filter IDs.",
+     )
+ 
++    ## cbio parser arguments
++    cbio_desc = "Plot cancer genomics heatmaps using data from cBioPortal using Ensembl IDs or gene names"
++    parser_cbio = parent_subparsers.add_parser(
++        "cbio",
++        parents=[parent],
++        description=cbio_desc,
++        help=cbio_desc,
++        add_help=True,
++        formatter_class=CustomHelpFormatter,
++    )
++    parser_cbio_subparsers = parser_cbio.add_subparsers(
++        dest="subcommand",
++        help="Subcommand to execute."
++    )
++    parser_cbio_search = parser_cbio_subparsers.add_parser(
++        "search",
++        description="Search for genes in cBioPortal.",
++        help="Find cBioPortal study IDs by keyword.",
++        add_help=True,
++        formatter_class=CustomHelpFormatter,
++    )
++    parser_cbio_search.add_argument(
++        "keywords",
++        type=str,
++        nargs="+",
++        help="Keywords to search for in cBioPortal.",
++    )
++    parser_cbio_plot = parser_cbio_subparsers.add_parser(
++        "plot",
++        description="Plot a heatmap of cancer genomics data.",
++        help="Plot a heatmap of cancer genomics data.",
++        add_help=True,
++        formatter_class=CustomHelpFormatter,
++    )
++    parser_cbio_plot.add_argument(
++        "-s",
++        "--study_ids",
++        type=str,
++        nargs="+",
++        help="Space-separated list of cBioPortal study IDs, e.g. `msk_impact_2017 egc_msk_2023`",
++        required=True,
++    )
++    parser_cbio_plot.add_argument(
++        "-g",
++        "--genes",
++        type=str,
++        nargs="+",
++        help="Space-separated list of gene names or Ensembl IDs, e.g. `NOTCH3 ENSG00000108375`",
++        required=True,
++    )
++    parser_cbio_plot.add_argument(
++        "-st",
++        "--stratification",
++        type=str,
++        choices=["tissue", "cancer_type", "cancer_type_detailed", "study_id", "sample"],
++        help="Column to stratify the heatmap by.",
++        default="tissue",
++        required=False,
++    )
++    parser_cbio_plot.add_argument(
++        "-vt",
++        "--variation_type",
++        type=str,
++        choices=["mutation_occurrences", "cna_nonbinary", "sv_occurrences", "cna_occurrences", "Consequence"],
++        help="Type of variation to plot",
++        default="mutation_occurrences",
++        required=False,
++    )
++    parser_cbio_plot.add_argument(
++        "-f",
++        "--filter",
++        type=str,
++        default=None,
++        help="Filter the heatmap by a specific value in a specific column, e.g. `tissue:intestine`",
++        required=False,
++    )
++    parser_cbio_plot.add_argument(
++        "-dd",
++        "--data_dir",
++        type=str,
++        default="gget_cbio_cache",
++        help="Directory to store downloaded data (default: ./gget_cbio_cache)",
++        required=False
++    )
++    parser_cbio_plot.add_argument(
++        "-fd",
++        "--figure_dir",
++        type=str,
++        default="gget_cbio_figures",
++        help="Directory to store generated figures (default: ./gget_cbio_figures)",
++        required=False
++    )
++    parser_cbio_plot.add_argument(
++        "-dpi",
++        "--dpi",
++        type=int,
++        default=100,
++        help="DPI of the generated figures (default: 100)",
++        required=False
++    )
++    parser_cbio_plot.add_argument(
++        "-q",
++        "--quiet",
++        default=True,
++        action="store_false",
++        required=False,
++        help="Does not print progress information.",
++    )
++    parser_cbio_plot.add_argument(
++        "-y",
++        "--no_confirm",
++        default=False,
++        action="store_true",
++        required=False,
++        help="Skip confirmation before downloading data.",
++    )
++    parser_cbio_plot.add_argument(
++        "-sh",
++        "--show",
++        default=False,
++        action="store_true",
++        required=False,
++        help="Show the plot in a window"
++    )
++
++
+     ### Define return values
+     args = parent_parser.parse_args()
+ 
+@@ -2105,6 +2232,7 @@ def main():
+         "cosmic": parser_cosmic,
+         "mutate": parser_mutate,
+         "opentargets": parser_opentargets,
++        "cbio": parser_cbio,
+     }
+ 
+     if len(sys.argv) == 2:
+@@ -2958,3 +3086,23 @@ def main():
+                         orient="records", force_ascii=False, indent=4
+                     )
+                 )
++
++    ## cbio return
++    if args.command == "cbio":
++        if args.subcommand == "search":
++            cbio_results = cbio_search(*args.keywords)
++            print(json.dumps(cbio_results, ensure_ascii=False, indent=4))
++        elif args.subcommand == "plot":
++            cbio_plot(
++                args.study_ids,
++                args.genes,
++                stratification=args.stratification,
++                variation_type=args.variation_type,
++                filter_=args.filter.split(":", 1) if args.filter else None,
++                data_dir=args.data_dir,
++                figure_dir=args.figure_dir,
++                dpi=args.dpi,
++                verbose=args.quiet,
++                confirm_download=not args.no_confirm,
++                show=args.show,
++            )
+diff --git a/tests/fixtures/test_cbio.json b/tests/fixtures/test_cbio.json
+new file mode 100644
+index 000000000..e179eaefd
+--- /dev/null
++++ b/tests/fixtures/test_cbio.json
+@@ -0,0 +1,45 @@
++{
++    "test_cbio_download": {
++        "type": "cbio_download",
++        "args": {
++            "study_ids": ["msk_impact_2017"],
++            "out_dir": "/tmp/test_cbio_download"
++        },
++        "expected_result": {
++            "/tmp/test_cbio_download/msk_impact_2017/clinical_patient.txt": "08caa5754ffcae79b39eecad37edf201",
++            "/tmp/test_cbio_download/msk_impact_2017/clinical_sample.txt": "7550a0468bb410a2bdef42bd27c5ad32",
++            "/tmp/test_cbio_download/msk_impact_2017/cna.txt": "e79f73232793853e808f69bd9d034125",
++            "/tmp/test_cbio_download/msk_impact_2017/mutations.txt": "35264fd2f43492f09a15f15516fbe1b4",
++            "/tmp/test_cbio_download/msk_impact_2017/sv.txt": "24ce260e03b417d47929f8fc34fc49a4"
++        }
++    },
++    "test_cbio_download_partially_existing_files": {
++        "type": "cbio_download",
++        "args": {
++            "study_ids": ["msk_impact_2017", "egc_msk_2023"],
++            "out_dir": "/tmp/test_cbio_download"
++        },
++        "expected_result": {
++            "/tmp/test_cbio_download/msk_impact_2017/clinical_patient.txt": "08caa5754ffcae79b39eecad37edf201",
++            "/tmp/test_cbio_download/msk_impact_2017/clinical_sample.txt": "7550a0468bb410a2bdef42bd27c5ad32",
++            "/tmp/test_cbio_download/msk_impact_2017/cna.txt": "e79f73232793853e808f69bd9d034125",
++            "/tmp/test_cbio_download/msk_impact_2017/mutations.txt": "35264fd2f43492f09a15f15516fbe1b4",
++            "/tmp/test_cbio_download/msk_impact_2017/sv.txt": "24ce260e03b417d47929f8fc34fc49a4",
++
++            "/tmp/test_cbio_download/egc_msk_2023/clinical_patient.txt": "6fbd67c0eca7a24fa6918f37c989033f",
++            "/tmp/test_cbio_download/egc_msk_2023/clinical_sample.txt": "8469bcc199fc653afb867242b3ab6e00",
++            "/tmp/test_cbio_download/egc_msk_2023/cna.txt": "1acb67c06284754ee472402753e54263",
++            "/tmp/test_cbio_download/egc_msk_2023/mutations.txt": "be28497d2f95d933ad8e14a04adc2beb",
++            "/tmp/test_cbio_download/egc_msk_2023/sv.txt": "c1a0011480b533d2b659373ffd178c32"
++        }
++    },
++
++    "test_error_cbio_download": {
++        "type": "cbio_download",
++        "args": {
++            "study_ids": ["non_existent_study_id"],
++            "out_dir": "/tmp/test_cbio_download"
++        },
++        "expected_result": false
++    }
++}
+\ No newline at end of file
+diff --git a/tests/fixtures/test_cbio_search.json b/tests/fixtures/test_cbio_search.json
+new file mode 100644
+index 000000000..bf60f7bda
+--- /dev/null
++++ b/tests/fixtures/test_cbio_search.json
+@@ -0,0 +1,32 @@
++{
++    "test_cbio_search": {
++        "type": "assert_equal",
++        "args": [
++            "esophag",
++            "ovary",
++            "ovarian"
++        ],
++        "expected_result": [
++            "egc_tmucih_2015",
++            "egc_msk_2017",
++            "egc_mskcc_2020",
++            "egc_msk_tp53_ccr_2022",
++            "escc_ucla_2014",
++            "esca_broad",
++            "escc_icgc",
++            "egc_trap_msk_2020",
++            "hgsoc_msk_2021",
++            "lgsoc_mapk_msk_2022",
++            "ov_tcga_pub",
++            "scco_mskcc",
++            "stes_tcga_pub",
++            "egc_trap_ccr_msk_2023",
++            "esca_tcga",
++            "egc_msk_2023",
++            "ov_tcga",
++            "esca_tcga_pan_can_atlas_2018",
++            "ov_tcga_pan_can_atlas_2018",
++            "msk_spectrum_tme_2022"
++        ]
++    }
++}
+\ No newline at end of file
+diff --git a/tests/from_json.py b/tests/from_json.py
+index ab43ce0f2..10b3ab2da 100644
+--- a/tests/from_json.py
++++ b/tests/from_json.py
+@@ -1,5 +1,5 @@
+ import unittest
+-from typing import Callable
++from typing import Callable, Any
+ import pandas as pd
+ import sys
+ import json
+@@ -17,11 +17,17 @@
+ }
+ 
+ 
++def do_call(func: Callable, args: dict[str, ...] | list[...]) -> Any:
++    if isinstance(args, dict):
++        return func(**args)
++    return func(*args)
++
++
+ def _assert_equal(name: str, td: dict[str, dict[str, ...]], func: Callable) -> Callable:
+     def assert_equal(self: unittest.TestCase):
+         test = name
+         expected_result = td[test]["expected_result"]
+-        result_to_test = func(**td[test]["args"])
++        result_to_test = do_call(func, td[test]["args"])
+         # If result is a DataFrame, convert to list
+         if isinstance(result_to_test, pd.DataFrame):
+             result_to_test = result_to_test.dropna(axis=1).values.tolist()
+@@ -34,7 +40,7 @@ def _assert_equal_json_hash(name: str, td: dict[str, dict[str, ...]], func: Call
+     def assert_equal_json_hash(self: unittest.TestCase):
+         test = name
+         expected_result = td[test]["expected_result"]
+-        result_to_test = func(**td[test]["args"])
++        result_to_test = do_call(func, td[test]["args"])
+         # If result is a DataFrame, convert to list
+         if isinstance(result_to_test, pd.DataFrame):
+             result_to_test = result_to_test.dropna(axis=1).values.tolist()
+@@ -50,7 +56,7 @@ def _assert_equal_nested(name: str, td: dict[str, dict[str, ...]], func: Callabl
+     def assert_equal_nested(self: unittest.TestCase):
+         test = name
+         expected_result = td[test]["expected_result"]
+-        result_to_test = func(**td[test]["args"])
++        result_to_test = do_call(func, td[test]["args"])
+         # If result is a DataFrame, convert to json (nested dataframes prevent easy listification)
+         if isinstance(result_to_test, pd.DataFrame):
+             result_to_test = json.loads(
+@@ -65,7 +71,7 @@ def _assert_equal_json_hash_nested(name: str, td: dict[str, dict[str, ...]], fun
+     def assert_equal_json_hash_nested(self: unittest.TestCase):
+         test = name
+         expected_result = td[test]["expected_result"]
+-        result_to_test = func(**td[test]["args"])
++        result_to_test = do_call(func, td[test]["args"])
+         # If result is a DataFrame, convert to json (nested dataframes prevent easy listification)
+         if isinstance(result_to_test, pd.DataFrame):
+             result_to_test = json.loads(
+@@ -95,11 +101,11 @@ def _error(name: str, td: dict[str, dict[str, ...]], func: Callable) -> Callable
+     def error(self: unittest.TestCase):
+         test = name
+         with self.assertRaises(Error):
+-            func(**td[test]["args"])
++            do_call(func, td[test]["args"])
+     return error
+ 
+-
+-_TYPES: dict[str, Callable[[str, dict[str, dict[str, ...]], Callable], Callable]] = {
++_test_constructor = Callable[[str, dict[str, dict[str, ...]], Callable], Callable]
++_TYPES: dict[str, _test_constructor] = {
+     "assert_equal": _assert_equal,
+     "assert_equal_json_hash": _assert_equal_json_hash,
+     "assert_equal_nested": _assert_equal_nested,
+@@ -108,10 +114,15 @@ def error(self: unittest.TestCase):
+ }
+ 
+ 
+-def from_json(test_dict: dict[str, dict[str, ...]], func: callable) -> type:
++def from_json(test_dict: dict[str, dict[str, ...]], func: callable, custom_types: dict[str, _test_constructor] | None = None) -> type:
+     """
+     Create a metaclass that will generate test methods from a (json-loaded) dictionary.
+     """
++
++    local_types = _TYPES.copy()
++    if custom_types:
++        local_types.update(custom_types)
++
+     class C(type):
+         def __new__(cls, name: str, bases: tuple[type, ...], dct: dict[str, ...]):
+             assert unittest.TestCase in bases, "from_json should only be applied to unittest.TestCase subclasses."
+@@ -119,7 +130,7 @@ def __new__(cls, name: str, bases: tuple[type, ...], dct: dict[str, ...]):
+                 type_ = v["type"]
+                 if type_ == "code_defined":
+                     continue
+-                if type_ in _TYPES:
++                if type_ in local_types:
+                     if not k.startswith("test_"):
+                         print(f"Invalid test name: {k}", file=sys.stderr)
+                         continue
+@@ -129,7 +140,7 @@ def __new__(cls, name: str, bases: tuple[type, ...], dct: dict[str, ...]):
+                         continue
+ 
+                     # Create the test method for the given type and add it to the new class
+-                    dct[k] = _TYPES[type_](k, test_dict, func)
++                    dct[k] = local_types[type_](k, test_dict, func)
+                     print(f"Loaded test {k} of type {type_} from json.")
+                 else:
+                     if k not in dct:
+diff --git a/tests/test_cbio.py b/tests/test_cbio.py
+new file mode 100644
+index 000000000..25b133fd7
+--- /dev/null
++++ b/tests/test_cbio.py
+@@ -0,0 +1,44 @@
++import hashlib
++import unittest
++import json
++from typing import Callable
++from gget.gget_cbio import download_cbioportal_data, cbio_search
++from .from_json import from_json, do_call
++
++# Load dictionary containing arguments and expected results
++with open("./tests/fixtures/test_cbio_search.json") as json_file:
++    cb_search_dict = json.load(json_file)
++
++with open("./tests/fixtures/test_cbio.json") as json_file:
++    cb_dict = json.load(json_file)
++
++
++class TestCbioSearch(unittest.TestCase, metaclass=from_json(cb_search_dict, cbio_search)):
++    pass  # all tests are loaded from json
++
++
++def _cbio_download(name: str, td: dict[str, dict[str, ...]], func: Callable) -> Callable:
++    def cbio_download(self: unittest.TestCase):
++        test = name
++        expected_result = td[test]["expected_result"]
++
++        if not isinstance(expected_result, dict) and not isinstance(expected_result, bool):
++            raise ValueError("Expected result must be a dictionary or a boolean")
++
++        result = do_call(func, td[test]["args"])
++
++        if isinstance(expected_result, dict):
++            self.assertTrue(result)
++
++            for file_name, expected_hash in expected_result.items():
++                with open(file_name, "rb") as f:
++                    file_content = f.read()
++                    file_hash = hashlib.md5(file_content).hexdigest()
++                    self.assertEqual(file_hash, expected_hash, f"File {file_name} does not match expected hash")
++        else:
++            self.assertFalse(result)
++    return cbio_download
++
++
++class TestCbio(unittest.TestCase, metaclass=from_json(cb_dict, download_cbioportal_data, {"cbio_download": _cbio_download})):
++    pass  # all tests are loaded from json

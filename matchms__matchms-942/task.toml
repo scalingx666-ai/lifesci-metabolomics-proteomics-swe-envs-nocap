@@ -1,0 +1,75 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-942"
+description = "Add central similarity score default parameters"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "66af954b46588275aad610a4e3be8a55083d6739"
+reference = "https://github.com/matchms/matchms/pull/942"
+source_access = "auto"
+built_at = "2026-11-16T12:52:04.364558+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:fd90af54b111ef672957de03ba02ab6b5f339f73c82a7e9af939e545d9ed17a9"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-27T11:42:47Z"
+diff_format = "unified"
+context_files = [
+    "matchms/similarity/cosine.py",
+    "matchms/similarity/cosine_blink.py",
+    "matchms/similarity/cosine_greedy.py",
+    "matchms/similarity/cosine_hungarian.py",
+    "matchms/similarity/cosine_linear.py",
+    "matchms/similarity/default_parameters.py",
+    "matchms/similarity/entropy.py",
+    "matchms/similarity/entropy_greedy.py",
+    "matchms/similarity/flash_similarity.py",
+    "matchms/similarity/modified_cosine.py",
+    "matchms/similarity/modified_cosine_greedy.py",
+    "matchms/similarity/modified_cosine_hungarian.py",
+    "matchms/similarity/neutral_losses_cosine.py",
+    "tests/similarity/test_default_parameters.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 198
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

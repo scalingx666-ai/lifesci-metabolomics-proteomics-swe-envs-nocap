@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/williamgilpin__pypdb-64"
+description = "Remove pandas usage and dependency."
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "pypdb",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "williamgilpin/pypdb"
+ref = "386359f91c5e064c0b51966a007c5475403e37a0"
+reference = "https://github.com/williamgilpin/pypdb/pull/64"
+source_access = "auto"
+built_at = "2026-11-16T00:16:28.750245+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:bcfa945434831a16e4251c59a4c2c1ce8872f3c6c7bb802cdb70b088387bed97"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2024-03-15T19:14:55Z"
+diff_format = "unified"
+context_files = [
+    "pypdb/clients/data/data_types.py",
+    "setup.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 9
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,65 @@
+version = "1.0"
+
+[task]
+name = "default/scverse__gget-165"
+description = "Enable querying of multiple genes in Bgee API"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "gget",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "scverse/gget"
+ref = "c4ed5e3b8eca1a9c7881f9fe45c43645a82c078c"
+reference = "https://github.com/scverse/gget/pull/165"
+source_access = "auto"
+built_at = "2026-11-15T21:05:27.971109+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:bb5f2a6801217560432d9a748889bbcbbdcfecf1f1d9a4442593522e9c9ee575"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-04-04T18:51:47Z"
+diff_format = "unified"
+context_files = [
+    "docs/src/en/bgee.md",
+    "docs/src/es/bgee.md",
+    "gget/gget_bgee.py",
+    "tests/fixtures/test_bgee.json",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 1524
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

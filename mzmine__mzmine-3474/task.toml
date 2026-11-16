@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3474"
+description = "Create copies of formats for lower contention on synchronized block"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "5523f29433681ed3e971222c47cb736884206c61"
+reference = "https://github.com/mzmine/mzmine/pull/3474"
+source_access = "auto"
+built_at = "2026-11-16T08:44:40.992978+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:8058a0db18fea028a82363f8b9763c057d8a90121c80f04e4e9c4ca3fa56d609"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-31T14:05:21Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/gui/preferences/NumberFormats.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/feat_ms2_similarity_intra/IntraFeatureRowMs2SimilarityTask.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/io/export_features_csv_legacy/LegacyCSVExportTask.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/io/export_features_metaboanalyst/MetaboAnalystExportTask.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/io/export_features_mgf/AdapMgfExportTask.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/io/export_library_analysis_csv/LibraryAnalysisCSVExportTask.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/io/export_library_analysis_csv/LibraryAnalysisSubTask.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/io/export_msn_tree/MSnTreeExportTask.java",
+    "mzmine-community/src/test/java/io/github/mzmine/gui/preferences/NumberFormatFastPathTest.java",
+    "mzmine-community/src/test/java/io/github/mzmine/gui/preferences/NumberFormatsTest.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 292
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3329"
+description = "Chart logics respects plot orientation"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "a3c1e1604f2661bd107ae642d92a1d526153500f"
+reference = "https://github.com/mzmine/mzmine/pull/3329"
+source_access = "auto"
+built_at = "2026-11-16T08:47:23.426572+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:77d3e42070c43d2e7cf498246c87b5faee0dcd9fd016291131233047ef0f135a"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-05-28T20:48:04Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/ChartLogics.java",
+    "mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/ChartLogicsFX.java",
+    "mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gestures/ChartGestureDragDiffHandler.java",
+    "mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gestures/ChartGestureEvent.java",
+    "mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gestures/ChartGestureHandler.java",
+    "mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gui/javafx/ChartGestureMouseAdapterFX.java",
+    "mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gui/swing/ChartGestureMouseAdapter.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 320
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

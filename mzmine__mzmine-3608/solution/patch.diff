@@ -1,0 +1,73 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/main/MZmineCore.java b/mzmine-community/src/main/java/io/github/mzmine/main/MZmineCore.java
+index 6811c2690ff..a869e2ba747 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/main/MZmineCore.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/main/MZmineCore.java
+@@ -36,13 +36,13 @@
+ import io.github.mzmine.gui.MZmineDesktop;
+ import io.github.mzmine.gui.MZmineGUI;
+ import io.github.mzmine.gui.ShutDownHook;
+-import io.github.mzmine.localbridge.DeepLinkRouter;
+ import io.github.mzmine.gui.mainwindow.UsersTab;
+ import io.github.mzmine.gui.preferences.MZminePreferences;
+ import io.github.mzmine.javafx.concurrent.threading.FxThread;
+ import io.github.mzmine.javafx.dialogs.DialogLoggerUtil;
+ import io.github.mzmine.javafx.dialogs.NotificationService;
+ import io.github.mzmine.javafx.dialogs.NotificationService.NotificationType;
++import io.github.mzmine.localbridge.DeepLinkRouter;
+ import io.github.mzmine.modules.MZmineModule;
+ import io.github.mzmine.modules.MZmineRunnableModule;
+ import io.github.mzmine.modules.batchmode.BatchModeModule;
+@@ -119,6 +119,8 @@ public static void main(final String[] args) {
+       DeepLinkRouter.queueLaunchArguments(args);
+ 
+       final String[] launchArguments = DeepLinkRouter.withoutDeepLinkArguments(args);
++      // the argument parser already logs in users from the command line so init trust store
++      NativeTrustStoreManager.initTrustStore();
+       final MZmineCoreArgumentParser argsParser = new MZmineCoreArgumentParser(launchArguments);
+       getInstance().startUp(argsParser);
+       launchBatchOrGui(launchArguments, argsParser);
+@@ -142,6 +144,7 @@ public void startUp(@NotNull final MZmineCoreArgumentParser argsParser) {
+ 
+     showStartupSplash(argsParser);
+ 
++    // no-op if an entry point already initialized it before parsing the arguments
+     NativeTrustStoreManager.initTrustStore();
+ 
+     ProxyTestUtils.logProxyState("Proxy on startup:");
+diff --git a/utils/src/main/java/io/github/mzmine/util/web/truststore/NativeTrustStoreManager.java b/utils/src/main/java/io/github/mzmine/util/web/truststore/NativeTrustStoreManager.java
+index 465bebba6d0..771a3c7ab09 100644
+--- a/utils/src/main/java/io/github/mzmine/util/web/truststore/NativeTrustStoreManager.java
++++ b/utils/src/main/java/io/github/mzmine/util/web/truststore/NativeTrustStoreManager.java
+@@ -26,6 +26,7 @@
+ 
+ 
+ import java.security.KeyStore;
++import java.util.concurrent.atomic.AtomicBoolean;
+ import java.util.logging.Level;
+ import java.util.logging.Logger;
+ import javax.net.ssl.HttpsURLConnection;
+@@ -42,6 +43,8 @@ public class NativeTrustStoreManager {
+ 
+   private static final Logger logger = Logger.getLogger(NativeTrustStoreManager.class.getName());
+ 
++  private static final AtomicBoolean initialized = new AtomicBoolean(false);
++
+   /**
+    * merge OS trust store with the cacerts from java seems like windows trust store handles external
+    * custom root certs in a way that they need to be requested once and the JVM option below only
+@@ -49,8 +52,15 @@ public class NativeTrustStoreManager {
+    * -Djavax.net.ssl.trustStoreType=Windows-ROOT -Djavax.net.ssl.trustStore=NONE
+    * <p>
+    * if javax.net.ssl.trustStoreType is defined, then use only this trust store (already loaded)
++   * <p>
++   * Only the first call initializes the trust store. Entry points call this before the first
++   * connection, e.g., the command line login while parsing the arguments.
+    */
+   public static void initTrustStore() {
++    // initialize only once
++    if (!initialized.compareAndSet(false, true)) {
++      return;
++    }
+     final String jvmTrustStoreChoice = System.getProperty("javax.net.ssl.trustStore", "");
+     if (!jvmTrustStoreChoice.isEmpty()) {
+       logger.info("Trust store has been set by JVM arg to " + jvmTrustStoreChoice);

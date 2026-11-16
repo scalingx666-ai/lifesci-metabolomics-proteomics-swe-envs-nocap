@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/jaechang-hits__SciAgent-Skills-18"
+description = "refactor: decouple skills from biomni package"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "SciAgent-Skills",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "jaechang-hits/SciAgent-Skills"
+ref = "1ce3fc5b261fdaccbb380c47204038e3c597106f"
+reference = "https://github.com/jaechang-hits/SciAgent-Skills/pull/18"
+source_access = "auto"
+built_at = "2026-11-15T15:25:03.106243+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:9bc22a84d5a95e8c6a2eb1864a9ba04588c3e4169797d1532fdee4ff0c49953c"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-05-02T05:37:30Z"
+diff_format = "unified"
+context_files = [
+    "LICENSE",
+    "skills/scientific-writing/scientific-literature-search/SKILL.md",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 184
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,503 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/gui/preferences/NumberFormats.java b/mzmine-community/src/main/java/io/github/mzmine/gui/preferences/NumberFormats.java
+index 0f0b543116d..fb6b0538b76 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/gui/preferences/NumberFormats.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/gui/preferences/NumberFormats.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2024 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -26,9 +26,11 @@
+ package io.github.mzmine.gui.preferences;
+ 
+ import com.google.common.collect.Range;
++import java.text.DecimalFormat;
+ import java.text.NumberFormat;
+ import java.util.logging.Level;
+ import java.util.logging.Logger;
++import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+ 
+ public record NumberFormats(NumberFormat mzFormat, NumberFormat rtFormat,
+@@ -40,6 +42,19 @@ public record NumberFormats(NumberFormat mzFormat, NumberFormat rtFormat,
+   private static final Logger logger = Logger.getLogger(NumberFormats.class.getName());
+   private static final String empty = "";
+ 
++  /**
++   * Use in classes that format many values, to avoid contending on the shared instances. Because
++   * {@link DecimalFormat#format(double)} uses a lock internally.
++   *
++   * @return a deep copy of all formats. {@link UnitFormat} is an enum and therefore shared.
++   */
++  public @NotNull NumberFormats createCopy() {
++    return new NumberFormats((NumberFormat) mzFormat.clone(), (NumberFormat) rtFormat.clone(),
++        (NumberFormat) mobilityFormat.clone(), (NumberFormat) ccsFormat.clone(),
++        (NumberFormat) intensityFormat.clone(), (NumberFormat) ppmFormat.clone(),
++        (NumberFormat) percentFormat.clone(), (NumberFormat) scoreFormat.clone(), unitFormat);
++  }
++
+   private static String range(Range<? extends Number> range, NumberFormat format) {
+     return range != null ? format.format(range.lowerEndpoint()) + " - " + format.format(
+         range.upperEndpoint()) : null;
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/feat_ms2_similarity_intra/IntraFeatureRowMs2SimilarityTask.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/feat_ms2_similarity_intra/IntraFeatureRowMs2SimilarityTask.java
+index 7027cb22087..45c03f2ebbe 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/feat_ms2_similarity_intra/IntraFeatureRowMs2SimilarityTask.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/feat_ms2_similarity_intra/IntraFeatureRowMs2SimilarityTask.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2024 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -78,8 +78,9 @@ public class IntraFeatureRowMs2SimilarityTask extends AbstractTask {
+   private final int minMatchedSignals;
+   private final SpectralSignalFilter signalFilters;
+   private final Boolean exportToFile;
+-  private final NumberFormat scoreFormat = MZmineCore.getConfiguration().getFormats(true)
+-      .scoreFormat();
++  // clone to avoid contention on synchronized block
++  private final NumberFormat scoreFormat = (NumberFormat) MZmineCore.getConfiguration()
++      .getFormats(true).scoreFormat().clone();
+ 
+   private final AtomicInteger processedRows = new AtomicInteger(0);
+   private final ParameterSet parameters;
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_features_csv_legacy/LegacyCSVExportTask.java b/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_features_csv_legacy/LegacyCSVExportTask.java
+index ba472f68707..27e6d73173e 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_features_csv_legacy/LegacyCSVExportTask.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_features_csv_legacy/LegacyCSVExportTask.java
+@@ -92,7 +92,9 @@ public class LegacyCSVExportTask extends AbstractTask implements ProcessedItemsC
+   // track number of exported items
+   private final AtomicInteger exportedRows = new AtomicInteger(0);
+ 
+-  private final NumberFormats formats = MZmineCore.getConfiguration().getExportFormats();
++  // clone to avoid contention on synchronized block
++  private final NumberFormats formats = MZmineCore.getConfiguration().getExportFormats()
++      .createCopy();
+   private LegacyExportRowCommonElement[] commonElements;
+   private int processedRows = 0, totalRows = 0;
+ 
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_features_metaboanalyst/MetaboAnalystExportTask.java b/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_features_metaboanalyst/MetaboAnalystExportTask.java
+index 7277ab459bf..a5571816509 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_features_metaboanalyst/MetaboAnalystExportTask.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_features_metaboanalyst/MetaboAnalystExportTask.java
+@@ -33,6 +33,7 @@
+ import io.github.mzmine.datamodel.features.ModularDataModel;
+ import io.github.mzmine.datamodel.features.compoundlist.CompoundRow;
+ import io.github.mzmine.datamodel.features.compoundlist.CompoundRowSelection;
++import io.github.mzmine.gui.preferences.NumberFormats;
+ import io.github.mzmine.main.MZmineCore;
+ import io.github.mzmine.modules.visualization.projectmetadata.table.MetadataTable;
+ import io.github.mzmine.modules.visualization.projectmetadata.table.columns.MetadataColumn;
+@@ -67,6 +68,8 @@ class MetaboAnalystExportTask extends AbstractTask {
+   private final String grouping;
+   private final AbundanceMeasure abundanceMeasure;
+   private final CompoundRowSelection rowSelection;
++  // clone to avoid contention on synchronized block
++  private final NumberFormats formats = MZmineCore.getConfiguration().getGuiFormats().createCopy();
+   private int processedRows = 0, totalRows = 0;
+ 
+   // parameter values
+@@ -260,16 +263,13 @@ private String generateUniqueFeatureListRowName(FeatureListRow row) {
+       generatedName.append("/").append(CSVUtils.escape(name, fieldSeparator));
+     }
+ 
+-    generatedName.append("/").append(MZmineCore.getConfiguration().getMZFormat().format(mz))
+-        .append("mz");
++    generatedName.append("/").append(formats.mzFormat().format(mz)).append("mz");
+ 
+     if (rt != null) {
+-      generatedName.append("/").append(MZmineCore.getConfiguration().getRTFormat().format(rt))
+-          .append("min");
++      generatedName.append("/").append(formats.rtFormat().format(rt)).append("min");
+     }
+     if (mobility != null) {
+-      generatedName.append("/")
+-          .append(MZmineCore.getConfiguration().getMobilityFormat().format(mobility));
++      generatedName.append("/").append(formats.mobilityFormat().format(mobility));
+     }
+ 
+     return generatedName.toString();
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_features_mgf/AdapMgfExportTask.java b/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_features_mgf/AdapMgfExportTask.java
+index 9cee41e5663..ae22c808518 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_features_mgf/AdapMgfExportTask.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_features_mgf/AdapMgfExportTask.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -55,12 +55,14 @@
+ public class AdapMgfExportTask extends AbstractTask {
+ 
+   private final String newLine = System.lineSeparator();
+-  //
+-  private NumberFormat mzForm = MZmineCore.getConfiguration().getMZFormat();
+-  private NumberFormat mzNominalForm = new DecimalFormat("0");
+-  private NumberFormat intensityForm = MZmineCore.getConfiguration().getIntensityFormat();
++  // clone to avoid contention on synchronized block
++  private final NumberFormat mzForm = (NumberFormat) MZmineCore.getConfiguration().getMZFormat()
++      .clone();
++  private final NumberFormat mzNominalForm = new DecimalFormat("0");
++  private final NumberFormat intensityForm = (NumberFormat) MZmineCore.getConfiguration()
++      .getIntensityFormat().clone();
+   // seconds
+-  private NumberFormat rtsForm = new DecimalFormat("0.###");
++  private final NumberFormat rtsForm = new DecimalFormat("0.###");
+ 
+   private final FeatureList[] featureLists;
+   private final File fileName;
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_library_analysis_csv/LibraryAnalysisCSVExportTask.java b/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_library_analysis_csv/LibraryAnalysisCSVExportTask.java
+index 67435ff0d88..76996ff9240 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_library_analysis_csv/LibraryAnalysisCSVExportTask.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_library_analysis_csv/LibraryAnalysisCSVExportTask.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2022 The MZmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -50,6 +50,7 @@
+ import java.nio.charset.StandardCharsets;
+ import java.nio.file.Files;
+ import java.text.DecimalFormat;
++import java.text.NumberFormat;
+ import java.time.Instant;
+ import java.util.ArrayList;
+ import java.util.Arrays;
+@@ -82,7 +83,7 @@ public class LibraryAnalysisCSVExportTask extends AbstractTask {
+       "signal_contributions", "signals_contr_gr_0_05"};
+   private static final String EMPTY_VALUES = ",,,,,,,,";
+ 
+-  private static final DecimalFormat format = new DecimalFormat("0.000");
++  private static final String SCORE_PATTERN = "0.000";
+   private static final Logger logger = Logger.getLogger(
+       LibraryAnalysisCSVExportTask.class.getName());
+   private final String fieldSeparator;
+@@ -330,11 +331,19 @@ private void writeNodeTable(File fileName, List<FilteredSpec> spectra) throws IO
+     }
+   }
+ 
+-  public String matchToCsvString(FilteredSpec a, FilteredSpec b) {
+-    String cos = getSimilarity(a.dps(), b.dps(), a.precursorMZ(), b.precursorMZ(), false);
+-    String modcos = getSimilarity(a.dps(), b.dps(), a.precursorMZ(), b.precursorMZ(), true);
++  /**
++   * @return an own format for each {@link LibraryAnalysisSubTask}, they all format concurrently
++   */
++  public static @NotNull NumberFormat createScoreFormat() {
++    return new DecimalFormat(SCORE_PATTERN);
++  }
++
++  public String matchToCsvString(FilteredSpec a, FilteredSpec b,
++      final @NotNull NumberFormat format) {
++    String cos = getSimilarity(a.dps(), b.dps(), a.precursorMZ(), b.precursorMZ(), false, format);
++    String modcos = getSimilarity(a.dps(), b.dps(), a.precursorMZ(), b.precursorMZ(), true, format);
+     String nl = getSimilarity(a.neutralLosses(), b.neutralLosses(), a.precursorMZ(),
+-        b.precursorMZ(), false);
++        b.precursorMZ(), false, format);
+ 
+     if (cos == null && modcos == null && nl == null) {
+       return null;
+@@ -372,7 +381,7 @@ private void append(StringBuilder line, String val) {
+   }
+ 
+   public String getSimilarity(DataPoint[] sortedA, DataPoint[] sortedB, double precursorMzA,
+-      double precursorMzB, boolean modAware) {
++      double precursorMzB, boolean modAware, final @NotNull NumberFormat format) {
+ 
+     // align
+     final List<DataPoint[]> aligned = alignDataPoints(sortedA, sortedB, precursorMzA, precursorMzB,
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_library_analysis_csv/LibraryAnalysisSubTask.java b/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_library_analysis_csv/LibraryAnalysisSubTask.java
+index 4165c9e2ccc..540c96d6223 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_library_analysis_csv/LibraryAnalysisSubTask.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_library_analysis_csv/LibraryAnalysisSubTask.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2022 The MZmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -28,6 +28,7 @@
+ import io.github.mzmine.taskcontrol.AbstractTask;
+ import io.github.mzmine.taskcontrol.TaskPriority;
+ import io.github.mzmine.taskcontrol.TaskStatus;
++import java.text.NumberFormat;
+ import java.time.Instant;
+ import java.util.ArrayList;
+ import java.util.List;
+@@ -45,6 +46,8 @@ public class LibraryAnalysisSubTask extends AbstractTask {
+   private final List<FilteredSpec[]> pairs;
+   private final ConcurrentLinkedDeque<String> outputList;
+   private final int total;
++  // own format, all sub tasks format concurrently
++  private final NumberFormat scoreFormat = LibraryAnalysisCSVExportTask.createScoreFormat();
+   private int done;
+ 
+ 
+@@ -78,7 +81,7 @@ public void run() {
+         return;
+       }
+ 
+-      String line = mainTask.matchToCsvString(pair[0], pair[1]);
++      String line = mainTask.matchToCsvString(pair[0], pair[1], scoreFormat);
+       if (line != null) {
+         buffer.add(line);
+       }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_msn_tree/MSnTreeExportTask.java b/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_msn_tree/MSnTreeExportTask.java
+index 599acc36726..344261080c9 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_msn_tree/MSnTreeExportTask.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/io/export_msn_tree/MSnTreeExportTask.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2022 The MZmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -74,7 +74,8 @@ public MSnTreeExportTask(ParameterSet parameters, Instant moduleCallDate) {
+     description = String.format("Exporting %d raw files as MSn trees to tabular file %s",
+         raws.length, outFile.getAbsolutePath());
+ 
+-    mzFormat = MZmineCore.getConfiguration().getMZFormat();
++    // own copy, this task formats every precursor of every MSn tree
++    mzFormat = (NumberFormat) MZmineCore.getConfiguration().getMZFormat().clone();
+   }
+ 
+   @Override
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/gui/preferences/NumberFormatFastPathTest.java b/mzmine-community/src/test/java/io/github/mzmine/gui/preferences/NumberFormatFastPathTest.java
+new file mode 100644
+index 00000000000..405fefd8426
+--- /dev/null
++++ b/mzmine-community/src/test/java/io/github/mzmine/gui/preferences/NumberFormatFastPathTest.java
+@@ -0,0 +1,169 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.gui.preferences;
++
++import java.math.RoundingMode;
++import java.text.DecimalFormat;
++import java.text.DecimalFormatSymbols;
++import java.text.NumberFormat;
++import java.util.List;
++import java.util.Locale;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++import org.junit.jupiter.api.Assertions;
++import org.junit.jupiter.api.Test;
++
++/**
++ * Guards that mzmine's shared {@link NumberFormat} instances stay safe to use from multiple
++ * threads. The JDK guards the general {@link DecimalFormat} formatting route with
++ * {@code synchronized (digitList)}, but not its fast path for doubles, which writes into a
++ * {@code char[]} held by the instance. Only formats shaped like a default
++ * {@code NumberFormat.getInstance()} take that fast path, grouping being the most visible
++ * condition, and no mzmine format uses grouping. This test fails if that ever changes.
++ */
++class NumberFormatFastPathTest {
++
++  // the currency sign marks a currency pattern, for which the JDK expects 2 fraction digits
++  private static final char CURRENCY_SIGN = 0x00A4;
++
++  /**
++   * Mirrors {@code DecimalFormat.checkAndSetFastPathStatus()} of the JDK (verified against JDK 21,
++   * 25 and openjdk/jdk master).
++   *
++   * @param format the format to check, may be any {@link NumberFormat} implementation
++   * @return true if the format would use the unsynchronized fast path for {@code format(double)}
++   */
++  private static boolean isFastPathEligible(final @Nullable NumberFormat format) {
++    // the fast path only exists in DecimalFormat
++    if (!(format instanceof DecimalFormat decimalFormat)) {
++      return false;
++    }
++    if (decimalFormat.getRoundingMode() != RoundingMode.HALF_EVEN //
++        || !decimalFormat.isGroupingUsed() //
++        || decimalFormat.getGroupingSize() != 3 //
++        || decimalFormat.getMultiplier() != 1 //
++        || decimalFormat.isDecimalSeparatorAlwaysShown()) {
++      return false;
++    }
++    // assumption: exponential notation is not exposed by the public API, so it is detected in the
++    // pattern. mzmine only ever puts an 'E' into a pattern for exponents, never into affix text.
++    final String pattern = decimalFormat.toPattern();
++    if (pattern.indexOf('E') >= 0) {
++      return false;
++    }
++    if (decimalFormat.getMinimumIntegerDigits() != 1
++        || decimalFormat.getMaximumIntegerDigits() < 10) {
++      return false;
++    }
++    // the JDK hardcodes the number of fraction digits: 2/2 for currency, 0/3 otherwise
++    final boolean currencyFormat = pattern.indexOf(CURRENCY_SIGN) >= 0;
++    final int expectedMinFractionDigits = currencyFormat ? 2 : 0;
++    final int expectedMaxFractionDigits = currencyFormat ? 2 : 3;
++    return decimalFormat.getMinimumFractionDigits() == expectedMinFractionDigits
++        && decimalFormat.getMaximumFractionDigits() == expectedMaxFractionDigits;
++  }
++
++  private static void assertNotFastPathEligible(final @NotNull String description,
++      final @Nullable NumberFormat format) {
++    Assertions.assertFalse(isFastPathEligible(format),
++        () -> description + " uses the unsynchronized DecimalFormat fast path (pattern " + (
++            format instanceof DecimalFormat df ? df.toPattern() : String.valueOf(format))
++            + "). Shared instances of it are not thread safe, see the class javadoc.");
++  }
++
++  /**
++   * Sanity check of {@link #isFastPathEligible(NumberFormat)} itself, so that the negative
++   * assertions below are meaningful.
++   */
++  @Test
++  void detectsKnownFastPathFormats() {
++    final DecimalFormatSymbols symbols = DecimalFormatSymbols.getInstance(Locale.US);
++    Assertions.assertTrue(isFastPathEligible(new DecimalFormat("#,##0.###", symbols)),
++        "the default grouped pattern must be recognized as fast path eligible");
++
++    final NumberFormat defaultInstance = NumberFormat.getInstance(Locale.US);
++    Assertions.assertTrue(isFastPathEligible(defaultInstance),
++        "NumberFormat.getInstance() must be recognized as fast path eligible");
++
++    // grouping free patterns never qualify
++    Assertions.assertFalse(isFastPathEligible(new DecimalFormat("0.0000", symbols)));
++    Assertions.assertFalse(isFastPathEligible(new DecimalFormat("0.###", symbols)));
++  }
++
++  /**
++   * The defaults of the user configurable format preferences.
++   */
++  @Test
++  void preferenceFormatsAreNotFastPathEligible() {
++    final List<NumberFormatParameter> formatParameters = List.of(MZminePreferences.mzFormat,
++        MZminePreferences.rtFormat, MZminePreferences.mobilityFormat, MZminePreferences.ccsFormat,
++        MZminePreferences.intensityFormat, MZminePreferences.ppmFormat,
++        MZminePreferences.scoreFormat, MZminePreferences.percentFormat);
++
++    for (final NumberFormatParameter parameter : formatParameters) {
++      assertNotFastPathEligible(parameter.getName(), parameter.getValue());
++    }
++  }
++
++  /**
++   * The static export and stable formats, which are the ones actually shared across task threads.
++   */
++  @Test
++  void exportAndStableFormatsAreNotFastPathEligible() {
++    final MZminePreferences preferences = new MZminePreferences();
++    assertAllNotFastPathEligible("export", preferences.getExportFormats());
++    assertAllNotFastPathEligible("stable", preferences.getStableFormats());
++  }
++
++  private static void assertAllNotFastPathEligible(final @NotNull String name,
++      final @NotNull NumberFormats formats) {
++    assertNotFastPathEligible(name + " mz", formats.mzFormat());
++    assertNotFastPathEligible(name + " rt", formats.rtFormat());
++    assertNotFastPathEligible(name + " mobility", formats.mobilityFormat());
++    assertNotFastPathEligible(name + " ccs", formats.ccsFormat());
++    assertNotFastPathEligible(name + " intensity", formats.intensityFormat());
++    assertNotFastPathEligible(name + " ppm", formats.ppmFormat());
++    assertNotFastPathEligible(name + " percent", formats.percentFormat());
++    assertNotFastPathEligible(name + " score", formats.scoreFormat());
++  }
++
++  /**
++   * Every pattern shape the format preferences can produce: an integer part without grouping, an
++   * optional fraction, an optional exponent and an optional percent sign.
++   */
++  @Test
++  void generatedPatternShapesAreNotFastPathEligible() {
++    for (int decimals = 0; decimals <= 20; decimals++) {
++      final String fraction = decimals > 0 ? "." + "0".repeat(decimals) : "";
++      for (final String exponent : List.of("", "E0")) {
++        for (final String percent : List.of("", "%")) {
++          final String pattern = "0" + fraction + exponent + percent;
++          assertNotFastPathEligible(pattern, new DecimalFormat(pattern));
++        }
++      }
++    }
++  }
++}
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/gui/preferences/NumberFormatsTest.java b/mzmine-community/src/test/java/io/github/mzmine/gui/preferences/NumberFormatsTest.java
+index 661756911a4..255e61ba1ca 100644
+--- a/mzmine-community/src/test/java/io/github/mzmine/gui/preferences/NumberFormatsTest.java
++++ b/mzmine-community/src/test/java/io/github/mzmine/gui/preferences/NumberFormatsTest.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2024 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -30,6 +30,9 @@
+ 
+ import java.text.DecimalFormat;
+ import java.text.NumberFormat;
++import java.util.List;
++import java.util.function.Function;
++import org.junit.jupiter.api.Assertions;
+ import org.junit.jupiter.api.Test;
+ 
+ class NumberFormatsTest {
+@@ -62,4 +65,33 @@ void testIsZero() {
+   private static void isZero(final NumberFormat form, final double number, final boolean result) {
+     assertEquals(result, IsZero(form.format(number), form));
+   }
++
++  /**
++   * A copy must be a separate instance but produce the exact same output.
++   */
++  @Test
++  void testCreateCopy() {
++    final NumberFormats original = new NumberFormats(new DecimalFormat("0.0000"),
++        new DecimalFormat("0.00"), new DecimalFormat("0.000"), new DecimalFormat("0.0"),
++        new DecimalFormat("0.0E0"), new DecimalFormat("0.0"), new DecimalFormat("0.0%"),
++        new DecimalFormat("0.000"), UnitFormat.DIVIDE);
++    final NumberFormats copy = original.createCopy();
++
++    final List<Function<NumberFormats, NumberFormat>> accessors = List.of(NumberFormats::mzFormat,
++        NumberFormats::rtFormat, NumberFormats::mobilityFormat, NumberFormats::ccsFormat,
++        NumberFormats::intensityFormat, NumberFormats::ppmFormat, NumberFormats::percentFormat,
++        NumberFormats::scoreFormat);
++    final double[] values = {0d, 1.23456789, 1234.5678, 1e6, -42.42};
++
++    for (final Function<NumberFormats, NumberFormat> accessor : accessors) {
++      final NumberFormat originalFormat = accessor.apply(original);
++      final NumberFormat copiedFormat = accessor.apply(copy);
++      Assertions.assertNotSame(originalFormat, copiedFormat);
++      for (final double value : values) {
++        Assertions.assertEquals(originalFormat.format(value), copiedFormat.format(value));
++      }
++    }
++    // UnitFormat is an enum and therefore shared
++    Assertions.assertSame(original.unitFormat(), copy.unitFormat());
++  }
+ }
+\ No newline at end of file

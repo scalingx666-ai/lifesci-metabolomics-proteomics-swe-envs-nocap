@@ -1,0 +1,348 @@
+diff --git a/docs/src/alphafold.md b/docs/src/alphafold.md
+index 59dc08261..411cf9752 100644
+--- a/docs/src/alphafold.md
++++ b/docs/src/alphafold.md
+@@ -7,7 +7,7 @@ Before using `gget alphafold` for the first time, run `gget setup alphafold` / `
+ 
+ **Positional argument**  
+ `sequence`  
+-Amino acid sequence (str), list of sequences (for multimers), or path to FASTA file.
++Amino acid sequence (str), or list of sequences (*gget alphafold will automatically use the multimer model if multiple sequences are passed*), or path to FASTA file.
+ 
+ **Optional arguments**  
+ `-mr` `--multimer_recycles`  
+@@ -60,5 +60,5 @@ gget.pdb("2K42", save=True)
+ ```
+ &rarr; `gget alphafold` returns the predicted structure (PDB) and predicted alignment error (.json) in a new folder ("./[date_time]_gget_alphafold_prediction"). The use case above exemplifies how to use [`gget blast`](blast.md) and [`gget pdb`](pdb.md) for a comparative analysis of the new prediction. PDB files can be viewed interactively in 3D [online](https://rcsb.org/3d-view), or using programs like [PyMOL](https://pymol.org/) or [Blender](https://www.blender.org/). To compare two PDB files, you can use [this website](https://rcsb.org/alignment). The Python interface also returns [interactive plots](https://twitter.com/NeuroLuebbert/status/1555968042948915200), which can be generated from the PDB and JSON as described in the [gget alphafold FAQ](https://github.com/pachterlab/gget/discussions/39) Q4.
+ 
+-#### [Example in Google Colab](https://github.com/pachterlab/gget_examples/blob/main/gget_alphafold.ipynb)
+-#### Also see: [gget alphafold FAQ](https://github.com/pachterlab/gget/discussions/39)
++### [Example in Google Colab](https://github.com/pachterlab/gget_examples/blob/main/gget_alphafold.ipynb)
++### [gget alphafold FAQ](https://github.com/pachterlab/gget/discussions/39)
+diff --git a/tests/fixtures.py b/tests/fixtures.py
+index 34be5ec3f..d1ad35309 100644
+--- a/tests/fixtures.py
++++ b/tests/fixtures.py
+@@ -1,5 +1,5 @@
+ # Latest Ensembl release for unittests
+-LATEST_ENS_RELEASE = 109
++LATEST_ENS_RELEASE = 110
+ 
+ # gget search species options for Ensembl release 106
+ SPECIES_OPTIONS = [
+diff --git a/tests/fixtures/test_info.json b/tests/fixtures/test_info.json
+index 645c10c56..dc1f9e8f1 100644
+--- a/tests/fixtures/test_info.json
++++ b/tests/fixtures/test_info.json
+@@ -166,7 +166,7 @@
+                 "Q9U969",
+                 "31716",
+                 "drosophila_melanogaster",
+-                "BDGP6.32",
++                "BDGP6.46",
+                 "sws",
+                 "sws",
+                 [
+@@ -192,9 +192,9 @@
+                 7956820,
+                 7968236,
+                 [
+-                    "FBtr0301675",
++                    "FBtr0071126",
+                     "FBtr0071125",
+-                    "FBtr0071126"
++                    "FBtr0301675"
+                 ],
+                 [
+                     "protein_coding",
+@@ -202,9 +202,9 @@
+                     "protein_coding"
+                 ],
+                 [
+-                    "sws-RC",
++                    "sws-RB",
+                     "sws-RA",
+-                    "sws-RB"
++                    "sws-RC"
+                 ],
+                 [
+                     -1,
+@@ -217,9 +217,9 @@
+                     7956820
+                 ],
+                 [
++                    7959369,
+                     7968236,
+-                    7968236,
+-                    7959369
++                    7968236
+                 ]
+             ]
+         ]
+@@ -579,7 +579,7 @@
+                 107526965
+             ],
+             [
+-                "ENSG00000169174.11",
++                "ENSG00000169174.12",
+                 "Q8NBP7",
+                 "homo_sapiens",
+                 "GRCh38",
+@@ -825,6 +825,8 @@
+                     "7ya1",
+                     "7ydi",
+                     "7yeg",
++                    "7yhw",
++                    "7yj3",
+                     "7yr2",
+                     "7yr3",
+                     "7zdq",
+@@ -845,8 +847,10 @@
+                     "8dv1",
+                     "8dv2",
+                     "8e7m",
++                    "8h06",
++                    "8h5c",
+                     "8if2",
+-                    "8iou", 
++                    "8iou",
+                     "8iov"
+                 ],
+                 "59272",
+@@ -1080,7 +1084,7 @@
+                 "ENSCARG00000016705.1",
+                 "carassius_auratus",
+                 "ASM336829v1",
+-                "ube2w",
++                "ube2wa",
+                 "Gene",
+                 "protein_coding",
+                 "27",
+@@ -1159,4 +1163,4 @@
+         },
+         "expected_result": null
+     }
+-}
++}
+\ No newline at end of file
+diff --git a/tests/fixtures/test_pdb.json b/tests/fixtures/test_pdb.json
+index 4d1acd527..62c7e0549 100644
+--- a/tests/fixtures/test_pdb.json
++++ b/tests/fixtures/test_pdb.json
+@@ -360,7 +360,51 @@
+                         "taxonomy_id": 49390,
+                         "provenance_code": "up:organism"
+                     }
+-                }
++                },
++                "rcsb_uniprot_annotation": [
++                    {
++                        "annotation_id": "GO:0047172",
++                        "name": "shikimate O-hydroxycinnamoyltransferase activity",
++                        "provenance_source": "UNIPROT",
++                        "type": "GO"
++                    },
++                    {
++                        "annotation_id": "GO:0009963",
++                        "name": "positive regulation of flavonoid biosynthetic process",
++                        "provenance_source": "UNIPROT",
++                        "type": "GO"
++                    },
++                    {
++                        "annotation_id": "GO:0016020",
++                        "name": "membrane",
++                        "provenance_source": "UNIPROT",
++                        "type": "GO"
++                    },
++                    {
++                        "annotation_id": "GO:0009809",
++                        "name": "lignin biosynthetic process",
++                        "provenance_source": "UNIPROT",
++                        "type": "GO"
++                    },
++                    {
++                        "annotation_id": "GO:0047205",
++                        "name": "quinate O-hydroxycinnamoyltransferase activity",
++                        "provenance_source": "UNIPROT",
++                        "type": "GO"
++                    },
++                    {
++                        "annotation_id": "GO:0005737",
++                        "name": "cytoplasm",
++                        "provenance_source": "UNIPROT",
++                        "type": "GO"
++                    },
++                    {
++                        "annotation_id": "IPR023213",
++                        "name": "Chloramphenicol acetyltransferase-like domain superfamily",
++                        "provenance_source": "UNIPROT",
++                        "type": "InterPro"
++                    }
++                ]
+             }
+         ]
+     },
+@@ -764,10 +808,10 @@
+                     "mogul_angles_rmsz": 0.56,
+                     "mogul_bond_outliers": 1,
+                     "mogul_bonds_rmsz": 2.75,
+-                    "ranking_model_fit": 0.7526,
+-                    "ranking_model_geometry": 0.2432,
+-                    "score_model_fit": -0.9457,
+-                    "score_model_geometry": 0.6964,
++                    "ranking_model_fit": 0.7558,
++                    "ranking_model_geometry": 0.2397,
++                    "score_model_fit": -0.954,
++                    "score_model_geometry": 0.7063,
+                     "stereo_outliers": 0,
+                     "type": "RCSB_LIGAND_QUALITY_SCORE_2021"
+                 }
+diff --git a/tests/fixtures/test_ref.json b/tests/fixtures/test_ref.json
+index fbd2963ba..9ccecf448 100644
+--- a/tests/fixtures/test_ref.json
++++ b/tests/fixtures/test_ref.json
+@@ -10,45 +10,45 @@
+         "expected_result": {
+             "taeniopygia_guttata": {
+                 "transcriptome_cdna": {
+-                    "ftp": "http://ftp.ensembl.org/pub/release-109/fasta/taeniopygia_guttata/cdna/Taeniopygia_guttata.bTaeGut1_v1.p.cdna.all.fa.gz",
+-                    "ensembl_release": 109,
+-                    "release_date": "2022-12-13",
+-                    "release_time": "18:32",
++                    "ftp": "http://ftp.ensembl.org/pub/release-110/fasta/taeniopygia_guttata/cdna/Taeniopygia_guttata.bTaeGut1_v1.p.cdna.all.fa.gz",
++                    "ensembl_release": 110,
++                    "release_date": "2023-04-21",
++                    "release_time": "23:40",
+                     "bytes": "26M"
+                 },
+                 "genome_dna": {
+-                    "ftp": "http://ftp.ensembl.org/pub/release-109/fasta/taeniopygia_guttata/dna/Taeniopygia_guttata.bTaeGut1_v1.p.dna.toplevel.fa.gz",
+-                    "ensembl_release": 109,
+-                    "release_date": "2022-12-13",
+-                    "release_time": "00:08",
++                    "ftp": "http://ftp.ensembl.org/pub/release-110/fasta/taeniopygia_guttata/dna/Taeniopygia_guttata.bTaeGut1_v1.p.dna.toplevel.fa.gz",
++                    "ensembl_release": 110,
++                    "release_date": "2023-04-21",
++                    "release_time": "17:16",
+                     "bytes": "304M"
+                 },
+                 "annotation_gtf": {
+-                    "ftp": "http://ftp.ensembl.org/pub/release-109/gtf/taeniopygia_guttata/Taeniopygia_guttata.bTaeGut1_v1.p.109.gtf.gz",
+-                    "ensembl_release": 109,
+-                    "release_date": "2022-12-16",
+-                    "release_time": "10:20",
++                    "ftp": "http://ftp.ensembl.org/pub/release-110/gtf/taeniopygia_guttata/Taeniopygia_guttata.bTaeGut1_v1.p.110.gtf.gz",
++                    "ensembl_release": 110,
++                    "release_date": "2023-04-24",
++                    "release_time": "15:16",
+                     "bytes": "13M"
+                 },
+                 "coding_seq_cds": {
+-                    "ftp": "http://ftp.ensembl.org/pub/release-109/fasta/taeniopygia_guttata/cds/Taeniopygia_guttata.bTaeGut1_v1.p.cds.all.fa.gz",
+-                    "ensembl_release": 109,
+-                    "release_date": "2022-12-13",
+-                    "release_time": "18:33",
++                    "ftp": "http://ftp.ensembl.org/pub/release-110/fasta/taeniopygia_guttata/cds/Taeniopygia_guttata.bTaeGut1_v1.p.cds.all.fa.gz",
++                    "ensembl_release": 110,
++                    "release_date": "2023-04-21",
++                    "release_time": "23:40",
+                     "bytes": "13M"
+                 },
+                 "non-coding_seq_ncRNA": {
+-                    "ftp": "http://ftp.ensembl.org/pub/release-109/fasta/taeniopygia_guttata/ncrna/Taeniopygia_guttata.bTaeGut1_v1.p.ncrna.fa.gz",
+-                    "ensembl_release": 109,
+-                    "release_date": "2022-12-13",
+-                    "release_time": "18:52",
++                    "ftp": "http://ftp.ensembl.org/pub/release-110/fasta/taeniopygia_guttata/ncrna/Taeniopygia_guttata.bTaeGut1_v1.p.ncrna.fa.gz",
++                    "ensembl_release": 110,
++                    "release_date": "2023-04-22",
++                    "release_time": "00:09",
+                     "bytes": "5.0M"
+                 },
+                 "protein_translation_pep": {
+-                    "ftp": "http://ftp.ensembl.org/pub/release-109/fasta/taeniopygia_guttata/pep/Taeniopygia_guttata.bTaeGut1_v1.p.pep.all.fa.gz",
+-                    "ensembl_release": 109,
+-                    "release_date": "2022-12-13",
+-                    "release_time": "18:32",
++                    "ftp": "http://ftp.ensembl.org/pub/release-110/fasta/taeniopygia_guttata/pep/Taeniopygia_guttata.bTaeGut1_v1.p.pep.all.fa.gz",
++                    "ensembl_release": 110,
++                    "release_date": "2023-04-21",
++                    "release_time": "23:40",
+                     "bytes": "8.3M"
+                 }
+             }
+@@ -161,9 +161,9 @@
+             "ftp": true
+         },
+         "expected_result": [
+-            "http://ftp.ensembl.org/pub/release-109/fasta/taeniopygia_guttata/dna/Taeniopygia_guttata.bTaeGut1_v1.p.dna.toplevel.fa.gz",
+-            "http://ftp.ensembl.org/pub/release-109/fasta/taeniopygia_guttata/ncrna/Taeniopygia_guttata.bTaeGut1_v1.p.ncrna.fa.gz",
+-            "http://ftp.ensembl.org/pub/release-109/gtf/taeniopygia_guttata/Taeniopygia_guttata.bTaeGut1_v1.p.109.gtf.gz"
++            "http://ftp.ensembl.org/pub/release-110/fasta/taeniopygia_guttata/dna/Taeniopygia_guttata.bTaeGut1_v1.p.dna.toplevel.fa.gz",
++            "http://ftp.ensembl.org/pub/release-110/fasta/taeniopygia_guttata/ncrna/Taeniopygia_guttata.bTaeGut1_v1.p.ncrna.fa.gz",
++            "http://ftp.ensembl.org/pub/release-110/gtf/taeniopygia_guttata/Taeniopygia_guttata.bTaeGut1_v1.p.110.gtf.gz"
+         ]
+     },
+     "test6": {
+diff --git a/tests/fixtures/test_search.json b/tests/fixtures/test_search.json
+index 72c4a0217..895a174c0 100644
+--- a/tests/fixtures/test_search.json
++++ b/tests/fixtures/test_search.json
+@@ -3,7 +3,7 @@
+         "type": "assert_equal",
+         "args": {
+             "searchwords": "swiss",
+-            "species": "drosophila",
++            "species": "drosophila_melanogaster_core_110_10",
+             "id_type": "gene",
+             "limit": null
+         },
+@@ -22,7 +22,7 @@
+         "type": "assert_equal",
+         "args": {
+             "searchwords": "swiss",
+-            "species": "drosophila",
++            "species": "drosophila_melanogaster_core_110_10",
+             "id_type": "gene",
+             "json": true
+         },
+@@ -44,7 +44,7 @@
+                 "swiss",
+                 "cheese"
+             ],
+-            "species": "drosophi",
++            "species": "drosophila_melanogaster_core_110_10",
+             "id_type": "gene",
+             "andor": "or",
+             "limit": null
+@@ -107,7 +107,7 @@
+         "type": "assert_equal",
+         "args": {
+             "searchwords": "nep3",
+-            "species": "drosophila_melanogaster",
++            "species": "drosophila_melanogaster_core_110_10",
+             "id_type": "transcript",
+             "limit": null
+         },
+@@ -270,7 +270,7 @@
+                 "swiss",
+                 "cheese"
+             ],
+-            "species": "droso",
++            "species": "drosophila_melanogaster_core_110_10",
+             "id_type": "gene",
+             "andor": "and",
+             "limit": null
+diff --git a/tests/test_pdb.py b/tests/test_pdb.py
+index 02f88d610..ce2d7524f 100644
+--- a/tests/test_pdb.py
++++ b/tests/test_pdb.py
+@@ -43,7 +43,7 @@ def test_pdb_branched_entity_instance(self):
+         test = "test5"
+         expected_result = pdb_dict[test]["expected_result"]
+         result_to_test = pdb(**pdb_dict[test]["args"])
+-
++        
+         self.assertEqual(result_to_test, expected_result)
+ 
+     def test_pdb_nonpolymer_entity_instance(self):

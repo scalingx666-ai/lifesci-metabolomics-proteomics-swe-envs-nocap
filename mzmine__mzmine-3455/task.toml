@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3455"
+description = "Add message to SplitAlignedFeatureList module"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "69a0f365e93f9f6dc98dd0790167dfba11505294"
+reference = "https://github.com/mzmine/mzmine/pull/3455"
+source_access = "auto"
+built_at = "2026-11-16T08:45:14.974202+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:18949b5ca56f3cdf2fa0dfd8c17b4e2a0c6be863ba6812067ed261c00b24b491"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-20T13:36:15Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_splitaligned/SplitAlignedFeatureListParameters.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 23
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

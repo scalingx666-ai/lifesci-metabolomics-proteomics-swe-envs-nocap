@@ -1,0 +1,65 @@
+diff --git a/README.rst b/README.rst
+index c80ab76b5..458710fb7 100644
+--- a/README.rst
++++ b/README.rst
+@@ -165,11 +165,11 @@ Ecosystem compatibility
+      - ms2query Status
+    * - .. image:: https://img.shields.io/badge/numpy-1.25-lightgrey?logo=numpy :alt: numpy
+      - .. image:: https://img.shields.io/badge/spec2vec-0.8.0-red
+-     - .. image:: https://img.shields.io/badge/ms2deepscore-2.4.0-green
++     - .. image:: https://img.shields.io/badge/ms2deepscore-2.5.1-green
+      - .. image:: https://img.shields.io/badge/ms2query-1.5.3-red
+    * - .. image:: https://img.shields.io/badge/numpy-2.1-lightgrey?logo=numpy :alt: numpy
+      - .. image:: https://img.shields.io/badge/spec2vec-0.8.0-red
+-     - .. image:: https://img.shields.io/badge/ms2deepscore-2.4.0-green
++     - .. image:: https://img.shields.io/badge/ms2deepscore-2.5.1-green
+      - .. image:: https://img.shields.io/badge/ms2query-1.5.3-red
+ 
+ .. compatibility matrix end
+@@ -323,7 +323,7 @@ To install matchms, do:
+   # Install rdkit using conda, rest of dependencies can be installed with pip
+   conda install -c conda-forge rdkit
+   python -m pip install --upgrade pip
+-  pip install --editable .[dev]  # if this won't work try "poetry install --with dev"
++  pip install --editable .[dev]  # if this won't work try `pip install --editable ".[dev]"`, alternatively you can `poetry install --with dev``
+ 
+ Run the linter with:
+ 
+diff --git a/matchms/similarity/BaseSimilarity.py b/matchms/similarity/BaseSimilarity.py
+index 0ab33c467..1dbb9ccb5 100644
+--- a/matchms/similarity/BaseSimilarity.py
++++ b/matchms/similarity/BaseSimilarity.py
+@@ -2,6 +2,7 @@
+ from typing import List
+ import numpy as np
+ from sparsestack import StackedSparseArray
++from tqdm import tqdm
+ from matchms.typing import SpectrumType
+ 
+ 
+@@ -64,12 +65,13 @@ def matrix(self, references: List[SpectrumType], queries: List[SpectrumType],
+         n_cols = len(queries)
+ 
+         if is_symmetric and n_rows != n_cols:
+-            raise ValueError(f"Found unequal number of spectra {n_rows} and {n_cols} in while `is_symmetric` is True.")
++            raise ValueError(f"Found unequal number of spectra {n_rows} and {n_cols} while `is_symmetric` is True.")
+ 
+         idx_row = []
+         idx_col = []
+         scores = []
+-        for i_ref, reference in enumerate(references[:n_rows]):
++        # Wrap the outer loop with tqdm to track progress
++        for i_ref, reference in enumerate(tqdm(references[:n_rows], desc="Calculating similarities")):
+             if is_symmetric and self.is_commutative:
+                 for i_query, query in enumerate(queries[i_ref:n_cols], start=i_ref):
+                     score = self.pair(reference, query)
+@@ -128,7 +130,8 @@ def sparse_array(self, references: List[SpectrumType], queries: List[SpectrumTyp
+ 
+         assert idx_row.shape == idx_col.shape, "col and row indices must be of same shape"
+         scores = np.zeros((len(idx_row)), dtype=self.score_datatype)  # TODO: switch to sparse matrix
+-        for i, row in enumerate(idx_row):
++        # Use tqdm to track progress through the indices
++        for i, row in enumerate(tqdm(idx_row, desc="Calculating sparse similarities")):
+             col = idx_col[i]
+             scores[i] = self.pair(references[row], queries[col])
+         return scores

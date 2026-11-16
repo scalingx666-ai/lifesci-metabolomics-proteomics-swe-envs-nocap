@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/jaechang-hits__SciAgent-Skills-46"
+description = "HL-419: [Agent][Skills] retrosynthesis 및 합성 경로 예측 기능 추가 (aizynthfinder)"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "SciAgent-Skills",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "jaechang-hits/SciAgent-Skills"
+ref = "48f77f2043a8ac7c8cecd8a9ffbe60b981043e1c"
+reference = "https://github.com/jaechang-hits/SciAgent-Skills/pull/46"
+source_access = "auto"
+built_at = "2026-11-15T15:24:05.128098+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:fc5008397dde5c87ba39e6c9ede09f3bddf2f6e60bf59e79b244980b59f43708"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-21T06:59:00Z"
+diff_format = "unified"
+context_files = [
+    "registry.yaml",
+    "skills/structural-biology-drug-discovery/aizynthfinder-retrosynthesis/SKILL.md",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 399
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

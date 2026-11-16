@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/scverse__gget-255"
+description = "fix(types): annotate pdb URL fallback list"
+
+[metadata]
+difficulty = "easy"
+category = "bugfix"
+keywords = [
+    "gget",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "scverse/gget"
+ref = "5506537f52e3848045731079d3ea344f3c13df67"
+reference = "https://github.com/scverse/gget/pull/255"
+source_access = "auto"
+built_at = "2026-11-15T21:04:37.048458+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:bf2a8233ea254321bb823d44c5f7c39eeb0036daebb1931f8e1e4fd46a4ccdc8"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-06-26T17:06:15Z"
+diff_format = "unified"
+context_files = [
+    "gget/gget_pdb.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 2
+difficulty = "trivial"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

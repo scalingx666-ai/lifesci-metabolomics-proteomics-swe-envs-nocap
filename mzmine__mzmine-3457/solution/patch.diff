@@ -1,0 +1,19 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_blanksubtraction/FeatureListBlankSubtractionTask.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_blanksubtraction/FeatureListBlankSubtractionTask.java
+index a9e2477ab57..a771ffa229c 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_blanksubtraction/FeatureListBlankSubtractionTask.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_blanksubtraction/FeatureListBlankSubtractionTask.java
+@@ -307,12 +307,8 @@ private List<Feature> getRowFeatures(FeatureListRow row, List<RawDataFile> raws)
+   }
+ 
+   private double getFeatureQuantifier(Feature f, AbundanceMeasure quantType) {
+-    if (quantType == AbundanceMeasure.Height) {
+-      return f.getHeight();
+-    } else if (quantType == AbundanceMeasure.Area) {
+-      return f.getArea();
+-    }
+-    throw new RuntimeException("Unknown parameter");
++    final Float abundance = quantType.getOrNaN((ModularFeature) f);
++    return Float.isFinite(abundance) ? abundance : 0d;
+   }
+ 
+   private double getAbundance(List<Feature> features, AbundanceMeasure quantType,

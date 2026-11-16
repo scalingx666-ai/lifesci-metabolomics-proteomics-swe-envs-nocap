@@ -1,0 +1,74 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-992"
+description = "update full suite of workflows"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "ac00f45f295554572f15c5cc787f691d95af0ef3"
+reference = "https://github.com/matchms/matchms/pull/992"
+source_access = "auto"
+built_at = "2026-11-16T12:51:28.849700+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e88d4cf6b30ffada0085f56d4f117b5836f983eae45d36a06dba6d02e37a51a0"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-02T09:52:19Z"
+diff_format = "unified"
+context_files = [
+    ".github/workflows/CI_build.yml",
+    ".github/workflows/CI_first_code_check.yml",
+    ".github/workflows/CI_generate_dev_requirements.yml",
+    ".github/workflows/CI_installation_checks.yml",
+    ".github/workflows/CI_publish_pypi.yml",
+    ".github/workflows/SonarCloud.yml",
+    ".github/workflows/stale.yml",
+    ".github/workflows/test_ecosystem.yml",
+    "matchms/calculate_scores.py",
+    "matchms/similarity/cosine_greedy.py",
+    "pyproject.toml",
+    "readthedocs/conf.py",
+    "uv.lock",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 1579
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

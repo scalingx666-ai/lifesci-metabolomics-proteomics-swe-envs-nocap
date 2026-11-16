@@ -1,0 +1,997 @@
+diff --git a/FUNDING.yml b/FUNDING.yml
+deleted file mode 100644
+index f716ab2ab..000000000
+--- a/FUNDING.yml
++++ /dev/null
+@@ -1 +0,0 @@
+-github: [lauraluebbert]
+diff --git a/README.md b/README.md
+index fe072454e..61735e5c2 100644
+--- a/README.md
++++ b/README.md
+@@ -1,5 +1,4 @@
+ # gget
+-[![](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86)](https://github.com/sponsors/lauraluebbert) 
+ [![pypi version](https://img.shields.io/pypi/v/gget)](https://pypi.org/project/gget)
+ [![Downloads](https://static.pepy.tech/personalized-badge/gget?period=total&units=international_system&left_color=grey&right_color=brightgreen&left_text=downloads)](https://pepy.tech/project/gget)
+ [![Conda](https://img.shields.io/conda/dn/bioconda/gget?logo=Anaconda)](https://anaconda.org/bioconda/gget)
+diff --git a/docs/src/en/dependents.md b/docs/src/en/dependents.md
+index a8814c560..afaad8ec7 100644
+--- a/docs/src/en/dependents.md
++++ b/docs/src/en/dependents.md
+@@ -4,15 +4,25 @@
+ 
+ Automatically updates every day at 16:00 UTC.
+ 
++# ⬇️ Daily *gget* downloads
++
++[![gget PyPI downloads over the last year](https://github.com/lauraluebbert/gget_downloads/raw/main/plots/downloads_gget.png)](https://github.com/lauraluebbert/gget_downloads/tree/main)  
++Automatically updates every day at 23:55 UTC.
+ ___
+ 
+ # 🧑‍🤝‍🧑 Dependent software
+ The following applications build on *gget*:
+-- [Biomni](https://biomni.stanford.edu/)  
++- [Biomni](https://biomni.stanford.edu/environment)  
+   A General-Purpose Biomedical AI Agent being developed at Stanford and Genentech.
++- [PerTurboAgent](https://www.biorxiv.org/content/10.1101/2025.05.25.656020v1)  
++  A Self-Planning Agent for Boosting Sequential Perturb-seq Experiments.  
++  > "We [...] use packages gget and blitzgsea for data enrichment analysis" 
++- [Scientific skills for Claude](https://github.com/K-Dense-AI/claude-scientific-skills) by K-Dense-AI  
++  > " This repository contains 138 scientific skills organized across multiple domains. Each skill provides comprehensive documentation, code examples, and best practices for working with scientific libraries, databases, and tools.  
++  > 🧬 Bioinformatics & Genomics  
++  > Genomic tools: gget, ..."
+ - [Therapeutics Data Commons (TDC)](https://tdcommons.ai/)  
+-  Artificial intelligence foundation for therapeutic science ([source code](https://github.com/mims-harvard/TDC), [Nat Chem Bio paper](https://www.nature.com/articles/s41589-022-01131-2)) by 
+-Harvard's Artificial Intelligence for Medicine and Science lab.
++  Artificial intelligence foundation for therapeutic science ([source code](https://github.com/mims-harvard/TDC), [Nat Chem Bio paper](https://www.nature.com/articles/s41589-022-01131-2)) by Harvard's Artificial Intelligence for Medicine and Science lab.
+ - [BioDiscoveryAgent](https://github.com/snap-stanford/BioDiscoveryAgent)  
+   BioDiscoveryAgent is an LLM-based AI agent for closed-loop design of genetic perturbation experiments ([preprint](https://arxiv.org/abs/2405.17631)) by the Stanford Network Analysis Project.
+ - [DeepChopper](https://ylab-hi.github.io/DeepChopper/)  
+@@ -47,10 +57,15 @@ ____
+ 
+ # 📃 Featured publications
+ - David Bradley et al., [The fitness cost of spurious phosphorylation.](https://doi.org/10.1038/s44318-024-00200-7) *The EMBO Journal* (2024). DOI: 10.1038/s44318-024-00200-7
++  > "Phosphosites matching to putative short linear motifs (SLiMs) were extracted using the gget elm resource"
+ - Mikael Nilsson et al., [Resolving thyroid lineage cell trajectories merging into a dual endocrine gland in mammals.](https://doi.org/10.21203/rs.3.rs-5278325/v1) *Nature Portfolio (under review)* (2024). DOI: 10.21203/rs.3.rs-5278325/v1
++  > "Enrichment analysis of differentially expressed genes [...] was performed using gget enrichr"
+ - Avasthi P et al., [Repeat expansions associated with human disease are present in diverse organisms.](https://doi.org/10.57844/arcadia-e367-8b55) *Arcadia* (2024). DOI: 10.57844/arcadia-e367-8b55
++  > "We used the gget package using the gget.blast command [...] to BLAST our proteins of interest against the non-redundant NCBI protein database"
+ - Ibrahim Al Rayyes et al., [Single-Cell Transcriptomics Reveals the Molecular Logic Underlying Ca2+ Signaling Diversity in Human and Mouse Brain.](https://doi.org/10.1101/2024.04.26.591400) *bioRxiv* (2024). DOI: 10.1101/2024.04.26.591400
++  > "The gget package was used to perform the gene set enrichment analyses with databases Reactome_2022 and KEGG_2021_Mouse."
+ - David R. Blair & Neil Risch. [Dissecting the Reduced Penetrance of Putative Loss-of-Function Variants in Population-Scale Biobanks.](https://doi.org/10.1101/2024.09.23.24314008) *medRxiv* (2024). DOI: 10.1101/2024.09.23.24314008
++  > "Additional gene and transcript information (exon-intron boundaries, 5' and 3' UTRs, full coding and amino acid sequences) was downloaded using gget"
+ - Shanmugampillai Jeyarajaguru Kabilan et al., [Molecular modelling approaches for the identification of potent Sodium-Glucose Cotransporter 2 inhibitors from Boerhavia diffusa for the potential treatment of chronic kidney disease.](https://doi.org/10.21203/rs.3.rs-4520611/v1) *Journal of Computer-Aided Molecular Design (under review)* (2024). DOI: 10.21203/rs.3.rs-4520611/v1
+ - Joseph M Rich et al., [The impact of package selection and versioning on single-cell RNA-seq analysis.](https://pmc.ncbi.nlm.nih.gov/articles/PMC11014608/#:~:text=10.1101/2024.04.04.588111) *bioRxiv* (2024). DOI: 10.1101/2024.04.04.588111
+ - Sanjay C. Nagi et al., [AnoPrimer: Primer Design in malaria vectors informed by range-wide genomic variation.](https://wellcomeopenresearch.org/articles/9-255/v1) *Wellcome Open Research* (2024).
+@@ -65,7 +80,7 @@ ____
+ ___
+ 
+ # 📰 News
+-- [`gget opentargets` release blog post by the Open Targets platform](https://blog.opentargets.org/case-study-gget/)
++- `gget opentargets` release [blog post](https://blog.opentargets.org/case-study-gget/) by the Open Targets platform
+ - Documentary short film about *gget*: [https://youtu.be/cVR0k6Mt97o](https://youtu.be/cVR0k6Mt97o)
+ - Podcast episode for the Prototype Fund Public Interest Podcast about the importance of open-source software and its role in academic research (in German): [https://public-interest-podcast.podigee.io/33-pips4e4](https://public-interest-podcast.podigee.io/33-pips4e4)
+ - Prototype Fund announcement: [https://prototypefund.de/project/gget-genomische-datenbanken](https://prototypefund.de/project/gget-genomische-datenbanken/)
+@@ -73,5 +88,6 @@ ___
+ ___
+ 
+ # 🚂 [gget repository](https://github.com/pachterlab/gget/) traffic
++Updates automatically every week on Sunday at 23:55 (UTC).
+ ![Plots showing the cumulative clones and views of the gget GitHub repository.](https://raw.githubusercontent.com/pachterlab/gget/traffic/plots/gget_cumulative_clones_views.png)
+ 
+diff --git a/docs/src/en/introduction.md b/docs/src/en/introduction.md
+index a18fee85c..ef3307ede 100644
+--- a/docs/src/en/introduction.md
++++ b/docs/src/en/introduction.md
+@@ -1,7 +1,5 @@
+-[![](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86)](https://github.com/sponsors/lauraluebbert)
+ [![pypi version](https://img.shields.io/pypi/v/gget)](https://pypi.org/project/gget)
+ [![Downloads](https://static.pepy.tech/personalized-badge/gget?period=total&units=international_system&left_color=grey&right_color=brightgreen&left_text=Downloads)](https://pepy.tech/project/gget)
+-[![Conda](https://img.shields.io/conda/dn/bioconda/gget?logo=Anaconda)](https://anaconda.org/bioconda/gget)
+ [![license](https://img.shields.io/pypi/l/gget)](LICENSE)
+ ![status](https://github.com/pachterlab/gget/actions/workflows/ci.yml/badge.svg)
+ [![Star on GitHub](https://img.shields.io/github/stars/pachterlab/gget.svg?style=social)](https://github.com/pachterlab/gget/)  
+@@ -69,7 +67,24 @@ Luebbert, L., & Pachter, L. (2023). Efficient querying of genomic reference data
+ Read the article here: [https://doi.org/10.1093/bioinformatics/btac836](https://doi.org/10.1093/bioinformatics/btac836)
+ 
+ <br>  
+-<iframe width="560" height="315" src="https://www.youtube.com/embed/cVR0k6Mt97o?si=BJwRyaymmxF9w65f" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>  
++<br>  
++
++[![gget PyPI downloads over the last year](https://github.com/lauraluebbert/gget_downloads/raw/main/plots/downloads_gget.png)](https://github.com/lauraluebbert/gget_downloads/tree/main)  
++  
++<br>  
++<br>  
++
++<div style="display: flex; justify-content: center;">
++  <iframe
++    width="560"
++    height="315"
++    src="https://www.youtube.com/embed/cVR0k6Mt97o?si=BJwRyaymmxF9w65f"
++    title="YouTube video player"
++    frameborder="0"
++    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
++    allowfullscreen>
++  </iframe>
++</div>
++
+ 
+-![logo-bmbf](https://github.com/user-attachments/assets/68449ba0-09d1-4f1e-b747-5ae2fec08a21) 
+ ![logo-okfn](https://github.com/user-attachments/assets/452ae8d8-69f0-4d0d-848c-ddfb40357eb2)
+diff --git a/docs/src/es/dependents.md b/docs/src/es/dependents.md
+index a7dbce137..b03a82f16 100644
+--- a/docs/src/es/dependents.md
++++ b/docs/src/es/dependents.md
+@@ -3,12 +3,21 @@
+ [![Mapa de calor en forma de mapa mundial que muestra el número de usuarios activos del sitio web de gget por país.](https://github.com/lauraluebbert/lauraluebbert/raw/main/gget_user_map.png)](https://github.com/lauraluebbert/lauraluebbert)
+ 
+ Este mapa se actualiza automáticamente todos los días a las 16:00 UTC.
++
++# ⬇️ Descargas diarias de *gget*
++
++[![Descargas de gget durante el último año.](https://github.com/lauraluebbert/gget_downloads/raw/main/plots/downloads_gget.png)](https://github.com/lauraluebbert/gget_downloads/tree/main)
++
++Este mapa se actualiza automáticamente todos los días a las 23:55 UTC.
+ ___
+ 
+ # 🧑‍🤝‍🧑 Programas dependientes
+ Las siguientes aplicaciones usan *gget*:
+ - [Biomni](https://biomni.stanford.edu/)  
+   Un agente de inteligencia artificial biomédica de propósito general que se está desarrollando en Stanford y Genentech.
++- [PerTurboAgent](https://www.biorxiv.org/content/10.1101/2025.05.25.656020v1)  
++  Un agente de auto-planificación para potenciar experimentos secuenciales de Perturb-seq.  
++- [Habilidades científicas para Claude](https://github.com/K-Dense-AI/claude-scientific-skills), desarrolladas por K-Dense-AI
+ - [Therapeutics Data Commons (TDC)](https://tdcommons.ai/)  
+   Base de inteligencia artificial para la ciencia terapéutica ([código fuente](https://github.com/mims-harvard/TDC), [artículo en Nat Chem Bio](https://www.nature.com/articles/s41589-022-01131-2)) del laboratorio de Inteligencia Artificial para Medicina y Ciencia de Harvard.
+ - [BioDiscoveryAgent](https://github.com/snap-stanford/BioDiscoveryAgent)  
+diff --git a/docs/src/es/introduction.md b/docs/src/es/introduction.md
+index 4d0201e70..681191f39 100644
+--- a/docs/src/es/introduction.md
++++ b/docs/src/es/introduction.md
+@@ -1,7 +1,5 @@
+-[![](https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86)](https://github.com/sponsors/lauraluebbert)
+ [![pypi version](https://img.shields.io/pypi/v/gget)](https://pypi.org/project/gget)
+ [![Downloads](https://static.pepy.tech/personalized-badge/gget?period=total&units=international_system&left_color=grey&right_color=brightgreen&left_text=Downloads)](https://pepy.tech/project/gget)
+-[![Conda](https://img.shields.io/conda/dn/bioconda/gget?logo=Anaconda)](https://anaconda.org/bioconda/gget)
+ [![license](https://img.shields.io/pypi/l/gget)](LICENSE)
+ ![status](https://github.com/pachterlab/gget/actions/workflows/ci.yml/badge.svg)
+ [![Star on GitHub](https://img.shields.io/github/stars/pachterlab/gget.svg?style=social)](https://github.com/pachterlab/gget/)  
+@@ -70,7 +68,23 @@ Lea el artículo aquí: [https://doi.org/10.1093/bioinformatics/btac836](https:/
+ Gracias a [Victor Garcia-Ruiz](https://github.com/victorg775) y [Anna Karen Orta](https://www.linkedin.com/in/akorta/) por su ayuda con la traduccion del sitio web.  
+ 
+ <br>  
+-<iframe width="560" height="315" src="https://www.youtube.com/embed/cVR0k6Mt97o?si=BJwRyaymmxF9w65f" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
++<br>  
++
++[![gget PyPI downloads over the last year](https://github.com/lauraluebbert/gget_downloads/raw/main/plots/downloads_gget.png)](https://github.com/lauraluebbert/gget_downloads/tree/main)  
++
++<br>  
++<br>  
++
++<div style="display: flex; justify-content: center;">
++  <iframe
++    width="560"
++    height="315"
++    src="https://www.youtube.com/embed/cVR0k6Mt97o?si=BJwRyaymmxF9w65f"
++    title="YouTube video player"
++    frameborder="0"
++    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
++    allowfullscreen>
++  </iframe>
++</div>
+ 
+-![logo-bmbf](https://github.com/user-attachments/assets/68449ba0-09d1-4f1e-b747-5ae2fec08a21)
+ ![logo-okfn](https://github.com/user-attachments/assets/452ae8d8-69f0-4d0d-848c-ddfb40357eb2)
+diff --git a/tests/fixtures/test_cosmic.json b/tests/fixtures/test_cosmic.json
+index 56edcd953..d823ec11e 100644
+--- a/tests/fixtures/test_cosmic.json
++++ b/tests/fixtures/test_cosmic.json
+@@ -3,312 +3,310 @@
+     "type": "assert_equal",
+     "args": {
+       "searchterm": "EGFR",
+-      "cosmic_tsv_path": "example_GRCh37/CancerMutationCensus_AllData_v102_GRCh37.tsv",
++      "cosmic_tsv_path": "example_GRCh37/CancerMutationCensus_AllData_v103_GRCh37.tsv",
+       "limit": 5
+     },
+-    "expected_result": [
+-      [
+-        {
+-            "GENE_NAME": "EGFR",
+-            "ACCESSION_NUMBER": "ENST00000275493.2",
+-            "ONC_TSG": "oncogene",
+-            "CGC_TIER": 1,
+-            "MUTATION_URL": "https://cancer.sanger.ac.uk/cosmic/mutation/overview?genome=37&id=21686604",
+-            "LEGACY_MUTATION_ID": "COSM3266510",
+-            "Mutation_CDS": "c.204del",
+-            "Mutation_AA": "p.Y69Mfs*11",
+-            "AA_MUT_START": 69,
+-            "AA_MUT_STOP": 69,
+-            "SHARED_AA": 1,
+-            "GENOMIC_WT_ALLELE_SEQ": "C",
+-            "GENOMIC_MUT_ALLELE_SEQ": null,
+-            "AA_WT_ALLELE_SEQ": "Y",
+-            "AA_MUT_ALLELE_SEQ": "MCRGIMIFPS*",
+-            "Mutation_Description_CDS": "Deletion",
+-            "Mutation_Description_AA": "Deletion - Frameshift",
+-            "ONTOLOGY_MUTATION_CODE": "SO:0001589",
+-            "GENOMIC_MUTATION_ID": "COSV51816560",
+-            "Mutation_genome_position_GRCh37": "7:55210094-55210094",
+-            "Mutation_genome_position_GRCh38": "7:55142401-55142401",
+-            "COSMIC_SAMPLE_TESTED": 168439,
+-            "COSMIC_SAMPLE_MUTATED": 1,
+-            "DISEASE": null,
+-            "WGS_DISEASE": null,
+-            "EXAC_AF": null,
+-            "EXAC_AFR_AF": null,
+-            "EXAC_AMR_AF": null,
+-            "EXAC_ADJ_AF": null,
+-            "EXAC_EAS_AF": null,
+-            "EXAC_FIN_AF": null,
+-            "EXAC_NFE_AF": null,
+-            "EXAC_SAS_AF": null,
+-            "GNOMAD_EXOMES_AF": null,
+-            "GNOMAD_EXOMES_AFR_AF": null,
+-            "GNOMAD_EXOMES_AMR_AF": null,
+-            "GNOMAD_EXOMES_ASJ_AF": null,
+-            "GNOMAD_EXOMES_EAS_AF": null,
+-            "GNOMAD_EXOMES_FIN_AF": null,
+-            "GNOMAD_EXOMES_NFE_AF": null,
+-            "GNOMAD_EXOMES_SAS_AF": null,
+-            "GNOMAD_GENOMES_AF": null,
+-            "GNOMAD_GENOMES_AFR_AF": null,
+-            "GNOMAD_GENOMES_AMI_AF": null,
+-            "GNOMAD_GENOMES_AMR_AF": null,
+-            "GNOMAD_GENOMES_ASJ_AF": null,
+-            "GNOMAD_GENOMES_EAS_AF": null,
+-            "GNOMAD_GENOMES_FIN_AF": null,
+-            "GNOMAD_GENOMES_MID_AF": null,
+-            "GNOMAD_GENOMES_NFE_AF": null,
+-            "GNOMAD_GENOMES_SAS_AF": null,
+-            "CLINVAR_CLNSIG": null,
+-            "CLINVAR_TRAIT": null,
+-            "GERP++_RS": null,
+-            "MIN_SIFT_SCORE": 1.0,
+-            "MIN_SIFT_PRED": null,
+-            "DNDS_DISEASE_QVAL_SIG": null,
+-            "MUTATION_SIGNIFICANCE_TIER": "Other"
+-        },
+-        {
+-            "GENE_NAME": "EGFR",
+-            "ACCESSION_NUMBER": "ENST00000275493.2",
+-            "ONC_TSG": "oncogene",
+-            "CGC_TIER": 1,
+-            "MUTATION_URL": "https://cancer.sanger.ac.uk/cosmic/mutation/overview?genome=37&id=21676018",
+-            "LEGACY_MUTATION_ID": "COSM7552389",
+-            "Mutation_CDS": "c.1124C>T",
+-            "Mutation_AA": "p.A375V",
+-            "AA_MUT_START": 375,
+-            "AA_MUT_STOP": 375,
+-            "SHARED_AA": 2,
+-            "GENOMIC_WT_ALLELE_SEQ": "C",
+-            "GENOMIC_MUT_ALLELE_SEQ": "T",
+-            "AA_WT_ALLELE_SEQ": "A",
+-            "AA_MUT_ALLELE_SEQ": "V",
+-            "Mutation_Description_CDS": "Substitution",
+-            "Mutation_Description_AA": "Substitution - Missense",
+-            "ONTOLOGY_MUTATION_CODE": "SO:0001583",
+-            "GENOMIC_MUTATION_ID": "COSV99291226",
+-            "Mutation_genome_position_GRCh37": "7:55224343-55224343",
+-            "Mutation_genome_position_GRCh38": "7:55156650-55156650",
+-            "COSMIC_SAMPLE_TESTED": 50241,
+-            "COSMIC_SAMPLE_MUTATED": 1,
+-            "DISEASE": null,
+-            "WGS_DISEASE": null,
+-            "EXAC_AF": null,
+-            "EXAC_AFR_AF": null,
+-            "EXAC_AMR_AF": null,
+-            "EXAC_ADJ_AF": null,
+-            "EXAC_EAS_AF": null,
+-            "EXAC_FIN_AF": null,
+-            "EXAC_NFE_AF": null,
+-            "EXAC_SAS_AF": null,
+-            "GNOMAD_EXOMES_AF": null,
+-            "GNOMAD_EXOMES_AFR_AF": null,
+-            "GNOMAD_EXOMES_AMR_AF": null,
+-            "GNOMAD_EXOMES_ASJ_AF": null,
+-            "GNOMAD_EXOMES_EAS_AF": null,
+-            "GNOMAD_EXOMES_FIN_AF": null,
+-            "GNOMAD_EXOMES_NFE_AF": null,
+-            "GNOMAD_EXOMES_SAS_AF": null,
+-            "GNOMAD_GENOMES_AF": null,
+-            "GNOMAD_GENOMES_AFR_AF": null,
+-            "GNOMAD_GENOMES_AMI_AF": null,
+-            "GNOMAD_GENOMES_AMR_AF": null,
+-            "GNOMAD_GENOMES_ASJ_AF": null,
+-            "GNOMAD_GENOMES_EAS_AF": null,
+-            "GNOMAD_GENOMES_FIN_AF": null,
+-            "GNOMAD_GENOMES_MID_AF": null,
+-            "GNOMAD_GENOMES_NFE_AF": null,
+-            "GNOMAD_GENOMES_SAS_AF": null,
+-            "CLINVAR_CLNSIG": null,
+-            "CLINVAR_TRAIT": null,
+-            "GERP++_RS": 5.95,
+-            "MIN_SIFT_SCORE": 0.003,
+-            "MIN_SIFT_PRED": "D",
+-            "DNDS_DISEASE_QVAL_SIG": null,
+-            "MUTATION_SIGNIFICANCE_TIER": "Other"
+-        },
+-        {
+-            "GENE_NAME": "EGFR",
+-            "ACCESSION_NUMBER": "ENST00000275493.2",
+-            "ONC_TSG": "oncogene",
+-            "CGC_TIER": 1,
+-            "MUTATION_URL": "https://cancer.sanger.ac.uk/cosmic/mutation/overview?genome=37&id=21644678",
+-            "LEGACY_MUTATION_ID": "COSM10589803",
+-            "Mutation_CDS": "c.1892C>T",
+-            "Mutation_AA": "p.P631L",
+-            "AA_MUT_START": 631,
+-            "AA_MUT_STOP": 631,
+-            "SHARED_AA": 3,
+-            "GENOMIC_WT_ALLELE_SEQ": "C",
+-            "GENOMIC_MUT_ALLELE_SEQ": "T",
+-            "AA_WT_ALLELE_SEQ": "P",
+-            "AA_MUT_ALLELE_SEQ": "L",
+-            "Mutation_Description_CDS": "Substitution",
+-            "Mutation_Description_AA": "Substitution - Missense",
+-            "ONTOLOGY_MUTATION_CODE": "SO:0001583",
+-            "GENOMIC_MUTATION_ID": "COSV108048269",
+-            "Mutation_genome_position_GRCh37": "7:55238879-55238879",
+-            "Mutation_genome_position_GRCh38": "7:55171186-55171186",
+-            "COSMIC_SAMPLE_TESTED": 50241,
+-            "COSMIC_SAMPLE_MUTATED": 1,
+-            "DISEASE": null,
+-            "WGS_DISEASE": null,
+-            "EXAC_AF": null,
+-            "EXAC_AFR_AF": null,
+-            "EXAC_AMR_AF": null,
+-            "EXAC_ADJ_AF": null,
+-            "EXAC_EAS_AF": null,
+-            "EXAC_FIN_AF": null,
+-            "EXAC_NFE_AF": null,
+-            "EXAC_SAS_AF": null,
+-            "GNOMAD_EXOMES_AF": null,
+-            "GNOMAD_EXOMES_AFR_AF": null,
+-            "GNOMAD_EXOMES_AMR_AF": null,
+-            "GNOMAD_EXOMES_ASJ_AF": null,
+-            "GNOMAD_EXOMES_EAS_AF": null,
+-            "GNOMAD_EXOMES_FIN_AF": null,
+-            "GNOMAD_EXOMES_NFE_AF": null,
+-            "GNOMAD_EXOMES_SAS_AF": null,
+-            "GNOMAD_GENOMES_AF": null,
+-            "GNOMAD_GENOMES_AFR_AF": null,
+-            "GNOMAD_GENOMES_AMI_AF": null,
+-            "GNOMAD_GENOMES_AMR_AF": null,
+-            "GNOMAD_GENOMES_ASJ_AF": null,
+-            "GNOMAD_GENOMES_EAS_AF": null,
+-            "GNOMAD_GENOMES_FIN_AF": null,
+-            "GNOMAD_GENOMES_MID_AF": null,
+-            "GNOMAD_GENOMES_NFE_AF": null,
+-            "GNOMAD_GENOMES_SAS_AF": null,
+-            "CLINVAR_CLNSIG": null,
+-            "CLINVAR_TRAIT": null,
+-            "GERP++_RS": 5.54,
+-            "MIN_SIFT_SCORE": 0.41,
+-            "MIN_SIFT_PRED": "T",
+-            "DNDS_DISEASE_QVAL_SIG": null,
+-            "MUTATION_SIGNIFICANCE_TIER": "Other"
+-        },
+-        {
+-            "GENE_NAME": "EGFR",
+-            "ACCESSION_NUMBER": "ENST00000275493.2",
+-            "ONC_TSG": "oncogene",
+-            "CGC_TIER": 1,
+-            "MUTATION_URL": "https://cancer.sanger.ac.uk/cosmic/mutation/overview?genome=37&id=21696682",
+-            "LEGACY_MUTATION_ID": "COSM3639752",
+-            "Mutation_CDS": "c.2523G>A",
+-            "Mutation_AA": "p.R841=",
+-            "AA_MUT_START": 841,
+-            "AA_MUT_STOP": 841,
+-            "SHARED_AA": 2,
+-            "GENOMIC_WT_ALLELE_SEQ": "G",
+-            "GENOMIC_MUT_ALLELE_SEQ": "A",
+-            "AA_WT_ALLELE_SEQ": "R",
+-            "AA_MUT_ALLELE_SEQ": "R",
+-            "Mutation_Description_CDS": "Substitution",
+-            "Mutation_Description_AA": "Substitution - coding silent",
+-            "ONTOLOGY_MUTATION_CODE": "SO:1000057",
+-            "GENOMIC_MUTATION_ID": "COSV51833166",
+-            "Mutation_genome_position_GRCh37": "7:55259465-55259465",
+-            "Mutation_genome_position_GRCh38": "7:55191772-55191772",
+-            "COSMIC_SAMPLE_TESTED": 50241,
+-            "COSMIC_SAMPLE_MUTATED": 1,
+-            "DISEASE": null,
+-            "WGS_DISEASE": null,
+-            "EXAC_AF": null,
+-            "EXAC_AFR_AF": null,
+-            "EXAC_AMR_AF": null,
+-            "EXAC_ADJ_AF": null,
+-            "EXAC_EAS_AF": null,
+-            "EXAC_FIN_AF": null,
+-            "EXAC_NFE_AF": null,
+-            "EXAC_SAS_AF": null,
+-            "GNOMAD_EXOMES_AF": null,
+-            "GNOMAD_EXOMES_AFR_AF": null,
+-            "GNOMAD_EXOMES_AMR_AF": null,
+-            "GNOMAD_EXOMES_ASJ_AF": null,
+-            "GNOMAD_EXOMES_EAS_AF": null,
+-            "GNOMAD_EXOMES_FIN_AF": null,
+-            "GNOMAD_EXOMES_NFE_AF": null,
+-            "GNOMAD_EXOMES_SAS_AF": null,
+-            "GNOMAD_GENOMES_AF": null,
+-            "GNOMAD_GENOMES_AFR_AF": null,
+-            "GNOMAD_GENOMES_AMI_AF": null,
+-            "GNOMAD_GENOMES_AMR_AF": null,
+-            "GNOMAD_GENOMES_ASJ_AF": null,
+-            "GNOMAD_GENOMES_EAS_AF": null,
+-            "GNOMAD_GENOMES_FIN_AF": null,
+-            "GNOMAD_GENOMES_MID_AF": null,
+-            "GNOMAD_GENOMES_NFE_AF": null,
+-            "GNOMAD_GENOMES_SAS_AF": null,
+-            "CLINVAR_CLNSIG": null,
+-            "CLINVAR_TRAIT": null,
+-            "GERP++_RS": null,
+-            "MIN_SIFT_SCORE": 1.0,
+-            "MIN_SIFT_PRED": null,
+-            "DNDS_DISEASE_QVAL_SIG": null,
+-            "MUTATION_SIGNIFICANCE_TIER": "Other"
+-        },
+-        {
+-            "GENE_NAME": "EGFR",
+-            "ACCESSION_NUMBER": "ENST00000275493.2",
+-            "ONC_TSG": "oncogene",
+-            "CGC_TIER": 1,
+-            "MUTATION_URL": "https://cancer.sanger.ac.uk/cosmic/mutation/overview?genome=37&id=21637077",
+-            "LEGACY_MUTATION_ID": "COSM22940",
+-            "Mutation_CDS": "c.2327G>A",
+-            "Mutation_AA": "p.R776H",
+-            "AA_MUT_START": 776,
+-            "AA_MUT_STOP": 776,
+-            "SHARED_AA": 4,
+-            "GENOMIC_WT_ALLELE_SEQ": "G",
+-            "GENOMIC_MUT_ALLELE_SEQ": "A",
+-            "AA_WT_ALLELE_SEQ": "R",
+-            "AA_MUT_ALLELE_SEQ": "H",
+-            "Mutation_Description_CDS": "Substitution",
+-            "Mutation_Description_AA": "Substitution - Missense",
+-            "ONTOLOGY_MUTATION_CODE": "SO:0001583",
+-            "GENOMIC_MUTATION_ID": "COSV51780730",
+-            "Mutation_genome_position_GRCh37": "7:55249029-55249029",
+-            "Mutation_genome_position_GRCh38": "7:55181336-55181336",
+-            "COSMIC_SAMPLE_TESTED": 218680,
+-            "COSMIC_SAMPLE_MUTATED": 14,
+-            "DISEASE": null,
+-            "WGS_DISEASE": null,
+-            "EXAC_AF": null,
+-            "EXAC_AFR_AF": null,
+-            "EXAC_AMR_AF": null,
+-            "EXAC_ADJ_AF": null,
+-            "EXAC_EAS_AF": null,
+-            "EXAC_FIN_AF": null,
+-            "EXAC_NFE_AF": null,
+-            "EXAC_SAS_AF": null,
+-            "GNOMAD_EXOMES_AF": 3.98e-06,
+-            "GNOMAD_EXOMES_AFR_AF": 0.0,
+-            "GNOMAD_EXOMES_AMR_AF": 0.0,
+-            "GNOMAD_EXOMES_ASJ_AF": 0.0,
+-            "GNOMAD_EXOMES_EAS_AF": 0.0,
+-            "GNOMAD_EXOMES_FIN_AF": 0.0,
+-            "GNOMAD_EXOMES_NFE_AF": 8.8e-06,
+-            "GNOMAD_EXOMES_SAS_AF": 0.0,
+-            "GNOMAD_GENOMES_AF": 6.57e-06,
+-            "GNOMAD_GENOMES_AFR_AF": 0.0,
+-            "GNOMAD_GENOMES_AMI_AF": 0.0,
+-            "GNOMAD_GENOMES_AMR_AF": 0.0,
+-            "GNOMAD_GENOMES_ASJ_AF": 0.0,
+-            "GNOMAD_GENOMES_EAS_AF": 0.0,
+-            "GNOMAD_GENOMES_FIN_AF": 0.0,
+-            "GNOMAD_GENOMES_MID_AF": 0.0,
+-            "GNOMAD_GENOMES_NFE_AF": 1.47e-05,
+-            "GNOMAD_GENOMES_SAS_AF": 0.0,
+-            "CLINVAR_CLNSIG": "Uncertain significance&not provided&drug response",
+-            "CLINVAR_TRAIT": "EGFR-related lung cancer&Non-small cell lung carcinoma&Squamous cell carcinoma of the head and neck",
+-            "GERP++_RS": 4.97,
+-            "MIN_SIFT_SCORE": 0.0,
+-            "MIN_SIFT_PRED": "D",
+-            "DNDS_DISEASE_QVAL_SIG": null,
+-            "MUTATION_SIGNIFICANCE_TIER": "Other"
+-        }
+-    ]
+-    ]
++    "expected_result": [[
++      {
++          "GENE_NAME": "EGFR",
++          "ACCESSION_NUMBER": "ENST00000275493.2",
++          "ONC_TSG": "oncogene",
++          "CGC_TIER": 1,
++          "MUTATION_URL": "https://cancer.sanger.ac.uk/cosmic/mutation/overview?genome=37&id=22928951",
++          "LEGACY_MUTATION_ID": "COSM40998",
++          "Mutation_CDS": "c.1804G>C",
++          "Mutation_AA": "p.E602Q",
++          "AA_MUT_START": 602,
++          "AA_MUT_STOP": 602,
++          "SHARED_AA": 3,
++          "GENOMIC_WT_ALLELE_SEQ": "G",
++          "GENOMIC_MUT_ALLELE_SEQ": "C",
++          "AA_WT_ALLELE_SEQ": "E",
++          "AA_MUT_ALLELE_SEQ": "Q",
++          "Mutation_Description_CDS": "Substitution",
++          "Mutation_Description_AA": "Substitution - Missense",
++          "ONTOLOGY_MUTATION_CODE": "SO:0001583",
++          "GENOMIC_MUTATION_ID": "COSV51797037",
++          "Mutation_genome_position_GRCh37": "7:55233054-55233054",
++          "Mutation_genome_position_GRCh38": "7:55165361-55165361",
++          "COSMIC_SAMPLE_TESTED": 169233,
++          "COSMIC_SAMPLE_MUTATED": 1,
++          "DISEASE": null,
++          "WGS_DISEASE": null,
++          "EXAC_AF": null,
++          "EXAC_AFR_AF": null,
++          "EXAC_AMR_AF": null,
++          "EXAC_ADJ_AF": null,
++          "EXAC_EAS_AF": null,
++          "EXAC_FIN_AF": null,
++          "EXAC_NFE_AF": null,
++          "EXAC_SAS_AF": null,
++          "GNOMAD_EXOMES_AF": null,
++          "GNOMAD_EXOMES_AFR_AF": null,
++          "GNOMAD_EXOMES_AMR_AF": null,
++          "GNOMAD_EXOMES_ASJ_AF": null,
++          "GNOMAD_EXOMES_EAS_AF": null,
++          "GNOMAD_EXOMES_FIN_AF": null,
++          "GNOMAD_EXOMES_NFE_AF": null,
++          "GNOMAD_EXOMES_SAS_AF": null,
++          "GNOMAD_GENOMES_AF": null,
++          "GNOMAD_GENOMES_AFR_AF": null,
++          "GNOMAD_GENOMES_AMI_AF": null,
++          "GNOMAD_GENOMES_AMR_AF": null,
++          "GNOMAD_GENOMES_ASJ_AF": null,
++          "GNOMAD_GENOMES_EAS_AF": null,
++          "GNOMAD_GENOMES_FIN_AF": null,
++          "GNOMAD_GENOMES_MID_AF": null,
++          "GNOMAD_GENOMES_NFE_AF": null,
++          "GNOMAD_GENOMES_SAS_AF": null,
++          "CLINVAR_CLNSIG": null,
++          "CLINVAR_TRAIT": null,
++          "GERP++_RS": 5.87,
++          "MIN_SIFT_SCORE": 0.075,
++          "MIN_SIFT_PRED": "T",
++          "DNDS_DISEASE_QVAL_SIG": null,
++          "MUTATION_SIGNIFICANCE_TIER": "Other"
++      },
++      {
++          "GENE_NAME": "EGFR",
++          "ACCESSION_NUMBER": "ENST00000275493.2",
++          "ONC_TSG": "oncogene",
++          "CGC_TIER": 1,
++          "MUTATION_URL": "https://cancer.sanger.ac.uk/cosmic/mutation/overview?genome=37&id=22878184",
++          "LEGACY_MUTATION_ID": "COSM12366",
++          "Mutation_CDS": "c.2572C>A",
++          "Mutation_AA": "p.L858M",
++          "AA_MUT_START": 858,
++          "AA_MUT_STOP": 858,
++          "SHARED_AA": 9,
++          "GENOMIC_WT_ALLELE_SEQ": "C",
++          "GENOMIC_MUT_ALLELE_SEQ": "A",
++          "AA_WT_ALLELE_SEQ": "L",
++          "AA_MUT_ALLELE_SEQ": "M",
++          "Mutation_Description_CDS": "Substitution",
++          "Mutation_Description_AA": "Substitution - Missense",
++          "ONTOLOGY_MUTATION_CODE": "SO:0001583",
++          "GENOMIC_MUTATION_ID": "COSV51766331",
++          "Mutation_genome_position_GRCh37": "7:55259514-55259514",
++          "Mutation_genome_position_GRCh38": "7:55191821-55191821",
++          "COSMIC_SAMPLE_TESTED": 222868,
++          "COSMIC_SAMPLE_MUTATED": 7,
++          "DISEASE": null,
++          "WGS_DISEASE": null,
++          "EXAC_AF": null,
++          "EXAC_AFR_AF": null,
++          "EXAC_AMR_AF": null,
++          "EXAC_ADJ_AF": null,
++          "EXAC_EAS_AF": null,
++          "EXAC_FIN_AF": null,
++          "EXAC_NFE_AF": null,
++          "EXAC_SAS_AF": null,
++          "GNOMAD_EXOMES_AF": null,
++          "GNOMAD_EXOMES_AFR_AF": null,
++          "GNOMAD_EXOMES_AMR_AF": null,
++          "GNOMAD_EXOMES_ASJ_AF": null,
++          "GNOMAD_EXOMES_EAS_AF": null,
++          "GNOMAD_EXOMES_FIN_AF": null,
++          "GNOMAD_EXOMES_NFE_AF": null,
++          "GNOMAD_EXOMES_SAS_AF": null,
++          "GNOMAD_GENOMES_AF": null,
++          "GNOMAD_GENOMES_AFR_AF": null,
++          "GNOMAD_GENOMES_AMI_AF": null,
++          "GNOMAD_GENOMES_AMR_AF": null,
++          "GNOMAD_GENOMES_ASJ_AF": null,
++          "GNOMAD_GENOMES_EAS_AF": null,
++          "GNOMAD_GENOMES_FIN_AF": null,
++          "GNOMAD_GENOMES_MID_AF": null,
++          "GNOMAD_GENOMES_NFE_AF": null,
++          "GNOMAD_GENOMES_SAS_AF": null,
++          "CLINVAR_CLNSIG": "Likely pathogenic&Uncertain significance",
++          "CLINVAR_TRAIT": "Non-small cell lung carcinoma&not specified",
++          "GERP++_RS": 3.91,
++          "MIN_SIFT_SCORE": 0.002,
++          "MIN_SIFT_PRED": "D",
++          "DNDS_DISEASE_QVAL_SIG": null,
++          "MUTATION_SIGNIFICANCE_TIER": "2"
++      },
++      {
++          "GENE_NAME": "EGFR",
++          "ACCESSION_NUMBER": "ENST00000275493.2",
++          "ONC_TSG": "oncogene",
++          "CGC_TIER": 1,
++          "MUTATION_URL": "https://cancer.sanger.ac.uk/cosmic/mutation/overview?genome=37&id=22875276",
++          "LEGACY_MUTATION_ID": "COSM6227",
++          "Mutation_CDS": "c.2504A>T",
++          "Mutation_AA": "p.H835L",
++          "AA_MUT_START": 835,
++          "AA_MUT_STOP": 835,
++          "SHARED_AA": 4,
++          "GENOMIC_WT_ALLELE_SEQ": "A",
++          "GENOMIC_MUT_ALLELE_SEQ": "T",
++          "AA_WT_ALLELE_SEQ": "H",
++          "AA_MUT_ALLELE_SEQ": "L",
++          "Mutation_Description_CDS": "Substitution",
++          "Mutation_Description_AA": "Substitution - Missense",
++          "ONTOLOGY_MUTATION_CODE": "SO:0001583",
++          "GENOMIC_MUTATION_ID": "COSV51777782",
++          "Mutation_genome_position_GRCh37": "7:55259446-55259446",
++          "Mutation_genome_position_GRCh38": "7:55191753-55191753",
++          "COSMIC_SAMPLE_TESTED": 169233,
++          "COSMIC_SAMPLE_MUTATED": 12,
++          "DISEASE": null,
++          "WGS_DISEASE": null,
++          "EXAC_AF": null,
++          "EXAC_AFR_AF": null,
++          "EXAC_AMR_AF": null,
++          "EXAC_ADJ_AF": null,
++          "EXAC_EAS_AF": null,
++          "EXAC_FIN_AF": null,
++          "EXAC_NFE_AF": null,
++          "EXAC_SAS_AF": null,
++          "GNOMAD_EXOMES_AF": null,
++          "GNOMAD_EXOMES_AFR_AF": null,
++          "GNOMAD_EXOMES_AMR_AF": null,
++          "GNOMAD_EXOMES_ASJ_AF": null,
++          "GNOMAD_EXOMES_EAS_AF": null,
++          "GNOMAD_EXOMES_FIN_AF": null,
++          "GNOMAD_EXOMES_NFE_AF": null,
++          "GNOMAD_EXOMES_SAS_AF": null,
++          "GNOMAD_GENOMES_AF": null,
++          "GNOMAD_GENOMES_AFR_AF": null,
++          "GNOMAD_GENOMES_AMI_AF": null,
++          "GNOMAD_GENOMES_AMR_AF": null,
++          "GNOMAD_GENOMES_ASJ_AF": null,
++          "GNOMAD_GENOMES_EAS_AF": null,
++          "GNOMAD_GENOMES_FIN_AF": null,
++          "GNOMAD_GENOMES_MID_AF": null,
++          "GNOMAD_GENOMES_NFE_AF": null,
++          "GNOMAD_GENOMES_SAS_AF": null,
++          "CLINVAR_CLNSIG": "Uncertain significance&Uncertain significance",
++          "CLINVAR_TRAIT": "Lung carcinoma&not specified",
++          "GERP++_RS": 5.82,
++          "MIN_SIFT_SCORE": 0.0,
++          "MIN_SIFT_PRED": "D",
++          "DNDS_DISEASE_QVAL_SIG": null,
++          "MUTATION_SIGNIFICANCE_TIER": "Other"
++      },
++      {
++          "GENE_NAME": "EGFR",
++          "ACCESSION_NUMBER": "ENST00000275493.2",
++          "ONC_TSG": "oncogene",
++          "CGC_TIER": 1,
++          "MUTATION_URL": "https://cancer.sanger.ac.uk/cosmic/mutation/overview?genome=37&id=22901504",
++          "LEGACY_MUTATION_ID": "COSM39565",
++          "Mutation_CDS": "c.931T>A",
++          "Mutation_AA": "p.C311S",
++          "AA_MUT_START": 311,
++          "AA_MUT_STOP": 311,
++          "SHARED_AA": 4,
++          "GENOMIC_WT_ALLELE_SEQ": "T",
++          "GENOMIC_MUT_ALLELE_SEQ": "A",
++          "AA_WT_ALLELE_SEQ": "C",
++          "AA_MUT_ALLELE_SEQ": "S",
++          "Mutation_Description_CDS": "Substitution",
++          "Mutation_Description_AA": "Substitution - Missense",
++          "ONTOLOGY_MUTATION_CODE": "SO:0001583",
++          "GENOMIC_MUTATION_ID": "COSV51848573",
++          "Mutation_genome_position_GRCh37": "7:55223564-55223564",
++          "Mutation_genome_position_GRCh38": "7:55155871-55155871",
++          "COSMIC_SAMPLE_TESTED": 169233,
++          "COSMIC_SAMPLE_MUTATED": 1,
++          "DISEASE": null,
++          "WGS_DISEASE": null,
++          "EXAC_AF": null,
++          "EXAC_AFR_AF": null,
++          "EXAC_AMR_AF": null,
++          "EXAC_ADJ_AF": null,
++          "EXAC_EAS_AF": null,
++          "EXAC_FIN_AF": null,
++          "EXAC_NFE_AF": null,
++          "EXAC_SAS_AF": null,
++          "GNOMAD_EXOMES_AF": null,
++          "GNOMAD_EXOMES_AFR_AF": null,
++          "GNOMAD_EXOMES_AMR_AF": null,
++          "GNOMAD_EXOMES_ASJ_AF": null,
++          "GNOMAD_EXOMES_EAS_AF": null,
++          "GNOMAD_EXOMES_FIN_AF": null,
++          "GNOMAD_EXOMES_NFE_AF": null,
++          "GNOMAD_EXOMES_SAS_AF": null,
++          "GNOMAD_GENOMES_AF": null,
++          "GNOMAD_GENOMES_AFR_AF": null,
++          "GNOMAD_GENOMES_AMI_AF": null,
++          "GNOMAD_GENOMES_AMR_AF": null,
++          "GNOMAD_GENOMES_ASJ_AF": null,
++          "GNOMAD_GENOMES_EAS_AF": null,
++          "GNOMAD_GENOMES_FIN_AF": null,
++          "GNOMAD_GENOMES_MID_AF": null,
++          "GNOMAD_GENOMES_NFE_AF": null,
++          "GNOMAD_GENOMES_SAS_AF": null,
++          "CLINVAR_CLNSIG": null,
++          "CLINVAR_TRAIT": null,
++          "GERP++_RS": 5.64,
++          "MIN_SIFT_SCORE": 0.0,
++          "MIN_SIFT_PRED": "D",
++          "DNDS_DISEASE_QVAL_SIG": null,
++          "MUTATION_SIGNIFICANCE_TIER": "Other"
++      },
++      {
++          "GENE_NAME": "EGFR",
++          "ACCESSION_NUMBER": "ENST00000275493.2",
++          "ONC_TSG": "oncogene",
++          "CGC_TIER": 1,
++          "MUTATION_URL": "https://cancer.sanger.ac.uk/cosmic/mutation/overview?genome=37&id=22878389",
++          "LEGACY_MUTATION_ID": "COSM12429",
++          "Mutation_CDS": "c.2573_2574delinsGT",
++          "Mutation_AA": "p.L858R",
++          "AA_MUT_START": 858,
++          "AA_MUT_STOP": 858,
++          "SHARED_AA": 9,
++          "GENOMIC_WT_ALLELE_SEQ": "TG",
++          "GENOMIC_MUT_ALLELE_SEQ": "GT",
++          "AA_WT_ALLELE_SEQ": "L",
++          "AA_MUT_ALLELE_SEQ": "R",
++          "Mutation_Description_CDS": "Complex - compound substitution",
++          "Mutation_Description_AA": "Substitution - Missense",
++          "ONTOLOGY_MUTATION_CODE": "SO:0001583",
++          "GENOMIC_MUTATION_ID": "COSV51804843",
++          "Mutation_genome_position_GRCh37": "7:55259515-55259516",
++          "Mutation_genome_position_GRCh38": "7:55191822-55191823",
++          "COSMIC_SAMPLE_TESTED": 169233,
++          "COSMIC_SAMPLE_MUTATED": 9,
++          "DISEASE": null,
++          "WGS_DISEASE": null,
++          "EXAC_AF": null,
++          "EXAC_AFR_AF": null,
++          "EXAC_AMR_AF": null,
++          "EXAC_ADJ_AF": null,
++          "EXAC_EAS_AF": null,
++          "EXAC_FIN_AF": null,
++          "EXAC_NFE_AF": null,
++          "EXAC_SAS_AF": null,
++          "GNOMAD_EXOMES_AF": null,
++          "GNOMAD_EXOMES_AFR_AF": null,
++          "GNOMAD_EXOMES_AMR_AF": null,
++          "GNOMAD_EXOMES_ASJ_AF": null,
++          "GNOMAD_EXOMES_EAS_AF": null,
++          "GNOMAD_EXOMES_FIN_AF": null,
++          "GNOMAD_EXOMES_NFE_AF": null,
++          "GNOMAD_EXOMES_SAS_AF": null,
++          "GNOMAD_GENOMES_AF": null,
++          "GNOMAD_GENOMES_AFR_AF": null,
++          "GNOMAD_GENOMES_AMI_AF": null,
++          "GNOMAD_GENOMES_AMR_AF": null,
++          "GNOMAD_GENOMES_ASJ_AF": null,
++          "GNOMAD_GENOMES_EAS_AF": null,
++          "GNOMAD_GENOMES_FIN_AF": null,
++          "GNOMAD_GENOMES_MID_AF": null,
++          "GNOMAD_GENOMES_NFE_AF": null,
++          "GNOMAD_GENOMES_SAS_AF": null,
++          "CLINVAR_CLNSIG": null,
++          "CLINVAR_TRAIT": null,
++          "GERP++_RS": null,
++          "MIN_SIFT_SCORE": 1.0,
++          "MIN_SIFT_PRED": null,
++          "DNDS_DISEASE_QVAL_SIG": null,
++          "MUTATION_SIGNIFICANCE_TIER": "3"
++      }
++  ]]
+   }
+ }
+\ No newline at end of file
+diff --git a/tests/fixtures/test_opentargets.json b/tests/fixtures/test_opentargets.json
+index 8624dfe5e..5dcbf2bda 100644
+--- a/tests/fixtures/test_opentargets.json
++++ b/tests/fixtures/test_opentargets.json
+@@ -4,38 +4,20 @@
+         "args": {
+             "ensembl_id": "ENSG00000169194",
+             "resource": "diseases",
+-            "limit": 5
++            "limit": 2
+         },
+         "expected_result": [
+             [
+               "EFO_0000274",
+               "atopic eczema",
+               "A common chronic pruritic inflammatory skin disease with a strong genetic component. Onset typically occurs during the first 2 years of life.",
+-              0.6876522106083125
++              0.6908981976
+             ],
+             [
+               "MONDO_0004979",
+               "asthma",
+               "A bronchial disease that is characterized by chronic inflammation and narrowing of the airways, which is caused by a combination of environmental and genetic factors resulting in recurring periods of wheezing (a whistling sound while breathing), chest tightness, shortness of breath, mucus production and coughing. The symptoms appear due to a variety of triggers such as allergens, irritants, respiratory infections, weather changes, exercise, stress, reflux disease, medications, foods and emotional anxiety.",
+-              0.6435360124611592
+-            ],
+-            [
+-              "HP_0000964",
+-              "Eczematoid dermatitis",
+-              "Eczema is a form of dermatitis that is characterized by scaly, pruritic, erythematous lesions located on flexural surfaces.",
+-              0.5915945300823627
+-            ],
+-            [
+-              "EFO_0005854",
+-              "allergic rhinitis",
+-              "Inflammation of the nasal mucous membranes caused by an IgE-mediated response to external allergens. The inflammation may also involve the mucous membranes of the sinuses, eyes, middle ear, and pharynx. Symptoms include sneezing, nasal congestion, rhinorrhea, and itching. It may lead to fatigue, drowsiness, and malaise thus causing impairment of the quality of life.",
+-              0.5336067452437038
+-            ],
+-            [
+-              "EFO_0000676",
+-              "psoriasis",
+-              "An autoimmune condition characterized by red, well-delineated plaques with silvery scales that are usually on the extensor surfaces and scalp. They can occasionally present with these manifestations: pustules; erythema and scaling in intertriginous areas, and erythroderma, that are often distributed on extensor surfaces and scalp.",
+-              0.5276407334688803
++              0.6506508395
+             ]
+         ]
+     },
+@@ -45,7 +27,7 @@
+             "ensembl_id": "ENSG00000169194",
+             "resource": "diseases"
+         },
+-        "expected_result": "e3e75838dfe1d0b74e447424ec52c2e6"
++        "expected_result": "177b4dc5dc5413fd2a35ec1979e97b8c"
+     },
+     "test_opentargets_no_limit_accurate_coverage": {
+         "type": "assert_equal_json_hash",
+@@ -55,7 +37,7 @@
+             "verbose": false,
+             "wrap_text": true
+         },
+-        "expected_result": "e3e75838dfe1d0b74e447424ec52c2e6"
++        "expected_result": "177b4dc5dc5413fd2a35ec1979e97b8c"
+     },
+     "test_opentargets_drugs": {
+         "type": "assert_equal",
+@@ -113,7 +95,7 @@
+             "ensembl_id": "ENSG00000169194",
+             "resource": "drugs"
+         },
+-        "expected_result": "492a3ee41018d14e97c87d27cf3ab2c0"
++        "expected_result": "662a480ca2d3bb7d2fd00a67a25c60d1"
+     },
+     "test_opentargets_tractability": {
+         "type": "assert_equal",
+@@ -173,7 +155,7 @@
+             "ensembl_id": "ENSG00000169194",
+             "resource": "expression"
+         },
+-        "expected_result": "e0c5cfd0d8b6d5efe8f3b739e57f1445"
++        "expected_result": "c1300a64c439e9b1a0adf4475cf138db"
+     },
+     "test_opentargets_depmap": {
+         "type": "assert_equal_json_hash",
+@@ -181,7 +163,7 @@
+             "ensembl_id": "ENSG00000169194",
+             "resource": "depmap"
+         },
+-        "expected_result": "b0b9dece95d5dde83c3f1efe4b23fdf5"
++        "expected_result": "4c0393626ee958f860d4c1fd0b6b77ee"
+     },
+     "test_opentargets_depmap_filter": {
+         "type": "assert_equal",
+@@ -196,23 +178,21 @@
+         "expected_result": [
+             [
+                 "ACH-000979",
+-                0.034343917,
+-                -0.14336789,
++                0.034343916922807693,
++                -0.14336788654327393,
+                 "UBERON_0002367",
+                 "prostate gland",
+                 "DU 145",
+-                "SIDM00120",
+                 "Prostate Adenocarcinoma"
+             ],
+             [
+-                "ACH-000115",
+-                0.03794162,
+-                -0.082284026,
++                "ACH-001422",
++                0.0291899424046278,
++                0.06934770196676254,
+                 "UBERON_0002367",
+                 "prostate gland",
+-                "VCaP",
+-                "SIDM01077",
+-                "Prostate Adenocarcinoma"
++                "WPE1-NA22",
++                "Non-Cancerous"
+             ]
+         ]
+     },
+@@ -222,7 +202,7 @@
+             "ensembl_id": "ENSG00000169194",
+             "resource": "interactions"
+         },
+-        "expected_result": "ff58d2d15d55d6f9b96b211e74fa4d8e"
++        "expected_result": "87426de2adc0d83e6477a0eae579bec5"
+     },
+     "test_opentargets_interactions_simple_filter": {
+         "type": "assert_equal",
+@@ -250,31 +230,31 @@
+                 9606
+             ],
+             [
+-                3,
+-                "reactome",
++                2,
++                "signor",
+                 "P35225",
+                 "ENSG00000169194",
+                 "IL13",
+-                "unspecified role",
++                "regulator",
+                 9606,
+                 "P24394",
+                 "ENSG00000077238",
+                 "IL4R",
+-                "unspecified role",
++                "regulator target",
+                 9606
+             ],
+             [
+-                2,
+-                "signor",
++                3,
++                "reactome",
+                 "P35225",
+                 "ENSG00000169194",
+                 "IL13",
+-                "regulator",
++                "unspecified role",
+                 9606,
+                 "P24394",
+                 "ENSG00000077238",
+                 "IL4R",
+-                "regulator target",
++                "unspecified role",
+                 9606
+             ]
+         ]
+@@ -337,4 +317,4 @@
+         },
+         "expected_result": "ValueError"
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/tests/test_cosmic.py b/tests/test_cosmic.py
+index fea36fe57..8775b08d2 100644
+--- a/tests/test_cosmic.py
++++ b/tests/test_cosmic.py
+@@ -10,7 +10,7 @@
+ from .from_json import from_json
+ 
+ # COSMIC release
+-cosmic_version = 102
++cosmic_version = 103
+ 
+ # Only this combo is used for example testing (no login required)
+ arg_combinations = [

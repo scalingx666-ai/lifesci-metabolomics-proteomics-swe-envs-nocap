@@ -1,0 +1,76 @@
+version = "1.0"
+
+[task]
+name = "default/scverse__gget-10"
+description = "Dev -> main"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "gget",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "scverse/gget"
+ref = "b9a434723f1015b03dd5a8a58a340fa6c44f4e15"
+reference = "https://github.com/scverse/gget/pull/10"
+source_access = "auto"
+built_at = "2026-11-15T21:07:29.877838+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:ca5da38ca9a3422e0cc63c6d46e59a18f2bd64c1a27d949f5b6a12b167564abe"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2022-06-03T18:21:12Z"
+diff_format = "unified"
+context_files = [
+    "gget/__init__.py",
+    "gget/compile.py",
+    "gget/gget_archs4.py",
+    "gget/gget_blast.py",
+    "gget/gget_blat.py",
+    "gget/gget_enrichr.py",
+    "gget/gget_info.py",
+    "gget/gget_muscle.py",
+    "gget/gget_ref.py",
+    "gget/gget_search.py",
+    "gget/gget_seq.py",
+    "gget/main.py",
+    "gget/utils.py",
+    "tests/test_gget_info.py",
+    "tests/test_gget_seq.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 265
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

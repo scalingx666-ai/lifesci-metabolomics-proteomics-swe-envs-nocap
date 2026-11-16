@@ -1,0 +1,34 @@
+diff --git a/README.rst b/README.rst
+index 1ffe58843..94ae051a3 100644
+--- a/README.rst
++++ b/README.rst
+@@ -318,9 +318,16 @@ To install matchms, do:
+ 
+   git clone https://github.com/matchms/matchms.git
+   cd matchms
+-  conda create --name matchms-dev python=3.12
++  # Create environment using conda
++  conda create --name matchms-dev python=3.13
+   conda activate matchms-dev
+ 
++  # Create environment using uv
++  uv venv --python 3.13
++
++  # If you use uv
++  uv sync --group dev
++
+   # If you use poetry
+   python -m pip install --upgrade pip poetry
+   poetry install --with dev
+diff --git a/pyproject.toml b/pyproject.toml
+index 1745e4034..83986fa67 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -19,7 +19,6 @@ classifiers = [
+   "Intended Audience :: Developers",
+   "Intended Audience :: Education",
+   "Intended Audience :: Science/Research",
+-  "License :: OSI Approved :: Apache Software License",
+   "Natural Language :: English",
+   "Programming Language :: Python :: 3",
+   "Programming Language :: Python :: 3.10",

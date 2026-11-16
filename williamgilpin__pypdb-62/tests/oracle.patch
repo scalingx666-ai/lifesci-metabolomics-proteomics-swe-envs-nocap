@@ -1,0 +1,1470 @@
+diff --git a/demos/demos.ipynb b/demos/demos.ipynb
+index 468cdac..ba735a7 100755
+--- a/demos/demos.ipynb
++++ b/demos/demos.ipynb
+@@ -1,37 +1,26 @@
+ {
+  "cells": [
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "# pypdb demos\n",
+     "\n",
+     "This is a set of basic examples of the usage and outputs of the various individual functions included in. There are generally three types of functions."
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "### Preamble"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": 1,
+-   "metadata": {},
+-   "outputs": [
+-    {
+-     "name": "stdout",
+-     "output_type": "stream",
+-     "text": [
+-      "%pylab is deprecated, use %matplotlib inline and import the required libraries.\n",
+-      "Populating the interactive namespace from numpy and matplotlib\n"
+-     ]
+-    }
+-   ],
+    "source": [
+     "%pylab inline\n",
+     "from IPython.display import HTML\n",
+@@ -46,314 +35,321 @@
+     "\n",
+     "%load_ext autoreload\n",
+     "%autoreload 2"
+-   ]
++   ],
++   "outputs": [
++    {
++     "output_type": "stream",
++     "name": "stdout",
++     "text": [
++      "%pylab is deprecated, use %matplotlib inline and import the required libraries.\n",
++      "Populating the interactive namespace from numpy and matplotlib\n"
++     ]
++    }
++   ],
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "# Search functions that return lists of PDB IDs"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "#### Get a list of PDBs for a specific search term"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": 3,
+-   "metadata": {},
++   "source": [
++    "found_pdbs = Query(\"ribosome\").search()\n",
++    "print(found_pdbs[:10])"
++   ],
+    "outputs": [
+     {
+-     "name": "stdout",
+      "output_type": "stream",
++     "name": "stdout",
+      "text": [
+       "['486D', '1T1M', '1QI7', '1MRI', '1AHC', '1MOM', '1MRH', '1WIH', '1MRJ', '7AFQ']\n"
+      ]
+     }
+    ],
+-   "source": [
+-    "found_pdbs = Query(\"ribosome\").search()\n",
+-    "print(found_pdbs[:10])"
+-   ]
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "#### Search by PubMed ID Number"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": 4,
+-   "metadata": {},
++   "source": [
++    "found_pdbs = Query(27499440, \"PubmedIdQuery\").search()\n",
++    "print(found_pdbs[:10])"
++   ],
+    "outputs": [
+     {
+-     "name": "stdout",
+      "output_type": "stream",
++     "name": "stdout",
+      "text": [
+       "['5IMT', '5IMW', '5IMY']\n"
+      ]
+     }
+    ],
+-   "source": [
+-    "found_pdbs = Query(27499440, \"PubmedIdQuery\").search()\n",
+-    "print(found_pdbs[:10])"
+-   ]
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "#### Search by source organism using NCBI TaxId"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": 5,
+-   "metadata": {},
++   "source": [
++    "found_pdbs = Query('6239', 'TreeEntityQuery').search() #TaxID for C elegans\n",
++    "print(found_pdbs[:5])"
++   ],
+    "outputs": [
+     {
+-     "name": "stdout",
+      "output_type": "stream",
++     "name": "stdout",
+      "text": [
+       "['1D4X', '1DYW', '1E3B', '1E8K', '1EMS']\n"
+      ]
+     }
+    ],
+-   "source": [
+-    "found_pdbs = Query('6239', 'TreeEntityQuery').search() #TaxID for C elegans\n",
+-    "print(found_pdbs[:5])"
+-   ]
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "#### Search by a specific experimental method"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": 6,
+-   "metadata": {},
++   "source": [
++    "found_pdbs = Query('SOLID-STATE NMR', query_type='ExpTypeQuery').search()\n",
++    "print(found_pdbs[:10])"
++   ],
+    "outputs": [
+     {
+-     "name": "stdout",
+      "output_type": "stream",
++     "name": "stdout",
+      "text": [
+       "['1CEK', '1EQ8', '1M8M', '1MAG', '1MP6', '1MZT', '1NH4', '1NYJ', '1PI7', '1PI8']\n"
+      ]
+     }
+    ],
+-   "source": [
+-    "found_pdbs = Query('SOLID-STATE NMR', query_type='ExpTypeQuery').search()\n",
+-    "print(found_pdbs[:10])"
+-   ]
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "#### Search by protein structure similarity"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": 7,
+-   "metadata": {},
++   "source": [
++    "found_pdbs = Query('2E8D', query_type=\"structure\").search()\n",
++    "print(found_pdbs[:10])"
++   ],
+    "outputs": [
+     {
+-     "name": "stdout",
+      "output_type": "stream",
++     "name": "stdout",
+      "text": [
+       "['2E8D', '4OBA', '4OGV', '4JVR', '3LBL', '4QO4', '4JWR', '2G1E', '2WS4', '4ERE']\n"
+      ]
+     }
+    ],
+-   "source": [
+-    "found_pdbs = Query('2E8D', query_type=\"structure\").search()\n",
+-    "print(found_pdbs[:10])"
+-   ]
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "#### Search by Author"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": 8,
+-   "metadata": {},
++   "source": [
++    "found_pdbs = Query('Perutz, M.F.', query_type='AdvancedAuthorQuery').search()\n",
++    "print(found_pdbs)"
++   ],
+    "outputs": [
+     {
+-     "name": "stdout",
+      "output_type": "stream",
++     "name": "stdout",
+      "text": [
+       "['1CQ4', '1FDH', '1GDJ', '1HDA', '1PBX', '2DHB', '2GDM', '2HHB', '2MHB', '3HHB', '4HHB']\n"
+      ]
+     }
+    ],
+-   "source": [
+-    "found_pdbs = Query('Perutz, M.F.', query_type='AdvancedAuthorQuery').search()\n",
+-    "print(found_pdbs)"
+-   ]
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "#### Search by organism"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": 9,
+-   "metadata": {},
++   "source": [
++    "q = Query(\"Dictyostelium\", query_type=\"OrganismQuery\")\n",
++    "print(q.search()[:10])"
++   ],
+    "outputs": [
+     {
+-     "name": "stdout",
+      "output_type": "stream",
++     "name": "stdout",
+      "text": [
+       "['2H84', '3MNQ', '4AE3', '8OHY', '5AN9', '6QKL', '2VM9', '2VMC', '2VMD', '2VME']\n"
+      ]
+     }
+    ],
+-   "source": [
+-    "q = Query(\"Dictyostelium\", query_type=\"OrganismQuery\")\n",
+-    "print(q.search()[:10])"
+-   ]
++   "metadata": {}
+   },
+   {
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "#### Search by Uniprot ID"
+-   ]
++   ],
++   "metadata": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": 6,
+-   "metadata": {},
++   "source": [
++    "uniprot_info = Query(\"A0A023GPI8\", query_type=\"uniprot\").search()\n",
++    "print(uniprot_info[:5])"
++   ],
+    "outputs": [
+     {
+-     "name": "stdout",
+      "output_type": "stream",
++     "name": "stdout",
+      "text": [
+       "['4K1Y', '4K1Z', '4K20', '4K21']\n"
+      ]
+     }
+    ],
+-   "source": [
+-    "uniprot_info = Query(\"A0A023GPI8\", query_type=\"uniprot\").search()\n",
+-    "print(uniprot_info[:5])"
+-   ]
++   "metadata": {}
+   },
+   {
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "#### Search by PFAM number"
+-   ]
++   ],
++   "metadata": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": 5,
+-   "metadata": {},
++   "source": [
++    "pfam_info = Query(\"PF00008\", query_type=\"pfam\").search()\n",
++    "print(pfam_info[:5])"
++   ],
+    "outputs": [
+     {
+-     "name": "stdout",
+      "output_type": "stream",
++     "name": "stdout",
+      "text": [
+       "['1A3P', '1APO', '1AUT', '1BF9', '1CCF']\n"
+      ]
+     }
+    ],
+-   "source": [
+-    "pfam_info = Query(\"PF00008\", query_type=\"pfam\").search()\n",
+-    "print(pfam_info[:5])"
+-   ]
++   "metadata": {}
+   },
+   {
+-   "cell_type": "code",
+-   "execution_count": null,
+-   "metadata": {},
+-   "outputs": [],
+-   "source": []
+-  },
+-  {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "# Information Search functions\n",
+     "While the basic functions described in the previous section are useful for looking up and manipulating individual unique entries, these functions are intended to be more user-facing: they take search keywords and return lists of authors or dates"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "#### Find papers for a given keyword"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": 10,
+-   "metadata": {},
++   "source": [
++    "matching_papers = find_papers('crispr', max_results=10)\n",
++    "print(list(matching_papers)[:10])"
++   ],
+    "outputs": [
+     {
+-     "name": "stdout",
+      "output_type": "stream",
++     "name": "stdout",
+      "text": [
+       "['Structures of the Cmr-beta Complex Reveal the Regulation of the Immunity Mechanism of Type III-B CRISPR-Cas.', 'Structures of the Cmr-beta Complex Reveal the Regulation of the Immunity Mechanism of Type III-B CRISPR-Cas', 'Crystal structure of the CRISPR-Cas RNA silencing Cmr complex bound to a target analog.', 'Structures of an active type III-A CRISPR effector complex.']\n"
+      ]
+     }
+    ],
+-   "source": [
+-    "matching_papers = find_papers('crispr', max_results=10)\n",
+-    "print(list(matching_papers)[:10])"
+-   ]
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "# Functions that return information about single PDB IDs"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "#### Get the full PDB file"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": 11,
+-   "metadata": {},
++   "source": [
++    "pdb_file = get_pdb_file('4lza', filetype='cif', compression=False)\n",
++    "print(pdb_file[:400])"
++   ],
+    "outputs": [
+     {
+-     "name": "stderr",
+      "output_type": "stream",
++     "name": "stderr",
+      "text": [
+       "/Users/william/micromamba/envs/pypdb/lib/python3.11/site-packages/pypdb/pypdb.py:487: DeprecationWarning: The `get_pdb_file` function within pypdb.py is deprecated.See `pypdb/clients/pdb/pdb_client.py` for a near-identical function to use\n",
+       "  warnings.warn(\n",
+@@ -362,8 +358,8 @@
+      ]
+     },
+     {
+-     "name": "stdout",
+      "output_type": "stream",
++     "name": "stdout",
+      "text": [
+       "Sending GET request to https://files.rcsb.org/download/4lza.cif to fetch 4lza's cif file as a string.\n",
+       "data_4LZA\n",
+@@ -386,105 +382,109 @@
+      ]
+     }
+    ],
+-   "source": [
+-    "pdb_file = get_pdb_file('4lza', filetype='cif', compression=False)\n",
+-    "print(pdb_file[:400])"
+-   ]
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "#### Get a general description of the entry's metadata"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": 12,
+-   "metadata": {},
++   "source": [
++    "all_info = get_info('4LZA')\n",
++    "print(list(all_info.keys()))"
++   ],
+    "outputs": [
+     {
+-     "name": "stdout",
+      "output_type": "stream",
++     "name": "stdout",
+      "text": [
+       "['audit_author', 'cell', 'citation', 'diffrn', 'diffrn_detector', 'diffrn_radiation', 'diffrn_source', 'entry', 'exptl', 'exptl_crystal', 'exptl_crystal_grow', 'pdbx_sgproject', 'pdbx_audit_revision_details', 'pdbx_audit_revision_history', 'pdbx_database_related', 'pdbx_database_status', 'rcsb_accession_info', 'rcsb_entry_container_identifiers', 'rcsb_entry_info', 'rcsb_primary_citation', 'refine', 'refine_hist', 'refine_ls_restr', 'reflns', 'reflns_shell', 'software', 'struct', 'struct_keywords', 'symmetry', 'rcsb_id']\n"
+      ]
+     }
+    ],
+-   "source": [
+-    "all_info = get_info('4LZA')\n",
+-    "print(list(all_info.keys()))"
+-   ]
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "#### Run a Sequence search\n",
+     "\n",
+     "Formerly using BLAST, this method now uses MMseqs2"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": 13,
+-   "metadata": {},
++   "source": [
++    "q = Query(\"VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALTAVAHVDDMPNAL\", \n",
++    "          query_type=\"sequence\", \n",
++    "          return_type=\"polymer_entity\")\n",
++    "\n",
++    "print(q.search())"
++   ],
+    "outputs": [
+     {
+-     "name": "stdout",
+      "output_type": "stream",
++     "name": "stdout",
+      "text": [
+       "{'query_id': '5ec265f7-2164-4e35-8d07-08df2a964532', 'result_type': 'polymer_entity', 'total_count': 846, 'result_set': [{'identifier': '1A00_1', 'score': 1.0, 'services': [{'service_type': 'sequence', 'nodes': [{'node_id': 20656, 'original_score': 164.0, 'norm_score': 1.0, 'match_context': [{'sequence_identity': 0.987, 'evalue': 2.933e-47, 'bitscore': 164, 'alignment_length': 80, 'mismatches': 0, 'gaps_opened': 1, 'query_beg': 1, 'query_end': 79, 'subject_beg': 1, 'subject_end': 80, 'query_length': 79, 'subject_length': 141, 'query_aligned_seq': 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALT-AVAHVDDMPNAL', 'subject_aligned_seq': 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALTNAVAHVDDMPNAL'}]}]}]}, {'identifier': '1A01_1', 'score': 1.0, 'services': [{'service_type': 'sequence', 'nodes': [{'node_id': 20656, 'original_score': 164.0, 'norm_score': 1.0, 'match_context': [{'sequence_identity': 0.987, 'evalue': 2.933e-47, 'bitscore': 164, 'alignment_length': 80, 'mismatches': 0, 'gaps_opened': 1, 'query_beg': 1, 'query_end': 79, 'subject_beg': 1, 'subject_end': 80, 'query_length': 79, 'subject_length': 141, 'query_aligned_seq': 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALT-AVAHVDDMPNAL', 'subject_aligned_seq': 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALTNAVAHVDDMPNAL'}]}]}]}, {'identifier': '1A0U_1', 'score': 1.0, 'services': [{'service_type': 'sequence', 'nodes': [{'node_id': 20656, 'original_score': 164.0, 'norm_score': 1.0, 'match_context': [{'sequence_identity': 0.987, 'evalue': 2.933e-47, 'bitscore': 164, 'alignment_length': 80, 'mismatches': 0, 'gaps_opened': 1, 'query_beg': 1, 'query_end': 79, 'subject_beg': 1, 'subject_end': 80, 'query_length': 79, 'subject_length': 141, 'query_aligned_seq': 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALT-AVAHVDDMPNAL', 'subject_aligned_seq': 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALTNAVAHVDDMPNAL'}]}]}]}, {'identifier': '1A0Z_1', 'score': 1.0, 'services': [{'service_type': 'sequence', 'nodes': [{'node_id': 20656, 'original_score': 164.0, 'norm_score': 1.0, 'match_context': [{'sequence_identity': 0.987, 'evalue': 2.933e-47, 'bitscore': 164, 'alignment_length': 80, 'mismatches': 0, 'gaps_opened': 1, 'query_beg': 1, 'query_end': 79, 'subject_beg': 1, 'subject_end': 80, 'query_length': 79, 'subject_length': 141, 'query_aligned_seq': 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALT-AVAHVDDMPNAL', 'subject_aligned_seq': 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALTNAVAHVDDMPNAL'}]}]}]}, {'identifier': '1A3N_1', 'score': 1.0, 'services': [{'service_type': 'sequence', 'nodes': [{'node_id': 20656, 'original_score': 164.0, 'norm_score': 1.0, 'match_context': [{'sequence_identity': 0.987, 'evalue': 2.933e-47, 'bitscore': 164, 'alignment_length': 80, 'mismatches': 0, 'gaps_opened': 1, 'query_beg': 1, 'query_end': 79, 'subject_beg': 1, 'subject_end': 80, 'query_length': 79, 'subject_length': 141, 'query_aligned_seq': 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALT-AVAHVDDMPNAL', 'subject_aligned_seq': 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALTNAVAHVDDMPNAL'}]}]}]}, {'identifier': '1A9W_1', 'score': 1.0, 'services': [{'service_type': 'sequence', 'nodes': [{'node_id': 20656, 'original_score': 164.0, 'norm_score': 1.0, 'match_context': [{'sequence_identity': 0.987, 'evalue': 2.933e-47, 'bitscore': 164, 'alignment_length': 80, 'mismatches': 0, 'gaps_opened': 1, 'query_beg': 1, 'query_end': 79, 'subject_beg': 1, 'subject_end': 80, 'query_length': 79, 'subject_length': 141, 'query_aligned_seq': 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALT-AVAHVDDMPNAL', 'subject_aligned_seq': 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALTNAVAHVDDMPNAL'}]}]}]}, {'identifier': '1ABW_1', 'score': 1.0, 'services': [{'service_type': 'sequence', 'nodes': [{'node_id': 20656, 'original_score': 164.0, 'norm_score': 1.0, 'match_context': [{'sequence_identity': 0.987, 'evalue': 2.933e-47, 'bitscore': 164, 'alignment_length': 80, 'mismatches': 0, 'gaps_opened': 1, 'query_beg': 1, 'query_end': 79, 'subject_beg': 143, 'subject_end': 222, 'query_length': 79, 'subject_length': 283, 'query_aligned_seq': 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALT-AVAHVDDMPNAL', 'subject_aligned_seq': 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALTNAVAHVDDMPNAL'}]}]}]}, {'identifier': '1ABY_1', 'score': 1.0, 'services': [{'service_type': 'sequence', 'nodes': [{'node_id': 20656, 'original_score': 164.0, 'norm_score': 1.0, 'match_context': [{'sequence_identity': 0.987, 'evalue': 2.933e-47, 'bitscore': 164, 'alignment_length': 80, 'mismatches': 0, 'gaps_opened': 1, 'query_beg': 1, 'query_end': 79, 'subject_beg': 143, 'subject_end': 222, 'query_length': 79, 'subject_length': 283, 'query_aligned_seq': 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALT-AVAHVDDMPNAL', 'subject_aligned_seq': 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALTNAVAHVDDMPNAL'}]}]}]}, {'identifier': '1B86_1', 'score': 1.0, 'services': [{'service_type': 'sequence', 'nodes': [{'node_id': 20656, 'original_score': 164.0, 'norm_score': 1.0, 'match_context': [{'sequence_identity': 0.987, 'evalue': 2.933e-47, 'bitscore': 164, 'alignment_length': 80, 'mismatches': 0, 'gaps_opened': 1, 'query_beg': 1, 'query_end': 79, 'subject_beg': 1, 'subject_end': 80, 'query_length': 79, 'subject_length': 141, 'query_aligned_seq': 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALT-AVAHVDDMPNAL', 'subject_aligned_seq': 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALTNAVAHVDDMPNAL'}]}]}]}, {'identifier': '1BBB_1', 'score': 1.0, 'services': [{'service_type': 'sequence', 'nodes': [{'node_id': 20656, 'original_score': 164.0, 'norm_score': 1.0, 'match_context': [{'sequence_identity': 0.987, 'evalue': 2.933e-47, 'bitscore': 164, 'alignment_length': 80, 'mismatches': 0, 'gaps_opened': 1, 'query_beg': 1, 'query_end': 79, 'subject_beg': 1, 'subject_end': 80, 'query_length': 79, 'subject_length': 141, 'query_aligned_seq': 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALT-AVAHVDDMPNAL', 'subject_aligned_seq': 'VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALTNAVAHVDDMPNAL'}]}]}]}]}\n"
+      ]
+     }
+    ],
+-   "source": [
+-    "q = Query(\"VLSPADKTNVKAAWGKVGAHAGEYGAEALERMFLSFPTTKTYFPHFDLSHGSAQVKGHGKKVADALTAVAHVDDMPNAL\", \n",
+-    "          query_type=\"sequence\", \n",
+-    "          return_type=\"polymer_entity\")\n",
+-    "\n",
+-    "print(q.search())"
+-   ]
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "# New API for advanced search\n",
+     "\n",
+     "The old API will gradually migrate to use these functions"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": 15,
+-   "metadata": {},
+-   "outputs": [],
+    "source": [
+     "from pypdb.clients.search.search_client import perform_search\n",
+     "from pypdb.clients.search.search_client import ReturnType\n",
+     "from pypdb.clients.search.operators import text_operators"
+-   ]
++   ],
++   "outputs": [],
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "## Search for all entries that mention the word 'ribosome'"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": 16,
+-   "metadata": {},
++   "source": [
++    "search_operator = text_operators.DefaultOperator(value=\"ribosome\")\n",
++    "return_type = ReturnType.ENTRY\n",
++    "\n",
++    "results = perform_search(search_operator, return_type)\n",
++    "\n",
++    "print(results[:10])"
++   ],
+    "outputs": [
+     {
+-     "name": "stdout",
+      "output_type": "stream",
++     "name": "stdout",
+      "text": [
+       "Querying RCSB Search using the following parameters:\n",
+       " {\"query\": {\"type\": \"terminal\", \"service\": \"full_text\", \"parameters\": {\"value\": \"ribosome\"}}, \"request_options\": {\"return_all_hits\": true}, \"return_type\": \"entry\"} \n",
+@@ -493,31 +493,32 @@
+      ]
+     }
+    ],
+-   "source": [
+-    "search_operator = text_operators.DefaultOperator(value=\"ribosome\")\n",
+-    "return_type = ReturnType.ENTRY\n",
+-    "\n",
+-    "results = perform_search(search_operator, return_type)\n",
+-    "\n",
+-    "print(results[:10])"
+-   ]
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "## Search for polymers from 'Mus musculus'"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": 17,
+-   "metadata": {},
++   "source": [
++    "search_operator = text_operators.ExactMatchOperator(value=\"Mus musculus\",\n",
++    "                                                    attribute=\"rcsb_entity_source_organism.taxonomy_lineage.name\")\n",
++    "return_type = ReturnType.POLYMER_ENTITY\n",
++    "\n",
++    "results = perform_search(search_operator, return_type)\n",
++    "\n",
++    "print(results[:5])"
++   ],
+    "outputs": [
+     {
+-     "name": "stdout",
+      "output_type": "stream",
++     "name": "stdout",
+      "text": [
+       "Querying RCSB Search using the following parameters:\n",
+       " {\"query\": {\"type\": \"terminal\", \"service\": \"text\", \"parameters\": {\"attribute\": \"rcsb_entity_source_organism.taxonomy_lineage.name\", \"operator\": \"exact_match\", \"value\": \"Mus musculus\"}}, \"request_options\": {\"return_all_hits\": true}, \"return_type\": \"polymer_entity\"} \n",
+@@ -526,29 +527,19 @@
+      ]
+     }
+    ],
+-   "source": [
+-    "search_operator = text_operators.ExactMatchOperator(value=\"Mus musculus\",\n",
+-    "                                                    attribute=\"rcsb_entity_source_organism.taxonomy_lineage.name\")\n",
+-    "return_type = ReturnType.POLYMER_ENTITY\n",
+-    "\n",
+-    "results = perform_search(search_operator, return_type)\n",
+-    "\n",
+-    "print(results[:5])"
+-   ]
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "## Search for non-polymers from 'Mus musculus' or 'Homo sapiens'"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": null,
+-   "metadata": {},
+-   "outputs": [],
+    "source": [
+     "search_operator = text_operators.InOperator(values=[\"Mus musculus\", \"Homo sapiens\"],\n",
+     "                                            attribute=\"rcsb_entity_source_organism.taxonomy_lineage.name\")\n",
+@@ -556,21 +547,21 @@
+     "\n",
+     "results = perform_search(search_operator, return_type)\n",
+     "print(results[:5])"
+-   ]
++   ],
++   "outputs": [],
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "## Search for polymer instances whose titles contain \"actin\" or \"binding\" or \"protein\""
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": null,
+-   "metadata": {},
+-   "outputs": [],
+    "source": [
+     "search_operator = text_operators.ContainsWordsOperator(value=\"actin-binding protein\",\n",
+     "                                            attribute=\"struct.title\")\n",
+@@ -579,25 +570,25 @@
+     "results = perform_search(search_operator, return_type)\n",
+     "\n",
+     "print(results[:5])"
+-   ]
++   ],
++   "outputs": [],
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "## Search for assemblies that contain the words \"actin binding protein\"\n",
+     "(must be in that order).\n",
+     "\n",
+     "For example, \"actin-binding protein\" and \"actin binding protein\" will match,\n",
+     "but \"protein binding actin\" will not."
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": null,
+-   "metadata": {},
+-   "outputs": [],
+    "source": [
+     "search_operator = text_operators.ContainsPhraseOperator(value=\"actin-binding protein\",\n",
+     "                                            attribute=\"struct.title\")\n",
+@@ -606,21 +597,21 @@
+     "results = perform_search(search_operator, return_type, verbosity=True)\n",
+     "\n",
+     "print(results[:5])"
+-   ]
++   ],
++   "outputs": [],
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "## Search for entries released in 2019 or later"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": null,
+-   "metadata": {},
+-   "outputs": [],
+    "source": [
+     "search_operator = text_operators.ComparisonOperator(\n",
+     "       value=\"2019-01-01T00:00:00Z\",\n",
+@@ -631,21 +622,21 @@
+     "results = perform_search(search_operator, return_type)\n",
+     "\n",
+     "print(results[:5])"
+-   ]
++   ],
++   "outputs": [],
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "## Search for entries released only in 2019"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": null,
+-   "metadata": {},
+-   "outputs": [],
+    "source": [
+     "search_operator = text_operators.RangeOperator(\n",
+     "    from_value=\"2019-01-01T00:00:00Z\",\n",
+@@ -658,21 +649,21 @@
+     "results = perform_search(search_operator, return_type)\n",
+     "\n",
+     "print(results[:5])"
+-   ]
++   ],
++   "outputs": [],
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "## Search by cell length and suppress query output"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": null,
+-   "metadata": {},
+-   "outputs": [],
+    "source": [
+     "from pypdb.clients.search.search_client import perform_search_with_graph, SearchService, ReturnType\n",
+     "from pypdb.clients.search.operators import text_operators\n",
+@@ -691,21 +682,21 @@
+     ")\n",
+     "\n",
+     "print(results[:5])"
+-   ]
++   ],
++   "outputs": [],
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "## Search for structures under 4 angstroms of resolution"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": null,
+-   "metadata": {},
+-   "outputs": [],
+    "source": [
+     "search_operator = text_operators.ComparisonOperator(\n",
+     "           value=4,\n",
+@@ -716,24 +707,24 @@
+     "results = perform_search(search_operator, return_type)\n",
+     "\n",
+     "print(results[:5])"
+-   ]
++   ],
++   "outputs": [],
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "## Search for structures with a given attribute.\n",
+     "\n",
+     "(Admittedly every structure has a release date, but the same logic would\n",
+     " apply for a more sparse RCSB attribute).\n"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": null,
+-   "metadata": {},
+-   "outputs": [],
+    "source": [
+     "search_operator = text_operators.ExistsOperator(\n",
+     "    attribute=\"rcsb_accession_info.initial_release_date\")\n",
+@@ -742,21 +733,21 @@
+     "results = perform_search(search_operator, return_type)\n",
+     "\n",
+     "print(results[:5])"
+-   ]
++   ],
++   "outputs": [],
++   "metadata": {}
+   },
+   {
+-   "attachments": {},
+    "cell_type": "markdown",
+-   "metadata": {},
+    "source": [
+     "## Search for 'Mus musculus' or 'Homo sapiens' structures after 2019 using graph search\n"
+-   ]
++   ],
++   "metadata": {},
++   "attachments": {}
+   },
+   {
+    "cell_type": "code",
+    "execution_count": null,
+-   "metadata": {},
+-   "outputs": [],
+    "source": [
+     "from pypdb.clients.search.search_client import perform_search_with_graph\n",
+     "from pypdb.clients.search.search_client import ReturnType\n",
+@@ -797,7 +788,9 @@
+     "  query_object=is_under_4A_and_human_or_mus_group,\n",
+     "  return_type=return_type)\n",
+     "print(\"\\n\", results[:10]) # Huzzah"
+-   ]
++   ],
++   "outputs": [],
++   "metadata": {}
+   }
+  ],
+  "metadata": {
+@@ -826,4 +819,4 @@
+  },
+  "nbformat": 4,
+  "nbformat_minor": 4
+-}
++}
+\ No newline at end of file
+diff --git a/pypdb/clients/data/EXAMPLES.md b/pypdb/clients/data/EXAMPLES.md
+new file mode 100644
+index 0000000..78d65a0
+--- /dev/null
++++ b/pypdb/clients/data/EXAMPLES.md
+@@ -0,0 +1,125 @@
++# PyPDB Data Fetch from the PDB
++
++## Helpful Links
++
++The data fetch module here is a Python wrapper for the [graphQL API](https://data.rcsb.org/#fetch-data-graphql).
++PDB's data API [organizes the data in the following way](https://data.rcsb.org/#data-organization):
++
++* `entry`
++* `entity`
++    * `polymer_entity`
++    * `branched_entity`
++    * `nonpolymer_entity`
++* `entity_instance`
++    * `polymer_entity_instance`
++    * `branched_entity_instance`
++    * `nonpolymer_entity_instance`
++* `assembly`
++* `chemical_component`
++
++In addition to these, the following are also options in the PDB, but are currently not implemented in PyPDB:
++
++* `PubMed`
++* `UniProt`
++* `DrugBank`
++
++The data schemas for all of these data types can be viewed [here](https://data.rcsb.org/#data-schema).
++These schemas allow the user to determine what keywords to ask for.
++The queries can be tested in-browser using the [GraphiQL tool](https://data.rcsb.org/graphql/index.html?query=%7B%0A%20%20entries(entry_ids%3A%20%5B%224HHB%22%5D)%20%7B%0A%20%20%20%20rcsb_id%0A%20%20%20%20struct%20%7B%0A%20%20%20%20%20%20title%0A%20%20%20%20%7D%0A%20%20%20%20exptl%20%7B%0A%20%20%20%20%20%20method%0A%20%20%20%20%7D%0A%20%20%7D%0A%7D).
++
++## Examples
++
++All of the functionaly, and thus examples below, require the following imports:
++
++```python
++from pypdb.clients.data.data_types import DataFetcher, DataType
++```
++
++### Fetch entries using PDB IDs
++
++If we want to fetch some information about the PDB entries `4HHB`, `12CA`, and `3PQR`, we first create an instance of `DataFetcher`:
++
++```python
++entry = DataFetcher(["4HHB", "12CA", "3PQR"], DataType.ENTRY)
++```
++
++The properties we will fetch for needs to be given as a python dictionary, commensurate with the [data schemas](https://data.rcsb.org/#data-schema):
++
++```python
++property = {"exptl": ["method", "details"], "cell":["length_a", "length_b", "length_c"]}
++entry.add_property(property)
++```
++
++Then we fetch the data
++
++```python
++entry.fetch_data()
++```
++
++where `entry.response` now contains a Python dictionary generated from the JSON formatted information fetched from the PDB.
++It is possible to convert this to a Pandas dataframe:
++
++```python
++df = entry.return_data_as_pandas_df()
++```
++
++### Fetch Assemblies
++
++Similarly to the `entry` case:
++
++```python
++assembly = DataFetcher(["4HHB-1", "12CA-1", "3PQR-1"], DataType.ASSEMBLY)
++property = {"rcsb_assembly_info": ["entry_id", "assembly_id", "polymer_entity_instance_count"]}
++
++assembly.add_property(property)
++assembly.fetch_data()
++```
++
++Note that the IDs provided must be of the form `[entry_id]-[assembly_id]`. 
++
++### Fetch Polymer Entities
++
++```python
++fetcher = DataFetcher(["2CPK_1","3WHM_1","2D5Z_1"], DataType.POLYMER_ENTITY)
++property = {"rcsb_id": [], 
++            "rcsb_entity_source_organism": ["ncbi_taxonomy_id", "ncbi_scientific_name"],
++            "rcsb_cluster_membership": ["cluster_id", "identity"]}
++
++fetcher.add_property(property)
++fetcher.fetch_data()
++```
++
++The IDs provided must be of the form `[entry_id]_[entity_id]`.
++
++### Fetch Polymer Entity Instance
++
++```python
++fetcher = DataFetcher(["4HHB.A", "12CA.A", "3PQR.A"], DataType.POLYMER_ENTITY_INSTANCE)
++property = {"rcsb_id": [],
++            "rcsb_polymer_instance_annotation": ["annotation_id", "name", "type"]}
++fetcher.add_property(property)
++fetcher.fetch_data()
++```
++
++In this case, IDs are of the form `[entry_id].[entity_id]`.
++
++### Fetch Branched Entity
++
++```python
++fetcher = DataFetcher(["5FMB_2", "6L63_3"], DataType.BRANCHED_ENTITY)
++property = {"pdbx_entity_branch": ["type"],
++            "pdbx_entity_branch_descriptor": ["type", "descriptor"]}
++
++fetcher.add_property(property)
++fetcher.fetch_data()
++```
++
++### Fetch Chemical Components
++
++```python
++fetcher = DataFetcher(["NAG","EBW"], DataType.CHEMICAL_COMPONENT)
++property = {"rcsb_id":[], "chem_comp": ["type", "formula_weight","name","formula"],
++            "rcsb_chem_comp_info":["initial_release_date"]}
++fetcher.add_property(property)
++fetcher.fetch_data()
++```
+\ No newline at end of file
+diff --git a/pypdb/clients/data/data_types.py b/pypdb/clients/data/data_types.py
+new file mode 100644
+index 0000000..3dfe8c4
+--- /dev/null
++++ b/pypdb/clients/data/data_types.py
+@@ -0,0 +1,193 @@
++"""
++Class for data types that can be accessed in the PDB DATA-API
++https://data.rcsb.org/#data-organization
++
++Namely:
++- entry
++- polymer entity
++- branched entity
++- non-polymer entity
++- polymer instance
++- branched instance
++- non-polymer instance
++- assembly
++- chemical component
++(currently not implemented:)
++- PubMed integrated data
++- UniProt integrated data
++- DrugBank integrated data
++"""
++from dataclasses import dataclass, field
++import pandas as pd
++from enum import Enum
++
++#TODO: handle batch requests
++
++from pypdb.clients.data.graphql.graphql import search_graphql
++
++class DataType(Enum):
++    ENTRY = "entries"
++    POLYMER_ENTITY = "polymer_entities"
++    BRANCHED_ENTITY = "branched_entities"
++    NONPOLYMER_ENTITY = "nonpolymer_entities"
++    POLYMER_ENTITY_INSTANCE = "polymer_entity_instances"
++    BRANCHED_ENTITY_INSTANCE = "branched_entity_instances"
++    NONPOLYMER_ENTITY_INSTANCE = "nonpolymer_entity_instances"
++    ASSEMBLY = "assemblies"
++    CHEMICAL_COMPONENT = "chem_comps"
++
++@dataclass
++class DataFetcher:
++    """
++    General class that will host various data types, as detailed above.
++    """
++
++    id: str | list
++    data_type: DataType
++
++    properties: dict = field(default_factory=dict)
++    json_query: dict = field(default_factory=dict)
++    response: dict = field(default_factory=dict)
++
++    def __post_init__(self):
++        """
++        Check types of IDs given, format accordingly.
++        """
++
++        if isinstance(self.id, str):
++            self.id = [self.id]
++
++        if "entit" in self.data_type.value and "instance" not in self.data_type.value:
++            for id in self.id:
++                if '_' not in id:
++                    print(f"WARNING: {id} not valid for {self.data_type.value}.")
++        elif "instance" in self.data_type.value:
++            for id in self.id:
++                if '.' not in id:
++                    print(f"WARNING: {id} not valid for {self.data_type.value}.")
++        elif self.data_type == DataType.ASSEMBLY:
++            for id in self.id:
++                if '-' not in id:
++                    print(f"WARNING: {id} not valid for {self.data_type.value}.")
++
++    def add_property(self, property):
++        """
++        Add property to the list of data to fetch from the PDB.
++
++        property is a python dict, with keys as properties, and
++        values as subproperties.
++
++        e.g.:
++
++        {"cell": ["volume", "angle_beta"], "exptl": ["method"]}
++
++        If the user is trying to add a property that already exists,
++        the subproperties are merged.
++        """
++        # check input data type
++        if not isinstance(property, dict):
++            raise TypeError
++        # check data types of keys in dict
++        if not all([isinstance(key, str) for key in property.keys()]):
++            raise TypeError
++        # check that values are lists of strings
++        for key, value in property.items():
++            if isinstance(value, str):
++                property[key] = [value]
++            elif not isinstance(value, list):
++                raise TypeError
++            else:
++                if not all([isinstance(val, str) for val in value]):
++                    raise TypeError
++
++        # add properties to the dict
++        for key, value in property.items():
++            if key not in self.properties:
++                self.properties[key] = value
++            else:
++                self.properties[key] += value
++                self.properties[key] = list(set(self.properties[key]))
++
++    def generate_json_query(self):
++        """
++        Given IDs, data type, and properties to fetch, create JSON query that
++        will utilize graphql.
++        """
++        if not self.properties:
++            print("ERROR: no properties given to generate JSON query.")
++            raise ValueError
++
++        if self.data_type == DataType.ENTRY:
++            q_str = "entry_ids"
++        elif "entit" in self.data_type.value:
++            if "instance" in self.data_type.value:
++                q_str = "instance_ids"
++            else:
++                q_str = "entity_ids"
++        elif self.data_type == DataType.ASSEMBLY:
++            q_str = "assembly_ids"
++        elif self.data_type == DataType.CHEMICAL_COMPONENT:
++            q_str = "comp_ids"
++
++        data_str = f"{self.data_type.value}({q_str}: [" + ",".join(f"\"{w}\"" for w in self.id) + "])"
++
++        props_string = ""
++        for key, val in self.properties.items():
++            if len(val) == 0:
++                props_string += f"{key},"
++            else:
++                props_string += f"{key} {{" + ",".join(val) + "}"
++
++        self.json_query = {'query': "{" + data_str + "{" + props_string + "}}"}
++
++
++    def fetch_data(self):
++        """
++        Once the JSON query is created, fetch data from the PDB, using graphql.
++        """
++        if not self.json_query:
++            self.generate_json_query()
++
++        response = search_graphql(self.json_query)
++
++        if "errors" in response:
++            print("ERROR encountered in fetch_data().")
++            for error in response['errors']:
++                print(error['message'])
++
++            return
++
++        self.response = response
++
++        if len(self.response['data'][self.data_type.value]) != len(self.id):
++            print("WARNING: one or more IDs not found in the PDB.")
++
++    def return_data_as_pandas_df(self):
++        """
++        Return the fetched data as a pandas dataframe.
++        """
++        if not self.response:
++            return None
++
++        data = self.response['data'][self.data_type.value]
++
++        # flatten data dictionary by joining property and subproperty names
++        data_flat = {}
++        for i, entry in enumerate(data):
++            id = self.id[i]
++            curr_dict = {}
++            for key, values in entry.items():
++                if isinstance(values, list):
++                    v = values[0]
++                else:
++                    v = values
++                if isinstance(v, str):
++                    new_key = f"{key}"
++                    curr_dict[new_key] = v
++                else:
++                    for subprop, val in v.items():
++                        new_key = f"{key}.{subprop}"
++                        curr_dict[new_key] = val
++            data_flat[id] = curr_dict
++
++        return pd.DataFrame.from_dict(data_flat, orient='index')
+\ No newline at end of file
+diff --git a/pypdb/clients/data/graphql/graphql.py b/pypdb/clients/data/graphql/graphql.py
+index 64d248c..135e43f 100644
+--- a/pypdb/clients/data/graphql/graphql.py
++++ b/pypdb/clients/data/graphql/graphql.py
+@@ -3,7 +3,6 @@
+ For the differences between the GraphQL and RESTful searches, see:
+ https://data.rcsb.org/index.html#gql-vs-rest
+ """
+-
+ import requests
+ import  warnings
+ from typing import Any  # DO NOT APPROVE: fix this to actual type
+@@ -33,4 +32,4 @@ def search_graphql(graphql_json_query: str) -> Any:
+         response.raise_for_status()
+ 
+ 
+-    return response.json()
++    return response.json()
+\ No newline at end of file
+diff --git a/pypdb/clients/data/test_data_types.py b/pypdb/clients/data/test_data_types.py
+new file mode 100644
+index 0000000..f55f502
+--- /dev/null
++++ b/pypdb/clients/data/test_data_types.py
+@@ -0,0 +1,122 @@
++"""
++Unit tests for the data_types classes.
++"""
++import unittest
++from unittest import mock
++import requests
++from pypdb.clients.data.graphql.graphql import RSCB_GRAPHQL_URL
++
++from pypdb.clients.data.data_types import DataFetcher, DataType
++
++class TestEntry(unittest.TestCase):
++    def test_create(self):
++        entry = DataFetcher("4HHB", DataType.ENTRY)
++
++        self.assertTrue(isinstance(entry.properties, dict))
++        self.assertTrue(not entry.properties)
++
++        self.assertTrue(isinstance(entry.json_query, dict))
++        self.assertTrue(not entry.json_query)
++
++        self.assertTrue(isinstance(entry.response, dict))
++        self.assertTrue(not entry.response)
++
++        self.assertEqual(entry.id, ["4HHB"])
++
++    def test_generate_json_query(self):
++        entry = DataFetcher("4HHB", DataType.ENTRY)
++
++        property = {"exptl":["method", "details"]}
++
++        entry.add_property(property)
++
++        self.assertIsNotNone(entry.properties)
++
++        entry.generate_json_query()
++
++        self.assertTrue(isinstance(entry.json_query, dict))
++        self.assertTrue("query" in entry.json_query)
++
++    def test_fetch_entry(self):
++        entry = DataFetcher("4HHB", DataType.ENTRY)
++        property = {"exptl":["method", "details"]}
++
++        entry.add_property(property)
++
++        entry.fetch_data()
++
++        self.assertTrue(entry.response)
++
++    def test_return_data_as_pandas_df(self):
++        entry = DataFetcher(["4HHB", "12CA", "3PQR"], DataType.ENTRY)
++        property = {"exptl":["method", "details"]}
++
++        entry.add_property(property)
++
++        entry.fetch_data()
++        df = entry.return_data_as_pandas_df()
++
++        self.assertTrue(df is not None)
++
++    def test_assembly_fetch(self):
++        assembly = DataFetcher(["4HHB-1", "12CA-1", "3PQR-1"], DataType.ASSEMBLY)
++        property = {"rcsb_assembly_info": ["entry_id", "assembly_id", "polymer_entity_instance_count"]}
++
++        assembly.add_property(property)
++        assembly.fetch_data()
++
++        self.assertFalse(not assembly.response)
++
++    def test_polymer_entity_fetch(self):
++        fetcher = DataFetcher(["2CPK_1","3WHM_1","2D5Z_1"], DataType.POLYMER_ENTITY)
++
++        property = {"rcsb_id": [], 
++                    "rcsb_entity_source_organism": ["ncbi_taxonomy_id", "ncbi_scientific_name"],
++                    "rcsb_cluster_membership": ["cluster_id", "identity"]}
++
++        fetcher.add_property(property)
++        fetcher.fetch_data()
++
++        self.assertFalse(not fetcher.response)
++
++        df = fetcher.return_data_as_pandas_df()
++        self.assertFalse(df is None)
++
++    def test_polymer_instance_fetch(self):
++        fetcher = DataFetcher(["4HHB.A", "12CA.A", "3PQR.A"], DataType.POLYMER_ENTITY_INSTANCE)
++        property = {"rcsb_id": [],
++                    "rcsb_polymer_instance_annotation": ["annotation_id", "name", "type"]}
++        fetcher.add_property(property)
++        fetcher.fetch_data()
++
++        self.assertFalse(not fetcher.response)
++
++        df = fetcher.return_data_as_pandas_df()
++        self.assertFalse(df is None)
++
++    def test_branched_entity_fetch(self):
++        fetcher = DataFetcher(["5FMB_2", "6L63_3"], DataType.BRANCHED_ENTITY)
++        property = {"pdbx_entity_branch": ["type"],
++                    "pdbx_entity_branch_descriptor": ["type", "descriptor"]}
++
++        fetcher.add_property(property)
++        fetcher.fetch_data()
++
++        self.assertFalse(not fetcher.response)
++
++        df = fetcher.return_data_as_pandas_df()
++        self.assertFalse(df is None)
++
++    def test_chem_comps_fetch(self):
++        fetcher = DataFetcher(["NAG","EBW"], DataType.CHEMICAL_COMPONENT)
++        property = {"rcsb_id":[], "chem_comp": ["type", "formula_weight","name","formula"],
++                    "rcsb_chem_comp_info":["initial_release_date"]}
++        fetcher.add_property(property)
++        fetcher.fetch_data()
++        self.assertFalse(not fetcher.response)
++
++        df = fetcher.return_data_as_pandas_df()
++        self.assertFalse(df is None)
++
++if __name__ == '__main__':
++    unittest.main()
+\ No newline at end of file
+diff --git a/pypdb/pypdb.py b/pypdb/pypdb.py
+index 72b7ded..f7ccb6f 100755
+--- a/pypdb/pypdb.py
++++ b/pypdb/pypdb.py
+@@ -17,7 +17,6 @@
+ '''
+ from collections import OrderedDict, Counter
+ from itertools import repeat, chain
+-import requests
+ import time
+ import re
+ import json
+diff --git a/setup.py b/setup.py
+index 9321921..f843768 100755
+--- a/setup.py
++++ b/setup.py
+@@ -17,7 +17,7 @@
+     packages=modules_list,  # same as 'name'
+     py_modules=modules_list,
+     version='2.02',
+-    install_requires=['requests'],
++    install_requires=['requests', 'pandas'],
+     description='A Python wrapper for the RCSB Protein Data Bank (PDB) API',
+     author='William Gilpin',
+     author_email='firstnamelastname@gmail.com',

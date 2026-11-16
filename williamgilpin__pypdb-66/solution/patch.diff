@@ -1,0 +1,14 @@
+diff --git a/pypdb/clients/search/search_client.py b/pypdb/clients/search/search_client.py
+index 5d753d6..47c189b 100644
+--- a/pypdb/clients/search/search_client.py
++++ b/pypdb/clients/search/search_client.py
+@@ -258,7 +258,8 @@ def perform_search_with_graph(
+               json.dumps(rcsb_query_dict))
+ 
+     response = requests.post(url=SEARCH_URL_ENDPOINT,
+-                             data=json.dumps(rcsb_query_dict))
++                             data=json.dumps(rcsb_query_dict),
++                             headers={"Content-Type": "application/json"})
+ 
+     # If your search queries are failing here, it could be that your attribute
+     # doesn't support the SearchOperator you're using.

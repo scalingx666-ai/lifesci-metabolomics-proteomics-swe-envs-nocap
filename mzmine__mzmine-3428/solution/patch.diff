@@ -1,0 +1,114 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/gui/mainwindow/FeatureListSummary.fxml b/mzmine-community/src/main/java/io/github/mzmine/gui/mainwindow/FeatureListSummary.fxml
+index 2e6400412a0..ba9130d026f 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/gui/mainwindow/FeatureListSummary.fxml
++++ b/mzmine-community/src/main/java/io/github/mzmine/gui/mainwindow/FeatureListSummary.fxml
+@@ -1,7 +1,7 @@
+ <?xml version="1.0" encoding="UTF-8"?>
+ 
+ <!--
+-  ~ Copyright (c) 2004-2022 The MZmine Development Team
++  ~ Copyright (c) 2004-2026 The mzmine Development Team
+   ~
+   ~ Permission is hereby granted, free of charge, to any person
+   ~ obtaining a copy of this software and associated documentation
+@@ -50,19 +50,22 @@
+         <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER"/>
+         <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER"/>
+         <RowConstraints minHeight="10.0" vgrow="NEVER"/>
++        <RowConstraints minHeight="10.0" vgrow="NEVER"/>
+         <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="NEVER"/>
+         <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES"/>
+         </rowConstraints>
+          <children>
+             <Label fx:id="lbFeatureListName" alignment="TOP_CENTER" styleClass="bold-title-label" text="Label" GridPane.columnSpan="2" GridPane.halignment="CENTER" GridPane.valignment="TOP" />
+             <Label fx:id="lbNumRows" styleClass="title-label" text="Number of Rows" GridPane.rowIndex="2" />
+-            <Label fx:id="lbAppliedMethods" styleClass="title-label" text="Applied methods log:" GridPane.rowIndex="3" />
+-            <ListView fx:id="lvAppliedMethods" prefHeight="200.0" prefWidth="200.0" GridPane.rowIndex="4" />
+-            <TextArea fx:id="tvParameterValues" editable="false" prefHeight="200.0" prefWidth="200.0" GridPane.columnIndex="1" GridPane.rowIndex="4" />
++            <Label fx:id="lbNumAnnotated" styleClass="title-label" text="Annotated rows" GridPane.rowIndex="3" />
++            <TextField fx:id="tfNumAnnotated" editable="false" GridPane.columnIndex="1" GridPane.rowIndex="3" />
++            <Label fx:id="lbAppliedMethods" styleClass="title-label" text="Applied methods log:" GridPane.rowIndex="4" />
++            <ListView fx:id="lvAppliedMethods" prefHeight="200.0" prefWidth="200.0" GridPane.rowIndex="5" />
++            <TextArea fx:id="tvParameterValues" editable="false" prefHeight="200.0" prefWidth="200.0" GridPane.columnIndex="1" GridPane.rowIndex="5" />
+             <TextField fx:id="tfNumRows" editable="false" GridPane.columnIndex="1" GridPane.rowIndex="2" />
+             <Label styleClass="title-label" text="Date created" GridPane.rowIndex="1" />
+             <TextField fx:id="tfCreated" editable="false" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+-           <ButtonBar GridPane.columnIndex="1" GridPane.rowIndex="3">
++           <ButtonBar GridPane.columnIndex="1" GridPane.rowIndex="4">
+            <buttons>
+             <Button fx:id="btnOpenInBatchQueue" alignment="TOP_CENTER" mnemonicParsing="false" onAction="#setAsBatchQueue" text="Open in batch queue"/>
+             <Button fx:id="exportfeature" alignment="TOP_CENTER" mnemonicParsing="false" onAction="#exportRecord" text="Export"/>
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/gui/mainwindow/FeatureListSummaryController.java b/mzmine-community/src/main/java/io/github/mzmine/gui/mainwindow/FeatureListSummaryController.java
+index c989490ba20..3c1d419f247 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/gui/mainwindow/FeatureListSummaryController.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/gui/mainwindow/FeatureListSummaryController.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -12,6 +12,7 @@
+  *
+  * The above copyright notice and this permission notice shall be
+  * included in all copies or substantial portions of the Software.
++ *
+  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+  * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+@@ -26,6 +27,7 @@
+ 
+ import io.github.mzmine.datamodel.RawDataFile;
+ import io.github.mzmine.datamodel.features.FeatureList.FeatureListAppliedMethod;
++import io.github.mzmine.datamodel.features.FeatureListRow;
+ import io.github.mzmine.datamodel.features.ModularFeatureList;
+ import io.github.mzmine.javafx.dialogs.DialogLoggerUtil;
+ import io.github.mzmine.main.MZmineCore;
+@@ -66,6 +68,7 @@
+ import javafx.scene.control.TextField;
+ import javafx.stage.FileChooser;
+ import javafx.stage.Stage;
++import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+ 
+ public class FeatureListSummaryController {
+@@ -76,6 +79,10 @@ public class FeatureListSummaryController {
+   @FXML
+   public TextField tfNumRows;
+   @FXML
++  public TextField tfNumAnnotated;
++  @FXML
++  public Label lbNumAnnotated;
++  @FXML
+   public TextField tfCreated;
+   @FXML
+   public ListView<FeatureListAppliedMethod> lvAppliedMethods;
+@@ -150,10 +157,19 @@ public void setFeatureList(@Nullable ModularFeatureList featureList) {
+ 
+     lbFeatureListName.setText(featureList.getName());
+     tfNumRows.setText(String.valueOf(featureList.getNumberOfRows()));
++    tfNumAnnotated.setText(String.valueOf(countAnnotatedRows(featureList)));
+     tfCreated.setText(featureList.getDateCreated());
+     lvAppliedMethods.setItems(featureList.getAppliedMethods());
+   }
+ 
++  /**
++   * @return the number of rows with any annotation, based on the rows themselves and not on a
++   * potential compound database table.
++   */
++  private long countAnnotatedRows(@NotNull ModularFeatureList featureList) {
++    return featureList.getRows().stream().filter(FeatureListRow::isIdentified).count();
++  }
++
+   public void setRawDataFile(@Nullable RawDataFile file) {
+     clear();
+     if (file == null) {
+@@ -169,6 +185,7 @@ public void setRawDataFile(@Nullable RawDataFile file) {
+   public void clear() {
+     lbFeatureListName.setText("None selected");
+     tfNumRows.setText("");
++    tfNumAnnotated.setText("");
+     tfCreated.setText("");
+     lvAppliedMethods.getItems().clear();
+     tvParameterValues.setText("");

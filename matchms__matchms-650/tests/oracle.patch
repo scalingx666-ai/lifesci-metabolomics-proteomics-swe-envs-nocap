@@ -1,0 +1,196 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index eee723732..defa19c88 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
+ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+ 
++## Unreleased
++### Changed
++- Added remove_profile_spectra filter
++
+ ## [0.25.0] -2024-05-21
+ ### Added
+ - filters `require_formula` and `require_compound_name`. [#627](https://github.com/matchms/matchms/pull/627)
+@@ -15,8 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
+ - repair_adduct_based_on_smiles does not repair adducts [M]+ and [M]- anymore, since these cases could also be due to a mistake in filling in the parent mass instead of the precursor mz. 
+ - repair_parent_mass_is_molar_weight does only repair parent mass and does not change the precursor mz.
+ - Change repair_parent_mass_is_mol_wt to repair_parent_mass_is_molar_mass
+-- Use StackedSparseArray for MetadataMatch equal_match when array_type is sparse [#642](https://github.com/matchms/matchms/pull/642)
+ - Set RDKIT version to rdkit = ">=2023.3.2,<2023.9.5" to fix installation issues. 
++- Use StackedSparseArray for MetadataMatch equal_match when array_type is sparse [#642](https://github.com/matchms/matchms/pull/642)
+ 
+ ## [0.24.4] -2024-01-16
+ ### changed
+diff --git a/matchms/filtering/__init__.py b/matchms/filtering/__init__.py
+index 9897b2828..e020f3681 100644
+--- a/matchms/filtering/__init__.py
++++ b/matchms/filtering/__init__.py
+@@ -147,6 +147,8 @@
+     remove_peaks_around_precursor_mz
+ from matchms.filtering.peak_processing.remove_peaks_outside_top_k import \
+     remove_peaks_outside_top_k
++from matchms.filtering.peak_processing.remove_profiled_spectra import \
++    remove_profiled_spectra
+ from matchms.filtering.peak_processing.require_minimum_number_of_high_peaks import \
+     require_minimum_number_of_high_peaks
+ from matchms.filtering.peak_processing.require_minimum_number_of_peaks import \
+@@ -186,6 +188,7 @@
+     "reduce_to_number_of_peaks",
+     "remove_peaks_around_precursor_mz",
+     "remove_peaks_outside_top_k",
++    "remove_profiled_spectra",
+     "repair_adduct_and_parent_mass_based_on_smiles",
+     "repair_adduct_based_on_parent_mass",
+     "require_correct_ionmode",
+diff --git a/matchms/filtering/default_pipelines.py b/matchms/filtering/default_pipelines.py
+index 8957fc4c7..7a84abce7 100644
+--- a/matchms/filtering/default_pipelines.py
++++ b/matchms/filtering/default_pipelines.py
+@@ -45,6 +45,7 @@
+                (msfilters.select_by_relative_intensity, {"intensity_from": 0.001}),
+                (msfilters.reduce_to_number_of_peaks, {"n_max": 1000}),
+                (msfilters.require_minimum_number_of_high_peaks, {"no_peaks": 5, "intensity_percent": 2.0}),
++               msfilters.remove_profiled_spectra,
+                ]
+ # These filters are in None of the above pipelines
+ OTHER_FILTERS = [msfilters.require_precursor_below_mz,
+diff --git a/matchms/filtering/filter_order.py b/matchms/filtering/filter_order.py
+index 78755c372..9ba1ba753 100644
+--- a/matchms/filtering/filter_order.py
++++ b/matchms/filtering/filter_order.py
+@@ -41,6 +41,7 @@
+                msfilters.require_parent_mass_match_smiles,
+                msfilters.require_retention_index,
+                msfilters.require_retention_time,
++               msfilters.remove_profiled_spectra,
+                msfilters.normalize_intensities,
+                msfilters.select_by_intensity,
+                msfilters.select_by_mz,
+diff --git a/matchms/filtering/peak_processing/remove_profiled_spectra.py b/matchms/filtering/peak_processing/remove_profiled_spectra.py
+new file mode 100644
+index 000000000..0ca589916
+--- /dev/null
++++ b/matchms/filtering/peak_processing/remove_profiled_spectra.py
+@@ -0,0 +1,66 @@
++import logging
++import numpy as np
++from matchms.Spectrum import Spectrum
++
++
++logger = logging.getLogger("matchms")
++
++
++def remove_profiled_spectra(spectrum: Spectrum, mz_window=0.5):
++    """Remove profiled spectra
++
++    Spectra are removed if within the mz_window of 0.5 of the highest peak at least 2 peaks next to the main peak are of
++    intensity > max_intensity/2.
++
++    Reproduced from MZmine.
++    https://github.com/mzmine/mzmine3/blob/master/src/main/java/io/github/mzmine/util/scans/ScanUtils.java#L609
++    """
++    peaks_n = spectrum.mz.shape[0]
++    if peaks_n < 3:
++        return spectrum
++
++    # mz_window = spectrum.mz[-1] - spectrum.mz[0] / 1000
++    number_of_high_intensity_surounding_peaks = _get_number_of_high_intensity_surounding_peaks(spectrum.intensities,
++                                                                                               spectrum.mz, mz_window)
++    if number_of_high_intensity_surounding_peaks < 3:
++        return spectrum
++    logger.info(
++        "Spectrum removed because likely profile data."
++        "Number of high intensity fragments next to the highest peak = %s.",
++        number_of_high_intensity_surounding_peaks)
++    return None
++
++
++def _get_number_of_high_intensity_surounding_peaks(intensities, mz, mz_window):
++    base_peak_i = intensities.argmax()
++
++    intensities_within_mz_window = _select_intensities_within_mz_window(intensities, mz, mz_window)
++    nr_of_peaks_above_threshold_before_base_peak, nr_of_peaks_above_threshold_after_base_peak = _get_peak_intens_neighbourhood(intensities_within_mz_window)
++    base_peak_min_i = base_peak_i - nr_of_peaks_above_threshold_before_base_peak
++    base_peak_max_i = base_peak_i + nr_of_peaks_above_threshold_after_base_peak
++
++    number_of_high_intensity_surounding_peaks = base_peak_max_i - base_peak_min_i + 1
++    return number_of_high_intensity_surounding_peaks
++
++
++def _select_intensities_within_mz_window(intensities, mz, mz_span):
++    base_peak_i = intensities.argmax()
++    within_mz_window = (mz > mz[base_peak_i] - mz_span) & (mz > mz[base_peak_i] - mz_span)
++    intensities_within_mz_window = intensities[within_mz_window]
++    return intensities_within_mz_window
++
++
++def _get_peak_intens_neighbourhood(intensities):
++    """
++    Returns the range of indices around the highest peak that are more than half the intensity of the highest peak.
++    """
++
++    base_peak_i = intensities.argmax()
++    intensity_threshold = intensities[base_peak_i] / 2
++
++    # Select true for each peak above threshold. Adding False on both ends, to always get a result from np.argmin.
++    threshold_mask = np.concatenate([[False], intensities > intensity_threshold, [False]])
++
++    nr_of_peaks_above_threshold_before_base_peak = np.argmin(np.flip(threshold_mask[:base_peak_i + 1]))
++    nr_of_peaks_above_threshold_after_base_peak = np.argmin(threshold_mask[base_peak_i + 2:])
++    return nr_of_peaks_above_threshold_before_base_peak, nr_of_peaks_above_threshold_after_base_peak
+diff --git a/tests/filtering/test_all_filter_order.py b/tests/filtering/test_all_filter_order.py
+index 91fb77cc8..a7853ff0e 100644
+--- a/tests/filtering/test_all_filter_order.py
++++ b/tests/filtering/test_all_filter_order.py
+@@ -38,7 +38,8 @@
+     [[msfilters.make_charge_int, msfilters.correct_charge, ], [msfilters.clean_adduct]],
+     [[msfilters.derive_adduct_from_name, ], [msfilters.clean_adduct]],
+     [[msfilters.derive_annotation_from_compound_name, ], DERIVE_ANNOTATION_FILTERS],
+-    [[msfilters.derive_formula_from_name, ], [msfilters.require_formula]]
++    [[msfilters.derive_formula_from_name, ], [msfilters.require_formula]],
++    [[msfilters.remove_profiled_spectra,], [msfilters.remove_peaks_around_precursor_mz]]
+ ])
+ def test_all_filter_order(early_filters: List[Callable], later_filters: List[Callable]):
+     """Tests if early_filter is run before later_filter"""
+diff --git a/tests/filtering/test_remove_profiled_spectra.py b/tests/filtering/test_remove_profiled_spectra.py
+new file mode 100644
+index 000000000..a7fc9c9ab
+--- /dev/null
++++ b/tests/filtering/test_remove_profiled_spectra.py
+@@ -0,0 +1,34 @@
++import numpy as np
++import pytest
++from matchms.filtering.peak_processing.remove_profiled_spectra import (
++    _get_number_of_high_intensity_surounding_peaks,
++    _get_peak_intens_neighbourhood)
++
++
++@pytest.mark.parametrize("intensities, expected_no_peaks_before, expected_no_peaks_after", [
++    [[0.7, 0.6, 0.8, 1.0, 0.9], 3, 1], # All peaks included
++    [[0.3, 0.6, 0.8, 1.0, 0.9], 2, 1],
++    [[0.7, 0.6, 0.8, 1.0, 0.2],  3, 0],
++    [[0.3, 0.6, 0.8, 1.0, 0.2], 2, 0],
++    [[0.3, 0.6, 0.8, 1.0, 0.2, 0.8, 0.9, 0.1], 2, 0],
++    [[0.8, 0.3, 0.6, 0.8, 1.0, 0.2, 0.8, 0.9, 0.1], 2, 0],
++])
++def test_get_peak_intens_neighbourhood(intensities, expected_no_peaks_before, expected_no_peaks_after):
++    peaks_before, peaks_after = _get_peak_intens_neighbourhood(np.array(intensities))
++    assert peaks_before == expected_no_peaks_before
++    assert peaks_after == expected_no_peaks_after
++
++
++@pytest.mark.parametrize("intensities, mz, expected_no_peaks", [
++    [[0.7, 0.6, 0.8, 1.0, 0.9], [0.1, 0.2, 0.3, 0.4, 0.5], 5], # All peaks included
++    [[0.3, 0.6, 0.8, 1.0, 0.9], [0.1, 0.2, 0.3, 0.4, 0.5], 4],
++    [[0.7, 0.6, 0.8, 1.0, 0.2], [0.1, 0.2, 0.3, 0.4, 0.5], 4],
++    [[0.3, 0.6, 0.8, 1.0, 0.2], [0.1, 0.2, 0.3, 0.4, 0.5], 3],
++    [[0.3, 0.6, 0.8, 1.0, 0.2, 0.8, 0.9, 0.1], [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8], 3],
++    [[0.8, 0.3, 0.6, 0.8, 1.0, 0.2, 0.8, 0.9, 0.1], [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9], 3],
++
++    [[0.7, 0.6, 0.8, 1.0, 0.9], [10.0, 20.0, 20.1, 20.2, 20.3], 4],
++])
++def test_get_number_of_high_intensity_surounding_peaks(intensities, mz, expected_no_peaks):
++    number_of_high_intensity_surounding_peaks = _get_number_of_high_intensity_surounding_peaks(np.array(intensities), mz=np.array(mz), mz_window=1.0)
++    assert number_of_high_intensity_surounding_peaks == expected_no_peaks

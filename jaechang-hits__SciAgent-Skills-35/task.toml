@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/jaechang-hits__SciAgent-Skills-35"
+description = "refactor: audit Related Skills sections — fix stale cross-references"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "SciAgent-Skills",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "jaechang-hits/SciAgent-Skills"
+ref = "3e3f9985923498eadc614a9ca3df8882bcb946e7"
+reference = "https://github.com/jaechang-hits/SciAgent-Skills/pull/35"
+source_access = "auto"
+built_at = "2026-11-15T15:24:28.511704+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:c52edf24965277b45f86e89f9dfbb08517408b2c1ed0062dfd9b1f1cc6088ba4"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-05-28T08:36:33Z"
+diff_format = "unified"
+context_files = [
+    "registry.yaml",
+    "skills/genomics-bioinformatics/databases/bioservices-multi-database/SKILL.md",
+    "skills/genomics-bioinformatics/databases/cbioportal-database/SKILL.md",
+    "skills/genomics-bioinformatics/single-cell/cellxgene-census/SKILL.md",
+    "skills/proteomics-protein-engineering/esm-protein-language-model/SKILL.md",
+    "skills/proteomics-protein-engineering/uniprot-protein-database/SKILL.md",
+    "skills/scientific-computing/zarr-python/SKILL.md",
+    "skills/structural-biology-drug-discovery/molfeat-molecular-featurization/SKILL.md",
+    "skills/structural-biology-drug-discovery/smina-molecular-docking/SKILL.md",
+    "skills/systems-biology-multiomics/lamindb-data-management/SKILL.md",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 40
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

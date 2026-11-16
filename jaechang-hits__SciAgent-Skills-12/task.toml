@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/jaechang-hits__SciAgent-Skills-12"
+description = "fix: normalize plotly-interactive-plots skill name for spec compliance"
+
+[metadata]
+difficulty = "easy"
+category = "bugfix"
+keywords = [
+    "SciAgent-Skills",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "jaechang-hits/SciAgent-Skills"
+ref = "82d0c87b48392e0e08a27a703cbda4ac8bfdb856"
+reference = "https://github.com/jaechang-hits/SciAgent-Skills/pull/12"
+source_access = "auto"
+built_at = "2026-11-15T15:25:10.468588+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:3f32daacbd6e69b992fa3cbf8dd3947da3c00e94d9d2e60eb707db2c88bf9f72"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-04-10T02:07:28Z"
+diff_format = "unified"
+context_files = [
+    "registry.yaml",
+    "skills/data-visualization/plotly-interactive-plots/SKILL.md",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 4
+difficulty = "trivial"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

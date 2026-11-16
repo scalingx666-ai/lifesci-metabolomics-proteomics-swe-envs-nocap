@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/K-Dense-AI__k-dense-byok-19"
+description = "Make OpenRouter base URL configurable via OPENROUTER_BASE_URL"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "k-dense-byok",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "K-Dense-AI/k-dense-byok"
+ref = "74832a84e830e7f9b7d83dd374805be348eb79fc"
+reference = "https://github.com/K-Dense-AI/k-dense-byok/pull/19"
+source_access = "auto"
+built_at = "2026-11-16T06:15:24.338513+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:566f03ee493bb2fad66eb54328f5a9570037d181c47c92c841ba87030acda0df"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-06-26T11:46:05Z"
+diff_format = "unified"
+context_files = [
+    ".env.example",
+    "server/src/agent/models.ts",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 15
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

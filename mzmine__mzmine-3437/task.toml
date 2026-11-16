@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3437"
+description = "wizard: always add ms1 mobility scan mass detection step"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "3117ae2f4d754738814e2a6b8745252840897f29"
+reference = "https://github.com/mzmine/mzmine/pull/3437"
+source_access = "auto"
+built_at = "2026-11-16T08:45:42.461966+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:55d6d57031905e20f8ac03eeae0ac265ded64f6b565dda5f59f70bbf3b7be882"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-14T15:24:02Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/tools/batchwizard/builders/WizardBatchBuilderImagingDda.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 6
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

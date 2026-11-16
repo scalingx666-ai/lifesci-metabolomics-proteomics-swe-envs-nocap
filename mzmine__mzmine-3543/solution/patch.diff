@@ -1,0 +1,341 @@
+diff --git a/mzmine-community/build.gradle b/mzmine-community/build.gradle
+index 12c9b0ad72c..1d459eb0777 100644
+--- a/mzmine-community/build.gradle
++++ b/mzmine-community/build.gradle
+@@ -226,7 +226,6 @@ dependencies {
+ 
+     implementation "edu.ucar:netcdf4:4.5.5"
+     implementation 'org.jetbrains:annotations:22.0.0'
+-    implementation 'net.sourceforge.jmol:jmol:14.31.10'
+     implementation "org.postgresql:postgresql:9.3-1102-jdbc41"
+     implementation "org.freehep:freehep-graphicsio-emf:2.4"
+     implementation("eu.hansolo.fx:charts:21.0.7")
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/molstructure/MolStructureViewer.java b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/molstructure/MolStructureViewer.java
+index 236b9094420..cbd74c8a51c 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/molstructure/MolStructureViewer.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/molstructure/MolStructureViewer.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2024 The MZmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -26,10 +26,8 @@
+ package io.github.mzmine.modules.visualization.molstructure;
+ 
+ 
+-import io.github.mzmine.util.InetUtils;
+ import io.github.mzmine.util.exceptions.ExceptionUtils;
+ import io.github.mzmine.util.javafx.WindowsMenu;
+-import java.net.URL;
+ import javafx.application.Platform;
+ import javafx.geometry.Insets;
+ import javafx.geometry.Orientation;
+@@ -38,7 +36,6 @@
+ import javafx.scene.Scene;
+ import javafx.scene.control.Label;
+ import javafx.scene.control.SplitPane;
+-import javafx.scene.layout.AnchorPane;
+ import javafx.scene.layout.BorderPane;
+ import javafx.scene.layout.Pane;
+ import javafx.scene.layout.StackPane;
+@@ -59,39 +56,6 @@ public class MolStructureViewer extends Stage {
+   private final Pane pane2D = new StackPane(loading2Dlabel);
+   private final Pane pane3D = new StackPane(loading3Dlabel);
+ 
+-  /**
+-   * Constructor of MolStructureViewer, loads 2d and 3d structures into JPanel specified by urls
+-   *
+-   * @param name
+-   * @param structure2DAddress
+-   * @param structure3DAddress
+-   */
+-  public MolStructureViewer(String name, final URL structure2DAddress,
+-      final URL structure3DAddress) {
+-
+-    setTitle("Structure of " + name);
+-    setupViewer(name, structure3DAddress!=null);
+-
+-    if (structure2DAddress != null) {
+-      Thread loading2DThread = new Thread(() -> {
+-        load2DStructure(structure2DAddress);
+-      }, "Structure loading thread");
+-      loading2DThread.start();
+-    } else {
+-      loading2Dlabel.setText("2D structure not available");
+-    }
+-
+-    if (structure3DAddress != null) {
+-      Thread loading3DThread = new Thread(() -> {
+-        load3DStructure(structure3DAddress);
+-      }, "Structure loading thread");
+-      loading3DThread.start();
+-    } else {
+-      loading3Dlabel.setText("3D structure not available");
+-    }
+-
+-  }
+-
+   /**
+    * Constructor for MolStructureViewer from AtomContainer and only for 2D object The 3D view will
+    * be unavailable
+@@ -156,31 +120,6 @@ private void setupViewer(String name, boolean add3d) {
+     setScene(mainScene);
+   }
+ 
+-  /**
+-   * Load the structure passed as parameter in JChemViewer
+-   */
+-  private void load2DStructure(URL url) {
+-
+-    Node newComponent;
+-    try {
+-      String structure2D = InetUtils.retrieveData(url);
+-      if (structure2D.length() < 10) {
+-        loading2Dlabel.setText("2D structure not available");
+-        return;
+-      }
+-      newComponent = Structure2DComponent.create(structure2D);
+-    } catch (Exception e) {
+-      String errorMessage =
+-          "Could not load 2D structure\n" + "Exception: " + ExceptionUtils.exceptionToString(e);
+-      newComponent = new Label(errorMessage);
+-    }
+-    final Node newComponentFinal = newComponent;
+-    Platform.runLater(() -> {
+-      pane2D.getChildren().clear();
+-      pane2D.getChildren().add(newComponentFinal);
+-    });
+-  }
+-
+   /**
+    * Load the AtomContainer passed as parameter in JChemViewer
+    *
+@@ -204,48 +143,4 @@ private void load2DStructure(IAtomContainer container) {
+ 
+   }
+ 
+-  /**
+-   * Load the structure passed as parameter in JmolViewer
+-   */
+-  private void load3DStructure(URL url) {
+-
+-    try {
+-
+-      String structure3D = InetUtils.retrieveData(url);
+-
+-      // If the returned structure is empty or too short, just return
+-      if (structure3D.length() < 10) {
+-        loading3Dlabel.setText("3D structure not available");
+-        return;
+-      }
+-
+-      // Check for html tag, to recognize PubChem error message
+-      if (structure3D.contains("<html>")) {
+-        loading3Dlabel.setText("3D structure not available");
+-        return;
+-      }
+-
+-      Structure3DComponent new3DComponent = new Structure3DComponent();
+-      final AnchorPane newComponentFinal = new AnchorPane();
+-      newComponentFinal.getChildren().add(new3DComponent);
+-      Platform.runLater(() -> {
+-        pane3D.getChildren().clear();
+-        pane3D.getChildren().add(newComponentFinal);
+-      });
+-
+-      // loadStructure must be called after the component is added,
+-      // otherwise Jmol will freeze waiting for repaint (IMHO this is a
+-      // Jmol bug introduced in 11.8)
+-      new3DComponent.loadStructure(structure3D);
+-
+-    } catch (Exception e) {
+-      e.printStackTrace();
+-      String errorMessage =
+-          "Could not load 3D structure\n" + "Exception: " + ExceptionUtils.exceptionToString(e);
+-      Label label = new Label(errorMessage);
+-      pane3D.getChildren().clear();
+-      pane3D.getChildren().add(label);
+-    }
+-
+-  }
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/molstructure/Structure3DComponent.java b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/molstructure/Structure3DComponent.java
+deleted file mode 100644
+index 74d6f5fa9af..00000000000
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/molstructure/Structure3DComponent.java
++++ /dev/null
+@@ -1,78 +0,0 @@
+-/*
+- * Copyright (c) 2004-2022 The MZmine Development Team
+- *
+- * Permission is hereby granted, free of charge, to any person
+- * obtaining a copy of this software and associated documentation
+- * files (the "Software"), to deal in the Software without
+- * restriction, including without limitation the rights to use,
+- * copy, modify, merge, publish, distribute, sublicense, and/or sell
+- * copies of the Software, and to permit persons to whom the
+- * Software is furnished to do so, subject to the following
+- * conditions:
+- *
+- * The above copyright notice and this permission notice shall be
+- * included in all copies or substantial portions of the Software.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+- * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+- * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+- * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+- * OTHER DEALINGS IN THE SOFTWARE.
+- */
+-
+-package io.github.mzmine.modules.visualization.molstructure;
+-
+-import java.awt.Dimension;
+-import java.awt.Graphics;
+-import java.awt.Rectangle;
+-import javax.swing.JPanel;
+-import javax.swing.SwingUtilities;
+-import org.jmol.adapter.smarter.SmarterJmolAdapter;
+-import org.jmol.api.JmolAdapter;
+-import org.jmol.api.JmolViewer;
+-import javafx.embed.swing.SwingNode;
+-
+-public class Structure3DComponent extends SwingNode {
+-
+-  private final JPanel mainPanel;
+-  private JmolViewer viewer;
+-  private JmolAdapter adapter;
+-  final Dimension currentSize = new Dimension();
+-  final Rectangle rectClip = new Rectangle();
+-
+-  /**
+-   *
+-   */
+-  public Structure3DComponent() {
+-
+-    mainPanel = new JPanel() {
+-      @Override
+-      public void paint(Graphics g) {
+-        mainPanel.getSize(currentSize);
+-        g.getClipBounds(rectClip);
+-        viewer.renderScreenImage(g, currentSize, rectClip);
+-      }
+-    };
+-
+-    adapter = new SmarterJmolAdapter();
+-    viewer = JmolViewer.allocateViewer(mainPanel, adapter, null, null, null, null, null);
+-    viewer.setColorBackground("white");
+-    viewer.setShowHydrogens(false);
+-
+-    SwingUtilities.invokeLater(() -> setContent(mainPanel));
+-  }
+-
+-  /**
+-   * Loading the structure cannot be performed in the constructor, because that would cause Jmol to
+-   * freeze. Therefore, we need additional method loadStructure() which is called after the
+-   * component is constructed.
+-   */
+-  public void loadStructure(String structure) {
+-    viewer.loadInline(structure);
+-  }
+-
+-
+-}
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/rangeortolerancetable/DoubleRangesOrToleranceComponent.java b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/rangeortolerancetable/DoubleRangesOrToleranceComponent.java
+index 78578d51b5b..a87eb7e04f8 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/rangeortolerancetable/DoubleRangesOrToleranceComponent.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/rangeortolerancetable/DoubleRangesOrToleranceComponent.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -12,6 +12,7 @@
+  *
+  * The above copyright notice and this permission notice shall be
+  * included in all copies or substantial portions of the Software.
++ *
+  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+  * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+@@ -24,31 +25,13 @@
+ 
+ package io.github.mzmine.parameters.parametertypes.rangeortolerancetable;
+ 
+-import io.github.mzmine.javafx.components.factories.FxButtons;
+-import io.github.mzmine.javafx.components.factories.FxLabels;
+ import io.github.mzmine.javafx.components.factories.TableColumns;
+ import io.github.mzmine.javafx.components.factories.TableColumns.ColumnAlignment;
+-import io.github.mzmine.javafx.components.util.FxLayout;
+ import io.github.mzmine.parameters.UserParameter;
+ import java.text.NumberFormat;
+-import java.util.List;
+-import java.util.function.Function;
+-import javafx.beans.property.ListProperty;
+-import javafx.beans.property.ObjectProperty;
+-import javafx.beans.property.SimpleListProperty;
+-import javafx.beans.property.SimpleObjectProperty;
+-import javafx.collections.FXCollections;
+-import javafx.collections.ObservableList;
+-import javafx.geometry.Pos;
+ import javafx.scene.Node;
+-import javafx.scene.control.Button;
+-import javafx.scene.control.Label;
+ import javafx.scene.control.TableColumn;
+-import javafx.scene.control.TableView;
+-import javafx.scene.layout.BorderPane;
+-import javafx.scene.layout.VBox;
+ import org.jetbrains.annotations.NotNull;
+-import org.jmol.util.C;
+ 
+ public class DoubleRangesOrToleranceComponent<C extends Node> extends RangesOrToleranceComponent<Double, C> {
+ 
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/rangeortolerancetable/RangesOrToleranceComponent.java b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/rangeortolerancetable/RangesOrToleranceComponent.java
+index 4d1d6749658..2089ecfb523 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/rangeortolerancetable/RangesOrToleranceComponent.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/rangeortolerancetable/RangesOrToleranceComponent.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -12,6 +12,7 @@
+  *
+  * The above copyright notice and this permission notice shall be
+  * included in all copies or substantial portions of the Software.
++ *
+  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+  * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+@@ -30,14 +31,11 @@
+ import io.github.mzmine.javafx.components.factories.FxButtons;
+ import io.github.mzmine.javafx.components.factories.FxLabels;
+ import io.github.mzmine.javafx.components.factories.FxTextFlows;
+-import io.github.mzmine.javafx.components.factories.FxTexts;
+ import io.github.mzmine.javafx.components.factories.TableColumns;
+-import io.github.mzmine.javafx.components.factories.TableColumns.ColumnAlignment;
+ import io.github.mzmine.javafx.components.util.FxLayout;
+ import io.github.mzmine.parameters.UserParameter;
+ import java.text.NumberFormat;
+ import java.util.List;
+-import java.util.function.Function;
+ import javafx.beans.property.ListProperty;
+ import javafx.beans.property.ObjectProperty;
+ import javafx.beans.property.SimpleListProperty;
+@@ -57,8 +55,6 @@
+ import javafx.scene.text.TextAlignment;
+ import javafx.scene.text.TextFlow;
+ import org.jetbrains.annotations.NotNull;
+-import org.jetbrains.annotations.Nullable;
+-import org.jmol.util.C;
+ 
+ public abstract class RangesOrToleranceComponent<T extends Number & Comparable<T>, C extends Node> extends
+     BorderPane {

@@ -1,0 +1,73 @@
+version = "1.0"
+
+[task]
+name = "default/jaechang-hits__SciAgent-Skills-24"
+description = "refactor: retire duplicate skills to legacy/"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "SciAgent-Skills",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "jaechang-hits/SciAgent-Skills"
+ref = "57d410131d278cfda13949364cb4dbcf038d5890"
+reference = "https://github.com/jaechang-hits/SciAgent-Skills/pull/24"
+source_access = "auto"
+built_at = "2026-11-15T15:24:55.189828+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:1e76df35c18530f4fb2c0ac16dfb5f2abc7b840a87e0230078e00ef68bb0628f"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-05-28T02:29:07Z"
+diff_format = "unified"
+context_files = [
+    "legacy/opentrons-integration/SKILL.md",
+    "legacy/plotly-interactive-visualization/SKILL.md",
+    "legacy/seaborn-statistical-visualization/SKILL.md",
+    "legacy/single-cell-annotation/SKILL.md",
+    "registry.yaml",
+    "skills/data-visualization/seaborn-statistical-plots/SKILL.md",
+    "skills/lab-automation/benchling-integration/SKILL.md",
+    "skills/lab-automation/protocolsio-integration/SKILL.md",
+    "skills/scientific-computing/networkx-graph-analysis/SKILL.md",
+    "skills/scientific-writing/latex-research-posters/SKILL.md",
+    "skills/scientific-writing/scientific-manuscript-writing/SKILL.md",
+    "skills/scientific-writing/scientific-slides/SKILL.md",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 57
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

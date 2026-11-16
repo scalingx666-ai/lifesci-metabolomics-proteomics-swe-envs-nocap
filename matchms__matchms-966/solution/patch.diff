@@ -1,0 +1,1206 @@
+diff --git a/matchms/filtering/_dispatch.py b/matchms/filtering/_dispatch.py
+index f8bb47da1..6ec6c740d 100644
+--- a/matchms/filtering/_dispatch.py
++++ b/matchms/filtering/_dispatch.py
+@@ -8,7 +8,6 @@
+ from matchms.filtering.filter_utils.metadata_conversions import (
+     apply_metadata_row_filter,
+     apply_metadata_updates_to_spectrum,
+-    metadata_row_to_dict,
+ )
+ 
+ 
+@@ -274,48 +273,83 @@ def _metadata_requirement_signature(metadata_impl: Callable) -> inspect.Signatur
+     )
+ 
+ 
+-def metadata_requirement_filter(metadata_impl: Callable):
++def metadata_requirement_filter(
++    metadata_impl: Callable,
++    *,
++    collection_impl: Callable | None = None,
++):
+     """Create a Spectrum/SpectraCollection requirement filter from metadata logic.
+ 
+     The wrapped metadata function receives one metadata mapping and returns
+     ``True`` if the spectrum/row should be kept and ``False`` if it should be
+     removed.
+ 
+-    For :class:`~matchms.spectrum.Spectrum` input, failed requirements return ``None``.
+-    For :class:`~matchms.spectra_collection.SpectraCollection` input, failed rows
+-    are dropped from metadata and fragments.
++    A specialized ``collection_impl`` can be supplied for requirement filters
++    that can process SpectraCollection metadata more efficiently than the
++    default row-wise implementation.
+     """
+ 
+     def spectrum_impl(spectrum_in, *args, **kwargs):
+         if spectrum_in is None:
+             return None
+ 
+-        keep = metadata_impl(spectrum_in.metadata, *args, **kwargs)
++        keep = metadata_impl(
++            spectrum_in.metadata,
++            *args,
++            **kwargs,
++        )
+         if not keep:
+             return None
+ 
+         return spectrum_in
+ 
+-    def collection_impl(collection, *args, clone: bool | None = True, **kwargs):
+-        target = collection.copy() if clone else collection
++    def default_collection_impl(
++        collection,
++        *args,
++        clone: bool | None = True,
++        **kwargs,
++    ):
++        target = (
++            collection.copy()
++            if clone
++            else collection
++        )
+ 
+         metadata = target.metadata
+ 
+         keep_mask = metadata.apply(
+-            lambda row: bool(metadata_impl(metadata_row_to_dict(row), *args, **kwargs)),
++            lambda row: bool(
++                metadata_impl(
++                    row,
++                    *args,
++                    **kwargs,
++                )
++            ),
+             axis=1,
+         ).values
+ 
+-        target.filter(keep_mask, inplace=True)
++        target.filter(
++            keep_mask,
++            inplace=True,
++        )
+         return target
+ 
+     public_filter = collection_filter(
+         spectrum_impl,
+-        collection_impl=collection_impl,
++        collection_impl=(
++            collection_impl
++            if collection_impl is not None
++            else default_collection_impl
++        ),
+     )
+ 
+-    public_name = metadata_impl.__name__.removeprefix("_")
+-    public_signature = _metadata_requirement_signature(metadata_impl)
++    public_name = (
++        metadata_impl.__name__
++        .removeprefix("_")
++    )
++    public_signature = _metadata_requirement_signature(
++        metadata_impl
++    )
+ 
+     spectrum_impl.__name__ = public_name
+     spectrum_impl.__doc__ = metadata_impl.__doc__
+diff --git a/matchms/filtering/metadata_processing/require_precursor_mz.py b/matchms/filtering/metadata_processing/require_precursor_mz.py
+index 724be2ef3..548fa708d 100644
+--- a/matchms/filtering/metadata_processing/require_precursor_mz.py
++++ b/matchms/filtering/metadata_processing/require_precursor_mz.py
+@@ -1,14 +1,25 @@
+ import logging
++import numpy as np
++import pandas as pd
+ from matchms.filtering._dispatch import metadata_requirement_filter
+ from matchms.filtering.filter_utils.metadata_conversions import (
+     as_float_or_none,
+     is_missing_metadata_value,
+ )
++from matchms.spectra_collection import SpectraCollection
+ 
+ 
+ logger = logging.getLogger("matchms")
+ 
+ 
++_NUMERIC_PRECURSOR_TYPES = (
++    int,
++    float,
++    np.integer,
++    np.floating,
++)
++
++
+ def _require_precursor_mz(
+     metadata,
+     minimum_accepted_mz: float | None = 10.0,
+@@ -64,7 +75,10 @@ def _require_precursor_mz(
+         )
+         return False
+ 
+-    if minimum_accepted_mz is not None and precursor_mz_float < minimum_accepted_mz:
++    if (
++        minimum_accepted_mz is not None
++        and precursor_mz_float < minimum_accepted_mz
++    ):
+         logger.info(
+             "Spectrum is removed since precursor mz (%s) was below minimum mz (%s)",
+             precursor_mz_float,
+@@ -72,7 +86,10 @@ def _require_precursor_mz(
+         )
+         return False
+ 
+-    if maximum_mz is not None and precursor_mz_float > maximum_mz:
++    if (
++        maximum_mz is not None
++        and precursor_mz_float > maximum_mz
++    ):
+         logger.info(
+             "Spectrum is removed since precursor mz (%s) was above maximum mz (%s)",
+             precursor_mz_float,
+@@ -83,4 +100,196 @@ def _require_precursor_mz(
+     return True
+ 
+ 
+-require_precursor_mz = metadata_requirement_filter(_require_precursor_mz)
+\ No newline at end of file
++def _require_precursor_mz_collection(
++    spectrum_in: SpectraCollection,
++    minimum_accepted_mz: float | None = 10.0,
++    maximum_mz: float | None = None,
++    clone: bool | None = True,
++) -> SpectraCollection:
++    """Apply precursor-m/z requirements using vectorized metadata operations."""
++    metadata = spectrum_in.metadata
++    n_spectra = len(spectrum_in)
++
++    if n_spectra == 0:
++        return (
++            spectrum_in.copy()
++            if clone
++            else spectrum_in
++        )
++
++    # No precursor_mz column is an unusual/error-path situation.
++    # Sticking to complete row-wise logic here, including the legacy pepmass check.
++    if "precursor_mz" not in metadata.columns:
++        if "pepmass" not in metadata.columns:
++            keep_mask = np.zeros(
++                n_spectra,
++                dtype=bool,
++            )
++        else:
++            keep_mask = np.fromiter(
++                (
++                    _require_precursor_mz(
++                        metadata.iloc[row],
++                        minimum_accepted_mz=minimum_accepted_mz,
++                        maximum_mz=maximum_mz,
++                    )
++                    for row in range(n_spectra)
++                ),
++                dtype=bool,
++                count=n_spectra,
++            )
++
++        return _filter_collection(
++            spectrum_in,
++            keep_mask,
++            clone=clone,
++        )
++
++    precursor = metadata["precursor_mz"]
++
++    # ---------------------------------------------------------
++    # Fast path 1:
++    # This should be the common SpectraCollection case after metadata harmonization.
++    # ---------------------------------------------------------
++    if (
++        pd.api.types.is_integer_dtype(precursor.dtype)
++        or pd.api.types.is_float_dtype(precursor.dtype)
++    ):
++        values = precursor.to_numpy(
++            dtype=np.float64,
++            na_value=np.nan,
++        )
++
++        keep_mask = ~np.isnan(values)
++
++        if minimum_accepted_mz is not None:
++            below_minimum = (
++                keep_mask
++                & (values < minimum_accepted_mz)
++            )
++
++            if np.any(below_minimum):
++                logger.info(
++                    "%d spectra removed because precursor m/z was below %s.",
++                    int(below_minimum.sum()),
++                    minimum_accepted_mz,
++                )
++
++            keep_mask[below_minimum] = False
++
++        if maximum_mz is not None:
++            above_maximum = (
++                keep_mask
++                & (values > maximum_mz)
++            )
++
++            if np.any(above_maximum):
++                logger.info(
++                    "%d spectra removed because precursor m/z was above %s.",
++                    int(above_maximum.sum()),
++                    maximum_mz,
++                )
++
++            keep_mask[above_maximum] = False
++
++        return _filter_collection(
++            spectrum_in,
++            keep_mask,
++            clone=clone,
++        )
++
++    # ---------------------------------------------------------
++    # Fast path 2:
++    # Mixed/object column. Process ordinary numeric scalar
++    # entries together and use the full legacy logic only for unusual values.
++    # ---------------------------------------------------------
++    raw_values = precursor.to_numpy(
++        dtype=object,
++        copy=False,
++    )
++
++    numeric_mask = np.fromiter(
++        (
++            isinstance(
++                value,
++                _NUMERIC_PRECURSOR_TYPES,
++            )
++            for value in raw_values
++        ),
++        dtype=bool,
++        count=n_spectra,
++    )
++
++    numeric_values = np.full(
++        n_spectra,
++        np.nan,
++        dtype=np.float64,
++    )
++
++    if np.any(numeric_mask):
++        numeric_values[numeric_mask] = np.asarray(
++            raw_values[numeric_mask],
++            dtype=np.float64,
++        )
++
++    # Numeric NaN has the same missing-value semantics as the scalar path.
++    keep_mask = (
++        numeric_mask
++        & ~np.isnan(numeric_values)
++    )
++
++    if minimum_accepted_mz is not None:
++        keep_mask &= (
++            ~numeric_mask
++            | (numeric_values >= minimum_accepted_mz)
++        )
++
++    if maximum_mz is not None:
++        keep_mask &= (
++            ~numeric_mask
++            | (numeric_values <= maximum_mz)
++        )
++
++    # Only unusual object-valued entries need the complete scalar logic.
++    fallback_rows = np.flatnonzero(
++        ~numeric_mask
++    )
++
++    for row in fallback_rows:
++        keep_mask[row] = _require_precursor_mz(
++            metadata.iloc[row],
++            minimum_accepted_mz=minimum_accepted_mz,
++            maximum_mz=maximum_mz,
++        )
++
++    return _filter_collection(
++        spectrum_in,
++        keep_mask,
++        clone=clone,
++    )
++
++
++def _filter_collection(
++    collection: SpectraCollection,
++    keep_mask: np.ndarray,
++    *,
++    clone: bool | None,
++) -> SpectraCollection:
++    """Apply a row mask while preserving collection clone semantics."""
++    if clone:
++        return collection.filter(
++            keep_mask,
++            inplace=False,
++        )
++
++    collection.filter(
++        keep_mask,
++        inplace=True,
++    )
++    return collection
++
++
++require_precursor_mz = metadata_requirement_filter(
++    _require_precursor_mz,
++    collection_impl=_require_precursor_mz_collection,
++)
+\ No newline at end of file
+diff --git a/matchms/filtering/peak_processing/remove_noise_below_frequent_intensities.py b/matchms/filtering/peak_processing/remove_noise_below_frequent_intensities.py
+index 4c2c38a00..2ccccc444 100644
+--- a/matchms/filtering/peak_processing/remove_noise_below_frequent_intensities.py
++++ b/matchms/filtering/peak_processing/remove_noise_below_frequent_intensities.py
+@@ -1,7 +1,10 @@
+ import logging
+ import numpy as np
++from scipy.sparse import csr_array
+ from matchms.filtering._dispatch import collection_filter
++from matchms.fragment_collection import CSRFragmentCollection
+ from matchms.fragments import Fragments
++from matchms.spectra_collection import SpectraCollection
+ from matchms.spectrum import Spectrum
+ from matchms.typing import SpectrumType
+ 
+@@ -15,12 +18,15 @@ def _remove_noise_below_frequent_intensities(
+     noise_level_multiplier: float = 2.0,
+     clone: bool | None = True,
+ ) -> SpectrumType | None:
+-    """Removes noise if intensities exactly match frequently
++    """Remove noise inferred from frequently repeated intensity values.
+ 
+-    When no noise filtering has been applied to a spectrum, many spectra show repeating intensities.
+-    From all intensities that repeat more than min_count_of_frequent_intensities the highest is selected.
+-    The noise level is set to this intensity * noise_level_multiplier. All fragments with an intensity below the noise
+-    level are removed.
++    Spectra without prior noise filtering can contain many peaks with exactly
++    repeated intensity values. Of all intensity values occurring at least
++    ``min_count_of_frequent_intensities`` times, the highest is selected.
++    The noise threshold is this intensity multiplied by
++    ``noise_level_multiplier``. Only peaks strictly above that threshold are retained.
++
++    If no intensity occurs frequently enough, the spectrum is returned unchanged.
+ 
+     This filter was suggested by Tytus Mak.
+ 
+@@ -29,46 +35,186 @@ def _remove_noise_below_frequent_intensities(
+     spectrum_in:
+         Input spectrum.
+     min_count_of_frequent_intensities:
+-        Minimum number of repeating intensities.
++        Minimum number of occurrences required for an intensity value to be
++        considered frequent.
+     noise_level_multiplier:
+         From all intensities that repeat more than min_count_of_frequent_intensities the highest is selected.
+         The noise level is set to this intensity * noise_level_multiplier.
+     clone:
+-        Optionally clone the Spectrum.
++        If True, return a filtered copy. If False, modify the input spectrum.
+ 
+     Returns
+     -------
+     Spectrum or None
+-        Spectrum with removed intensities, or `None` if not present.
++        Filtered spectrum, or None if the input is None.
+     """
+     if spectrum_in is None:
+         return None
+ 
+     spectrum = spectrum_in.clone() if clone else spectrum_in
+ 
+-    highest_frequent_peak = _select_highest_frequent_peak(spectrum.intensities, min_count_of_frequent_intensities)
+-    if highest_frequent_peak != -1:
+-        noise_threshold = highest_frequent_peak * noise_level_multiplier
+-        peaks_to_keep = spectrum.intensities > noise_threshold
+-        new_mzs, new_intensities = spectrum.mz[peaks_to_keep], spectrum.intensities[peaks_to_keep]
+-        spectrum.peaks = Fragments(mz=new_mzs, intensities=new_intensities)
+-        logger.info("Fragments removed with intensity below %s", noise_threshold)
++    highest_frequent_peak = _select_highest_frequent_peak(
++        spectrum.intensities,
++        min_count_of_frequent_intensities,
++    )
++
++    if highest_frequent_peak == -1:
++        return spectrum
++
++    noise_threshold = (
++        highest_frequent_peak
++        * noise_level_multiplier
++    )
++
++    peaks_to_keep = (
++        spectrum.intensities > noise_threshold
++    )
++
++    spectrum.peaks = Fragments(
++        mz=spectrum.mz[peaks_to_keep],
++        intensities=spectrum.intensities[peaks_to_keep],
++    )
++
++    logger.info(
++        "Fragments removed with intensity below %s",
++        noise_threshold,
++    )
++
+     return spectrum
+ 
+ 
+-def _select_highest_frequent_peak(intensities, min_count_of_frequent_intensities=5):
+-    unique_values, counts = np.unique(intensities, return_counts=True)
+-    mask = counts >= min_count_of_frequent_intensities
++def _remove_noise_below_frequent_intensities_collection(
++    spectrum_in: SpectraCollection,
++    min_count_of_frequent_intensities: int = 5,
++    noise_level_multiplier: float = 2.0,
++    clone: bool | None = True,
++) -> SpectraCollection:
++    """Apply frequent-intensity noise removal directly to CSR fragments."""
++    if not isinstance(
++        spectrum_in.fragments,
++        CSRFragmentCollection,
++    ):
++        raise NotImplementedError(
++            "Native SpectraCollection processing for "
++            "remove_noise_below_frequent_intensities currently supports only "
++            "CSRFragmentCollection."
++        )
++
++    target = spectrum_in.copy() if clone else spectrum_in
++
++    fragments = target.fragments
++    array = fragments.array
++
++    if array.nnz == 0:
++        return target
++
++    keep = np.ones(array.data.size, dtype=bool)
++    n_filtered_spectra = 0
++
++    for row in range(len(target)):
++        start = array.indptr[row]
++        end = array.indptr[row + 1]
++
++        intensities = array.data[start:end]
++
++        # A repeated value cannot reach the requested count when the complete
++        # spectrum contains fewer peaks than that count.
++        if (
++            intensities.size
++            < min_count_of_frequent_intensities
++        ):
++            continue
++
++        highest_frequent_peak = _select_highest_frequent_peak(
++            intensities,
++            min_count_of_frequent_intensities,
++        )
++
++        if highest_frequent_peak == -1:
++            continue
++
++        noise_threshold = (
++            highest_frequent_peak
++            * noise_level_multiplier
++        )
++
++        row_keep = intensities > noise_threshold
++
++        if not np.all(row_keep):
++            keep[start:end] = row_keep
++            n_filtered_spectra += 1
++
++    if n_filtered_spectra == 0:
++        return target
++
++    # CSR entries are stored consecutively by spectrum. The cumulative number
++    # of retained entries at each original row boundary therefore gives the
++    # indptr array of the filtered CSR matrix.
++    cumulative_kept = np.empty(
++        keep.size + 1,
++        dtype=np.int64,
++    )
++    cumulative_kept[0] = 0
++
++    np.cumsum(
++        keep,
++        dtype=np.int64,
++        out=cumulative_kept[1:],
++    )
++
++    new_indptr = cumulative_kept[array.indptr]
++
++    filtered_array = csr_array(
++        (
++            array.data[keep],
++            array.indices[keep],
++            new_indptr,
++        ),
++        shape=array.shape,
++    )
++
++    target._fragments = CSRFragmentCollection.from_array(
++        filtered_array,
++        mz_precision=fragments.mz_precision,
++        mz_rounding=fragments.mz_rounding,
++        index_dtype=fragments.index_dtype,
++    )
++
++    target._clear_cache()
++
++    logger.info(
++        "Removed frequent-intensity noise from %d spectra.",
++        n_filtered_spectra,
++    )
++
++    return target
++
++
++def _select_highest_frequent_peak(
++    intensities,
++    min_count_of_frequent_intensities=5,
++):
++    """Return the highest intensity occurring at least the requested count."""
++    unique_values, counts = np.unique(
++        intensities,
++        return_counts=True,
++    )
++
++    mask = (
++        counts
++        >= min_count_of_frequent_intensities
++    )
+     filtered_values = unique_values[mask]
+ 
+-    # Return the highest value from the filtered values, or -1 if no values meet the criteria
+     if filtered_values.size > 0:
+         return filtered_values.max()
++
+     return -1
+ 
+ 
+-# wrapper
+ remove_noise_below_frequent_intensities = collection_filter(
+     _remove_noise_below_frequent_intensities,
+-    collection_impl=None,
+-)
++    collection_impl=(
++        _remove_noise_below_frequent_intensities_collection
++    ),
++)
+\ No newline at end of file
+diff --git a/matchms/filtering/peak_processing/remove_peaks_relative_to_precursor_mz.py b/matchms/filtering/peak_processing/remove_peaks_relative_to_precursor_mz.py
+index 08759019e..68532a643 100644
+--- a/matchms/filtering/peak_processing/remove_peaks_relative_to_precursor_mz.py
++++ b/matchms/filtering/peak_processing/remove_peaks_relative_to_precursor_mz.py
+@@ -1,18 +1,33 @@
+ import numpy as np
+ from matchms.filtering._dispatch import collection_filter
+ from matchms.fragments import Fragments
++from matchms.spectra_collection import SpectraCollection
+ from matchms.typing import SpectrumType
+ 
+ 
++def _validate_offset_to_precursor(offset_to_precursor) -> float:
++    """Validate and convert the precursor offset to float."""
++    if not isinstance(
++        offset_to_precursor,
++        (float, int, np.floating, np.integer),
++    ):
++        raise TypeError(
++            "Expected 'offset_to_precursor' to be a scalar number."
++        )
++
++    return float(offset_to_precursor)
++
++
+ def _remove_peaks_relative_to_precursor_mz(
+-    spectrum_in: SpectrumType, offset_to_precursor: float = -1.6,
+-    clone: bool | None = True
++    spectrum_in: SpectrumType,
++    offset_to_precursor: float = -1.6,
++    clone: bool | None = True,
+ ) -> SpectrumType | None:
+-    """Remove all peaks with m/z values > precursor-m/z + offset_to_precursor.
++    """Remove peaks above ``precursor_mz + offset_to_precursor``.
+ 
+-    If offset_to_precursor is negative, this means that all peaks
+-    with m/z values greater than (precursor_mz - |offset_to_precursor|).
+-    If offset_to_precursor is positive, the precursor_mz peak itself will remain.
++    Peaks with m/z values larger than the precursor m/z plus the specified
++    offset are removed. With the default negative offset, peaks close to and
++    above the precursor ion are removed.
+ 
+     Parameters
+     ----------
+@@ -23,12 +38,12 @@ def _remove_peaks_relative_to_precursor_mz(
+         Default is -1.6 Da based Flash Entropy article by Li and Fiehn, 2023, Nature Methods.
+         (see https://www.nature.com/articles/s41592-023-02012-9)
+     clone:
+-        Optionally clone the Spectrum.
++        If True, return a filtered copy. If False, modify the input spectrum.
+ 
+     Returns
+     -------
+     Spectrum or None
+-        Spectrum with removed peaks, or `None` if not present.
++        Filtered spectrum, or None if the input is None.
+     """
+     if spectrum_in is None:
+         return None
+@@ -38,33 +53,78 @@ def _remove_peaks_relative_to_precursor_mz(
+     precursor_mz = spectrum.get("precursor_mz", None)
+     if precursor_mz is None:
+         raise TypeError("Undefined 'precursor_mz'.")
++
+     if not isinstance(precursor_mz, (float, int)):
+         raise TypeError(
+-            "Expected 'precursor_mz' to be a scalar number.",
++            "Expected 'precursor_mz' to be a scalar number. "
+             "Consider applying 'add_precursor_mz' filter first."
+-            )
+-
+-    if not isinstance(offset_to_precursor, (float, int, np.floating, np.integer)):
+-        raise TypeError("Expected 'offset_to_precursor' to be a scalar number.")
++        )
+ 
+-    precursor_mz = float(precursor_mz)
+-    offset_to_precursor = float(offset_to_precursor)
++    offset_to_precursor = _validate_offset_to_precursor(
++        offset_to_precursor
++    )
+ 
+-    mzs, intensities = spectrum.peaks.mz, spectrum.peaks.intensities
++    threshold = float(precursor_mz) + offset_to_precursor
+ 
+-    threshold = precursor_mz + offset_to_precursor
+-    peaks_to_remove = mzs > threshold
++    mz = spectrum.peaks.mz
++    intensities = spectrum.peaks.intensities
++    keep = mz <= threshold
+ 
+     spectrum.peaks = Fragments(
+-        mz=mzs[~peaks_to_remove],
+-        intensities=intensities[~peaks_to_remove],
++        mz=mz[keep],
++        intensities=intensities[keep],
+     )
+ 
+     return spectrum
+ 
+ 
+-# wrapper
++def _remove_peaks_relative_to_precursor_mz_collection(
++    spectrum_in: SpectraCollection,
++    offset_to_precursor: float = -1.6,
++    clone: bool | None = True,
++) -> SpectraCollection:
++    """Remove precursor-region peaks directly from a SpectraCollection."""
++    offset_to_precursor = _validate_offset_to_precursor(
++        offset_to_precursor
++    )
++
++    metadata = spectrum_in.metadata
++
++    if "precursor_mz" not in metadata.columns:
++        raise TypeError("Undefined 'precursor_mz'.")
++
++    try:
++        precursor_mz = metadata["precursor_mz"].to_numpy(
++            dtype=np.float64,
++            na_value=np.nan,
++        )
++    except (TypeError, ValueError) as exc:
++        raise TypeError(
++            "Expected 'precursor_mz' to be a scalar. "
++            "Consider applying 'add_precursor_mz' filter first."
++        ) from exc
++
++    if np.isnan(precursor_mz).any():
++        raise TypeError(
++            "Undefined 'precursor_mz'. "
++            "Consider applying 'add_precursor_mz' filter first."
++        )
++
++    thresholds = precursor_mz + offset_to_precursor
++
++    target = spectrum_in.copy() if clone else spectrum_in
++
++    target._fragments = (
++        target.fragments.select_by_mz_upper_bound_per_row(
++            thresholds
++        )
++    )
++    target._clear_cache()
++
++    return target
++
++
+ remove_peaks_relative_to_precursor_mz = collection_filter(
+     _remove_peaks_relative_to_precursor_mz,
+-    collection_impl=None,
+-)
++    collection_impl=_remove_peaks_relative_to_precursor_mz_collection,
++)
+\ No newline at end of file
+diff --git a/matchms/filtering/peak_processing/remove_profiled_spectra.py b/matchms/filtering/peak_processing/remove_profiled_spectra.py
+index dbe7b6f61..c354e6c4e 100644
+--- a/matchms/filtering/peak_processing/remove_profiled_spectra.py
++++ b/matchms/filtering/peak_processing/remove_profiled_spectra.py
+@@ -1,6 +1,8 @@
+ import logging
+ import numpy as np
+ from matchms.filtering._dispatch import collection_filter
++from matchms.fragment_collection import CSRFragmentCollection
++from matchms.spectra_collection import SpectraCollection
+ from matchms.spectrum import Spectrum
+ from matchms.typing import SpectrumType
+ 
+@@ -9,92 +11,235 @@
+ 
+ 
+ def _remove_profiled_spectra(
+-        spectrum_in: Spectrum, mz_window=0.5, clone: bool | None = True
+-    ) -> SpectrumType | None:
+-    """Remove profiled spectra
++    spectrum_in: Spectrum,
++    mz_window: float = 0.5,
++    clone: bool | None = True,
++) -> SpectrumType | None:
++    """Remove spectra that are likely profile-mode data.
+ 
+-    Spectra are removed if within the mz_window of 0.5 of the highest peak at least 2 peaks next to the main peak are of
+-    intensity > max_intensity/2.
++    A spectrum is considered likely profile data when the base peak belongs to
++    a contiguous group of at least three peaks that
+ 
+-    Reproduced from MZmine.
+-    https://github.com/mzmine/mzmine3/blob/master/src/main/java/io/github/mzmine/util/scans/ScanUtils.java#L609
++    - lie within ``mz_window`` Da of the base peak, and
++    - have intensities greater than half the base-peak intensity.
++
++    This criterion is reproduced from MZmine.
+ 
+     Parameters
+     ----------
+     spectrum_in:
+         Input spectrum.
+     mz_window:
+-        Window of mz values (in Da) that are allowed to lie within
+-        the top k peaks. Default is 50 Da.
++        Maximum m/z distance in Da from the base peak considered when checking
++        neighboring high-intensity peaks. Default is 0.5 Da.
+     clone:
+-        Optionally clone the Spectrum.
++        If True, clone spectra that are retained. If False, return the original
++        spectrum unchanged.
+ 
+     Returns
+     -------
+     Spectrum or None
+-        None if the spectrum is likely profile data, else the input spectrum.
++        ``None`` if the spectrum is likely profile data; otherwise the retained
++        spectrum.
+     """
+     if spectrum_in is None:
+         return None
+ 
+     spectrum = spectrum_in.clone() if clone else spectrum_in
+ 
+-    peaks_n = spectrum.mz.shape[0]
+-    if peaks_n < 3:
+-        return spectrum
++    if _is_profiled_spectrum(
++        spectrum.intensities,
++        spectrum.mz,
++        mz_window,
++    ):
++        logger.info(
++            "Spectrum removed because it is likely profile data."
++        )
++        return None
+ 
+-    number_of_high_intensity_surounding_peaks = _get_number_of_high_intensity_surounding_peaks(
+-        spectrum.intensities, spectrum.mz, mz_window
++    return spectrum
++
++
++def _remove_profiled_spectra_collection(
++    spectrum_in: SpectraCollection,
++    mz_window: float = 0.5,
++    clone: bool | None = True,
++) -> SpectraCollection | None:
++    """Remove likely profile spectra directly from CSR fragment storage."""
++    if not isinstance(
++        spectrum_in.fragments,
++        CSRFragmentCollection,
++    ):
++        raise NotImplementedError(
++            "Native SpectraCollection processing for remove_profiled_spectra "
++            "currently supports only CSRFragmentCollection."
++        )
++
++    fragments = spectrum_in.fragments
++    array = fragments.array
++
++    keep_mask = np.ones(
++        len(spectrum_in),
++        dtype=bool,
+     )
+-    if number_of_high_intensity_surounding_peaks < 3:
+-        return spectrum
++
++    for row in range(len(spectrum_in)):
++        start = array.indptr[row]
++        end = array.indptr[row + 1]
++
++        if end - start < 3:
++            continue
++
++        intensities = array.data[start:end]
++        mz = fragments.bin_to_mz(
++            array.indices[start:end]
++        )
++
++        if _is_profiled_spectrum(
++            intensities,
++            mz,
++            mz_window,
++        ):
++            keep_mask[row] = False
++
++    n_removed = int((~keep_mask).sum())
++
++    if n_removed == 0:
++        return (
++            spectrum_in.copy()
++            if clone
++            else spectrum_in
++        )
++
+     logger.info(
+-        "Spectrum removed because likely profile data."
+-        "Number of high intensity fragments next to the highest peak = %s.",
+-        number_of_high_intensity_surounding_peaks,
++        "Removed %d spectra because they are likely profile data.",
++        n_removed,
+     )
+-    return None
+ 
++    # Preserving the behavior of the former spectrum-wise handling:
++    # if all spectra are removed, return None.
++    if not np.any(keep_mask):
++        return None
++
++    keep_indices = np.flatnonzero(keep_mask)
+ 
+-def _get_number_of_high_intensity_surounding_peaks(intensities, mz, mz_window):
+-    base_peak_i = intensities.argmax()
++    if not clone:
++        spectrum_in._reorder(keep_indices)
++        return spectrum_in
+ 
+-    intensities_within_mz_window = _select_intensities_within_mz_window(intensities, mz, mz_window)
+-    nr_of_peaks_above_threshold_before_base_peak, nr_of_peaks_above_threshold_after_base_peak = (
+-        _get_peak_intens_neighbourhood(intensities_within_mz_window)
++    filtered_fragments = fragments.take(
++        keep_indices
++    )
++    filtered_metadata = (
++        spectrum_in._metadata
++        .iloc[keep_indices]
++        .reset_index(drop=True)
+     )
+-    base_peak_min_i = base_peak_i - nr_of_peaks_above_threshold_before_base_peak
+-    base_peak_max_i = base_peak_i + nr_of_peaks_above_threshold_after_base_peak
+ 
+-    number_of_high_intensity_surounding_peaks = base_peak_max_i - base_peak_min_i + 1
+-    return number_of_high_intensity_surounding_peaks
++    return spectrum_in.__class__._from_metadata_and_fragments(
++        metadata=filtered_metadata,
++        fragments=filtered_fragments,
++        mz_precision=spectrum_in.mz_precision,
++    )
+ 
+ 
+-def _select_intensities_within_mz_window(intensities, mz, mz_span):
+-    base_peak_i = intensities.argmax()
+-    within_mz_window = (mz > mz[base_peak_i] - mz_span) & (mz < mz[base_peak_i] + mz_span)
+-    intensities_within_mz_window = intensities[within_mz_window]
+-    return intensities_within_mz_window
++def _is_profiled_spectrum(
++    intensities: np.ndarray,
++    mz: np.ndarray,
++    mz_window: float,
++) -> bool:
++    """Return whether a peak pattern matches the profile-data criterion."""
++    if mz.size < 3:
++        return False
++
++    number_of_surrounding_peaks = (
++        _get_number_of_high_intensity_surrounding_peaks(
++            intensities,
++            mz,
++            mz_window,
++        )
++    )
+ 
++    return number_of_surrounding_peaks >= 3
++
++
++def _get_number_of_high_intensity_surrounding_peaks(
++    intensities: np.ndarray,
++    mz: np.ndarray,
++    mz_window: float,
++) -> int:
++    """Count contiguous high-intensity peaks around the base peak."""
++    intensities_within_mz_window = (
++        _select_intensities_within_mz_window(
++            intensities,
++            mz,
++            mz_window,
++        )
++    )
+ 
+-def _get_peak_intens_neighbourhood(intensities):
+-    """
+-    Returns the range of indices around the highest peak that are more than half the intensity of the highest peak.
+-    """
++    (
++        n_before,
++        n_after,
++    ) = _get_peak_intensity_neighbourhood(
++        intensities_within_mz_window
++    )
++
++    # The neighboring-peak counts exclude the base peak itself.
++    return int(n_before + n_after + 1)
++
++
++def _select_intensities_within_mz_window(
++    intensities: np.ndarray,
++    mz: np.ndarray,
++    mz_window: float,
++) -> np.ndarray:
++    """Return intensities strictly within the m/z window around the base peak."""
++    base_peak_index = int(
++        intensities.argmax()
++    )
++    base_peak_mz = mz[base_peak_index]
++
++    within_mz_window = (
++        (mz > base_peak_mz - mz_window)
++        & (mz < base_peak_mz + mz_window)
++    )
+ 
+-    base_peak_i = intensities.argmax()
+-    intensity_threshold = intensities[base_peak_i] / 2
++    return intensities[within_mz_window]
+ 
+-    # Select true for each peak above threshold. Adding False on both ends, to always get a result from np.argmin.
++
++def _get_peak_intensity_neighbourhood(
++    intensities: np.ndarray,
++) -> tuple[int, int]:
++    """Count contiguous >50% intensity neighbors around the base peak."""
++    base_peak_index = int(
++        intensities.argmax()
++    )
++    intensity_threshold = (
++        intensities[base_peak_index] / 2
++    )
++
++    # Add False at both boundaries so the first below-threshold position always
++    # exists when searching outward from the base peak.
+     threshold_mask = np.concatenate([[False], intensities > intensity_threshold, [False]])
+ 
+-    nr_of_peaks_above_threshold_before_base_peak = np.argmin(np.flip(threshold_mask[: base_peak_i + 1]))
+-    nr_of_peaks_above_threshold_after_base_peak = np.argmin(threshold_mask[base_peak_i + 2 :])
+-    return nr_of_peaks_above_threshold_before_base_peak, nr_of_peaks_above_threshold_after_base_peak
++    n_before = np.argmin(
++        np.flip(
++            threshold_mask[
++                : base_peak_index + 1
++            ]
++        )
++    )
++
++    n_after = np.argmin(
++        threshold_mask[
++            base_peak_index + 2 :
++        ]
++    )
++
++    return int(n_before), int(n_after)
+ 
+ 
+-# wrapper
+ remove_profiled_spectra = collection_filter(
+     _remove_profiled_spectra,
+-    collection_impl=None,
+-)
++    collection_impl=_remove_profiled_spectra_collection,
++)
+\ No newline at end of file
+diff --git a/matchms/fragment_collection.py b/matchms/fragment_collection.py
+index 73c49717e..78fc03eb6 100644
+--- a/matchms/fragment_collection.py
++++ b/matchms/fragment_collection.py
+@@ -64,7 +64,9 @@ def count_peaks_above_relative_intensity(
+         """Return number of peaks per row with relative intensity >= intensity_from."""
+         pass
+ 
++    # ------------------------------------------------
+     # Filtering methods for peak processing filters.
++    # ------------------------------------------------
+     @abstractmethod
+     def select_by_intensity(
+         self,
+@@ -88,8 +90,30 @@ def keep_top_k_per_row_variable(self, k_per_row: np.ndarray) -> Self:
+         """Return new collection with only the top-k intensity peaks per row."""
+         pass
+ 
++    @abstractmethod
++    def select_by_mz_upper_bound_per_row(
++        self,
++        mz_max: np.ndarray,
++    ) -> Self:
++        """Return peaks with m/z <= a row-specific upper bound.
+ 
++        Parameters
++        ----------
++        mz_max
++            One maximum allowed m/z value per spectrum row.
++
++        Returns
++        -------
++        FragmentCollection
++            Fragment collection with the same rows and m/z coordinate system,
++            containing only peaks at or below the corresponding row threshold.
++        """
++        pass
++
++
++# ------------------------------------------------
+ # Helper functions for peak processing filters
++# ------------------------------------------------
+ def _decimal_places_from_mz_precision(mz_precision: float) -> int:
+     """Return decimal places for mz_precision.
+ 
+@@ -116,6 +140,9 @@ def _floor_to_decimal_places(values, decimals: int):
+     return np.floor(np.asarray(values, dtype=float) * factor) / factor
+ 
+ 
++# ------------------------------------------------
++# Actual implementation(s) of efficient FragmentCollections
++# ------------------------------------------------
+ class CSRFragmentCollection(FragmentCollection):
+     """CSR-backed, m/z-grid fragment storage for a spectra dataset.
+ 
+@@ -548,6 +575,59 @@ def select_by_relative_intensity(
+ 
+         return self._from_array(new_array)
+ 
++    def select_by_mz_upper_bound_per_row(
++        self,
++        mz_max: np.ndarray,
++    ) -> Self:
++        """Keep peaks at or below a row-specific maximum m/z value."""
++        mz_max = np.asarray(mz_max, dtype=float)
++
++        if mz_max.shape != (len(self),):
++            raise ValueError(
++                "mz_max must contain exactly one value per spectrum row."
++            )
++
++        csr = self._array
++
++        if csr.nnz == 0:
++            return self.copy()
++
++        # Stored CSR entries are ordered spectrum by spectrum. 
++        # Expand the row-specific thresholds once so that all stored peaks can be tested
++        # without reconstructing individual Spectrum objects.
++        peaks_per_row = np.diff(csr.indptr)
++        peak_thresholds = np.repeat(mz_max, peaks_per_row)
++
++        peak_mz = self.bin_to_mz(csr.indices)
++        keep = peak_mz <= peak_thresholds
++
++        if np.all(keep):
++            return self.copy()
++
++        # The retained data and column indices remain in CSR row order. 
++        # Construct the new indptr from a cumulative count of retained entries instead of
++        # converting the sparse matrix to COO format.
++        cumulative_kept = np.empty(keep.size + 1, dtype=np.int64)
++        cumulative_kept[0] = 0
++        np.cumsum(
++            keep,
++            dtype=np.int64,
++            out=cumulative_kept[1:],
++        )
++
++        new_indptr = cumulative_kept[csr.indptr]
++
++        new_array = csr_array(
++            (
++                csr.data[keep],
++                csr.indices[keep],
++                new_indptr,
++            ),
++            shape=csr.shape,
++        )
++
++        return self._from_array(new_array)
++
+     def keep_top_k_per_row_variable(
+             self,
+             k_per_row: np.ndarray,
+diff --git a/tests/filtering/test_remove_profiled_spectra.py b/tests/filtering/test_remove_profiled_spectra.py
+index d2a0479f5..9bd62b588 100644
+--- a/tests/filtering/test_remove_profiled_spectra.py
++++ b/tests/filtering/test_remove_profiled_spectra.py
+@@ -1,8 +1,8 @@
+ import numpy as np
+ import pytest
+ from matchms.filtering.peak_processing.remove_profiled_spectra import (
+-    _get_number_of_high_intensity_surounding_peaks,
+-    _get_peak_intens_neighbourhood,
++    _get_number_of_high_intensity_surrounding_peaks,
++    _get_peak_intensity_neighbourhood,
+ )
+ 
+ 
+@@ -18,7 +18,7 @@
+     ],
+ )
+ def test_get_peak_intens_neighbourhood(intensities, expected_no_peaks_before, expected_no_peaks_after):
+-    peaks_before, peaks_after = _get_peak_intens_neighbourhood(np.array(intensities))
++    peaks_before, peaks_after = _get_peak_intensity_neighbourhood(np.array(intensities))
+     assert peaks_before == expected_no_peaks_before
+     assert peaks_after == expected_no_peaks_after
+ 
+@@ -35,8 +35,8 @@ def test_get_peak_intens_neighbourhood(intensities, expected_no_peaks_before, ex
+         [[0.7, 0.6, 0.8, 1.0, 0.9], [10.0, 20.0, 20.1, 20.2, 20.3], 4],
+     ],
+ )
+-def test_get_number_of_high_intensity_surounding_peaks(intensities, mz, expected_no_peaks):
+-    number_of_high_intensity_surounding_peaks = _get_number_of_high_intensity_surounding_peaks(
++def test_get_number_of_high_intensity_surrounding_peaks(intensities, mz, expected_no_peaks):
++    number_of_high_intensity_surounding_peaks = _get_number_of_high_intensity_surrounding_peaks(
+         np.array(intensities), mz=np.array(mz), mz_window=1.0
+     )
+     assert number_of_high_intensity_surounding_peaks == expected_no_peaks

@@ -1,0 +1,26 @@
+diff --git a/.github/workflows/distribute.yaml b/.github/workflows/distribute.yaml
+index 78caed207e..12d0f6c0c1 100644
+--- a/.github/workflows/distribute.yaml
++++ b/.github/workflows/distribute.yaml
+@@ -235,7 +235,7 @@ jobs:
+         with:
+           path: './sirius_cli/src/main/resources/sirius_frontend.build.properties'
+           property: 'de.unijena.bioinf.siriusFrontend.version'
+-      - uses: actions/download-artifact@v2
++      - uses: actions/download-artifact@v4.1.7
+         with:
+           path: sirius_dist/build/tmp/artifacts/
+       - name: Display downloaded artifact files
+diff --git a/.github/workflows/dockergen.yaml b/.github/workflows/dockergen.yaml
+index cd807239df..c1812e61f1 100644
+--- a/.github/workflows/dockergen.yaml
++++ b/.github/workflows/dockergen.yaml
+@@ -14,7 +14,7 @@ jobs:
+         path: './sirius_cli/src/main/resources/sirius_frontend.build.properties'
+         property: 'de.unijena.bioinf.siriusFrontend.version'
+     - name: Download Artifact
+-      uses: actions/download-artifact@v2
++      uses: actions/download-artifact@v4.1.7
+       with:
+         name: "sirius-${{ steps.sirius_version.outputs.value }}-Linux-x86-64"
+         path: sirius-artifact

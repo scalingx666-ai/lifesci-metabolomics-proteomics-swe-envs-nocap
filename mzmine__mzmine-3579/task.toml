@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3579"
+description = "fix(gui): restore dialog padding and error icons"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "d8dcef0b1eedc8a7c505782403223c38f8523647"
+reference = "https://github.com/mzmine/mzmine/pull/3579"
+source_access = "auto"
+built_at = "2026-11-16T08:43:00.750798+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:02a2b82d77daecec752b0c33520e7509fa3d51e384b9cdf33351068af7521358"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-16T07:04:07Z"
+diff_format = "unified"
+context_files = [
+    "javafx-framework/src/main/java/io/github/mzmine/javafx/dialogs/DialogLoggerUtil.java",
+    "mzmine-community/src/main/java/io/github/mzmine/gui/MZmineGUI.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 17
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,74 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-863"
+description = "Making entropy less entropic, in a good way!"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "9f27ba89d8c485e6a2fa2db4756e3fe3aec05151"
+reference = "https://github.com/matchms/matchms/pull/863"
+source_access = "auto"
+built_at = "2026-11-16T12:53:05.677554+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:357c68a7264bb3d31765a0e70cb7c76e336d206e6d8541a962670d1865e4e62f"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-03-04T09:36:02Z"
+diff_format = "unified"
+context_files = [
+    ".gitignore",
+    "matchms/Fingerprints.py",
+    "matchms/Scores.py",
+    "matchms/similarity/FingerprintSimilarity.py",
+    "matchms/similarity/FlashSimilarity.py",
+    "matchms/similarity/MetadataMatch.py",
+    "matchms/similarity/ParentMassMatch.py",
+    "matchms/similarity/PrecursorMzMatch.py",
+    "matchms/similarity/flash_utils.py",
+    "pyproject.toml",
+    "tests/similarity/test_flash_similarity.py",
+    "tests/similarity/test_flash_similarity_ms_entropy_parity.py",
+    "tests/similarity/test_flash_utils.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 553
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

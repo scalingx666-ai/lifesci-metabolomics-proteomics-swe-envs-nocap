@@ -1,0 +1,548 @@
+diff --git a/pypdb/clients/search/EXAMPLES.md b/pypdb/clients/search/EXAMPLES.md
+index fa94838..8cb3d78 100644
+--- a/pypdb/clients/search/EXAMPLES.md
++++ b/pypdb/clients/search/EXAMPLES.md
+@@ -26,6 +26,7 @@ Two querying functions are currently supported by PyPDB:
+ ```
+ from pypdb.clients.search.search_client import perform_search
+ from pypdb.clients.search.search_client import SearchService, ReturnType
++from pypdb.clients.search.search_client.operators import text_operators
+ 
+ search_service = SearchService.TEXT
+ search_operator = text_operators.DefaultOperator(value="ribosome")
+@@ -38,6 +39,7 @@ results = perform_search(search_service, search_operator, return_type)
+ ```
+ from pypdb.clients.search.search_client import perform_search
+ from pypdb.clients.search.search_client import SearchService, ReturnType
++from pypdb.clients.search.search_client.operators import text_operators
+ 
+ search_service = SearchService.TEXT
+ search_operator = text_operators.ExactMatchOperator(value="Mus musculus",
+@@ -51,6 +53,7 @@ results = perform_search(search_service, search_operator, return_type)
+ ```
+ from pypdb.clients.search.search_client import perform_search
+ from pypdb.clients.search.search_client import SearchService, ReturnType
++from pypdb.clients.search.search_client.operators import text_operators
+ 
+ search_operator = text_operators.InOperator(values=["Mus musculus", "Homo sapiens"],
+                                             attribute="rcsb_entity_source_organism.taxonomy_lineage.name")
+@@ -63,6 +66,7 @@ results = perform_search(search_service, search_operator, return_type)
+ ```
+ from pypdb.clients.search.search_client import perform_search
+ from pypdb.clients.search.search_client import SearchService, ReturnType
++from pypdb.clients.search.search_client.operators import text_operators
+ 
+ search_service = SearchService.TEXT
+ search_operator = text_operators.ContainsWordsOperator(value="actin-binding protein",
+@@ -80,6 +84,7 @@ but "protein binding actin" will not.
+ ```
+ from pypdb.clients.search.search_client import perform_search
+ from pypdb.clients.search.search_client import SearchService, ReturnType
++from pypdb.clients.search.search_client.operators import text_operators
+ 
+ search_service = SearchService.TEXT
+ search_operator = text_operators.ContainsPhraseOperator(value="actin-binding protein",
+@@ -89,10 +94,11 @@ return_type = ReturnType.ASSEMBLY
+ results = perform_search(search_service, search_operator, return_type)
+ ```
+ 
+-# Search for entries released in 2019 or later
++### Search for entries released in 2019 or later
+ ```
+ from pypdb.clients.search.search_client import perform_search
+ from pypdb.clients.search.search_client import SearchService, ReturnType
++from pypdb.clients.search.search_client.operators import text_operators
+ 
+ search_service = SearchService.TEXT
+ search_operator = text_operators.ComparisonOperator(
+@@ -104,10 +110,11 @@ return_type = ReturnType.ENTRY
+ results = perform_search(search_service, search_operator, return_type)
+ ```
+ 
+-# Search for entries released only in 2019
++### Search for entries released only in 2019 or later
+ ```
+ from pypdb.clients.search.search_client import perform_search
+ from pypdb.clients.search.search_client import SearchService, ReturnType
++from pypdb.clients.search.search_client.operators import text_operators
+ 
+ search_service = SearchService.TEXT
+ search_operator = text_operators.RangeOperator(
+@@ -118,10 +125,26 @@ search_operator = text_operators.RangeOperator(
+     attribute="rcsb_accession_info.initial_release_date")
+ return_type = ReturnType.ENTRY
+ 
++results = perform_search(search_service, search_operator, return_type)
++```
++### Search for structures under 4 angstroms of resolution
++```
++from pypdb.clients.search.search_client import perform_search
++from pypdb.clients.search.search_client import SearchService, ReturnType
++from pypdb.clients.search.search_client.operators import text_operators
++
++search_service = search_client.SearchService.TEXT
++search_operator = text_operators.ComparisonOperator(
++           value=4,
++           attribute="rcsb_entry_info.resolution_combined",
++           comparison_type=text_operators.ComparisonType.LESS)
++return_type = search_client.ReturnType.ENTRY
++
+ results = perform_search(search_service, search_operator, return_type)
+ ```
+ 
+-# Search for structures with a given attribute.
++
++### Search for structures with a given attribute.
+ 
+ (Admittedly every structure has a release date, but the same logic would
+  apply for a more sparse RCSB attribute).
+@@ -129,6 +152,7 @@ results = perform_search(search_service, search_operator, return_type)
+ ```
+ from pypdb.clients.search.search_client import perform_search
+ from pypdb.clients.search.search_client import SearchService, ReturnType
++from pypdb.clients.search.search_client.operators import text_operators
+ 
+ search_service = SearchService.TEXT
+ search_operator = text_operators.ExistsOperator(
+@@ -138,6 +162,52 @@ return_type = ReturnType.ENTRY
+ results = perform_search(search_service, search_operator, return_type)
+ ```
+ 
+-## `perform_search_with_graph` Examples
++## `perform_search_with_graph` Example
++
++### Search for 'Mus musculus' or 'Homo sapiens' structures after 2019
+ 
+-Currently unimplemented.
++```
++from pypdb.clients.search.search_client import perform_search
++from pypdb.clients.search.search_client import SearchService, ReturnType
++from pypdb.clients.search.search_client import QueryNode, QueryGroup
++from pypdb.clients.search.search_client.operators import text_operators
++
++# QueryNode associated with structures with under 4 Angstroms of resolution
++under_4A_resolution_operator = text_operators.ComparisonOperator(
++       value=4,
++       attribute="rcsb_entry_info.resolution_combined",
++       comparison_type=text_operators.ComparisonType.GREATER)
++under_4A_query_node = QueryNode(SearchService.TEXT,
++                                  under_4A_resolution_operator)
++
++# QueryNode associated with entities containing 'Mus musculus' lineage
++is_mus_operator = text_operators.ExactMatchOperator(
++            value="Mus musculus",
++            attribute="rcsb_entity_source_organism.taxonomy_lineage.name")
++is_mus_query_node = QueryNode(SearchService.TEXT, is_mus_operator)
++
++# QueryNode associated with entities containing 'Homo sapiens' lineage
++is_human_operator = text_operators.ExactMatchOperator(
++            value="Homo sapiens",
++            attribute="rcsb_entity_source_organism.taxonomy_lineage.name")
++is_human_query_node = QueryNode(SearchService.TEXT, is_human_operator)
++
++# QueryGroup associated with being either human or `Mus musculus`
++is_human_or_mus_group = QueryGroup(
++    queries = [is_mus_query_node, is_human_query_node],
++    logical_operator = LogicalOperator.OR
++)
++
++# QueryGroup associated with being ((Human OR Mus) AND (Under 4 Angstroms))
++is_under_4A_and_human_or_mus_group = QueryGroup(
++    queries = [is_human_or_mus_group, under_4A_query_node],
++    logical_operator = LogicalOperator.AND
++)
++
++return_type = ReturnType.ENTRY
++
++results = perform_search_with_graph(
++  query_object=is_under_4A_and_human_or_mus_group,
++  return_type=return_type)
++print(results) # Huzzah
++```
+diff --git a/pypdb/clients/search/operators/text_operators.py b/pypdb/clients/search/operators/text_operators.py
+index a9f0b17..6493dc0 100644
+--- a/pypdb/clients/search/operators/text_operators.py
++++ b/pypdb/clients/search/operators/text_operators.py
+@@ -25,9 +25,9 @@ class ExactMatchOperator:
+     """Exact match operator indicates that the input value should match a field
+     value exactly (including whitespaces, special characters and case)."""
+     attribute: str
+-    value: str
++    value: Any
+ 
+-    def to_dict(self) -> Dict[str, str]:
++    def to_dict(self) -> Dict[str, Any]:
+         return {
+             "attribute": self.attribute,
+             "operator": "exact_match",
+@@ -41,9 +41,9 @@ class InOperator:
+     expression. It returns results if any value in a list of input values
+     matches. It can be used instead of multiple OR conditions."""
+     attribute: str
+-    values: List[str]  # List of strings, numbers or dates in string format
++    values: List[Any]  # List of strings, numbers or date strings
+ 
+-    def to_dict(self) -> Dict[str, Union[str, List[str]]]:
++    def to_dict(self) -> Dict[str, Any]:
+         return {
+             "attribute": self.attribute,
+             "operator": "in",
+@@ -113,10 +113,10 @@ class ComparisonOperator:
+     """
+ 
+     attribute: str
+-    value: str
++    value: Any
+     comparison_type: ComparisonType
+ 
+-    def to_dict(self) -> Dict[str,str]:
++    def to_dict(self) -> Dict[str,Any]:
+         return {
+             "attribute": self.attribute,
+             "operator": self.comparison_type.value,
+@@ -128,8 +128,8 @@ def to_dict(self) -> Dict[str,str]:
+ class RangeOperator:
+     """Returns results with attributes within range."""
+     attribute: str
+-    from_value: str
+-    to_value: str
++    from_value: Any
++    to_value: Any
+     include_lower: bool = True # Default inclusive
+     include_upper: bool = True # Default inclusive
+ 
+diff --git a/pypdb/clients/search/search_client.py b/pypdb/clients/search/search_client.py
+index de8cf91..f6df144 100644
+--- a/pypdb/clients/search/search_client.py
++++ b/pypdb/clients/search/search_client.py
+@@ -18,7 +18,8 @@
+ from pypdb.clients.search.operators import text_operators
+ from pypdb.clients.search.operators.text_operators import TextSearchOperator
+ 
+-SEARCH_URL_ENDPOINT : str = "https://search.rcsb.org/rcsbsearch/v1/query"
++SEARCH_URL_ENDPOINT: str = "https://search.rcsb.org/rcsbsearch/v1/query"
++
+ 
+ class SearchService(Enum):
+     """Which type of field is being searched."""
+@@ -34,6 +35,7 @@ class LogicalOperator(Enum):
+     AND = "and"
+     OR = "or"
+ 
++
+ # SearchOperators correspond to individual search operations, that can be
+ # aggregated using a `QueryGroup`.
+ #
+@@ -58,6 +60,25 @@ def to_dict(self):
+             "parameters": self.search_operator.to_dict()
+         }
+ 
++    def _validate(self):
++        """Validates queries to SearchService use a supporting SearchOperator.
++
++        Used to raise Errors notifying users of invalid RCSB queries before
++        those queries hit RCSB's Search servers."""
++
++        if self.search_service != SearchService.TEXT:
++            raise NotImplementedError(
++                "Not currently implemented (but watch this space)")
++
++        if self.search_service is SearchService.TEXT:
++            # Uses undocumented `__args__` to check if operator is TEXT
++            # (see: https://stackoverflow.com/questions/45957615/ )
++            if not type(
++                    self.search_operator) in text_operators.TEXT_SEARCH_OPERATORS:
++                raise InappropriateSearchOperatorException(
++                    "Searches against the 'text' service should have SearchOperators "
++                    "that are TextSearchOperators, as in `text_search_operators.py`.")
++
+ 
+ @dataclass
+ class QueryGroup:
+@@ -88,6 +109,14 @@ def to_dict(self):
+             "nodes": [query.to_dict() for query in self.queries]
+         }
+ 
++    def _validate(self):
++        """Validates nodes within the QueryGroup contain valid queries
++
++        Used to raise Errors notifying users of invalid RCSB queries before
++        those queries hit RCSB's Search servers."""
++        for query in self.queries:
++            query._validate()
++
+ 
+ class ReturnType(Enum):
+     """For details, see: https://search.rcsb.org/index.html#return-type"""
+@@ -106,12 +135,14 @@ class InappropriateSearchOperatorException(Exception):
+     SEQMOTIF service using the RangeOperator, as that's not supported by the
+     RCSB Search API."""
+ 
++
+ RawJSONDictResponse = Dict[str, Any]
+ 
++
+ def perform_search(search_service: SearchService,
+                    search_operator: SearchOperator,
+-                   return_type: ReturnType,
+-                   return_raw_json_dict: bool=False
++                   return_type: ReturnType = ReturyType.ENTRY,
++                   return_raw_json_dict: bool = False
+                    ) -> Union[List[str],
+                               RawJSONDictResponse]:
+     """Performs search specified by `search_operator`, against `search_service`.
+@@ -152,31 +183,63 @@ def perform_search(search_service: SearchService,
+     ```
+     """
+ 
+-    if search_service != SearchService.TEXT:
+-        raise NotImplementedError(
+-            "Not currently implemented (but watch this space)")
++    query_node = QueryNode(search_service=search_service,
++                           search_operator=search_operator)
++
++    return perform_search_with_graph(query_object=query_node,
++                                     return_type=return_type,
++                                     return_raw_json_dict=return_raw_json_dict)
++
++
++def perform_search_with_graph(query_object: Union[QueryNode, QueryGroup],
++                              return_type: ReturnType = ReturnType.ENTRY,
++                              return_raw_json_dict: bool = False) -> List[str]:
++    """Performs specified search using RCSB's search node logic.
++
++    Essentially, this allows you to ask multiple questions in one RCSB query.
++
++    For example, you can ask for structures that satisfy all of the following
++    conditions at once:
++        * Are either from Mus musculus or from Homo sapiens lineage
++        * Are both under 4 angstroms of resolution, and published after 2019
++        * Are labelled as "actin-binding protein" OR
++            contain "actin" AND "calmodulin" in their titles.
++
++    See https://search.rcsb.org/index.html#building-search-request under
++    "Terminal node" and "Group node" for more details.
++
++    Args:
++        query_object: Fully-specified QueryNode or QueryGroup
++            object corresponding to the desired search.
++        return_type: Type of entities to return.
++        return_raw_json_dict: Whether to return raw JSON response.
++            (for example, to analyze the scores of various matches)
++
++    Returns:
++        List of strings, corresponding to hits in the database. Will be of the
++        format specified by the `return_type`.
++    """
+ 
+-    if search_service is SearchService.TEXT:
+-        # Uses undocumented `__args__` to check if operator is TEXT
+-        # (see: https://stackoverflow.com/questions/45957615/ )
+-        if not type(search_operator) in text_operators.TEXT_SEARCH_OPERATORS:
+-            raise InappropriateSearchOperatorException(
+-                "Searches against the 'text' service should have SearchOperators "
+-                "that are TextSearchOperators, as in `text_search_operators.py`.")
++    # Validates that, to the best of our knowledge, the `query_object`
++    # is a valid query against the RCSB Search API.
++    query_object._validate()
+ 
+     rcsb_query_dict = {
+-        "query": QueryNode(search_service=search_service,
+-                           search_operator=search_operator).to_dict(),
++        "query": query_object.to_dict(),
+         "request_options": {"return_all_hits": True},
+         "return_type": return_type.value
+     }
+ 
+     print("Querying RCSB Search using the following parameters:\n %s" %
+-    json.dumps(rcsb_query_dict))
++          json.dumps(rcsb_query_dict))
+ 
+     response = requests.post(url=SEARCH_URL_ENDPOINT,
+                              data=json.dumps(rcsb_query_dict))
+ 
++
++    # If your search queries are failing here, it could be that your attribute
++    # doesn't support the SearchOperator you're using.
++    # See: https://search.rcsb.org/search-attributes.html
+     if not response.ok:
+         warnings.warn("It appears request failed with:" + response.text)
+         response.raise_for_status()
+@@ -193,21 +256,3 @@ def perform_search(search_service: SearchService,
+         identifiers.append(query_hit["identifier"])
+ 
+     return identifiers
+-
+-def perform_search_with_graph(query_object) -> List[str]:
+-    """Performs specified search using RCSB's search node logic.
+-
+-    See https://search.rcsb.org/index.html#building-search-request under
+-    "Terminal node" and "Group node" for details.
+-
+-    Args:
+-        query_object: Fully-specified QueryNode or QueryGroup
+-            object corresponding to the desired search.
+-
+-    Returns:
+-        List of strings, corresponding to hits in the database. Will be of the
+-        format specified by the `return_type`.
+-    """
+-    raise NotImplementedError("Not currently implemented.")
+-
+-    # TODO(lacoperon): Implement this.
+diff --git a/pypdb/clients/search/search_client_test.py b/pypdb/clients/search/search_client_test.py
+index 87df724..47dea5f 100644
+--- a/pypdb/clients/search/search_client_test.py
++++ b/pypdb/clients/search/search_client_test.py
+@@ -355,6 +355,151 @@ def test_exists_operator_with_entry_raw_json_response(self, mock_post):
+         self.assertEqual(results,
+                          canned_json_return_as_dict)
+ 
++    @mock.patch.object(requests, "post")
++    def test_query_group_after_2019_and_either_musculus_or_human(self, mock_post):
++        # Creates a mock HTTP response, as wrapped by `requests`
++        canned_json_return_as_dict = {
++            "result_set": [
++                {"identifier": "5JUP"},
++                {"identifier": "5JUS"},
++                {"identifier": "5JUO"}
++            ]
++        }
++        mock_response = mock.create_autospec(requests.Response, instance=True)
++        mock_response.json.return_value = canned_json_return_as_dict
++        mock_post.return_value = mock_response
++
++        search_service_one = search_client.SearchService.TEXT
++        search_operator_one = text_operators.ComparisonOperator(
++               value="2019-01-01T00:00:00Z",
++               attribute="rcsb_accession_info.initial_release_date",
++               comparison_type=text_operators.ComparisonType.GREATER)
++        after_2019_query_node = search_client.QueryNode(
++                                    search_service_one, search_operator_one)
++
++        search_service_two = search_client.SearchService.TEXT
++        search_operator_two = text_operators.ExactMatchOperator(
++                    value="Mus musculus",
++                    attribute="rcsb_entity_source_organism.taxonomy_lineage.name")
++        is_mus_query_node = search_client.QueryNode(
++                                    search_service_two, search_operator_two)
++
++        search_service_three = search_client.SearchService.TEXT
++        search_operator_three = text_operators.ExactMatchOperator(
++                    value="Homo sapiens",
++                    attribute="rcsb_entity_source_organism.taxonomy_lineage.name")
++        is_human_query_node = search_client.QueryNode(
++                                    search_service_three, search_operator_three)
++
++        is_human_or_mus_group = search_client.QueryGroup(
++            queries = [is_mus_query_node, is_human_query_node],
++            logical_operator = search_client.LogicalOperator.OR
++        )
++
++        is_after_2019_and_human_or_mus_group = search_client.QueryGroup(
++            queries = [is_human_or_mus_group, after_2019_query_node],
++            logical_operator = search_client.LogicalOperator.AND
++        )
++
++        return_type = search_client.ReturnType.ENTRY
++
++        results = search_client.perform_search_with_graph(
++        query_object=is_after_2019_and_human_or_mus_group,
++                                     return_type=return_type)
++
++        expected_json_dict = {
++          "query": {
++            "type": "group",
++            "logical_operator": "and",
++            "nodes": [
++
++                {'type': 'group',
++                 'logical_operator': 'or',
++                 'nodes': [
++                    {
++                        'type': 'terminal',
++                        'service': 'text',
++                        'parameters': {
++                            'attribute': 'rcsb_entity_source_organism.taxonomy_lineage.name',
++                            'operator': 'exact_match',
++                            'value': 'Mus musculus'
++                        }
++                    },
++                    {
++                        'type': 'terminal',
++                        'service': 'text',
++                        'parameters': {
++                            'attribute': 'rcsb_entity_source_organism.taxonomy_lineage.name',
++                            'operator': 'exact_match',
++                            'value': 'Homo sapiens'
++                        }
++                    },
++                 ]
++                },
++                {'type': 'terminal',
++                 'service': 'text',
++                 'parameters':
++                    {'attribute': 'rcsb_accession_info.initial_release_date',
++                    'operator': 'greater',
++                    'value': '2019-01-01T00:00:00Z'}
++                }
++            ]
++          },
++          "request_options": {"return_all_hits": True},
++          "return_type": "entry"
++        }
++
++        mock_post.assert_called_once_with(url=search_client.SEARCH_URL_ENDPOINT,
++                                          data=json.dumps(expected_json_dict))
++        self.assertEqual(results,
++                         ["5JUP", "5JUS", "5JUO"])
++
++    @mock.patch.object(requests, "post")
++    def test_query_structure_resolution(self, mock_post):
++        # Creates a mock HTTP response, as wrapped by `requests`
++        canned_json_return_as_dict = {
++            "result_set": [
++                {"identifier": "5JUP"},
++                {"identifier": "5JUS"},
++                {"identifier": "5JUO"}
++            ]
++        }
++        mock_response = mock.create_autospec(requests.Response, instance=True)
++        mock_response.json.return_value = canned_json_return_as_dict
++        mock_post.return_value = mock_response
++
++
++        search_service = search_client.SearchService.TEXT
++        search_operator = text_operators.ComparisonOperator(
++               value=4,
++               attribute="rcsb_entry_info.resolution_combined",
++               comparison_type=text_operators.ComparisonType.LESS)
++        return_type = search_client.ReturnType.ENTRY
++
++        results = search_client.perform_search(search_service,
++                                     search_operator,
++                                     return_type,
++                                     return_raw_json_dict=True)
++
++        expected_json_dict = {
++          "query": {
++            "type": "terminal",
++            "service": "text",
++            "parameters": {
++              "attribute": "rcsb_entry_info.resolution_combined",
++              "operator": "less",
++              "value": 4
++            }
++          },
++          "request_options": {"return_all_hits": True},
++          "return_type": "entry"
++        }
++
++        mock_post.assert_called_once_with(url=search_client.SEARCH_URL_ENDPOINT,
++                                          data=json.dumps(expected_json_dict))
++        self.assertEqual(results,
++                         canned_json_return_as_dict)
++
+ 
+ if __name__ == '__main__':
+     unittest.main()

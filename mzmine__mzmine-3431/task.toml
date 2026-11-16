@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3431"
+description = "Rows filter use rows with correct featurelist reference"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "7bc90fe9f114ea8d2699741ff78af0b88dbabfae"
+reference = "https://github.com/mzmine/mzmine/pull/3431"
+source_access = "auto"
+built_at = "2026-11-16T08:45:46.848199+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:5d891b0b47d021d337b4cb71428310c8a68ddf24d40daa77195eab32f5baff3c"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-12T05:56:37Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_rowsfilter/RowsFilterTask.java",
+    "mzmine-community/src/test/resources/rawdatafiles/integration_tests/gc_tof_ms/expected_results.csv",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 29
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

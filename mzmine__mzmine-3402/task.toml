@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3402"
+description = "Arpls baseline"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "5323a494a8ad4c3e299296d58b4b16636b7bac51"
+reference = "https://github.com/mzmine/mzmine/pull/3402"
+source_access = "auto"
+built_at = "2026-11-16T08:46:02.026505+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:9e1cd48d047400c221bdbb1819b42c9ef8081ccbe698388be058bc8cb9389f4c"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-04T09:33:05Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/AbstractResolverBaselineCorrector.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/BaselineCorrectionParameters.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/BaselineCorrectors.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/BaselineDataBuffer.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/arpls/ArplsBaseline.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/arpls/ArplsBaselineCorrector.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/arpls/ArplsBaselineCorrectorParameters.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/arpls/PentadiagonalSolver.java",
+    "mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/featdet_baselinecorrection/arpls/ArplsBaselineTest.java",
+    "mzmine-community/src/test/java/util/SplineBaselineCorrectorTest.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 1083
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

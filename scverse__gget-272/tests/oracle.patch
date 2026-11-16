@@ -1,0 +1,161 @@
+diff --git a/docs/src/en/search.md b/docs/src/en/search.md
+index b3ba92446..da0d199f7 100644
+--- a/docs/src/en/search.md
++++ b/docs/src/en/search.md
+@@ -6,6 +6,8 @@ Fetch genes and transcripts from [Ensembl](https://www.ensembl.org/) using free-
+ Results are matched based on the "gene name" and "description" sections in the Ensembl database. `gget` version >= 0.27.9 also includes results that match the Ensembl "synonym" section.  
+ Return format: JSON (command-line) or data frame/CSV (Python).
+ 
++Before using `gget search` for the first time, run `gget setup search` / `gget.setup("search")` once (also see [`gget setup`](setup.md)), or install gget with the `search` extra: `pip install "gget[search]"`. This installs the optional dependency [`mysql-connector-python`](https://pypi.org/project/mysql-connector-python/), which is not installed by default because it is GPL-licensed.  
++
+ **Positional argument**  
+ `searchwords`  
+ One or more free form search words, e.g. gaba nmda. (Note: Search is not case-sensitive.)
+diff --git a/docs/src/en/setup.md b/docs/src/en/setup.md
+index 9599f1b81..ac92e8f50 100644
+--- a/docs/src/en/setup.md
++++ b/docs/src/en/setup.md
+@@ -10,7 +10,7 @@ Function to install/download third-party dependencies for a specified gget modul
+ **Positional argument**  
+ `module`  
+ gget module for which dependencies should be installed.  
+-Choose from: "alphafold", "gpt", "cellxgene", "elm", or "cbio"
++Choose from: "alphafold", "gpt", "cellxgene", "elm", "cbio", or "search"
+ 
+ **Optional arguments**  
+ `-o` `--out`  
+diff --git a/docs/src/es/search.md b/docs/src/es/search.md
+index 08e447c3a..dc01474bd 100644
+--- a/docs/src/es/search.md
++++ b/docs/src/es/search.md
+@@ -6,6 +6,8 @@ Obtenga genes y transcripciones de [Ensembl](https://www.ensembl.org/) usando t
+ Los resultados se comparan según las secciones "nombre del gen" y "descripción" en la base de datos de Ensembl. `gget` versión >= 0.27.9 también incluye resultados que coinciden con la sección "sinónimo" de Ensembl.  
+ Regresa: Resultados en formato JSON (Terminal) o Dataframe/CSV (Python).  
+ 
++Antes de usar `gget search` por primera vez, ejecuta `gget setup search` / `gget.setup("search")` una vez (ver también [`gget setup`](setup.md)), o instala gget con el extra `search`: `pip install "gget[search]"`. Esto instala la dependencia opcional [`mysql-connector-python`](https://pypi.org/project/mysql-connector-python/), que no se instala por defecto porque tiene licencia GPL.  
++
+ **Parámetro posicional**  
+ `searchwords`  
+ Una o más palabras de búsqueda de forma libre, p. ej. gaba nmda. (Nota: la búsqueda no distingue entre mayúsculas y minúsculas).  
+diff --git a/docs/src/es/setup.md b/docs/src/es/setup.md
+index a7b5538ae..f25a5b27a 100644
+--- a/docs/src/es/setup.md
++++ b/docs/src/es/setup.md
+@@ -10,7 +10,7 @@ Función para instalar/descargar dependencias de terceros para un módulo de gge
+ **Parámetro posicional**  
+ `module`  
+ Módulo gget para el que se deben instalar las dependencias.  
+-Elige entre: "alphafold", "gpt", "cellxgene", "elm", o "cbio"
++Elige entre: "alphafold", "gpt", "cellxgene", "elm", "cbio", o "search"
+ 
+ **Parámetros optionales**  
+ `-o` `--out`  
+diff --git a/gget/gget_search.py b/gget/gget_search.py
+index e8df84c85..62e851db8 100644
+--- a/gget/gget_search.py
++++ b/gget/gget_search.py
+@@ -5,7 +5,6 @@
+ import warnings
+ from typing import Any, Literal, overload
+ 
+-import mysql.connector as sql
+ import numpy as np
+ import pandas as pd
+ 
+@@ -116,6 +115,16 @@ def search(
+ 
+     Deprecated arguments: 'seqtype' (renamed to id_type)
+     """
++    # mysql-connector-python is an optional dependency (it is GPL-licensed), so import it lazily
++    try:
++        import mysql.connector as sql
++    except ImportError as e:
++        raise ImportError(
++            "gget search requires the optional dependency 'mysql-connector-python'. Install it with:\n"
++            ">>> gget.setup('search') or $ gget setup search\n"
++            "or: pip install 'gget[search]'"
++        ) from e
++
+     # Handle deprecated arguments
+     if seqtype:
+         logger.error("'seqtype' argument deprecated! Please use argument 'id_type' instead.")
+diff --git a/gget/gget_setup.py b/gget/gget_setup.py
+index e83927059..b10ac0769 100644
+--- a/gget/gget_setup.py
++++ b/gget/gget_setup.py
+@@ -99,7 +99,7 @@ def setup(module: str, verbose: bool = True, out: str | None = None) -> None:
+     Some modules require curl to be installed (https://everything.curl.dev/get).
+ 
+     Args:
+-    - module    (str) gget module for which dependencies should be installed, e.g. "alphafold", "cellxgene", "elm", "gpt", or "cbio".
++    - module    (str) gget module for which dependencies should be installed, e.g. "alphafold", "cellxgene", "elm", "gpt", "cbio", or "search".
+     - verbose   True/False whether to print progress information. Default True.
+     - out       (str) Only applies when module='elm'. Path to a directory where the raw ELM database
+                 files will be downloaded — useful if you want a local copy of the ELM data for your own
+@@ -110,7 +110,7 @@ def setup(module: str, verbose: bool = True, out: str | None = None) -> None:
+                 Default None (files are saved inside the gget installation directory where 'gget.elm'
+                 can find them).
+     """
+-    supported_modules = ["alphafold", "cellxgene", "elm", "gpt", "cbio"]
++    supported_modules = ["alphafold", "cellxgene", "elm", "gpt", "cbio", "search"]
+     if module not in supported_modules:
+         raise ValueError(f"'module' argument specified as {module}. Expected one of: {', '.join(supported_modules)}")
+ 
+@@ -121,6 +121,9 @@ def setup(module: str, verbose: bool = True, out: str | None = None) -> None:
+     elif module == "cellxgene":
+         _install("cellxgene-census", "cellxgene_census", verbose=verbose)
+ 
++    elif module == "search":
++        _install("mysql-connector-python>=8.0.32", "mysql.connector", verbose=verbose)
++
+     elif module == "elm":
+         if verbose:
+             logger.info(
+diff --git a/gget/main.py b/gget/main.py
+index 7a2944b09..8ca67f715 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -1250,10 +1250,10 @@ def main() -> None:
+     parser_setup.add_argument(
+         "module",
+         type=str,
+-        choices=["alphafold", "gpt", "cellxgene", "elm", "cbio"],
++        choices=["alphafold", "gpt", "cellxgene", "elm", "cbio", "search"],
+         help=(
+             "gget module for which dependencies should be installed, e.g. 'alphafold'. "
+-            "Currently supported modules: 'alphafold', 'gpt', 'cellxgene', 'elm', 'cbio'."
++            "Currently supported modules: 'alphafold', 'gpt', 'cellxgene', 'elm', 'cbio', 'search'."
+         ),
+     )
+ 
+diff --git a/pyproject.toml b/pyproject.toml
+index 81c5a2c71..e93bd9096 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -35,7 +35,6 @@ dependencies = [
+   "ipywidgets",
+   "lxml",
+   "matplotlib",
+-  "mysql-connector-python>=8.0.32",
+   "numpy>=1.17.2",
+   "pandas>=1",
+   "requests>=2.22",
+@@ -48,6 +47,10 @@ dependencies = [
+ # Under certain resolver paths uv lands on scanpy 1.9.8, which transitively
+ # pins numba 0.53.1 and llvmlite 0.36.x — both of which only support Python 3.6-3.9.
+ optional-dependencies.cellxgene = [ "cellxgene-census", "scanpy>=1.10" ]
++# Optional feature dependency for `gget search` (install: pip install gget[search]).
++# mysql-connector-python is GPL-2.0 licensed, so it is kept out of the core
++# dependencies to avoid imposing GPL terms on the BSD-2-Clause gget package.
++optional-dependencies.search = [ "mysql-connector-python>=8.0.32" ]
+ # https://docs.pypi.org/project_metadata/#project-urls
+ urls.Documentation = "https://pachterlab.github.io/gget"
+ urls.Homepage = "https://github.com/pachterlab/gget"
+@@ -82,6 +85,7 @@ envs.hatch-test.matrix = [
+ # the gget cellxgene test skips itself when the dependency is absent.
+ envs.hatch-test.overrides.matrix.python.features = [
+   { value = "cellxgene", if = [ "3.12", "3.13" ] },
++  { value = "search", if = [ "3.12", "3.13", "3.14" ] },
+ ]
+ # pyproject.toml is the single source of truth for the environments CI tests:
+ # the workflow reads this matrix via `hatch env show --json`.

@@ -1,0 +1,64 @@
+version = "1.0"
+
+[task]
+name = "default/jaechang-hits__SciAgent-Skills-31"
+description = "feat: add smina + mdtraj skills (structural biology)"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "SciAgent-Skills",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "jaechang-hits/SciAgent-Skills"
+ref = "04595ba37716d5ce2e2264093089d7759c8d69b5"
+reference = "https://github.com/jaechang-hits/SciAgent-Skills/pull/31"
+source_access = "auto"
+built_at = "2026-11-15T15:24:35.408424+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:c236e1a855b03bd947157ad617cde485d7e55499f53bb0df44d47dfbc3054315"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-05-28T04:54:17Z"
+diff_format = "unified"
+context_files = [
+    "registry.yaml",
+    "skills/structural-biology-drug-discovery/mdtraj-trajectory-analysis/SKILL.md",
+    "skills/structural-biology-drug-discovery/smina-molecular-docking/SKILL.md",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 1050
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

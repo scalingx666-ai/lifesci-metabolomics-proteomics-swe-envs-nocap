@@ -1,0 +1,68 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/impl/SimplePseudoSpectrum.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/impl/SimplePseudoSpectrum.java
+index b461ad46293..08f5f026ba8 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/impl/SimplePseudoSpectrum.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/impl/SimplePseudoSpectrum.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2023 The MZmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -25,7 +25,6 @@
+ 
+ package io.github.mzmine.datamodel.impl;
+ 
+-import com.google.common.collect.Range;
+ import io.github.mzmine.datamodel.MassSpectrumType;
+ import io.github.mzmine.datamodel.PolarityType;
+ import io.github.mzmine.datamodel.PseudoSpectrum;
+@@ -55,9 +54,7 @@ public SimplePseudoSpectrum(@NotNull RawDataFile dataFile, int msLevel, float re
+       @NotNull final PseudoSpectrumType type) {
+ 
+     super(dataFile, -1, msLevel, retentionTime, msMsInfo, mzValues, intensityValues,
+-        MassSpectrumType.CENTROIDED, polarity, scanDefinition,
+-        mzValues.length > 0 ? Range.closed(mzValues[0], mzValues[mzValues.length - 1])
+-            : Range.singleton(0d));
++        MassSpectrumType.CENTROIDED, polarity, scanDefinition, null);
+     // since this is a pseudo spectrum, directly add a mass list. Noise thresholding and every
+     // other processing step before this spectrum's creation should have filtered the noise.
+     addMassList(new ScanPointerMassList(this));
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/impl/SimpleScan.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/impl/SimpleScan.java
+index aa55a6afbcd..ae3a786b0e6 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/impl/SimpleScan.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/impl/SimpleScan.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -53,7 +53,7 @@ public class SimpleScan extends AbstractStorableSpectrum implements Scan {
+   private int scanNumber;
+   private int msLevel;
+   private float retentionTime;
+-  private Float correctedRetentionTime;
++  private @Nullable Float correctedRetentionTime;
+   private PolarityType polarity;
+   private String scanDefinition;
+   private MassList massList = null;
+@@ -90,7 +90,7 @@ public SimpleScan(@NotNull RawDataFile dataFile, Scan sc, MemorySegment newMzVal
+   public SimpleScan(@NotNull RawDataFile dataFile, int scanNumber, int msLevel, float retentionTime,
+       @Nullable MsMsInfo msMsInfo, double[] mzValues, double[] intensityValues,
+       MassSpectrumType spectrumType, PolarityType polarity, String scanDefinition,
+-      Range<Double> scanMZRange) {
++      @Nullable Range<Double> scanMZRange) {
+ 
+     this(dataFile, scanNumber, msLevel, retentionTime, msMsInfo, mzValues, intensityValues,
+         spectrumType, polarity, scanDefinition, scanMZRange, null);
+@@ -99,7 +99,7 @@ public SimpleScan(@NotNull RawDataFile dataFile, int scanNumber, int msLevel, fl
+   public SimpleScan(@NotNull RawDataFile dataFile, int scanNumber, int msLevel, float retentionTime,
+       @Nullable MsMsInfo msMsInfo, double[] mzValues, double[] intensityValues,
+       MassSpectrumType spectrumType, PolarityType polarity, String scanDefinition,
+-      Range<Double> scanMZRange, @Nullable Float injectionTime) {
++      @Nullable Range<Double> scanMZRange, @Nullable Float injectionTime) {
+ 
+     super(dataFile.getMemoryMapStorage(), mzValues, intensityValues);
+ 

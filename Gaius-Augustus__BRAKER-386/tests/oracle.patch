@@ -1,0 +1,13 @@
+diff --git a/scripts/dev/rename_busco_genes.py b/scripts/dev/rename_busco_genes.py
+index d825153c..6ae4bd27 100755
+--- a/scripts/dev/rename_busco_genes.py
++++ b/scripts/dev/rename_busco_genes.py
+@@ -11,7 +11,7 @@
+ 
+ __author__ = "Katharina J. Hoff"
+ __copyright__ = "Copyright 2020. All rights reserved."
+-__license__ = "Artistic Licsense"
++__license__ = "Artistic License"
+ __version__ = "1.0.0"
+ __credits__= "Anica Hoppe"
+ __email__ = "katharina.hoff@uni-greifswald.de"

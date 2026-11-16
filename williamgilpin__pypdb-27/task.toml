@@ -1,0 +1,70 @@
+version = "1.0"
+
+[task]
+name = "default/williamgilpin__pypdb-27"
+description = "Implemented Sequence and Structure RCSB Search Services"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "pypdb",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "williamgilpin/pypdb"
+ref = "9f288c89ac7f23c4f3d15b2f99cbc87ff77ffae2"
+reference = "https://github.com/williamgilpin/pypdb/pull/27"
+source_access = "auto"
+built_at = "2026-11-16T00:16:54.973227+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:9cfb4e1382c801d8c8fe555057c87b0bfc3542a1f4cc17dbdc0a7bca886114a5"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2020-12-19T03:33:07Z"
+diff_format = "unified"
+context_files = [
+    "pypdb/clients/search/EXAMPLES.md",
+    "pypdb/clients/search/operators/sequence_operators.py",
+    "pypdb/clients/search/operators/sequence_operators_test.py",
+    "pypdb/clients/search/operators/structure_operators.py",
+    "pypdb/clients/search/operators/structure_operators_test.py",
+    "pypdb/clients/search/operators/text_operators.py",
+    "pypdb/clients/search/operators/text_operators_test.py",
+    "pypdb/clients/search/search_client.py",
+    "pypdb/clients/search/search_client_test.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 451
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

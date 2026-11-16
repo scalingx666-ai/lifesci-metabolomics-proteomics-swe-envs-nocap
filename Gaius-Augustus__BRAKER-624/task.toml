@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/Gaius-Augustus__BRAKER-624"
+description = "Gff3 issue"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "BRAKER",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "Gaius-Augustus/BRAKER"
+ref = "6cdf5f23120752ab92df2eeb78ae24116b8a945c"
+reference = "https://github.com/Gaius-Augustus/BRAKER/pull/624"
+source_access = "auto"
+built_at = "2026-11-15T22:37:36.345125+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:7427dbab705c5aeb050cac8c8f58a6fb46028646c9202ca9db65b7c53eeba557"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2023-04-25T19:32:02Z"
+diff_format = "unified"
+context_files = [
+    "scripts/braker.pl",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 23
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,2852 @@
+diff --git a/matchms/similarity/_entropy_search_topk.py b/matchms/similarity/_entropy_search_topk.py
+index c8823595c..0708696cc 100644
+--- a/matchms/similarity/_entropy_search_topk.py
++++ b/matchms/similarity/_entropy_search_topk.py
+@@ -12,11 +12,16 @@
+ """
+ 
+ from __future__ import annotations
++from typing import TYPE_CHECKING
+ import numpy as np
+ from numba import njit
+ from ._topk import select_topk_candidates
+ 
+ 
++if TYPE_CHECKING:
++    from .entropy_search import _PreparedEntropySpectra, _SearchView
++
++
+ _INITIAL_TOUCHED_CAPACITY = 4096
+ _MAX_EPOCH = int(np.iinfo(np.uint32).max)
+ 
+@@ -133,10 +138,64 @@ def _scatter_add_topk(scores, epochs, touched, n_touched, epoch, library_ids, de
+     return touched, n_touched
+ 
+ 
++def _accumulate_long_windows(
++    view: _SearchView,
++    bounds: np.ndarray,
++    query_intensity: np.ndarray,
++    workspace: _TopKWorkspace,
++    first_peak: int,
++    last_peak: int,
++    vector_min_hits: int,
++    vector_chunk_size: int,
++    touched: np.ndarray,
++    n_touched: int,
++    epoch: int,
++) -> tuple[np.ndarray, int]:
++    """Accumulate high-occupancy windows with bounded vector chunks.
++
++    Long windows are visited after all short windows for this query, matching
++    the original dense scorer's float32 addition order. Each chunk uses the
++    reusable ``mixed`` and ``contributions`` arrays; Numba scatter adds update
++    only the library IDs reached by this query.
++    """
++    for peak in range(first_peak, last_peak):
++        low, high = bounds[peak]
++        width = int(high - low)
++        if width < vector_min_hits:
++            continue
++        workspace.ensure_vector_capacity(
++            min(width, vector_chunk_size),
++            view.intensity.dtype,
++        )
++        capacity = workspace.mixed.size
++        value = query_intensity[peak]
++        query_term = value * np.log2(value)
++        for start in range(int(low), int(high), capacity):
++            stop = min(start + capacity, int(high))
++            mixture = workspace.mixed[: stop - start]
++            delta = workspace.contributions[: stop - start]
++            np.add(view.intensity[start:stop], value, out=mixture)
++            np.log2(mixture, out=delta)
++            np.multiply(mixture, delta, out=delta)
++            np.subtract(delta, view.terms[start:stop], out=delta)
++            np.subtract(delta, query_term, out=delta)
++            touched, n_touched = _scatter_add_topk(
++                workspace.scores,
++                workspace.seen_epochs,
++                touched,
++                n_touched,
++                epoch,
++                view.spectrum_ids[start:stop],
++                delta,
++            )
++
++    return touched, n_touched
++
++
+ def _score_topk_block(
+-    prepared,
+-    view,
+-    bounds,
++    prepared: _PreparedEntropySpectra,
++    view: _SearchView,
++    bounds: np.ndarray,
+     workspace: _TopKWorkspace,
+     indices: np.ndarray,
+     scores: np.ndarray,
+@@ -175,39 +234,20 @@ def _score_topk_block(
+             epoch,
+         )
+ 
+-        # The original dense path scores *all short* windows first, then *all
+-        # long* windows. That ordering is preservedeven when the matching windows
+-        # overlap and float32 additions are not exactly associative.
+-        for peak in range(first_peak, last_peak):
+-            low, high = bounds[peak]
+-            width = int(high - low)
+-            if width < vector_min_hits:
+-                continue
+-            workspace.ensure_vector_capacity(
+-                min(width, vector_chunk_size),
+-                view.intensity.dtype,
+-            )
+-            capacity = workspace.mixed.size
+-            value = query_intensity[peak]
+-            query_term = value * np.log2(value)
+-            for start in range(int(low), int(high), capacity):
+-                stop = min(start + capacity, int(high))
+-                mixture = workspace.mixed[: stop - start]
+-                delta = workspace.contributions[: stop - start]
+-                np.add(view.intensity[start:stop], value, out=mixture)
+-                np.log2(mixture, out=delta)
+-                np.multiply(mixture, delta, out=delta)
+-                np.subtract(delta, view.terms[start:stop], out=delta)
+-                np.subtract(delta, query_term, out=delta)
+-                touched, n_touched = _scatter_add_topk(
+-                    workspace.scores,
+-                    workspace.seen_epochs,
+-                    touched,
+-                    n_touched,
+-                    epoch,
+-                    view.spectrum_ids[start:stop],
+-                    delta,
+-                )
++        # Preserve the dense scorer's ordering: all short, then all long windows.
++        touched, n_touched = _accumulate_long_windows(
++            view,
++            bounds,
++            query_intensity,
++            workspace,
++            first_peak,
++            last_peak,
++            vector_min_hits,
++            vector_chunk_size,
++            touched,
++            n_touched,
++            epoch,
++        )
+ 
+         workspace.touched_ids = touched
+         ids, values = select_topk_candidates(
+diff --git a/matchms/similarity/_flash_cosine.py b/matchms/similarity/_flash_cosine.py
+index 89d44ab59..86f559f98 100644
+--- a/matchms/similarity/_flash_cosine.py
++++ b/matchms/similarity/_flash_cosine.py
+@@ -9,6 +9,7 @@
+ the matched-peak counts for unambiguous spectrum pairs. A separate matching pass
+ is therefore unnecessary when counts are requested.
+ """
++
+ import numpy as np
+ from numba import njit
+ from ._flash_tolerance import identity_allowed, window, within
+@@ -171,6 +172,124 @@ def _resolve_conflicting_matches(
+             matched_peaks[row, column] = n_used_library
+ 
+ 
++@njit(cache=True, nogil=True)
++def _accumulate_fragment_candidates(query, product_index, state, hybrid_state, tolerance, use_ppm, hybrid, epoch):
++    """Accumulate direct edges and identify competing peaks in posting order."""
++    query_mz, query_intensity = query
++    product_mz, product_intensity, product_owner = product_index
++    counts, conflicts, dot_products, last_query, last_peak = state
++    peak_epochs, query_bits = hybrid_state
++
++    for query_peak in range(query_mz.size):
++        coordinate = np.float64(query_mz[query_peak])
++        intensity = np.float64(query_intensity[query_peak])
++        if intensity <= 0.0:
++            continue
++        left, right = window(product_mz, coordinate, tolerance, use_ppm)
++        for posting in range(left, right):
++            if not within(coordinate, np.float64(product_mz[posting]), tolerance, use_ppm):
++                continue
++            reference_id = product_owner[posting]
++            counts[reference_id] += 1
++            dot_products[reference_id] += intensity * np.float64(product_intensity[posting])
++            if last_query[reference_id] == query_peak or posting <= last_peak[reference_id]:
++                conflicts[reference_id] = True
++            last_query[reference_id] = query_peak
++            last_peak[reference_id] = posting
++            if hybrid:
++                peak_epochs[posting] = epoch
++                query_bits[reference_id, query_peak // 64] |= np.uint64(1) << np.uint64(query_peak % 64)
++
++
++@njit(cache=True, nogil=True)
++def _accumulate_loss_candidates(
++    query,
++    precursor,
++    product_index,
++    loss_index,
++    library_precursors,
++    state,
++    hybrid_state,
++    tolerance,
++    use_ppm,
++    mode,
++    epoch,
++):
++    """Accumulate neutral-loss edges; flag cross-pass conflicts in hybrid mode.
++
++    The detection pass visits query peaks in *descending fragment order*.
++    The later greedy fallback deliberately uses ascending fragment order.
++    """
++    query_mz, query_intensity = query
++    _, product_intensity, _ = product_index
++    loss_mz, loss_owner, loss_product_index = loss_index
++    counts, conflicts, dot_products, last_query, last_peak = state
++    peak_epochs, query_bits = hybrid_state
++
++    last_query[:] = -1
++    last_peak[:] = product_intensity.size
++    for query_peak in range(query_mz.size - 1, -1, -1):
++        intensity = np.float64(query_intensity[query_peak])
++        if intensity <= 0.0:
++            continue
++        coordinate = precursor - np.float64(query_mz[query_peak])
++        left, right = window(loss_mz, coordinate, tolerance, use_ppm)
++        for loss_posting in range(left, right):
++            if not within(coordinate, np.float64(loss_mz[loss_posting]), tolerance, use_ppm):
++                continue
++            reference_id = loss_owner[loss_posting]
++            if mode == 2 and within(precursor, library_precursors[reference_id], tolerance, use_ppm):
++                continue
++            product_posting = loss_product_index[loss_posting]
++            counts[reference_id] += 1
++            dot_products[reference_id] += intensity * np.float64(product_intensity[product_posting])
++            if mode == 2:
++                word = query_peak // 64
++                bit = np.uint64(1) << np.uint64(query_peak % 64)
++                if peak_epochs[product_posting] == epoch or query_bits[reference_id, word] & bit:
++                    conflicts[reference_id] = True
++                peak_epochs[product_posting] = epoch
++                query_bits[reference_id, word] |= bit
++            elif last_query[reference_id] == query_peak or product_posting >= last_peak[reference_id]:
++                conflicts[reference_id] = True
++            last_query[reference_id] = query_peak
++            last_peak[reference_id] = product_posting
++
++
++@njit(cache=True, nogil=True)
++def _normalize_unambiguous(scores, matched_peaks, row, state, query_norm, library_norms):
++    """Finalize uncontested pairs and retain counts only for greedy conflicts.
++
++    Conflicting columns keep their candidate count for the fallback. All other
++    counts are reset to zero, exactly as in the dense implementation.
++    """
++    counts, conflicts, dot_products, _, _ = state
++    store_matches = matched_peaks.shape[0] != 0
++    need_fallback = False
++    for reference_id in range(scores.shape[1]):
++        if conflicts[reference_id]:
++            need_fallback = True
++            continue
++        denominator = query_norm * library_norms[reference_id]
++        if denominator > 0.0:
++            scores[row, reference_id] = dot_products[reference_id] / denominator
++        if store_matches:
++            matched_peaks[row, reference_id] = counts[reference_id]
++        counts[reference_id] = 0
++    return need_fallback
++
++
++@njit(cache=True, nogil=True)
++def _apply_precursor_gate(scores, matched_peaks, row, query_precursor, reference_precursors, tolerance, use_ppm):
++    """Remove pairs failing the optional precursor-identity filter."""
++    store_matches = matched_peaks.shape[0] != 0
++    for reference_id in range(scores.shape[1]):
++        if not identity_allowed(query_precursor, reference_precursors[reference_id], tolerance, use_ppm):
++            scores[row, reference_id] = 0.0
++            if store_matches:
++                matched_peaks[row, reference_id] = 0
++
++
+ @njit(cache=True, nogil=True)
+ def cosine_rows(
+     scores: np.ndarray,
+@@ -196,143 +315,143 @@ def cosine_rows(
+     start_row: int,
+     stop_row: int,
+ ) -> None:
+-    """Write cosine scores and optional counts for a contiguous query block.
++    """Compute indexed cosine scores and optional accepted peak counts.
+ 
+-    Modes are 0 (fragment), 1 (neutral loss), and 2 (hybrid/modified cosine).
+-    Hybrid candidates compete by intensity product; fragment matches do not
+-    consume peaks before the neutral-loss candidates are considered.
++    Parameters
++    ----------
++    scores
++        Caller-owned ``(n_queries, n_references)`` output, written only for
++        query rows ``[start_row, stop_row)``.
++    matched_peaks
++        Caller-owned array of the same shape holding accepted one-to-one peak
++        counts. Shape ``(0, 0)`` disables match-count storage.
++    query_offsets, query_mz, query_int
++        Spectrum-major query peak storage; query ``r`` is the slice
++        ``query_offsets[r]:query_offsets[r + 1]`` in the m/z and intensity arrays.
++    query_precursor, query_norms
++        One precursor m/z (``NaN`` if unknown) and L2 intensity norm per query.
++    peaks_mz, peaks_int, peaks_spec
++        Globally m/z-sorted product postings, with each posting's source library
++        spectrum ID in ``peaks_spec``.
++    loss_mz, loss_spec, loss_product_index
++        Sorted neutral-loss postings and their corresponding *product posting*
++        indices. Required when ``mode`` is neutral loss or hybrid.
++    library_precursor, library_norms
++        Precursor m/z values and L2 norms for reference spectra.
++    tolerance, use_ppm
++        Inclusive fragment/loss matching tolerance, in Da or symmetric ppm.
++    mode
++        ``0`` fragment cosine; ``1`` neutral-loss cosine; ``2`` modified cosine
++        with joint fragment and loss candidate assignment.
++    identity_tolerance, identity_use_ppm
++        Optional precursor-identity filter, with negative tolerance disabling it.
++    start_row, stop_row
++        Start (inclusive) and stop (exclusive) of query block.
+ 
+-    The first pass accumulates intensity products, counts candidates, and detects
+-    reused peaks. Independent candidates are already valid one-to-one matches.
+-    Conflicting columns alone are materialized and greedily assigned afterwards.
+-
+-    Scratch arrays are private to this call. Concurrent calls must write disjoint
+-    output rows. ``matched_peaks.shape == (0, 0)`` disables count output without
+-    altering the candidate enumeration or the resulting score.
++    Notes
++    -----
++    The direct and loss sweeps first sum intensity products and detect competing
++    peak matches. Uncontested pairs are normalized immediately. Only conflicting
++    pairs use the product-sorted greedy assignment; matching order, fragment
++    preference, float64 accumulation, and optional count semantics are preserved.
++    Each call owns scratch arrays and must write disjoint rows when threaded.
+     """
+-    n_library = scores.shape[1]
+-    n_library_peaks = peaks_mz.size
+-    store_matches = matched_peaks.shape[0] != 0
+-    candidate_counts = np.empty(n_library, dtype=np.int64)
+-    conflicts = np.empty(n_library, dtype=np.bool_)
+-    dot_products = np.empty(n_library, dtype=np.float64)
+-    last_query = np.empty(n_library, dtype=np.int64)
+-    last_peak = np.empty(n_library, dtype=np.int64)
++    n_references = scores.shape[1]
++    counts = np.empty(n_references, dtype=np.int64)
++    conflicts = np.empty(n_references, dtype=np.bool_)
++    dot_products = np.empty(n_references, dtype=np.float64)
++    last_query = np.empty(n_references, dtype=np.int64)
++    last_peak = np.empty(n_references, dtype=np.int64)
++    state = (counts, conflicts, dot_products, last_query, last_peak)
++    product_index = (peaks_mz, peaks_int, peaks_spec)
++    loss_index = (loss_mz, loss_spec, loss_product_index)
++
+     max_query_peaks = 0
+     for row in range(start_row, stop_row):
+         max_query_peaks = max(max_query_peaks, query_offsets[row + 1] - query_offsets[row])
+-
+-    # Within one coordinate pass, monotone cursors detect reused peaks. Hybrid
+-    # also needs cross-pass state: one epoch per library peak and one query-bit
+-    # mask per library spectrum. Epochs avoid clearing the peak-sized array for
+-    # every query. The word dimension supports spectra with more than 64 peaks.
+-    peak_epochs = np.zeros(n_library_peaks if mode == 2 else 0, dtype=np.int64)
++    hybrid = mode == 2
++    peak_epochs = np.zeros(peaks_mz.size if hybrid else 0, dtype=np.int64)
+     query_bits = np.zeros(
+-        (n_library if mode == 2 else 0, (max_query_peaks + 63) // 64), dtype=np.uint64,
++        (n_references if hybrid else 0, (max_query_peaks + 63) // 64),
++        dtype=np.uint64,
+     )
++    hybrid_state = (peak_epochs, query_bits)
+ 
+     for row in range(start_row, stop_row):
+-        start, stop = query_offsets[row], query_offsets[row + 1]
++        first, stop = query_offsets[row], query_offsets[row + 1]
+         scores[row, :] = 0.0
+-        if start == stop or query_norms[row] == 0.0:
+-            if store_matches:
++        if first == stop or query_norms[row] == 0.0:
++            if matched_peaks.shape[0] != 0:
+                 matched_peaks[row, :] = 0
+             continue
+ 
+         epoch = row - start_row + 1
+-        candidate_counts[:] = 0
++        counts[:] = 0
+         conflicts[:] = False
+         dot_products[:] = 0.0
+         last_query[:] = -1
+         last_peak[:] = -1
+-        if mode == 2:
++        if hybrid:
+             query_bits[:, :] = 0
+         precursor = np.float64(query_precursor[row])
++        query = (query_mz[first:stop], query_int[first:stop])
+ 
+         if mode != 1:
+-            for query_index in range(stop - start):
+-                coordinate = np.float64(query_mz[start + query_index])
+-                intensity = np.float64(query_int[start + query_index])
+-                if intensity <= 0.0:
+-                    continue
+-                left, right = window(peaks_mz, coordinate, tolerance, use_ppm)
+-                for peak_index in range(left, right):
+-                    if not within(coordinate, np.float64(peaks_mz[peak_index]), tolerance, use_ppm):
+-                        continue
+-                    column = peaks_spec[peak_index]
+-                    candidate_counts[column] += 1
+-                    dot_products[column] += intensity * np.float64(peaks_int[peak_index])
+-                    if last_query[column] == query_index or peak_index <= last_peak[column]:
+-                        conflicts[column] = True
+-                    last_query[column] = query_index
+-                    last_peak[column] = peak_index
+-                    if mode == 2:
+-                        peak_epochs[peak_index] = epoch
+-                        query_bits[column, query_index // 64] |= np.uint64(1) << np.uint64(query_index % 64)
+-
++            _accumulate_fragment_candidates(
++                query, product_index, state, hybrid_state, tolerance, use_ppm, hybrid, epoch
++            )
+         if mode != 0 and np.isfinite(precursor):
+-            last_query[:] = -1
+-            last_peak[:] = n_library_peaks
+-            # Descending fragments give ascending neutral losses. Candidate
+-            # enumeration for the greedy fallback is separate and remains in
+-            # ascending fragment order, which preserves equal-weight choices.
+-            for query_index in range(stop - start - 1, -1, -1):
+-                intensity = np.float64(query_int[start + query_index])
+-                if intensity <= 0.0:
+-                    continue
+-                loss = precursor - np.float64(query_mz[start + query_index])
+-                left, right = window(loss_mz, loss, tolerance, use_ppm)
+-                for loss_index in range(left, right):
+-                    if not within(loss, np.float64(loss_mz[loss_index]), tolerance, use_ppm):
+-                        continue
+-                    column = loss_spec[loss_index]
+-                    if mode == 2 and within(precursor, library_precursor[column], tolerance, use_ppm):
+-                        continue
+-                    peak_index = loss_product_index[loss_index]
+-                    candidate_counts[column] += 1
+-                    dot_products[column] += intensity * np.float64(peaks_int[peak_index])
+-                    if mode == 2:
+-                        word = query_index // 64
+-                        bit = np.uint64(1) << np.uint64(query_index % 64)
+-                        if peak_epochs[peak_index] == epoch or query_bits[column, word] & bit:
+-                            conflicts[column] = True
+-                        peak_epochs[peak_index] = epoch
+-                        query_bits[column, word] |= bit
+-                    elif last_query[column] == query_index or peak_index >= last_peak[column]:
+-                        conflicts[column] = True
+-                    last_query[column] = query_index
+-                    last_peak[column] = peak_index
+-
+-        need_fallback = False
+-        for column in range(n_library):
+-            if conflicts[column]:
+-                need_fallback = True
+-                continue
+-            denominator = query_norms[row] * library_norms[column]
+-            if denominator > 0.0:
+-                scores[row, column] = dot_products[column] / denominator
+-            if store_matches:
+-                matched_peaks[row, column] = candidate_counts[column]
+-            # Only conflicting columns participate in the second pass.
+-            candidate_counts[column] = 0
++            _accumulate_loss_candidates(
++                query,
++                precursor,
++                product_index,
++                loss_index,
++                library_precursor,
++                state,
++                hybrid_state,
++                tolerance,
++                use_ppm,
++                mode,
++                epoch,
++            )
+ 
++        need_fallback = _normalize_unambiguous(scores, matched_peaks, row, state, query_norms[row], library_norms)
+         if need_fallback:
+-            offsets = np.empty(n_library + 1, dtype=np.int64)
++            offsets = np.empty(n_references + 1, dtype=np.int64)
+             offsets[0] = 0
+-            for column in range(n_library):
+-                offsets[column + 1] = offsets[column] + candidate_counts[column]
+-            query_indices, library_indices, products, is_fragment = _collect_conflicting_candidates(
+-                query_mz[start:stop], query_int[start:stop], precursor,
+-                peaks_mz, peaks_int, peaks_spec, loss_mz, loss_spec, loss_product_index,
+-                library_precursor, tolerance, use_ppm, mode, offsets, candidate_counts,
++            for reference_id in range(n_references):
++                offsets[reference_id + 1] = offsets[reference_id] + counts[reference_id]
++            edge_query, edge_reference, products, is_fragment = _collect_conflicting_candidates(
++                query_mz[first:stop],
++                query_int[first:stop],
++                precursor,
++                peaks_mz,
++                peaks_int,
++                peaks_spec,
++                loss_mz,
++                loss_spec,
++                loss_product_index,
++                library_precursor,
++                tolerance,
++                use_ppm,
++                mode,
++                offsets,
++                counts,
+             )
+             _resolve_conflicting_matches(
+-                scores, matched_peaks, row, stop - start, offsets, query_indices,
+-                library_indices, products, is_fragment, library_norms, query_norms[row],
++                scores,
++                matched_peaks,
++                row,
++                stop - first,
++                offsets,
++                edge_query,
++                edge_reference,
++                products,
++                is_fragment,
++                library_norms,
++                query_norms[row],
+             )
+ 
+-        for column in range(n_library):
+-            if not identity_allowed(precursor, library_precursor[column], identity_tolerance, identity_use_ppm):
+-                scores[row, column] = 0.0
+-                if store_matches:
+-                    matched_peaks[row, column] = 0
++        _apply_precursor_gate(
++            scores, matched_peaks, row, precursor, library_precursor, identity_tolerance, identity_use_ppm
++        )
+diff --git a/matchms/similarity/_flash_cosine_topk.py b/matchms/similarity/_flash_cosine_topk.py
+new file mode 100644
+index 000000000..f329cba83
+--- /dev/null
++++ b/matchms/similarity/_flash_cosine_topk.py
+@@ -0,0 +1,489 @@
++"""Exact candidate-aware cosine and modified-cosine top-k scoring.
++
++Unlike dense cosine scoring, only reference spectra encountered through peak
++postings are initialized and ranked. Candidate collection has two passes:
++fragment edges, then neutral-loss edges. The passes detect conflicts, but do
++not assign matches. Only spectra with conflicting edges run the original greedy
++intensity-product assignment, with the same small fragment preference.
++
++For Numba efficiency, the private helpers accept small *bundles* of related
++arrays instead of repeating the entire 20-plus-argument row-kernel signature.
++The bundles are unpacked with descriptive names at each helper's entry.
++"""
++
++from __future__ import annotations
++from typing import TYPE_CHECKING
++import numpy as np
++from numba import njit
++from ._flash_cosine import _FRAGMENT_SORT_BIAS
++from ._flash_tolerance import identity_allowed, window, within
++from ._flash_topk_common import _FlashTopKWorkspace, _register_touched
++from ._topk import select_topk_candidates
++
++
++if TYPE_CHECKING:
++    from ._flash_prepared import PreparedSpectra
++    from .flash_index import _CosineKernelData
++
++
++class _CosineTopKWorkspace(_FlashTopKWorkspace):
++    """Per-worker cosine scratch buffers, including greedy-conflict bookkeeping.
++
++    Inherited epoch stamps mark initialized reference IDs. Candidate counts,
++    conflict flags, and last-used peak/query cursors are meaningful only for
++    references touched during the current epoch. ``conflict_slot`` maps a
++    conflicting reference ID to its compact candidate-edge partition.
++    """
++
++    def __init__(self, n_references: int, n_peaks: int, dtype: np.dtype, hybrid: bool):
++        super().__init__(n_references, n_peaks, dtype, hybrid)
++        self.candidate_counts = np.empty(n_references, dtype=np.int64)
++        self.conflicts = np.empty(n_references, dtype=np.bool_)
++        self.last_query = np.empty(n_references, dtype=np.int64)
++        self.last_peak = np.empty(n_references, dtype=np.int64)
++        self.conflict_slot = np.empty(n_references, dtype=self.touched.dtype)
++
++
++@njit(cache=True, inline="always")
++def _touch_cosine(state, touched, query_bits, n_touched, epoch, reference_id, initial_peak):
++    """Register a candidate once, initializing its dot product and cursors."""
++    scores, counts, conflicts, epochs, last_query, last_peak, slots, _, _, _ = state
++    touched, query_bits, n_touched, is_new = _register_touched(
++        epochs,
++        slots,
++        touched,
++        query_bits,
++        n_touched,
++        epoch,
++        reference_id,
++    )
++    if is_new:
++        scores[reference_id] = 0.0
++        counts[reference_id] = 0
++        conflicts[reference_id] = False
++        last_query[reference_id] = -1
++        last_peak[reference_id] = initial_peak
++    return touched, query_bits, n_touched
++
++
++@njit(cache=True, nogil=True)
++def _find_fragment_candidates(
++    query, product_index, state, touched, query_bits, n_touched, tolerance, use_ppm, hybrid, epoch
++):
++    """Accumulate all direct edges and flag repeated query or physical peaks."""
++    query_mz, query_intensity, _, _ = query
++    product_mz, product_intensity, product_owner = product_index
++    scores, counts, conflicts, _, last_query, last_peak, slots, peak_word_epochs, peak_word_bits, _ = state
++
++    for query_peak in range(query_mz.size):
++        coordinate = np.float64(query_mz[query_peak])
++        intensity = np.float64(query_intensity[query_peak])
++        if intensity <= 0.0:
++            continue
++        first, stop = window(product_mz, coordinate, tolerance, use_ppm)
++        for posting in range(first, stop):
++            if not within(coordinate, np.float64(product_mz[posting]), tolerance, use_ppm):
++                continue
++            reference_id = product_owner[posting]
++            touched, query_bits, n_touched = _touch_cosine(
++                state,
++                touched,
++                query_bits,
++                n_touched,
++                epoch,
++                reference_id,
++                -1,
++            )
++            counts[reference_id] += 1
++            scores[reference_id] += intensity * np.float64(product_intensity[posting])
++            if last_query[reference_id] == query_peak or posting <= last_peak[reference_id]:
++                conflicts[reference_id] = True
++            last_query[reference_id] = query_peak
++            last_peak[reference_id] = posting
++            if hybrid:
++                word = posting // 64
++                if peak_word_epochs[word] != epoch:
++                    peak_word_epochs[word] = epoch
++                    peak_word_bits[word] = np.uint64(0)
++                peak_word_bits[word] |= np.uint64(1) << np.uint64(posting % 64)
++                query_bits[slots[reference_id], query_peak // 64] |= np.uint64(1) << np.uint64(query_peak % 64)
++    return touched, query_bits, n_touched
++
++
++@njit(cache=True, nogil=True)
++def _find_loss_candidates(
++    query,
++    product_index,
++    loss_index,
++    reference_precursors,
++    state,
++    touched,
++    query_bits,
++    n_touched,
++    tolerance,
++    use_ppm,
++    mode,
++    epoch,
++):
++    """Detect neutral-loss edges and cross-pass competition in modified cosine.
++
++    This initial detection visits queries from highest to lowest fragment m/z.
++    The greedy fallback later enumerates loss edges in ascending fragment order,
++    matching the historical dense algorithm's tie ordering.
++    """
++    query_mz, query_intensity, precursor_mz, _ = query
++    _, product_intensity, _ = product_index
++    loss_mz, loss_owner, loss_product_index = loss_index
++    scores, counts, conflicts, _, last_query, last_peak, slots, peak_word_epochs, peak_word_bits, _ = state
++
++    for position in range(n_touched):
++        reference_id = touched[position]
++        last_query[reference_id] = -1
++        last_peak[reference_id] = product_intensity.size
++
++    for query_peak in range(query_mz.size - 1, -1, -1):
++        intensity = np.float64(query_intensity[query_peak])
++        if intensity <= 0.0:
++            continue
++        coordinate = np.float64(precursor_mz) - np.float64(query_mz[query_peak])
++        first, stop = window(loss_mz, coordinate, tolerance, use_ppm)
++        for loss_posting in range(first, stop):
++            if not within(coordinate, np.float64(loss_mz[loss_posting]), tolerance, use_ppm):
++                continue
++            reference_id = loss_owner[loss_posting]
++            if mode == 2 and within(precursor_mz, reference_precursors[reference_id], tolerance, use_ppm):
++                continue
++            product_posting = loss_product_index[loss_posting]
++            touched, query_bits, n_touched = _touch_cosine(
++                state,
++                touched,
++                query_bits,
++                n_touched,
++                epoch,
++                reference_id,
++                product_intensity.size,
++            )
++            counts[reference_id] += 1
++            scores[reference_id] += intensity * np.float64(product_intensity[product_posting])
++            if mode == 2:
++                word = product_posting // 64
++                peak_used = (
++                    peak_word_epochs[word] == epoch
++                    and (peak_word_bits[word] & (np.uint64(1) << np.uint64(product_posting % 64))) != 0
++                )
++                query_used = (
++                    query_bits[slots[reference_id], query_peak // 64] & (np.uint64(1) << np.uint64(query_peak % 64))
++                ) != 0
++                if peak_used or query_used:
++                    conflicts[reference_id] = True
++                if peak_word_epochs[word] != epoch:
++                    peak_word_epochs[word] = epoch
++                    peak_word_bits[word] = np.uint64(0)
++                peak_word_bits[word] |= np.uint64(1) << np.uint64(product_posting % 64)
++                query_bits[slots[reference_id], query_peak // 64] |= np.uint64(1) << np.uint64(query_peak % 64)
++            elif last_query[reference_id] == query_peak or product_posting >= last_peak[reference_id]:
++                conflicts[reference_id] = True
++            last_query[reference_id] = query_peak
++            last_peak[reference_id] = product_posting
++    return touched, query_bits, n_touched
++
++
++@njit(cache=True, nogil=True)
++def _collect_conflict_edges(query, product_index, loss_index, reference_precursors, matching, state, epoch, offsets):
++    """Collect only conflicting edges, preserving dense greedy enumeration order.
++
++    ``offsets`` partitions edges by *conflict-list position*, rather than by
++    reference ID. ``conflict_slot`` is valid only for IDs marked conflicting in
++    this epoch. The returned arrays align query IDs, physical product posting
++    IDs, products and fragment flags.
++    """
++    query_mz, query_intensity, precursor_mz, _ = query
++    product_mz, product_intensity, product_owner = product_index
++    loss_mz, loss_owner, loss_product_index = loss_index
++    mode, tolerance, use_ppm, _, _ = matching
++    _, _, conflicts, epochs, _, _, _, _, _, conflict_slot = state
++
++    n_edges = offsets[-1]
++    query_indices = np.empty(n_edges, dtype=np.int64)
++    library_indices = np.empty(n_edges, dtype=np.int64)
++    products = np.empty(n_edges, dtype=np.float64)
++    is_fragment = np.empty(n_edges, dtype=np.uint8)
++    positions = offsets[:-1].copy()
++
++    if mode != 1:
++        for query_peak in range(query_mz.size):
++            intensity = np.float64(query_intensity[query_peak])
++            if intensity <= 0.0:
++                continue
++            coordinate = np.float64(query_mz[query_peak])
++            left, right = window(product_mz, coordinate, tolerance, use_ppm)
++            for posting in range(left, right):
++                reference_id = product_owner[posting]
++                if epochs[reference_id] != epoch or not conflicts[reference_id]:
++                    continue
++                if not within(coordinate, np.float64(product_mz[posting]), tolerance, use_ppm):
++                    continue
++                slot = conflict_slot[reference_id]
++                position = positions[slot]
++                query_indices[position] = query_peak
++                library_indices[position] = posting
++                products[position] = intensity * np.float64(product_intensity[posting])
++                is_fragment[position] = 1
++                positions[slot] += 1
++
++    if mode != 0 and np.isfinite(precursor_mz):
++        for query_peak in range(query_mz.size):
++            intensity = np.float64(query_intensity[query_peak])
++            if intensity <= 0.0:
++                continue
++            coordinate = precursor_mz - np.float64(query_mz[query_peak])
++            left, right = window(loss_mz, coordinate, tolerance, use_ppm)
++            for loss_posting in range(left, right):
++                reference_id = loss_owner[loss_posting]
++                if epochs[reference_id] != epoch or not conflicts[reference_id]:
++                    continue
++                if not within(coordinate, np.float64(loss_mz[loss_posting]), tolerance, use_ppm):
++                    continue
++                if mode == 2 and within(precursor_mz, reference_precursors[reference_id], tolerance, use_ppm):
++                    continue
++                product_posting = loss_product_index[loss_posting]
++                slot = conflict_slot[reference_id]
++                position = positions[slot]
++                query_indices[position] = query_peak
++                library_indices[position] = product_posting
++                products[position] = intensity * np.float64(product_intensity[product_posting])
++                is_fragment[position] = 0
++                positions[slot] += 1
++    return query_indices, library_indices, products, is_fragment
++
++
++@njit(cache=True, nogil=True)
++def _resolve_compact_conflicts(scores, counts, conflict_ids, offsets, edges, library_norms, query_norm, n_query_peaks):
++    """Apply unchanged product-sorted greedy one-to-one assignment to conflicts."""
++    query_indices, library_indices, products, is_fragment = edges
++    used_query = np.empty(n_query_peaks, dtype=np.uint8)
++    for slot in range(conflict_ids.size):
++        reference_id = conflict_ids[slot]
++        start, stop = offsets[slot], offsets[slot + 1]
++        size = stop - start
++        if size == 0:
++            continue
++        keys = np.empty(size, dtype=np.float64)
++        for position in range(size):
++            edge = start + position
++            keys[position] = products[edge] + (_FRAGMENT_SORT_BIAS if is_fragment[edge] else 0.0)
++        order = np.argsort(-keys)
++        used_query[:] = 0
++        used_library = np.empty(size, dtype=np.int64)
++        n_used_library = 0
++        dot_product = 0.0
++        for position in order:
++            edge = start + position
++            query_peak = query_indices[edge]
++            library_peak = library_indices[edge]
++            if used_query[query_peak]:
++                continue
++            seen = False
++            for used_index in range(n_used_library):
++                if used_library[used_index] == library_peak:
++                    seen = True
++                    break
++            if seen:
++                continue
++            used_query[query_peak] = 1
++            used_library[n_used_library] = library_peak
++            n_used_library += 1
++            dot_product += products[edge]
++
++        denominator = query_norm * library_norms[reference_id]
++        scores[reference_id] = dot_product / denominator if denominator > 0.0 else 0.0
++        counts[reference_id] = n_used_library
++
++
++@njit(cache=True, nogil=True)
++def _finalize_candidates(query, product_index, loss_index, library_info, matching, state, touched, n_touched, epoch):
++    """Normalize unambiguous pairs, resolve conflicts and apply precursor gate."""
++    query_mz, _, precursor_mz, query_norm = query
++    reference_precursors, library_norms = library_info
++    _, _, _, _, _, _, _, _, _, conflict_slot = state
++    scores, counts, conflicts = state[0], state[1], state[2]
++    _, _, _, identity_tolerance, identity_ppm = matching
++
++    conflict_ids = np.empty(n_touched, dtype=touched.dtype)
++    n_conflicts = 0
++    for position in range(n_touched):
++        reference_id = touched[position]
++        if conflicts[reference_id]:
++            conflict_slot[reference_id] = n_conflicts
++            conflict_ids[n_conflicts] = reference_id
++            n_conflicts += 1
++        else:
++            denominator = query_norm * library_norms[reference_id]
++            scores[reference_id] = scores[reference_id] / denominator if denominator > 0.0 else 0.0
++
++    if n_conflicts:
++        conflict_ids = conflict_ids[:n_conflicts]
++        offsets = np.empty(n_conflicts + 1, dtype=np.int64)
++        offsets[0] = 0
++        for slot in range(n_conflicts):
++            offsets[slot + 1] = offsets[slot] + counts[conflict_ids[slot]]
++        edges = _collect_conflict_edges(
++            query,
++            product_index,
++            loss_index,
++            reference_precursors,
++            matching,
++            state,
++            epoch,
++            offsets,
++        )
++        _resolve_compact_conflicts(
++            scores,
++            counts,
++            conflict_ids,
++            offsets,
++            edges,
++            library_norms,
++            query_norm,
++            query_mz.size,
++        )
++
++    if identity_tolerance >= 0.0:
++        for position in range(n_touched):
++            reference_id = touched[position]
++            if not identity_allowed(precursor_mz, reference_precursors[reference_id], identity_tolerance, identity_ppm):
++                scores[reference_id] = 0.0
++                counts[reference_id] = 0
++
++
++@njit(cache=True, nogil=True)
++def _cosine_topk_row(query, product_index, loss_index, library_info, matching, state, touched, query_bits, epoch):
++    """Run candidate discovery and exact assignment for one prepared query.
++
++    Query bundle: ``(m/z, intensity, precursor, L2 norm)``.
++    Index bundles: ``(fragment m/z, intensity, owner)``, ``(loss m/z, owner,
++    product posting ID)`` and ``(reference precursors, L2 norms)``.
++    Matching bundle: ``(mode, tolerance, ppm, identity tolerance, identity ppm)``.
++    State bundle holds scores, counts, conflict flags, epoch stamps, cursors,
++    compact hybrid bitsets and conflict-slot mappings. No full result row exists.
++    """
++    _, _, precursor_mz, query_norm = query
++    reference_precursors, _ = library_info
++    mode, tolerance, use_ppm, _, _ = matching
++    touched_count = 0
++    if query[0].size == 0 or query_norm == 0.0:
++        return touched, query_bits, touched_count
++
++    if mode != 1:
++        touched, query_bits, touched_count = _find_fragment_candidates(
++            query,
++            product_index,
++            state,
++            touched,
++            query_bits,
++            touched_count,
++            tolerance,
++            use_ppm,
++            mode == 2,
++            epoch,
++        )
++    if mode != 0 and np.isfinite(precursor_mz):
++        touched, query_bits, touched_count = _find_loss_candidates(
++            query,
++            product_index,
++            loss_index,
++            reference_precursors,
++            state,
++            touched,
++            query_bits,
++            touched_count,
++            tolerance,
++            use_ppm,
++            mode,
++            epoch,
++        )
++    _finalize_candidates(query, product_index, loss_index, library_info, matching, state, touched, touched_count, epoch)
++    return touched, query_bits, touched_count
++
++
++def _score_cosine_topk_block(
++    prepared: PreparedSpectra,
++    library: _CosineKernelData,
++    workspace: _CosineTopKWorkspace,
++    indices: np.ndarray,
++    scores: np.ndarray,
++    valid_counts: np.ndarray,
++    matches: np.ndarray | None,
++    first_row: int,
++    last_row: int,
++    k: int,
++    min_score: float,
++    mode: int,
++    tolerance: float,
++    use_ppm: bool,
++    identity_tol: float,
++    identity_ppm: bool,
++) -> None:
++    """Write top-k results for disjoint prepared rows using worker-local buffers.
++
++    Each query accumulates scores and accepted match counts for touched library
++    spectra only. The final selection uses the public score dtype, matching
++    the dense scorer's output cast before thresholding and tie resolution.
++    """
++    matching = (mode, tolerance, use_ppm, identity_tol, identity_ppm)
++    product_index = (library.peaks_mz, library.peaks_int, library.peaks_spec_idx)
++    loss_index = (library.nl_mz, library.nl_spec_idx, library.nl_product_idx)
++    library_info = (library.precursor_mz, library.spec_l2)
++
++    for row in range(first_row, last_row):
++        first = int(prepared.spec_offsets[row])
++        stop = int(prepared.spec_offsets[row + 1])
++        if mode == 2:
++            workspace.ensure_query_words(stop - first)
++        epoch = workspace.next_epoch()
++        query = (
++            prepared.spec_mz[first:stop],
++            prepared.spec_int[first:stop],
++            np.float64(prepared.precursor_mz[row]),
++            np.float64(prepared.spec_l2[row]),
++        )
++        state = (
++            workspace.scores,
++            workspace.candidate_counts,
++            workspace.conflicts,
++            workspace.epochs,
++            workspace.last_query,
++            workspace.last_peak,
++            workspace.slots,
++            workspace.peak_word_epochs,
++            workspace.peak_word_bits,
++            workspace.conflict_slot,
++        )
++        touched, query_bits, touched_count = _cosine_topk_row(
++            query,
++            product_index,
++            loss_index,
++            library_info,
++            matching,
++            state,
++            workspace.touched,
++            workspace.query_bits,
++            epoch,
++        )
++        workspace.touched = touched
++        workspace.query_bits = query_bits
++        candidates = touched[:touched_count]
++        if workspace.selection_scores is not workspace.scores:
++            workspace.selection_scores[candidates] = workspace.scores[candidates]
++        ids, values = select_topk_candidates(
++            candidates,
++            workspace.selection_scores,
++            k,
++            min_score,
++        )
++        count = ids.size
++        indices[row, :count] = ids
++        scores[row, :count] = values
++        valid_counts[row] = count
++        if matches is not None:
++            matches[row, :count] = workspace.candidate_counts[ids]
+diff --git a/matchms/similarity/_flash_entropy.py b/matchms/similarity/_flash_entropy.py
+index 45ffdb4a3..a3f46de44 100644
+--- a/matchms/similarity/_flash_entropy.py
++++ b/matchms/similarity/_flash_entropy.py
+@@ -1,9 +1,11 @@
+-"""One-to-one spectral entropy accumulation from globally indexed peaks.
++"""Dense indexed entropy scoring with deterministic one-to-one peak matching.
+ 
+-Fragment coordinates are traversed in ascending order; neutral-loss coordinates
+-are traversed in ascending loss order. Matching state is maintained per library
+-spectrum, so overlapping tolerance windows cannot reuse a physical peak.
++A query first visits fragment postings in increasing m/z order. In hybrid mode
++it then visits neutral-loss postings in increasing loss order, ignoring peaks
++already used by the fragment pass. Keeping these passes separate makes the
++assignment rules visible without changing their order or floating-point math.
+ """
++
+ import numpy as np
+ from numba import njit
+ from ._flash_tolerance import identity_allowed, window, within
+@@ -11,10 +13,111 @@
+ 
+ @njit(cache=True, inline="always")
+ def xlog2(value: float) -> float:
+-    """Return x log2(x), extending the function continuously to zero."""
++    """Evaluate ``value * log2(value)`` with the continuous value zero at zero."""
+     return value * np.log2(value) if value > 0.0 else 0.0
+ 
+ 
++@njit(cache=True, nogil=True)
++def _accumulate_fragments(query, fragment, cursors, hybrid_state, tolerance, use_ppm, hybrid, epoch):
++    """Assign direct fragment matches in ascending query and posting order.
++
++    ``cursors`` groups score, last-used library peak and last-used query peak.
++    ``hybrid_state`` holds the cross-pass consumed-peak and query-peak bitmaps.
++    All buffers are mutated in place; none are cleared here.
++    """
++    query_mz, query_intensity = query
++    fragment_mz, fragment_intensity, fragment_terms, fragment_ids, physical_ids = fragment
++    scores, last_library_peak, last_query_peak = cursors
++    used_peak_epochs, used_query_bits = hybrid_state
++
++    for query_peak in range(query_mz.size):
++        coordinate = np.float64(query_mz[query_peak])
++        intensity = np.float64(query_intensity[query_peak])
++        if intensity <= 0.0:
++            continue
++        query_term = xlog2(intensity)
++        left, right = window(fragment_mz, coordinate, tolerance, use_ppm)
++        for posting in range(left, right):
++            library_id = fragment_ids[posting]
++            physical_peak = physical_ids[posting]
++            if last_query_peak[library_id] == query_peak or physical_peak <= last_library_peak[library_id]:
++                continue
++            reference_intensity = np.float64(fragment_intensity[posting])
++            if reference_intensity <= 0.0:
++                continue
++            if not within(coordinate, np.float64(fragment_mz[posting]), tolerance, use_ppm):
++                continue
++            scores[library_id] += xlog2(intensity + reference_intensity) - query_term - fragment_terms[posting]
++            last_query_peak[library_id] = query_peak
++            last_library_peak[library_id] = physical_peak
++            if hybrid:
++                used_peak_epochs[physical_peak] = epoch
++                used_query_bits[library_id, query_peak // 64] |= np.uint64(1) << np.uint64(query_peak % 64)
++
++
++@njit(cache=True, nogil=True)
++def _accumulate_losses(
++    query,
++    precursor_mz,
++    neutral_loss,
++    cursors,
++    hybrid_state,
++    n_library_peaks,
++    tolerance,
++    use_ppm,
++    hybrid,
++    epoch,
++):
++    """Assign losses in ascending loss order, respecting fragment-first hybrid use.
++
++    Because query fragments are m/z-sorted, traversing them backwards visits
++    the neutral losses in ascending order. The physical peak cursor therefore
++    moves in the opposite direction to the fragment pass.
++    """
++    query_mz, query_intensity = query
++    loss_mz, loss_intensity, loss_terms, loss_ids, physical_ids = neutral_loss
++    scores, last_library_peak, last_query_peak = cursors
++    used_peak_epochs, used_query_bits = hybrid_state
++
++    last_library_peak[:] = n_library_peaks
++    last_query_peak[:] = -1
++    for query_peak in range(query_mz.size - 1, -1, -1):
++        intensity = np.float64(query_intensity[query_peak])
++        if intensity <= 0.0:
++            continue
++        coordinate = np.float64(precursor_mz) - np.float64(query_mz[query_peak])
++        query_term = xlog2(intensity)
++        left, right = window(loss_mz, coordinate, tolerance, use_ppm)
++        for posting in range(left, right):
++            library_id = loss_ids[posting]
++            physical_peak = physical_ids[posting]
++            if last_query_peak[library_id] == query_peak or physical_peak >= last_library_peak[library_id]:
++                continue
++            if hybrid:
++                if used_peak_epochs[physical_peak] == epoch:
++                    continue
++                if used_query_bits[library_id, query_peak // 64] & (np.uint64(1) << np.uint64(query_peak % 64)):
++                    continue
++            reference_intensity = np.float64(loss_intensity[posting])
++            if reference_intensity <= 0.0:
++                continue
++            if not within(coordinate, loss_mz[posting], tolerance, use_ppm):
++                continue
++            scores[library_id] += xlog2(intensity + reference_intensity) - query_term - loss_terms[posting]
++            last_query_peak[library_id] = query_peak
++            last_library_peak[library_id] = physical_peak
++
++
++@njit(cache=True, nogil=True)
++def _write_entropy_row(output_row, scores, query_precursor, library_precursors, tolerance, use_ppm):
++    """Apply the optional precursor identity gate and cast into the output row."""
++    for library_id in range(output_row.size):
++        value = scores[library_id]
++        if not identity_allowed(query_precursor, library_precursors[library_id], tolerance, use_ppm):
++            value = 0.0
++        output_row[library_id] = value
++
++
+ @njit(cache=True, nogil=True)
+ def entropy_rows(
+     out: np.ndarray,
+@@ -34,109 +137,89 @@ def entropy_rows(
+     start_row: int,
+     stop_row: int,
+ ) -> None:
+-    """Write entropy score rows into caller-owned output arrays.
++    """Write exact entropy similarities for a block of queries to ``out``.
+ 
+-    ``fragment`` and ``neutral_loss`` each hold coordinates, intensities, cached
+-    x-log-x terms, spectrum IDs, and physical peak IDs. Coordinate ties follow
+-    the physical-peak order of their respective sweep. Query peaks are packed
+-    spectrum-by-spectrum with offsets into ``q_mz`` and ``q_int``.
++    Parameters
++    ----------
++    out
++        Caller-owned ``(n_queries, n_references)`` score matrix. Only rows in
++        ``[start_row, stop_row)`` are written.
++    q_offsets, q_mz, q_int
++        Packed, per-query m/z-sorted peaks: query ``r`` occupies the slice
++        ``q_offsets[r]:q_offsets[r + 1]`` of both peak arrays. Intensities have
++        already been entropy-weighted and normalized to sum to 0.5.
++    q_pmz
++        Query precursor masses, with missing values represented by ``NaN``.
++    fragment, neutral_loss
++        Each five-array posting bundle contains ``(m/z, intensity, xlog2 terms,
++        library ID, physical peak ID)``, sorted by coordinate. The physical IDs
++        identify original reference peaks in both posting views.
++    lib_pmz
++        Library precursor masses, with ``NaN`` for missing values.
++    n_lib_peaks
++        Total number of physical library peaks, used to initialize the
++        descending neutral-loss cursor and hybrid peak-use tracking.
++    tolerance, use_ppm
++        Matching tolerance and whether it is symmetric ppm rather than Da.
++    mode
++        ``0`` for fragment, ``1`` for neutral loss, ``2`` for fragment-first
++        hybrid matching. In hybrid mode each physical or query peak is used
++        at most once for each spectrum pair across both passes.
++    identity_tol, identity_ppm
++        Optional precursor identity gate. Negative ``identity_tol`` disables
++        the gate; otherwise both precursors must match within the tolerance.
++    start_row, stop_row
++        Start (inclusive) and stop (exclusive) query row IDs.
+ 
+-    Modes are 0 (fragment), 1 (neutral loss), and 2 (fragment-first hybrid).
+-    Hybrid records consumed physical peaks and query peaks for each library
+-    spectrum before the loss pass. Each call owns its scratch arrays, allowing
+-    concurrent invocations to write disjoint query rows safely.
++    Notes
++    -----
++    Accumulation occurs in float64, followed by assignment to the output dtype.
++    Each call owns its scratch arrays; parallel callers must own disjoint rows.
++    Traversal, one-to-one decisions and arithmetic order match the dense scorer
++    prior to this readability refactor.
+     """
+-    n_library = out.shape[1]
+-    fragment_mz, fragment_int, fragment_terms, fragment_spec, fragment_pid = fragment
+-    loss_mz, loss_int, loss_terms, loss_spec, loss_pid = neutral_loss
+-    score = np.empty(n_library, dtype=np.float64)
+-    last_peak = np.empty(n_library, dtype=np.int64)
+-    last_query = np.empty(n_library, dtype=np.int64)
+-
+-    # Epochs avoid clearing a library-peak-sized bitmap for every query. The
+-    # query bitmap is per library spectrum because one query is matched against
+-    # each spectrum independently. Multiple words support more than 64 peaks.
+-    peak_epochs = np.zeros(n_lib_peaks if mode == 2 else 0, dtype=np.int64)
++    n_references = out.shape[1]
++    scores = np.empty(n_references, dtype=np.float64)
++    last_library_peak = np.empty(n_references, dtype=np.int64)
++    last_query_peak = np.empty(n_references, dtype=np.int64)
++    cursors = (scores, last_library_peak, last_query_peak)
++
++    hybrid = mode == 2
++    used_peak_epochs = np.zeros(n_lib_peaks if hybrid else 0, dtype=np.int64)
+     max_query_peaks = 0
+     for row in range(start_row, stop_row):
+         max_query_peaks = max(max_query_peaks, q_offsets[row + 1] - q_offsets[row])
+-    query_bits = np.zeros(
+-        (n_library if mode == 2 else 0, (max_query_peaks + 63) // 64), dtype=np.uint64,
++    used_query_bits = np.zeros(
++        (n_references if hybrid else 0, (max_query_peaks + 63) // 64),
++        dtype=np.uint64,
+     )
++    hybrid_state = (used_peak_epochs, used_query_bits)
+ 
+     for row in range(start_row, stop_row):
+         epoch = row - start_row + 1
+-        score[:] = 0.0
+-        last_peak[:] = -1
+-        last_query[:] = -1
+-        if mode == 2:
+-            query_bits[:, :] = 0
+-        start, stop = q_offsets[row], q_offsets[row + 1]
+-        has_precursor = np.isfinite(q_pmz[row])
++        scores[:] = 0.0
++        last_library_peak[:] = -1
++        last_query_peak[:] = -1
++        if hybrid:
++            used_query_bits[:, :] = 0
++
++        first_peak, stop_peak = q_offsets[row], q_offsets[row + 1]
++        query = (q_mz[first_peak:stop_peak], q_int[first_peak:stop_peak])
++        precursor_mz = q_pmz[row]
+ 
+         if mode != 1:
+-            for query_index in range(stop - start):
+-                coordinate = np.float64(q_mz[start + query_index])
+-                intensity = np.float64(q_int[start + query_index])
+-                if intensity <= 0.0:
+-                    continue
+-                query_term = xlog2(intensity)
+-                left, right = window(fragment_mz, coordinate, tolerance, use_ppm)
+-                for posting in range(left, right):
+-                    column = fragment_spec[posting]
+-                    peak_id = fragment_pid[posting]
+-                    # Each query peak and each library peak may be used only
+-                    # once for a particular query/library spectrum pair.
+-                    if last_query[column] == query_index or peak_id <= last_peak[column]:
+-                        continue
+-                    library_intensity = np.float64(fragment_int[posting])
+-                    if library_intensity <= 0.0:
+-                        continue
+-                    if not within(coordinate, np.float64(fragment_mz[posting]), tolerance, use_ppm):
+-                        continue
+-                    score[column] += (
+-                        xlog2(intensity + library_intensity) - query_term - fragment_terms[posting]
+-                    )
+-                    last_query[column] = query_index
+-                    last_peak[column] = peak_id
+-                    if mode == 2:
+-                        peak_epochs[peak_id] = epoch
+-                        query_bits[column, query_index // 64] |= np.uint64(1) << np.uint64(query_index % 64)
+-
+-        if mode != 0 and has_precursor:
+-            last_peak[:] = n_lib_peaks
+-            last_query[:] = -1
+-            # Descending fragment coordinates give ascending loss coordinates.
+-            for query_index in range(stop - start - 1, -1, -1):
+-                intensity = np.float64(q_int[start + query_index])
+-                if intensity <= 0.0:
+-                    continue
+-                coordinate = np.float64(q_pmz[row]) - np.float64(q_mz[start + query_index])
+-                query_term = xlog2(intensity)
+-                left, right = window(loss_mz, coordinate, tolerance, use_ppm)
+-                for posting in range(left, right):
+-                    column = loss_spec[posting]
+-                    peak_id = loss_pid[posting]
+-                    if last_query[column] == query_index or peak_id >= last_peak[column]:
+-                        continue
+-                    if mode == 2:
+-                        if peak_epochs[peak_id] == epoch:
+-                            continue
+-                        if query_bits[column, query_index // 64] & (np.uint64(1) << np.uint64(query_index % 64)):
+-                            continue
+-                    library_intensity = np.float64(loss_int[posting])
+-                    if library_intensity <= 0.0:
+-                        continue
+-                    if not within(coordinate, loss_mz[posting], tolerance, use_ppm):
+-                        continue
+-                    score[column] += (
+-                        xlog2(intensity + library_intensity) - query_term - loss_terms[posting]
+-                    )
+-                    last_query[column] = query_index
+-                    last_peak[column] = peak_id
+-
+-        for column in range(n_library):
+-            value = score[column]
+-            if not identity_allowed(q_pmz[row], lib_pmz[column], identity_tol, identity_ppm):
+-                value = 0.0
+-            out[row, column] = value
++            _accumulate_fragments(query, fragment, cursors, hybrid_state, tolerance, use_ppm, hybrid, epoch)
++        if mode != 0 and np.isfinite(precursor_mz):
++            _accumulate_losses(
++                query,
++                precursor_mz,
++                neutral_loss,
++                cursors,
++                hybrid_state,
++                n_lib_peaks,
++                tolerance,
++                use_ppm,
++                hybrid,
++                epoch,
++            )
++        _write_entropy_row(out[row], scores, precursor_mz, lib_pmz, identity_tol, identity_ppm)
+diff --git a/matchms/similarity/_flash_entropy_topk.py b/matchms/similarity/_flash_entropy_topk.py
+index f0889bbd3..207983908 100644
+--- a/matchms/similarity/_flash_entropy_topk.py
++++ b/matchms/similarity/_flash_entropy_topk.py
+@@ -1,244 +1,230 @@
+-"""Exact touched-candidate top-k retrieval for EntropyFlash and Entropy.
++"""Exact, candidate-aware EntropyFlash retrieval without dense result rows.
+ 
+-The dense entropy kernel is intentionally left unchanged. This kernel visits the
+-same ordered postings and performs the same float64 contribution arithmetic,
+-but never creates an output row of length ``n_references``. Each worker owns
+-reusable scratch state; only touched library IDs are initialized and ranked.
++The score is accumulated in the same float64 order as the dense entropy
++kernel. A worker initializes state *only when a reference is encountered*,
++then selects the best k references among those touched IDs. Fragment-first
++hybrid matching uses compact query bitmaps and epoch-stamped physical peaks.
+ 
+-Hybrid matching needs two kinds of cross-pass state. Physical product peaks are
+-tracked with epoch-stamped, 64-peak bitset *words*, not an int64 epoch per peak.
+-Matched query peaks are tracked in a dynamically grown bitmap indexed by the
+-slot of each touched library spectrum, not by every library spectrum.
++The two posting sweeps are separate so their different cursor directions and
++cross-pass matching rules can be reviewed independently.
+ """
+ 
+ from __future__ import annotations
++from typing import TYPE_CHECKING
+ import numpy as np
+ from numba import njit
+ from ._flash_entropy import xlog2
+ from ._flash_tolerance import identity_allowed, window, within
++from ._flash_topk_common import _FlashTopKWorkspace, _register_touched
+ from ._topk import select_topk_candidates
+ 
+ 
+-_INITIAL_CAPACITY = 256
+-_MAX_EPOCH = int(np.iinfo(np.uint32).max)
++if TYPE_CHECKING:
++    from ._flash_prepared import PreparedSpectra
++    from .flash_index import _EntropyKernelData
+ 
+ 
+-class _EntropyTopKWorkspace:
+-    """Scratch allocations owned by exactly one search worker thread.
++class _EntropyTopKWorkspace(_FlashTopKWorkspace):
++    """Worker-owned touched-library state and entropy one-to-one cursors.
+ 
+-    ``scores`` uses float64 to reproduce the existing entropy kernel's
+-    accumulation, regardless of the public score dtype. ``selection_scores``
+-    converts touched entries to that dtype only once their scores are complete.
+-
+-    ``epochs`` eliminates the O(n_references) zero fill per query. ``touched``
+-    and the hybrid query bitmap grow only when new library IDs are encountered.
++    ``last_peak`` and ``last_query`` are initialized lazily on a spectrum's
++    first encounter in a query epoch. Their contents for untouched reference
++    IDs are undefined and must not be inspected.
+     """
+ 
+     def __init__(self, n_references: int, n_peaks: int, dtype: np.dtype, hybrid: bool):
+-        dtype = np.dtype(dtype)
+-        index_dtype = np.int32 if n_references <= np.iinfo(np.int32).max else np.int64
+-        self.scores = np.empty(n_references, dtype=np.float64)
+-        self.selection_scores = self.scores if dtype == np.dtype(np.float64) else np.empty(n_references, dtype=dtype)
+-        self.epochs = np.zeros(n_references, dtype=np.uint32)
++        super().__init__(n_references, n_peaks, dtype, hybrid)
+         self.last_peak = np.empty(n_references, dtype=np.int64)
+         self.last_query = np.empty(n_references, dtype=np.int64)
+-        capacity = min(n_references, _INITIAL_CAPACITY)
+-        self.touched = np.empty(capacity, dtype=index_dtype)
+-        self.slots = np.empty(n_references if hybrid else 0, dtype=index_dtype)
+-        self.query_bits = np.empty((capacity, 0), dtype=np.uint64)
+-        n_peak_words = (n_peaks + 63) // 64 if hybrid else 0
+-        self.peak_word_epochs = np.zeros(n_peak_words, dtype=np.uint32)
+-        self.peak_word_bits = np.empty(n_peak_words, dtype=np.uint64)
+-        self.epoch = 0
+ 
+-    def next_epoch(self) -> int:
+-        """Advance generation, resetting stamps only at uint32 wraparound."""
+-        if self.epoch == _MAX_EPOCH:
+-            self.epochs.fill(0)
+-            self.peak_word_epochs.fill(0)
+-            self.epoch = 1
+-        else:
+-            self.epoch += 1
+-        return self.epoch
+ 
+-    def ensure_query_words(self, n_query_peaks: int) -> None:
+-        """Grow hybrid query bitmap width between rows, never during a row."""
+-        words = (n_query_peaks + 63) // 64
+-        if words > self.query_bits.shape[1]:
+-            # All rows used by this query will be reset lazily by _touch.
+-            self.query_bits = np.empty((self.touched.size, words), dtype=np.uint64)
++@njit(cache=True, inline="always")
++def _touch_entropy(state, touched, query_bits, n_touched, epoch, reference_id, initial_peak):
++    """Register one reference and initialize its entropy cursors if new."""
++    scores, epochs, last_peak, last_query, slots, _, _ = state
++    touched, query_bits, n_touched, is_new = _register_touched(
++        epochs,
++        slots,
++        touched,
++        query_bits,
++        n_touched,
++        epoch,
++        reference_id,
++    )
++    if is_new:
++        scores[reference_id] = 0.0
++        last_peak[reference_id] = initial_peak
++        last_query[reference_id] = -1
++    return touched, query_bits, n_touched
+ 
+ 
+-@njit(cache=True, inline="always")
+-def _touch(scores, epochs, last_peak, last_query, slots, touched, query_bits, n_touched, epoch, column, initial_peak):
+-    """Register a newly matched spectrum, resizing touched state if necessary."""
+-    if epochs[column] != epoch:
+-        if n_touched == touched.size:
+-            new_size = min(epochs.size, max(1, touched.size * 2))
+-            grown = np.empty(new_size, dtype=touched.dtype)
+-            grown[:n_touched] = touched[:n_touched]
+-            touched = grown
+-            if query_bits.shape[1]:
+-                grown_bits = np.empty((new_size, query_bits.shape[1]), dtype=np.uint64)
+-                grown_bits[:n_touched, :] = query_bits[:n_touched, :]
+-                query_bits = grown_bits
+-            else:
+-                query_bits = np.empty((new_size, 0), dtype=np.uint64)
+-        epochs[column] = epoch
+-        scores[column] = 0.0
+-        last_peak[column] = initial_peak
+-        last_query[column] = -1
+-        touched[n_touched] = column
+-        if query_bits.shape[1]:
+-            slots[column] = n_touched
+-            query_bits[n_touched, :] = 0
+-        n_touched += 1
++@njit(cache=True, nogil=True)
++def _match_fragment_postings(query, fragment, state, touched, query_bits, n_touched, tolerance, use_ppm, hybrid, epoch):
++    """Accumulate direct matches in ascending fragment and physical-peak order."""
++    query_mz, query_intensity, _ = query
++    mz, intensity_values, entropy_terms, owners, physical_ids = fragment
++    scores, epochs, last_peak, last_query, slots, peak_word_epochs, peak_word_bits = state
++
++    for query_peak in range(query_mz.size):
++        coordinate = np.float64(query_mz[query_peak])
++        intensity = np.float64(query_intensity[query_peak])
++        if intensity <= 0.0:
++            continue
++        query_term = xlog2(intensity)
++        first, stop = window(mz, coordinate, tolerance, use_ppm)
++        for posting in range(first, stop):
++            reference_id = owners[posting]
++            physical_peak = physical_ids[posting]
++            if epochs[reference_id] == epoch:
++                if last_query[reference_id] == query_peak or physical_peak <= last_peak[reference_id]:
++                    continue
++            reference_intensity = np.float64(intensity_values[posting])
++            if reference_intensity <= 0.0:
++                continue
++            if not within(coordinate, np.float64(mz[posting]), tolerance, use_ppm):
++                continue
++            touched, query_bits, n_touched = _touch_entropy(
++                state,
++                touched,
++                query_bits,
++                n_touched,
++                epoch,
++                reference_id,
++                -1,
++            )
++            scores[reference_id] += xlog2(intensity + reference_intensity) - query_term - entropy_terms[posting]
++            last_query[reference_id] = query_peak
++            last_peak[reference_id] = physical_peak
++            if hybrid:
++                word = physical_peak // 64
++                if peak_word_epochs[word] != epoch:
++                    peak_word_epochs[word] = epoch
++                    peak_word_bits[word] = np.uint64(0)
++                peak_word_bits[word] |= np.uint64(1) << np.uint64(physical_peak % 64)
++                query_bits[slots[reference_id], query_peak // 64] |= np.uint64(1) << np.uint64(query_peak % 64)
+     return touched, query_bits, n_touched
+ 
+ 
+ @njit(cache=True, nogil=True)
+-def _entropy_topk_row(
+-    q_mz,
+-    q_int,
+-    q_precursor,
+-    fragment,
+-    neutral_loss,
+-    lib_pmz,
+-    n_lib_peaks,
+-    tolerance,
+-    use_ppm,
+-    mode,
+-    identity_tol,
+-    identity_ppm,
+-    scores,
+-    epochs,
+-    last_peak,
+-    last_query,
+-    slots,
+-    touched,
+-    query_bits,
+-    peak_word_epochs,
+-    peak_word_bits,
+-    epoch,
++def _match_neutral_loss_postings(
++    query, neutral_loss, state, touched, query_bits, n_touched, n_library_peaks, tolerance, use_ppm, hybrid, epoch
+ ):
+-    """Accumulate a complete row; return touched IDs and dynamically grown buffers.
++    """Accumulate losses in ascending loss order, without reusing hybrid peaks."""
++    query_mz, query_intensity, precursor_mz = query
++    mz, intensity_values, entropy_terms, owners, physical_ids = neutral_loss
++    scores, epochs, last_peak, last_query, slots, peak_word_epochs, peak_word_bits = state
+ 
+-    This duplicates the dense kernel's posting traversal and acceptance order,
+-    including fragment-first hybrid rules and last-peak monotonicity. Only
+-    bookkeeping and final score materialization differ.
+-    """
+-    fragment_mz, fragment_int, fragment_terms, fragment_spec, fragment_pid = fragment
+-    loss_mz, loss_int, loss_terms, loss_spec, loss_pid = neutral_loss
+-    n_touched = 0
+-    has_precursor = np.isfinite(q_precursor)
++    # The neutral-loss sweep uses a reversed physical-peak cursor. Reset only
++    # references encountered during this query's fragment sweep.
++    for position in range(n_touched):
++        reference_id = touched[position]
++        last_peak[reference_id] = n_library_peaks
++        last_query[reference_id] = -1
+ 
+-    if mode != 1:
+-        for query_index in range(q_mz.size):
+-            coordinate = np.float64(q_mz[query_index])
+-            intensity = np.float64(q_int[query_index])
+-            if intensity <= 0.0:
+-                continue
+-            query_term = xlog2(intensity)
+-            left, right = window(fragment_mz, coordinate, tolerance, use_ppm)
+-            for posting in range(left, right):
+-                column = fragment_spec[posting]
+-                peak_id = fragment_pid[posting]
+-                if epochs[column] == epoch:
+-                    if last_query[column] == query_index or peak_id <= last_peak[column]:
+-                        continue
+-                library_intensity = np.float64(fragment_int[posting])
+-                if library_intensity <= 0.0:
++    for query_peak in range(query_mz.size - 1, -1, -1):
++        intensity = np.float64(query_intensity[query_peak])
++        if intensity <= 0.0:
++            continue
++        coordinate = np.float64(precursor_mz) - np.float64(query_mz[query_peak])
++        query_term = xlog2(intensity)
++        first, stop = window(mz, coordinate, tolerance, use_ppm)
++        for posting in range(first, stop):
++            reference_id = owners[posting]
++            physical_peak = physical_ids[posting]
++            if epochs[reference_id] == epoch:
++                if last_query[reference_id] == query_peak or physical_peak >= last_peak[reference_id]:
++                    continue
++            if hybrid:
++                word = physical_peak // 64
++                if peak_word_epochs[word] == epoch and peak_word_bits[word] & (
++                    np.uint64(1) << np.uint64(physical_peak % 64)
++                ):
+                     continue
+-                if not within(coordinate, np.float64(fragment_mz[posting]), tolerance, use_ppm):
++                if epochs[reference_id] == epoch and query_bits[slots[reference_id], query_peak // 64] & (
++                    np.uint64(1) << np.uint64(query_peak % 64)
++                ):
+                     continue
+-                touched, query_bits, n_touched = _touch(
+-                    scores,
+-                    epochs,
+-                    last_peak,
+-                    last_query,
+-                    slots,
+-                    touched,
+-                    query_bits,
+-                    n_touched,
+-                    epoch,
+-                    column,
+-                    -1,
+-                )
+-                scores[column] += xlog2(intensity + library_intensity) - query_term - fragment_terms[posting]
+-                last_query[column] = query_index
+-                last_peak[column] = peak_id
+-                if mode == 2:
+-                    word = peak_id // 64
+-                    if peak_word_epochs[word] != epoch:
+-                        peak_word_epochs[word] = epoch
+-                        peak_word_bits[word] = np.uint64(0)
+-                    peak_word_bits[word] |= np.uint64(1) << np.uint64(peak_id % 64)
+-                    query_bits[slots[column], query_index // 64] |= np.uint64(1) << np.uint64(query_index % 64)
++            reference_intensity = np.float64(intensity_values[posting])
++            if reference_intensity <= 0.0:
++                continue
++            if not within(coordinate, mz[posting], tolerance, use_ppm):
++                continue
++            touched, query_bits, n_touched = _touch_entropy(
++                state,
++                touched,
++                query_bits,
++                n_touched,
++                epoch,
++                reference_id,
++                n_library_peaks,
++            )
++            scores[reference_id] += xlog2(intensity + reference_intensity) - query_term - entropy_terms[posting]
++            last_query[reference_id] = query_peak
++            last_peak[reference_id] = physical_peak
++    return touched, query_bits, n_touched
+ 
+-    if mode != 0 and has_precursor:
+-        # The loss pass starts its peak and query cursors afresh. Only references
+-        # actually reached by the fragment pass need resetting.
+-        for position in range(n_touched):
+-            column = touched[position]
+-            last_peak[column] = n_lib_peaks
+-            last_query[column] = -1
+ 
+-        for query_index in range(q_mz.size - 1, -1, -1):
+-            intensity = np.float64(q_int[query_index])
+-            if intensity <= 0.0:
+-                continue
+-            coordinate = np.float64(q_precursor) - np.float64(q_mz[query_index])
+-            query_term = xlog2(intensity)
+-            left, right = window(loss_mz, coordinate, tolerance, use_ppm)
+-            for posting in range(left, right):
+-                column = loss_spec[posting]
+-                peak_id = loss_pid[posting]
+-                if epochs[column] == epoch:
+-                    if last_query[column] == query_index or peak_id >= last_peak[column]:
+-                        continue
+-                if mode == 2:
+-                    word = peak_id // 64
+-                    if peak_word_epochs[word] == epoch and peak_word_bits[word] & (
+-                        np.uint64(1) << np.uint64(peak_id % 64)
+-                    ):
+-                        continue
+-                    if epochs[column] == epoch and query_bits[slots[column], query_index // 64] & (
+-                        np.uint64(1) << np.uint64(query_index % 64)
+-                    ):
+-                        continue
+-                library_intensity = np.float64(loss_int[posting])
+-                if library_intensity <= 0.0:
+-                    continue
+-                if not within(coordinate, loss_mz[posting], tolerance, use_ppm):
+-                    continue
+-                touched, query_bits, n_touched = _touch(
+-                    scores,
+-                    epochs,
+-                    last_peak,
+-                    last_query,
+-                    slots,
+-                    touched,
+-                    query_bits,
+-                    n_touched,
+-                    epoch,
+-                    column,
+-                    n_lib_peaks,
+-                )
+-                scores[column] += xlog2(intensity + library_intensity) - query_term - loss_terms[posting]
+-                last_query[column] = query_index
+-                last_peak[column] = peak_id
++@njit(cache=True, nogil=True)
++def _apply_identity_to_touched(query_precursor, reference_precursors, state, touched, n_touched, tolerance, use_ppm):
++    """Zero candidates outside the optional precursor-identity gate."""
++    scores = state[0]
++    for position in range(n_touched):
++        reference_id = touched[position]
++        if not identity_allowed(query_precursor, reference_precursors[reference_id], tolerance, use_ppm):
++            scores[reference_id] = 0.0
++
++
++@njit(cache=True, nogil=True)
++def _entropy_topk_row(query, fragment, neutral_loss, library_info, settings, state, touched, query_bits, epoch):
++    """Execute both entropy matching passes and return the touched references.
+ 
++    ``query`` contains m/z, intensity and precursor; ``library_info`` contains
++    precursor m/z and the number of physical peaks. ``settings`` holds matching
++    mode, peak tolerance/ppm and optional identity-gate tolerance/ppm.
++    ``state`` groups worker-owned score, epoch, cursors and hybrid bitset arrays.
++    """
++    _, _, precursor_mz = query
++    library_precursors, n_library_peaks = library_info
++    mode, tolerance, use_ppm, identity_tol, identity_ppm = settings
++    hybrid = mode == 2
++    touched_count = 0
++    if mode != 1:
++        touched, query_bits, touched_count = _match_fragment_postings(
++            query,
++            fragment,
++            state,
++            touched,
++            query_bits,
++            touched_count,
++            tolerance,
++            use_ppm,
++            hybrid,
++            epoch,
++        )
++    if mode != 0 and np.isfinite(precursor_mz):
++        touched, query_bits, touched_count = _match_neutral_loss_postings(
++            query,
++            neutral_loss,
++            state,
++            touched,
++            query_bits,
++            touched_count,
++            n_library_peaks,
++            tolerance,
++            use_ppm,
++            hybrid,
++            epoch,
++        )
+     if identity_tol >= 0.0:
+-        for position in range(n_touched):
+-            column = touched[position]
+-            if not identity_allowed(q_precursor, lib_pmz[column], identity_tol, identity_ppm):
+-                scores[column] = 0.0
+-    return touched, query_bits, n_touched
++        _apply_identity_to_touched(
++            precursor_mz, library_precursors, state, touched, touched_count, identity_tol, identity_ppm
++        )
++    return touched, query_bits, touched_count
+ 
+ 
+ def _score_entropy_topk_block(
+-    prepared,
+-    library,
++    prepared: PreparedSpectra,
++    library: _EntropyKernelData,
+     workspace: _EntropyTopKWorkspace,
+     indices: np.ndarray,
+     scores: np.ndarray,
+@@ -253,51 +239,53 @@ def _score_entropy_topk_block(
+     identity_tol: float,
+     identity_ppm: bool,
+ ) -> None:
+-    """Write independent compact rows, reusing only this worker's scratch arrays."""
++    """Score independent query rows using reusable worker-local scratch state.
++
++    ``prepared`` is a read-only packed query batch; ``library`` is its validated
++    entropy index view. Output arrays are preallocated and rows are disjoint
++    between worker calls. Each row writes at most ``k`` indices and scores.
++    """
++    settings = (mode, tolerance, use_ppm, identity_tol, identity_ppm)
++    library_info = (library.precursor_mz, library.n_peaks)
+     for row in range(first_row, last_row):
+         first = int(prepared.spec_offsets[row])
+-        last = int(prepared.spec_offsets[row + 1])
++        stop = int(prepared.spec_offsets[row + 1])
+         if mode == 2:
+-            workspace.ensure_query_words(last - first)
++            workspace.ensure_query_words(stop - first)
+         epoch = workspace.next_epoch()
+-        touched, query_bits, n_touched = _entropy_topk_row(
+-            prepared.spec_mz[first:last],
+-            prepared.spec_int[first:last],
++        query = (
++            prepared.spec_mz[first:stop],
++            prepared.spec_int[first:stop],
+             np.float64(prepared.precursor_mz[row]),
+-            library.fragment,
+-            library.neutral_loss,
+-            library.precursor_mz,
+-            library.n_peaks,
+-            tolerance,
+-            use_ppm,
+-            mode,
+-            identity_tol,
+-            identity_ppm,
++        )
++        state = (
+             workspace.scores,
+             workspace.epochs,
+             workspace.last_peak,
+             workspace.last_query,
+             workspace.slots,
+-            workspace.touched,
+-            workspace.query_bits,
+             workspace.peak_word_epochs,
+             workspace.peak_word_bits,
++        )
++        touched, query_bits, touched_count = _entropy_topk_row(
++            query,
++            library.fragment,
++            library.neutral_loss,
++            library_info,
++            settings,
++            state,
++            workspace.touched,
++            workspace.query_bits,
+             epoch,
+         )
+         workspace.touched = touched
+         workspace.query_bits = query_bits
+-        candidates = touched[:n_touched]
++        candidates = touched[:touched_count]
+         if workspace.selection_scores is not workspace.scores:
+-            # Dense entropy accumulates in float64 and casts once, on output.
+-            # Selection (including ties and cutoff) must use that cast dtype.
++            # The dense scorer also casts its float64 accumulations only once.
+             workspace.selection_scores[candidates] = workspace.scores[candidates]
+-        ids, values = select_topk_candidates(
+-            candidates,
+-            workspace.selection_scores,
+-            k,
+-            min_score,
+-        )
+-        n_hits = ids.size
+-        indices[row, :n_hits] = ids
+-        scores[row, :n_hits] = values
+-        valid_counts[row] = n_hits
++        ids, values = select_topk_candidates(candidates, workspace.selection_scores, k, min_score)
++        count = ids.size
++        indices[row, :count] = ids
++        scores[row, :count] = values
++        valid_counts[row] = count
+diff --git a/matchms/similarity/_flash_prepared.py b/matchms/similarity/_flash_prepared.py
+index fecbb8e1a..04bf7ba99 100644
+--- a/matchms/similarity/_flash_prepared.py
++++ b/matchms/similarity/_flash_prepared.py
+@@ -1,4 +1,5 @@
+ """Validated, read-only packed spectra shared by indexed similarity kernels."""
++
+ from dataclasses import dataclass
+ import numpy as np
+ 
+@@ -16,16 +17,29 @@ def readonly(array: np.ndarray, dtype: np.dtype | None = None) -> np.ndarray:
+ 
+ @dataclass(frozen=True)
+ class PreparedSpectra:
+-    """Packed output of a similarity's ``prepare_queries`` method.
+-
+-    ``spec_offsets[i:i + 2]`` delimits spectrum i in ``spec_mz`` and ``spec_int``.
+-    Coordinates are sorted within each spectrum, and intensities have already
+-    been cleaned and weighted. ``precursor_mz`` and ``spec_l2`` contain one entry
+-    per spectrum; unknown precursors are NaN. Entropy uses zero norm placeholders.
+-
+-    ``settings`` records the preprocessing configuration. Scorers check it at
+-    search time without repeatedly scanning the arrays. Instances should be
+-    obtained from the similarity API rather than constructed directly.
++    """Read-only spectrum-major peaks used by the Flash scoring kernels.
++
++    Attributes
++    ----------
++    spec_offsets
++        CSR-style offsets with ``n_specs + 1`` entries. Spectrum ``i`` spans
++        ``[spec_offsets[i], spec_offsets[i + 1])`` in both peak arrays.
++    spec_mz, spec_int
++        Concatenated, m/z-sorted peaks and preprocessed intensities.
++    precursor_mz
++        Per-spectrum precursor m/z, or ``NaN`` for missing values.
++    spec_l2
++        Per-spectrum intensity L2 norm (cosine); entropy uses zeros.
++    dtype
++        Floating dtype of the peak arrays.
++    settings
++        Immutable preprocessing configuration checked against the scoring index.
++
++    Notes
++    -----
++    Build through ``prepare_queries`` rather than directly constructing this
++    dataclass. Arrays are read-only views; external writable aliases must not
++    be mutated while scoring. ``slice`` shares the underlying peak buffers.
+     """
+ 
+     spec_offsets: np.ndarray
+@@ -52,7 +66,7 @@ def slice(self, start: int, stop: int) -> "PreparedSpectra":
+             raise ValueError("Invalid prepared-spectrum slice.")
+         peak_start, peak_stop = self.spec_offsets[start], self.spec_offsets[stop]
+         return PreparedSpectra(
+-            spec_offsets=readonly(self.spec_offsets[start:stop + 1] - peak_start),
++            spec_offsets=readonly(self.spec_offsets[start : stop + 1] - peak_start),
+             spec_mz=self.spec_mz[peak_start:peak_stop],
+             spec_int=self.spec_int[peak_start:peak_stop],
+             precursor_mz=self.precursor_mz[start:stop],
+@@ -95,10 +109,7 @@ def pack_native(native, dtype: np.dtype, settings: tuple) -> PreparedSpectra:
+             raise ValueError("Prepared peaks must be m/z-sorted within each spectrum.")
+ 
+     norms = getattr(native, "spec_l2", None)
+-    norms = (
+-        np.zeros(offsets.size - 1, dtype=np.float64)
+-        if norms is None else np.asarray(norms, dtype=np.float64)
+-    )
++    norms = np.zeros(offsets.size - 1, dtype=np.float64) if norms is None else np.asarray(norms, dtype=np.float64)
+     if norms.shape != precursor.shape or not np.all(np.isfinite(norms)) or np.any(norms < 0):
+         raise ValueError("Invalid prepared L2 norms.")
+     precursor = np.asarray(precursor, dtype=np.float64)
+diff --git a/matchms/similarity/_flash_tolerance.py b/matchms/similarity/_flash_tolerance.py
+index 317017de8..15e56e70c 100644
+--- a/matchms/similarity/_flash_tolerance.py
++++ b/matchms/similarity/_flash_tolerance.py
+@@ -1,11 +1,17 @@
+ """Matching predicates and conservative candidate intervals for indexed peaks."""
++
+ import numpy as np
+ from numba import njit
+ 
+ 
+ @njit(cache=True, inline="always")
+ def within(a: float, b: float, tol: float, ppm: bool) -> bool:
+-    """Test the inclusive Da or symmetric-ppm tolerance on two coordinates."""
++    """Return whether two coordinates match within the inclusive tolerance.
++
++    For ppm, the allowed difference is ``tol * 1e-6 * (a + b) / 2``;
++    for Da, the allowed absolute difference is ``tol``. This is the exact
++    match predicate: callers cannot rely on candidate-window bounds alone.
++    """
+     if ppm:
+         return abs(a - b) <= tol * 1e-6 * 0.5 * (a + b)
+     return abs(a - b) <= tol
+@@ -38,7 +44,5 @@ def identity_allowed(query_pmz: float, library_pmz: float, tolerance: float, ppm
+     When enabled, both precursors must be finite and match within tolerance.
+     """
+     return tolerance < 0 or (
+-        np.isfinite(query_pmz)
+-        and np.isfinite(library_pmz)
+-        and within(query_pmz, library_pmz, tolerance, ppm)
++        np.isfinite(query_pmz) and np.isfinite(library_pmz) and within(query_pmz, library_pmz, tolerance, ppm)
+     )
+diff --git a/matchms/similarity/_flash_topk_common.py b/matchms/similarity/_flash_topk_common.py
+new file mode 100644
+index 000000000..c09bcf660
+--- /dev/null
++++ b/matchms/similarity/_flash_topk_common.py
+@@ -0,0 +1,107 @@
++"""Reusable per-worker candidate state for exact indexed Flash top-k scoring.
++
++The numerical assignment rules live in the individual entropy/cosine kernels.
++This module only owns epoch-stamped candidate registration and compact hybrid
++peak-use storage, shared by both kernels without dense output rows.
++"""
++
++from __future__ import annotations
++import numpy as np
++from numba import njit
++
++
++_INITIAL_CAPACITY = 256
++_MAX_EPOCH = int(np.iinfo(np.uint32).max)
++
++
++class _FlashTopKWorkspace:
++    """Scratch arrays reused by one worker across multiple queries.
++
++    Parameters
++    ----------
++    n_references
++        Number of library spectra, including entries that will never match.
++    n_peaks
++        Number of physical product peaks in the reference library.
++    dtype
++        Public score dtype. Numerical kernels accumulate in float64;
++        ``selection_scores`` converts candidates to this dtype before ranking.
++    hybrid
++        Whether to allocate physical-peak epoch words and compact query bitsets.
++
++    Notes
++    -----
++    ``epochs`` is a generation stamp per library ID; only the first posting in
++    an epoch initializes ``scores`` and the kernel-specific matching cursors.
++    ``touched`` holds encountered IDs in posting order. ``slots`` maps those
++    IDs into dynamically grown ``query_bits`` rows, avoiding a bitmap over all
++    references. The workspace is *not thread-safe*: give each worker its own.
++    """
++
++    def __init__(self, n_references: int, n_peaks: int, dtype: np.dtype, hybrid: bool):
++        dtype = np.dtype(dtype)
++        index_dtype = np.int32 if n_references <= np.iinfo(np.int32).max else np.int64
++        self.scores = np.empty(n_references, dtype=np.float64)
++        self.selection_scores = self.scores if dtype == np.dtype(np.float64) else np.empty(n_references, dtype=dtype)
++        self.epochs = np.zeros(n_references, dtype=np.uint32)
++        capacity = min(n_references, _INITIAL_CAPACITY)
++        self.touched = np.empty(capacity, dtype=index_dtype)
++        self.slots = np.empty(n_references if hybrid else 0, dtype=index_dtype)
++        self.query_bits = np.empty((capacity, 0), dtype=np.uint64)
++        n_peak_words = (n_peaks + 63) // 64 if hybrid else 0
++        self.peak_word_epochs = np.zeros(n_peak_words, dtype=np.uint32)
++        self.peak_word_bits = np.empty(n_peak_words, dtype=np.uint64)
++        self.epoch = 0
++
++    def next_epoch(self) -> int:
++        """Increment generation; clear generation stamps only at wraparound."""
++        if self.epoch == _MAX_EPOCH:
++            self.epochs.fill(0)
++            self.peak_word_epochs.fill(0)
++            self.epoch = 1
++        else:
++            self.epoch += 1
++        return self.epoch
++
++    def ensure_query_words(self, n_query_peaks: int) -> None:
++        """Resize query-peak bitmap width outside Numba row kernels."""
++        words = (n_query_peaks + 63) // 64
++        if words > self.query_bits.shape[1]:
++            self.query_bits = np.empty((self.touched.size, words), dtype=np.uint64)
++
++
++@njit(cache=True, inline="always")
++def _register_touched(epochs, slots, touched, query_bits, n_touched, epoch, column):
++    """Register a reference once for the current epoch; grow buffers as needed.
++
++    ``epochs`` and ``slots`` are indexed by global reference ID; ``touched`` and
++    ``query_bits`` use compact candidate slots. On first encounter, the query
++    bitset row is cleared and ``is_new`` is true. The scorer must initialize its
++    own per-reference fields only when ``is_new`` is true.
++
++    Returns
++    -------
++    tuple
++        Possibly reallocated ``touched`` and ``query_bits``, updated touched
++        count, and a flag indicating first encounter in the epoch.
++    """
++    is_new = epochs[column] != epoch
++    if is_new:
++        if n_touched == touched.size:
++            new_size = min(epochs.size, max(1, touched.size * 2))
++            grown = np.empty(new_size, dtype=touched.dtype)
++            grown[:n_touched] = touched[:n_touched]
++            touched = grown
++            if query_bits.shape[1]:
++                grown_bits = np.empty((new_size, query_bits.shape[1]), dtype=np.uint64)
++                grown_bits[:n_touched, :] = query_bits[:n_touched, :]
++                query_bits = grown_bits
++            else:
++                query_bits = np.empty((new_size, 0), dtype=np.uint64)
++        epochs[column] = epoch
++        touched[n_touched] = column
++        if query_bits.shape[1]:
++            slots[column] = n_touched
++            query_bits[n_touched, :] = 0
++        n_touched += 1
++    return touched, query_bits, n_touched, is_new
+diff --git a/matchms/similarity/flash_similarity.py b/matchms/similarity/flash_similarity.py
+index 739ed2c8f..fa5d01157 100644
+--- a/matchms/similarity/flash_similarity.py
++++ b/matchms/similarity/flash_similarity.py
+@@ -2,9 +2,9 @@
+ 
+ A library index stores globally sorted peaks for tolerance-window lookups and
+ spectrum-major arrays for normalization and peak identity. Dense searches return
+-``Scores`` with query rows and library columns. EntropyFlash additionally offers
+-exact candidate-aware top-k retrieval without a dense output matrix. Numerical kernels release the
+-GIL and can process disjoint query blocks using shared, read-only index arrays.
++``Scores`` with query rows and library columns. EntropyFlash and CosineFlash
++share exact candidate-aware top-k retrieval without a dense output matrix.
++Numerical kernels release the GIL and share read-only index arrays.
+ """
+ 
+ from __future__ import annotations
+@@ -20,6 +20,7 @@
+ from matchms.scores import Scores
+ from matchms.typing import SpectrumType
+ from ._flash_cosine import cosine_rows
++from ._flash_cosine_topk import _CosineTopKWorkspace, _score_cosine_topk_block
+ from ._flash_entropy import entropy_rows
+ from ._flash_entropy_topk import _EntropyTopKWorkspace, _score_entropy_topk_block
+ from ._flash_prepared import PreparedSpectra, empty_prepared, pack_native
+@@ -415,6 +416,172 @@ def search_prepared(
+ 
+         return self._score_prepared(query_spectra, library_index, fields, progress_bar, n_jobs)
+ 
++    def search_topk(
++        self,
++        query_spectra: Sequence[SpectrumType],
++        library_index: FlashIndex,
++        *,
++        k: int = 100,
++        min_score: float = 0.0,
++        batch_size: int | None = None,
++        score_fields: Sequence[str] | None = None,
++        progress_bar: bool = True,
++        n_jobs: int = 1,
++    ) -> TopKResults:
++        """Retrieve exact positive top-k matches from an existing FlashIndex.
++
++        Supports fragment, neutral-loss and hybrid matching for both cosine
++        (including modified cosine) and entropy. The numerical assignment
++        rules are scorer-specific, but result shape, ranking, memory-bounded
++        scheduling, and validation are shared. ``batch_size`` controls task
++        scheduling, not allocation of dense score batches. The optional
++        ``matches`` output is available for cosine with ``score_fields``.
++        """
++        self._check_index(library_index)
++        validate_topk_parameters(k, min_score, batch_size)
++        _worker_count(n_jobs, 1)
++        fields = self._resolve_score_fields(score_fields)
++        if "score" not in fields:
++            raise ValueError("Top-k ranking requires the 'score' field.")
++        return self.search_prepared_topk(
++            self.prepare_queries(query_spectra),
++            library_index,
++            k=k,
++            min_score=min_score,
++            batch_size=batch_size,
++            score_fields=score_fields,
++            progress_bar=progress_bar,
++            n_jobs=n_jobs,
++        )
++
++    def search_prepared_topk(
++        self,
++        query_spectra: PreparedSpectra,
++        library_index: FlashIndex,
++        *,
++        k: int = 100,
++        min_score: float = 0.0,
++        batch_size: int | None = None,
++        score_fields: Sequence[str] | None = None,
++        progress_bar: bool = False,
++        n_jobs: int = 1,
++    ) -> TopKResults:
++        """Return ranked candidates without computing a dense result matrix.
++
++        Per-worker workspace is proportional to library size and is reused for
++        the full query batch. Only actually touched reference IDs are ranked.
++        Hits are sorted descending by public-dtype score and then ascending
++        by library ID, with ``score > min_score`` and -1/zero padding.
++        """
++        self._check_index(library_index)
++        self._check_prepared(query_spectra)
++        fields = self._resolve_score_fields(score_fields)
++        if "score" not in fields:
++            raise ValueError("Top-k ranking requires the 'score' field.")
++        k, min_score, batch_size = validate_topk_parameters(k, min_score, batch_size)
++        workers = _worker_count(n_jobs, query_spectra.n_specs)
++        n_queries, n_references = query_spectra.n_specs, library_index.n_specs
++        id_dtype = np.int32 if n_references <= np.iinfo(np.int32).max else np.int64
++        indices = np.full((n_queries, k), -1, dtype=id_dtype)
++        scores = np.zeros((n_queries, k), dtype=self.dtype)
++        valid_counts = np.zeros(n_queries, dtype=np.intp)
++        matches = np.zeros((n_queries, k), dtype=np.int32) if "matches" in fields else None
++        if n_queries == 0 or n_references == 0 or query_spectra.n_peaks == 0:
++            return TopKResults(indices, scores, valid_counts, n_references, matches)
++
++        library = self._topk_library_data(library_index)
++        if library.n_peaks == 0:
++            return TopKResults(indices, scores, valid_counts, n_references, matches)
++        mode = _MATCHING_MODES[self.matching_mode]
++        gate = -1.0 if self.identity_precursor_tolerance is None else self.identity_precursor_tolerance
++        task_size = (
++            batch_size if batch_size is not None else max(1, min(32, (n_queries + 4 * workers - 1) // (4 * workers)))
++        )
++
++        def new_workspace():
++            return self._make_topk_workspace(library, mode)
++
++        def run(first: int, last: int, state) -> None:
++            self._score_topk_block(
++                query_spectra,
++                library,
++                state,
++                indices,
++                scores,
++                valid_counts,
++                matches,
++                first,
++                last,
++                k,
++                min_score,
++                mode,
++                gate,
++            )
++
++        with tqdm(
++            total=n_queries, desc=f"{type(self).__name__} top-k ({self.matching_mode})", disable=not progress_bar
++        ) as progress:
++            # Compile the first actual query before launching worker threads.
++            state = new_workspace()
++            run(0, 1, state)
++            progress.update(1)
++            if workers == 1:
++                for first in range(1, n_queries, task_size):
++                    last = min(first + task_size, n_queries)
++                    run(first, last, state)
++                    progress.update(last - first)
++            elif n_queries > 1:
++                del state
++                worker_local = local()
++
++                def worker(first: int, last: int) -> None:
++                    state = getattr(worker_local, "state", None)
++                    if state is None:
++                        state = new_workspace()
++                        worker_local.state = state
++                    run(first, last, state)
++
++                with ThreadPoolExecutor(max_workers=workers) as pool:
++                    futures = {
++                        pool.submit(worker, first, min(first + task_size, n_queries)): min(task_size, n_queries - first)
++                        for first in range(1, n_queries, task_size)
++                    }
++                    for future in as_completed(futures):
++                        future.result()
++                        progress.update(futures[future])
++
++        return TopKResults(indices, scores, valid_counts, n_references, matches)
++
++    @abstractmethod
++    def _topk_library_data(self, library_index: FlashIndex):
++        """Get the scorer-specific read-only kernel view from the index."""
++        raise NotImplementedError
++
++    @abstractmethod
++    def _make_topk_workspace(self, library, mode: int):
++        """Allocate reusable worker-private scoring and matching state."""
++        raise NotImplementedError
++
++    @abstractmethod
++    def _score_topk_block(
++        self,
++        prepared,
++        library,
++        workspace,
++        indices,
++        scores,
++        valid_counts,
++        matches,
++        first,
++        last,
++        k,
++        min_score,
++        mode,
++        gate,
++    ) -> None:
++        """Write compact top-k rows using scorer-specific exact matching."""
++        raise NotImplementedError
++
+     @abstractmethod
+     def _score_prepared(
+         self,
+@@ -582,6 +749,47 @@ def run(start, stop):
+         arrays = {"score": scores, "matches": counts}
+         return Scores({field: arrays[field] for field in fields})
+ 
++    def _topk_library_data(self, library_index):
++        return library_index.cosine_data()
++
++    def _make_topk_workspace(self, library, mode):
++        return _CosineTopKWorkspace(library.n_specs, library.n_peaks, self.dtype, mode == 2)
++
++    def _score_topk_block(
++        self,
++        prepared,
++        library,
++        workspace,
++        indices,
++        scores,
++        valid_counts,
++        matches,
++        first,
++        last,
++        k,
++        min_score,
++        mode,
++        gate,
++    ):
++        _score_cosine_topk_block(
++            prepared,
++            library,
++            workspace,
++            indices,
++            scores,
++            valid_counts,
++            matches,
++            first,
++            last,
++            k,
++            min_score,
++            mode,
++            self.tolerance,
++            self.use_ppm,
++            gate,
++            self.identity_use_ppm,
++        )
++
+ 
+ class EntropyFlash(_BaseFlashSimilarity):
+     """Entropy similarity accumulated directly from matching indexed peaks.
+@@ -673,141 +881,42 @@ def run(start, stop):
+         _run_rows(run, queries.n_specs, n_jobs, progress_bar, f"{type(self).__name__} ({self.matching_mode})")
+         return Scores({"score": scores})
+ 
+-    def search_topk(
+-        self,
+-        query_spectra: Sequence[SpectrumType],
+-        library_index: FlashIndex,
+-        *,
+-        k: int = 100,
+-        min_score: float = 0.0,
+-        batch_size: int | None = None,
+-        progress_bar: bool = True,
+-        n_jobs: int = 1,
+-    ) -> TopKResults:
+-        """Return exact top-k ranked references without a dense score matrix.
+-
+-        Supports fragment, neutral-loss, and hybrid matching, including ppm
+-        tolerance and the optional precursor-identity gate. Only scores strictly
+-        greater than ``min_score`` are returned, ranked descending by score and
+-        ascending by reference index for ties. Library IDs refer to the
+-        original persisted index order. ``batch_size`` controls thread task
+-        scheduling; no dense score batches are allocated.
+-
+-        Each worker owns O(n_references) scoring/cursor arrays; hybrid also
+-        allocates compact peak-use bitsets. The default single worker limits
+-        memory on large libraries; use ``n_jobs`` to trade memory for speed.
+-        """
+-        self._check_index(library_index)
+-        validate_topk_parameters(k, min_score, batch_size)
+-        _worker_count(n_jobs, 1)  # Validate even if the prepared queries are empty.
+-        return self.search_prepared_topk(
+-            self.prepare_queries(query_spectra),
+-            library_index,
+-            k=k,
+-            min_score=min_score,
+-            batch_size=batch_size,
+-            progress_bar=progress_bar,
+-            n_jobs=n_jobs,
+-        )
++    def _topk_library_data(self, library_index):
++        return library_index.entropy_data()
+ 
+-    def search_prepared_topk(
+-        self,
+-        query_spectra: PreparedSpectra,
+-        library_index: FlashIndex,
+-        *,
+-        k: int = 100,
+-        min_score: float = 0.0,
+-        batch_size: int | None = None,
+-        progress_bar: bool = False,
+-        n_jobs: int = 1,
+-    ) -> TopKResults:
+-        """Retrieve exact top-k hits from previously prepared query spectra.
++    def _make_topk_workspace(self, library, mode):
++        return _EntropyTopKWorkspace(library.n_specs, library.n_peaks, self.dtype, mode == 2)
+ 
+-        Uses the unchanged FlashIndex format and the same ordered one-to-one
+-        matching rules as ``search_prepared``. The ranking considers only
+-        library spectra whose peaks were actually matched; complete float64
+-        scores are cast to the public dtype before comparison and selection.
+-        """
+-        self._check_index(library_index)
+-        self._check_prepared(query_spectra)
+-        k, min_score, batch_size = validate_topk_parameters(k, min_score, batch_size)
+-        workers = _worker_count(n_jobs, query_spectra.n_specs)
+-        n_queries, n_references = query_spectra.n_specs, library_index.n_specs
+-        id_dtype = np.int32 if n_references <= np.iinfo(np.int32).max else np.int64
+-        indices = np.full((n_queries, k), -1, dtype=id_dtype)
+-        scores = np.zeros((n_queries, k), dtype=self.dtype)
+-        valid_counts = np.zeros(n_queries, dtype=np.intp)
+-        if n_queries == 0 or n_references == 0 or query_spectra.n_peaks == 0:
+-            return TopKResults(indices, scores, valid_counts, n_references)
+-
+-        library = library_index.entropy_data()
+-        if library.n_peaks == 0:
+-            return TopKResults(indices, scores, valid_counts, n_references)
+-        mode = _MATCHING_MODES[self.matching_mode]
+-        gate = -1.0 if self.identity_precursor_tolerance is None else self.identity_precursor_tolerance
+-        task_size = (
+-            batch_size if batch_size is not None else max(1, min(32, (n_queries + 4 * workers - 1) // (4 * workers)))
++    def _score_topk_block(
++        self,
++        prepared,
++        library,
++        workspace,
++        indices,
++        scores,
++        valid_counts,
++        matches,
++        first,
++        last,
++        k,
++        min_score,
++        mode,
++        gate,
++    ):
++        _score_entropy_topk_block(
++            prepared,
++            library,
++            workspace,
++            indices,
++            scores,
++            valid_counts,
++            first,
++            last,
++            k,
++            min_score,
++            mode,
++            self.tolerance,
++            self.use_ppm,
++            gate,
++            self.identity_use_ppm,
+         )
+-
+-        def new_workspace() -> _EntropyTopKWorkspace:
+-            return _EntropyTopKWorkspace(
+-                n_references,
+-                library.n_peaks,
+-                self.dtype,
+-                mode == 2,
+-            )
+-
+-        def run(first: int, last: int, state: _EntropyTopKWorkspace) -> None:
+-            _score_entropy_topk_block(
+-                query_spectra,
+-                library,
+-                state,
+-                indices,
+-                scores,
+-                valid_counts,
+-                first,
+-                last,
+-                k,
+-                min_score,
+-                mode,
+-                self.tolerance,
+-                self.use_ppm,
+-                gate,
+-                self.identity_use_ppm,
+-            )
+-
+-        with tqdm(
+-            total=n_queries, desc=f"{type(self).__name__} top-k ({self.matching_mode})", disable=not progress_bar
+-        ) as progress:
+-            # A real query primes Numba before threads start compiling kernels.
+-            state = new_workspace()
+-            run(0, 1, state)
+-            progress.update(1)
+-            if workers == 1:
+-                for first in range(1, n_queries, task_size):
+-                    last = min(first + task_size, n_queries)
+-                    run(first, last, state)
+-                    progress.update(last - first)
+-            elif n_queries > 1:
+-                # Reuse state per thread, not per submitted task. The first
+-                # temporary workspace is released before worker allocation.
+-                del state
+-                worker_local = local()
+-
+-                def worker(first: int, last: int) -> None:
+-                    state = getattr(worker_local, "state", None)
+-                    if state is None:
+-                        state = new_workspace()
+-                        worker_local.state = state
+-                    run(first, last, state)
+-
+-                with ThreadPoolExecutor(max_workers=workers) as pool:
+-                    futures = {
+-                        pool.submit(worker, first, min(first + task_size, n_queries)): min(task_size, n_queries - first)
+-                        for first in range(1, n_queries, task_size)
+-                    }
+-                    for future in as_completed(futures):
+-                        future.result()
+-                        progress.update(futures[future])
+-
+-        return TopKResults(indices, scores, valid_counts, n_references)
+diff --git a/matchms/similarity/topk_results.py b/matchms/similarity/topk_results.py
+index 135d5a198..e937a9bab 100644
+--- a/matchms/similarity/topk_results.py
++++ b/matchms/similarity/topk_results.py
+@@ -16,6 +16,9 @@ class TopKResults:
+     by ascending library index. ``valid_counts[i]`` is the number of real hits
+     for query ``i``; remaining positions are padded with index -1 and score 0.
+ 
++    For cosine, optional ``matches`` contains one-to-one accepted peak counts
++    for returned hits (and zero padding). Entropy keeps ``matches=None``.
++
+     In top-k search, only scores *strictly greater* than ``min_score`` qualify.
+     In particular, the default ``min_score=0`` never returns arbitrary zero-score
+     library spectra. Omitted pairs must not be interpreted as computed zeroes.
+@@ -31,6 +34,7 @@ class TopKResults:
+     scores: np.ndarray
+     valid_counts: np.ndarray
+     n_references: int
++    matches: np.ndarray | None = None
+ 
+     def __post_init__(self) -> None:
+         if isinstance(self.n_references, (bool, np.bool_)):
+@@ -52,6 +56,13 @@ def __post_init__(self) -> None:
+         if np.any(counts > indices.shape[1]) or np.any(counts < 0):
+             raise ValueError("valid_counts must be between zero and the requested k.")
+ 
++        matches = self.matches
++        if matches is not None:
++            if not isinstance(matches, np.ndarray) or matches.shape != indices.shape or matches.dtype.kind not in "iu":
++                raise ValueError("matches must be an integer array shaped like indices.")
++            if np.any(matches < 0):
++                raise ValueError("matches must contain nonnegative match counts.")
++
+         for row, length in enumerate(counts):
+             n = int(length)
+             ids = indices[row, :n]
+@@ -60,12 +71,16 @@ def __post_init__(self) -> None:
+                 raise ValueError("Valid hits require in-range library IDs and finite scores.")
+             if np.any(indices[row, n:] != -1) or np.any(scores[row, n:] != 0):
+                 raise ValueError("Unused result entries must be padded by ID -1 and score 0.")
++            if matches is not None and np.any(matches[row, n:] != 0):
++                raise ValueError("Unused match-count positions must be padded by zero.")
+             if n > 1 and (
+                 np.any(values[1:] > values[:-1]) or np.any((values[1:] == values[:-1]) & (ids[1:] < ids[:-1]))
+             ):
+                 raise ValueError("Hits must be ordered by descending score, then ascending ID.")
+ 
+-        for name in ("indices", "scores", "valid_counts"):
++        for name in ("indices", "scores", "valid_counts", "matches"):
++            if getattr(self, name) is None:
++                continue
+             read_only = getattr(self, name).view()
+             read_only.flags.writeable = False
+             object.__setattr__(self, name, read_only)
+@@ -92,3 +107,10 @@ def get_hits(self, query_index: int) -> tuple[np.ndarray, np.ndarray]:
+         """Return library IDs and scores for one query, excluding padding."""
+         n = int(self.valid_counts[query_index])
+         return self.indices[query_index, :n], self.scores[query_index, :n]
++
++    def get_hits_with_matches(self, query_index: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
++        """Return cosine hit IDs, scores and accepted peak counts without padding."""
++        if self.matches is None:
++            raise ValueError("This top-k result does not include match counts.")
++        n = int(self.valid_counts[query_index])
++        return (self.indices[query_index, :n], self.scores[query_index, :n], self.matches[query_index, :n])
+diff --git a/tests/similarity/test_flash_cosine_topk.py b/tests/similarity/test_flash_cosine_topk.py
+new file mode 100644
+index 000000000..1c4b87a1b
+--- /dev/null
++++ b/tests/similarity/test_flash_cosine_topk.py
+@@ -0,0 +1,261 @@
++from __future__ import annotations
++import numpy as np
++import pytest
++from matchms.similarity._flash_cosine_topk import _CosineTopKWorkspace
++from matchms.similarity._flash_prepared import PreparedSpectra, readonly
++from matchms.similarity._flash_topk_common import _MAX_EPOCH
++from matchms.similarity.flash_similarity import CosineFlash
++from matchms.similarity.topk_results import TopKResults
++
++
++def _prepared(scorer, rows, precursors):
++    mz, intensities, offsets, norms = [], [], [0], []
++    for pairs in rows:
++        row = np.asarray(pairs, dtype=np.float64).reshape((-1, 2))
++        assert np.all(row[:, 1] >= 0) and np.all(row[1:, 0] >= row[:-1, 0])
++        values = np.asarray(row[:, 1], dtype=scorer.dtype)
++        mz.extend(row[:, 0])
++        intensities.extend(values)
++        offsets.append(len(mz))
++        norms.append(np.linalg.norm(values.astype(np.float64)))
++    return PreparedSpectra(
++        spec_offsets=readonly(np.array(offsets, dtype=np.int64)),
++        spec_mz=readonly(np.array(mz, dtype=scorer.dtype)),
++        spec_int=readonly(np.array(intensities, dtype=scorer.dtype)),
++        precursor_mz=readonly(np.array(precursors, dtype=np.float64)),
++        spec_l2=readonly(np.array(norms, dtype=np.float64)),
++        dtype=scorer.dtype,
++        settings=scorer._settings(),
++    )
++
++
++def _scorer(mode="fragment", dtype=np.float32, *, ppm=False, gate=None,
++            identity_ppm=False):
++    return CosineFlash(
++        matching_mode=mode, tolerance=55 if ppm else 0.045,
++        use_ppm=ppm, identity_precursor_tolerance=gate,
++        identity_use_ppm=identity_ppm, noise_cutoff=0,
++        remove_precursor=False, dtype=dtype,
++    )
++
++
++def _expected(dense_scores, dense_matches, k, min_score):
++    n_queries, _ = dense_scores.shape
++    ids = np.full((n_queries, k), -1, dtype=np.int64)
++    vals = np.zeros((n_queries, k), dtype=dense_scores.dtype)
++    matches = np.zeros((n_queries, k), dtype=np.int32)
++    counts = np.zeros(n_queries, dtype=np.intp)
++    for q, row in enumerate(dense_scores):
++        qualified = np.flatnonzero(row > min_score)
++        sorted_ids = sorted(qualified, key=lambda i: (-row[i], int(i)))[:k]
++        length = len(sorted_ids)
++        counts[q] = length
++        ids[q, :length] = sorted_ids
++        vals[q, :length] = row[sorted_ids]
++        matches[q, :length] = dense_matches[q, sorted_ids]
++    return ids, vals, matches, counts
++
++
++def _check_dense(scorer, ref, query, *, k=3, min_score=0.0, n_jobs=1,
++                 batch_size=None, fields=None):
++    index = scorer.build_index_prepared(ref)
++    dense = scorer.search_prepared(query, index, n_jobs=1)
++    expected = _expected(dense._data["score"], dense._data["matches"],
++                         k, min_score)
++    result = scorer.search_prepared_topk(
++        query, index, k=k, min_score=min_score, n_jobs=n_jobs,
++        batch_size=batch_size, score_fields=fields,
++    )
++    assert isinstance(result, TopKResults)
++    assert result.shape == (query.n_specs, k)
++    assert result.n_references == ref.n_specs
++    np.testing.assert_array_equal(result.indices, expected[0])
++    np.testing.assert_array_equal(result.scores, expected[1])
++    np.testing.assert_array_equal(result.valid_counts, expected[3])
++    if fields is None or "matches" in fields:
++        assert result.matches is not None
++        np.testing.assert_array_equal(result.matches, expected[2])
++        for row in range(query.n_specs):
++            got_ids, got_scores, got_matches = result.get_hits_with_matches(row)
++            size = int(expected[3][row])
++            np.testing.assert_array_equal(got_ids, expected[0][row, :size])
++            np.testing.assert_array_equal(got_scores, expected[1][row, :size])
++            np.testing.assert_array_equal(got_matches, expected[2][row, :size])
++    else:
++        assert result.matches is None
++        with pytest.raises(ValueError, match="match counts"):
++            result.get_hits_with_matches(0)
++    return result
++
++
++def _random_rows(seed, n, *, max_peaks=16):
++    rng = np.random.default_rng(seed)
++    rows = []
++    for _ in range(n):
++        n_peaks = int(rng.integers(0, max_peaks + 1))
++        mz = rng.choice(np.arange(30, 400, 2), size=n_peaks, replace=True).astype(float)
++        mz += rng.choice([0, 0.012, 0.035, 0.055], size=n_peaks)
++        intensity = rng.choice([0.0, 0.15, 0.4, 0.7, 1.0, 1.3], size=n_peaks)
++        order = np.argsort(mz, kind="stable")
++        rows.append(np.column_stack((mz[order], intensity[order])))
++    return rows
++
++
++@pytest.mark.parametrize("mode", ["fragment", "neutral_loss", "hybrid"])
++@pytest.mark.parametrize("dtype", [np.float32, np.float64])
++@pytest.mark.parametrize("ppm", [False, True])
++@pytest.mark.parametrize("gate", [None, 0.1])
++def test_randomized_exact_greedy_and_counts(mode, dtype, ppm, gate):
++    scorer = _scorer(mode, dtype, ppm=ppm, gate=gate)
++    refs = _random_rows(302, 24)
++    queries = _random_rows(123, 9)
++    # Intentionally reuse precursors to trigger hybrid direct-only gating.
++    p_refs = np.array([260, 270, 280, np.nan, 260.03] * 5)[:len(refs)]
++    p_queries = np.array([260, 260.03, np.nan, 280, 270] * 2)[:len(queries)]
++    _check_dense(scorer, _prepared(scorer, refs, p_refs),
++                 _prepared(scorer, queries, p_queries),
++                 k=7, min_score=0.0, n_jobs=3, batch_size=2)
++
++
++@pytest.mark.parametrize("mode", ["fragment", "neutral_loss", "hybrid"])
++@pytest.mark.parametrize("dtype", [np.float32, np.float64])
++@pytest.mark.parametrize("k,min_score", [(1, 0), (2, .2), (10, .7), (3, 1.1)])
++def test_competing_matches_ties_and_threshold(mode, dtype, k, min_score):
++    scorer = _scorer(mode, dtype)
++    refs = [
++        [(100, 1), (100.01, 2), (200, 1)],
++        [(100, 1), (100.01, 2), (200, 1)],
++        [(100, 1), (200, 2)],
++        [(99.99, 1), (100.01, 3), (150, 1)],
++        [(150, 2)],
++        [],
++        [(380, 1)],
++    ]
++    queries = [
++        [(100, 1), (100.02, 3), (200.02, 1)],
++        [(99.99, 2), (200, 1)],
++        [(150, 1)],
++        [(999, 1)],
++        [],
++    ]
++    _check_dense(scorer, _prepared(scorer, refs, [300, 300, 310, 300, 280, 300, 380]),
++                 _prepared(scorer, queries, [300, 310, 280, np.nan, 300]),
++                 k=k, min_score=min_score, n_jobs=2, batch_size=1)
++
++
++@pytest.mark.parametrize("mode", ["fragment", "neutral_loss", "hybrid"])
++def test_precursor_identity_ppm(mode):
++    scorer = _scorer(mode, ppm=False, gate=30, identity_ppm=True)
++    refs = _prepared(scorer, [[(100, 1)], [(100, 1)], [(100, 1)]],
++                     [300, 300.006, 302])
++    queries = _prepared(scorer, [[(100, 1)], [(100, 1)]],
++                        [300, np.nan])
++    _check_dense(scorer, refs, queries, k=4)
++
++
++def test_hybrid_query_and_library_bitsets_exceed_64_peaks():
++    scorer = _scorer("hybrid", np.float64)
++    mz = np.arange(100, 380, dtype=float)
++    ref_rows = [np.column_stack((mz[:190], np.ones(190))),
++                np.column_stack((mz[2:200], np.arange(198) + 1)),
++                [(100, 1), (150, 2)], []]
++    query_rows = [np.column_stack((mz[:255], np.ones(255))),
++                  [(100, 1)], np.column_stack((mz[40:180], np.ones(140)))]
++    _check_dense(scorer, _prepared(scorer, ref_rows, [480, 490, 480, 480]),
++                 _prepared(scorer, query_rows, [480, 490, 480]),
++                 k=5, n_jobs=2, batch_size=1)
++
++
++def test_matches_field_can_be_omitted():
++    scorer = _scorer("hybrid")
++    refs = _prepared(scorer, [[(100, 1)], [(100, 1)]], [250, 252])
++    queries = _prepared(scorer, [[(100, 1)]], [250])
++    _check_dense(scorer, refs, queries, fields=("score",))
++
++
++def test_does_not_call_dense_scoring(monkeypatch):
++    scorer = _scorer("hybrid")
++    refs = _prepared(scorer, [[(100, 1)], [(100, 1)]], [250, 252])
++    queries = _prepared(scorer, [[(100, 1)]], [250])
++    index = scorer.build_index_prepared(refs)
++    monkeypatch.setattr(scorer, "_score_prepared", lambda *a: pytest.fail("dense called"))
++    got = scorer.search_prepared_topk(queries, index, k=1)
++    assert got.valid_counts.tolist() == [1]
++    assert got.matches[0, 0] == 1
++
++
++def test_public_method_prepares_queries(monkeypatch):
++    scorer = _scorer("fragment")
++    refs = _prepared(scorer, [[(100, 1)]], [250])
++    queries = _prepared(scorer, [[(100, 1)]], [250])
++    index = scorer.build_index_prepared(refs)
++    monkeypatch.setattr(scorer, "prepare_queries", lambda _: queries)
++    got = scorer.search_topk(object(), index, k=2, progress_bar=False)
++    assert got.indices.tolist() == [[0, -1]]
++
++
++def test_saved_index_load_matches_original(tmp_path):
++    scorer = _scorer("hybrid")
++    refs = _prepared(scorer, [[(100, 1), (100.02, 1)], [(200, 1)]], [300, 301])
++    queries = _prepared(scorer, [[(100, 1), (199.99, 1)]], [300])
++    index = scorer.build_index_prepared(refs)
++    path = tmp_path / "cosine.npz"
++    scorer.save_index(index, path)
++    loaded = scorer.load_index(path)
++    old = scorer.search_prepared_topk(queries, index, k=3)
++    new = scorer.search_prepared_topk(queries, loaded, k=3)
++    np.testing.assert_array_equal(old.indices, new.indices)
++    np.testing.assert_array_equal(old.scores, new.scores)
++    np.testing.assert_array_equal(old.matches, new.matches)
++
++
++def test_empty_cases_and_untouched_padding():
++    scorer = _scorer("hybrid")
++    empty = _prepared(scorer, [], [])
++    nonempty = _prepared(scorer, [[(100, 1)]], [300])
++    no_peaks = _prepared(scorer, [[]], [300])
++    for refs, queries in [(empty, nonempty), (nonempty, empty),
++                          (nonempty, no_peaks)]:
++        _check_dense(scorer, refs, queries, k=4)
++
++
++def test_epoch_wraparound_on_reused_workspace():
++    state = _CosineTopKWorkspace(11, 40, np.float32, hybrid=True)
++    state.epoch = _MAX_EPOCH
++    state.epochs[:] = 77
++    state.peak_word_epochs[:] = 77
++    assert state.next_epoch() == 1
++    assert not np.any(state.epochs)
++    assert not np.any(state.peak_word_epochs)
++
++
++def test_invalid_score_fields_and_parameters():
++    scorer = _scorer("fragment")
++    refs = _prepared(scorer, [[(100, 1)]], [250])
++    index = scorer.build_index_prepared(refs)
++    with pytest.raises(ValueError, match="requires the 'score'"):
++        scorer.search_prepared_topk(refs, index, score_fields=("matches",))
++    for k in (-1, 0, True, 1.2):
++        with pytest.raises((TypeError, ValueError)):
++            scorer.search_prepared_topk(refs, index, k=k)
++    for cutoff in (-1, float("nan"), float("inf"), True):
++        with pytest.raises((TypeError, ValueError)):
++            scorer.search_prepared_topk(refs, index, min_score=cutoff)
++    for batch_size in (-1, 0, True, 1.2):
++        with pytest.raises((TypeError, ValueError)):
++            scorer.search_prepared_topk(refs, index, batch_size=batch_size)
++
++
++def test_topk_results_optional_match_counts_validation_and_immutability():
++    from matchms.similarity.topk_results import TopKResults
++    obj = TopKResults(
++        np.array([[0, -1]], dtype=np.int32),
++        np.array([[.7, 0]], dtype=np.float32),
++        np.array([1], dtype=np.int32), 1,
++        np.array([[3, 0]], dtype=np.int32),
++    )
++    assert obj.get_hits_with_matches(0)[2].tolist() == [3]
++    assert not obj.matches.flags.writeable
++    with pytest.raises(ValueError, match="zero"):
++        TopKResults(obj.indices, obj.scores, obj.valid_counts, 1,
++                    np.array([[3, 1]], dtype=np.int32))
+diff --git a/tests/similarity/test_flash_entropy_topk.py b/tests/similarity/test_flash_entropy_topk.py
+index 6e7898994..eed04635f 100644
+--- a/tests/similarity/test_flash_entropy_topk.py
++++ b/tests/similarity/test_flash_entropy_topk.py
+@@ -1,8 +1,9 @@
+ from __future__ import annotations
+ import numpy as np
+ import pytest
+-from matchms.similarity._flash_entropy_topk import _MAX_EPOCH, _EntropyTopKWorkspace
++from matchms.similarity._flash_entropy_topk import _EntropyTopKWorkspace
+ from matchms.similarity._flash_prepared import PreparedSpectra, readonly
++from matchms.similarity._flash_topk_common import _MAX_EPOCH
+ from matchms.similarity.entropy import Entropy
+ from matchms.similarity.flash_similarity import EntropyFlash
+ from matchms.similarity.topk_results import TopKResults

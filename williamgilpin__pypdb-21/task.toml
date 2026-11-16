@@ -1,0 +1,66 @@
+version = "1.0"
+
+[task]
+name = "default/williamgilpin__pypdb-21"
+description = "[Testing/Bugfix] - Fixed pathing issues to allow for testing of PyPDB"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "pypdb",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "williamgilpin/pypdb"
+ref = "ed01c29276b823b33abf68b35bea20f76f67db6c"
+reference = "https://github.com/williamgilpin/pypdb/pull/21"
+source_access = "auto"
+built_at = "2026-11-16T00:16:59.634807+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:44cb6acc8bd6f0036aed27c10153980749f8c27e83dd0cc0063b965ab4214fe0"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2020-11-11T03:33:29Z"
+diff_format = "unified"
+context_files = [
+    "devtools/conda-recipe/meta.yaml",
+    "pypdb/conftest.py",
+    "pypdb/pypdb.py",
+    "pypdb/util/__init__.py",
+    "pypdb/util/test_http_requests.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 6
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

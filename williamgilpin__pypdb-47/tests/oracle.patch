@@ -1,0 +1,82 @@
+diff --git a/pypdb/clients/search/search_client.py b/pypdb/clients/search/search_client.py
+index 1fc25cd..35807ae 100644
+--- a/pypdb/clients/search/search_client.py
++++ b/pypdb/clients/search/search_client.py
+@@ -283,6 +283,7 @@ class SearchService(Enum):
+     """Which type of field is being searched.
+ 
+     Auto-inferred from search operator."""
++    BASIC_SEARCH = "full_text"
+     TEXT = "text"
+     SEQUENCE = "sequence"
+     SEQMOTIF = "seqmotif"
+@@ -296,7 +297,9 @@ class CannotInferSearchServiceException(Exception):
+ 
+ def _infer_search_service(search_operator: SearchOperator) -> SearchService:
+ 
+-    if type(search_operator) in text_operators.TEXT_SEARCH_OPERATORS:
++    if isinstance(search_operator, text_operators.DefaultOperator):
++        return SearchService.BASIC_SEARCH
++    elif type(search_operator) in text_operators.TEXT_SEARCH_OPERATORS:
+         return SearchService.TEXT
+     elif type(search_operator) is SequenceOperator:
+         return SearchService.SEQUENCE
+diff --git a/pypdb/clients/search/search_client_test.py b/pypdb/clients/search/search_client_test.py
+index 05470f3..0b553e5 100644
+--- a/pypdb/clients/search/search_client_test.py
++++ b/pypdb/clients/search/search_client_test.py
+@@ -34,7 +34,7 @@ def test_default_operator_with_entry_return_value(self, mock_post):
+         expected_json_dict = {
+             'query': {
+                 'type': 'terminal',
+-                'service': 'text',
++                'service': 'full_text',
+                 'parameters': {
+                     'value': 'ribosome'
+                 }
+@@ -305,12 +305,8 @@ def test_range_operator_with_entry_return(self, mock_post):
+                 "parameters": {
+                     "operator": "range",
+                     "attribute": "rcsb_accession_info.initial_release_date",
+-                    "value": {
+-                        "from": "2019-01-01T00:00:00Z",
+-                        "to": "2019-06-30T00:00:00Z",
+-                        "include_lower": False,
+-                        "include_upper": True
+-                    }
++                    "negation": False,
++                    "value": ["2019-01-01T00:00:00Z", "2019-06-30T00:00:00Z"],
+                 }
+             },
+             "request_options": {
+diff --git a/pypdb/pypdb.py b/pypdb/pypdb.py
+index be87579..860daa0 100755
+--- a/pypdb/pypdb.py
++++ b/pypdb/pypdb.py
+@@ -105,7 +105,7 @@ class Query(object):
+     """
+     def __init__(self,
+                  search_term,
+-                 query_type="text",
++                 query_type="full_text",
+                  return_type="entry",
+                  scan_params=None):
+         """See help(Query) for documentation"""
+@@ -143,7 +143,7 @@ def __init__(self,
+             query_subtype = None
+ 
+         assert query_type in {
+-            "text", "structure", "sequence", "seqmotif", "chemical"
++            "full_text", "text", "structure", "sequence", "seqmotif", "chemical"
+         }, "Query type %s not recognized." % query_type
+ 
+         assert return_type in {"entry", "polymer_entity"
+@@ -159,7 +159,7 @@ def __init__(self,
+             query_params["type"] = "terminal"
+             query_params["service"] = query_type
+ 
+-            if query_type == "text":
++            if query_type in ["full_text", "text"]:
+                 query_params['parameters'] = {"value": search_term}
+ 
+             elif query_type == "sequence":

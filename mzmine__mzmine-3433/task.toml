@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3433"
+description = "Fix lipid ID bug"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "925a4ce3d951a2e223e25daac71798241813c9cf"
+reference = "https://github.com/mzmine/mzmine/pull/3433"
+source_access = "auto"
+built_at = "2026-11-16T08:45:45.491937+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:a94df765133cc7b5759deb02ad25f2fd1a87d9eb7928fa5b2bfb85d060e3d7ab"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-13T12:18:38Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/annotation_modules/LipidAnnotationTask.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/annotation_modules/LipidAnnotationUtils.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/common/identification/MSMSLipidTools.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/common/identification/fragmentation/LipidFragmentFactory.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/scoring/LipidQcScoringUtils.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_lipidid/utils/LipidAnnotationResolver.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/dash_lipidqc/quality/AnnotationQualityInteractor.java",
+    "mzmine-community/src/main/java/io/github/mzmine/util/FormulaUtils.java",
+    "mzmine-community/src/test/java/util/lipidannotationtest/LipidAnnotationMsMsTestSpectra.java",
+    "mzmine-community/src/test/java/util/lipidannotationtest/LipidAnnotationTest.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 310
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

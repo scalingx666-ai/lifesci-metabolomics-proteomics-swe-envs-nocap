@@ -1,0 +1,970 @@
+diff --git a/javafx-framework/src/main/java/io/github/mzmine/javafx/components/util/FxLayout.java b/javafx-framework/src/main/java/io/github/mzmine/javafx/components/util/FxLayout.java
+index f41254e2b2a..d927e633848 100644
+--- a/javafx-framework/src/main/java/io/github/mzmine/javafx/components/util/FxLayout.java
++++ b/javafx-framework/src/main/java/io/github/mzmine/javafx/components/util/FxLayout.java
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright (c) 2004-2026 The mzmine Development Team
++ *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+  * files (the "Software"), to deal in the Software without
+@@ -27,6 +28,7 @@
+ import io.github.mzmine.javafx.components.GridRow;
+ import java.util.List;
+ import java.util.stream.IntStream;
++import javafx.beans.value.ObservableValue;
+ import javafx.geometry.HPos;
+ import javafx.geometry.Insets;
+ import javafx.geometry.Orientation;
+@@ -450,6 +452,12 @@ public static RowConstraints newGridRowConstraints(VPos vAlignment, boolean fill
+     return spacer;
+   }
+ 
++  public static void bindVisibleManaged(@NotNull final Node node,
++      @NotNull final ObservableValue<Boolean> visible) {
++    node.visibleProperty().bind(visible);
++    node.managedProperty().bind(visible);
++  }
++
+   public enum GridColumnGrow {
+     LEFT, RIGHT, BOTH, NONE
+   }
+diff --git a/javafx-framework/src/main/java/io/github/mzmine/javafx/util/FxIcons.java b/javafx-framework/src/main/java/io/github/mzmine/javafx/util/FxIcons.java
+index d367143fdcf..28e06b17fd2 100644
+--- a/javafx-framework/src/main/java/io/github/mzmine/javafx/util/FxIcons.java
++++ b/javafx-framework/src/main/java/io/github/mzmine/javafx/util/FxIcons.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -46,7 +46,7 @@ public enum FxIcons implements IconCodeSupplier {
+   ROCKET, LIGHTBULB, METADATA_TABLE, TABLE, SPREADSHEET,
+ 
+   // ACTIONS
+-  SAVE, LOAD, CANCEL, FILTER, CLEAR, START, STOP, DRAW_REGION, DOWNLOAD, SEARCH;
++  SAVE, LOAD, CANCEL, FILTER, CLEAR, START, STOP, DRAW_REGION, DOWNLOAD, SEARCH, COLLAPSE, EXPAND;
+ 
+ 
+   @Override
+@@ -109,6 +109,8 @@ public String getIconCode() {
+       case FOLDER -> "bi-folder";
+       case FOLDER_FILL -> "bi-folder-fill";
+       case SEARCH -> "bi-search";
++      case COLLAPSE -> "bi-arrows-collapse";
++      case EXPAND -> "bi-arrows-expand";
+       case FEATURE_LIST -> "bi-file-spreadsheet";
+       case ALIGNED_FEATURE_LIST -> "bi-file-spreadsheet-fill";
+     };
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_deleterows/DeleteRowsModule.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_deleterows/DeleteRowsModule.java
+index 56f2b10a04d..4dffc8000db 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_deleterows/DeleteRowsModule.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_deleterows/DeleteRowsModule.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2024 The MZmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -26,7 +26,6 @@
+ package io.github.mzmine.modules.dataprocessing.filter_deleterows;
+ 
+ import io.github.mzmine.datamodel.MZmineProject;
+-import io.github.mzmine.datamodel.features.FeatureList;
+ import io.github.mzmine.datamodel.features.FeatureListRow;
+ import io.github.mzmine.datamodel.features.ModularFeatureList;
+ import io.github.mzmine.datamodel.features.SimpleFeatureListAppliedMethod;
+@@ -34,7 +33,6 @@
+ import io.github.mzmine.datamodel.features.compoundlist.CompoundRowUtils;
+ import io.github.mzmine.datamodel.features.compoundlist.ModularCompoundRow;
+ import io.github.mzmine.javafx.dialogs.DialogLoggerUtil;
+-import io.github.mzmine.main.MZmineCore;
+ import io.github.mzmine.modules.MZmineModuleCategory;
+ import io.github.mzmine.modules.impl.AbstractProcessingModule;
+ import io.github.mzmine.parameters.ParameterSet;
+@@ -56,7 +54,7 @@ public DeleteRowsModule() {
+         list rows are kept.""");
+   }
+ 
+-  public static void deleteWithConfirmation(@NotNull final FeatureList flist,
++  public static void deleteWithConfirmationThisThread(@NotNull final ModularFeatureList flist,
+       @Nullable final List<? extends FeatureListRow> rows) {
+     if (rows == null || rows.isEmpty()) {
+       return;
+@@ -64,30 +62,35 @@ public static void deleteWithConfirmation(@NotNull final FeatureList flist,
+     final boolean result = DialogLoggerUtil.showDialogYesNo("Deleting rows?",
+         "Are you sure you want to delete %d rows?".formatted(rows.size()));
+     if (result) {
+-      MZmineCore.runMZmineModule(DeleteRowsModule.class, DeleteRowsParameters.of(flist, rows));
++      deleteOnThisThread(DeleteRowsParameters.of(flist, rows));
+     }
+   }
+ 
+-  public static void deleteRows(@NotNull final FeatureList flist,
++  private static void deleteOnThisThread(DeleteRowsParameters params) {
++    final DeleteRowsTask task = new DeleteRowsTask(null, Instant.now(), params,
++        DeleteRowsModule.class);
++    task.run();
++  }
++
++  public static void deleteRowsThisThread(@NotNull final ModularFeatureList flist,
+       @Nullable final List<? extends FeatureListRow> rows) {
+     if (rows == null || rows.isEmpty()) {
+       return;
+     }
+-    MZmineCore.runMZmineModule(DeleteRowsModule.class, DeleteRowsParameters.of(flist, rows));
++    deleteOnThisThread(DeleteRowsParameters.of(flist, rows));
+   }
+ 
+   /**
+    * Delete feature list rows and/or compound rows in a single module call. Either list may be
+    * empty.
+    */
+-  public static void deleteRows(@NotNull final ModularFeatureList flist,
++  public static void deleteRowsThisThread(@NotNull final ModularFeatureList flist,
+       @NotNull final List<? extends FeatureListRow> rows,
+       @NotNull final Collection<? extends ModularCompoundRow> compounds) {
+     if (rows.isEmpty() && compounds.isEmpty()) {
+       return;
+     }
+-    MZmineCore.runMZmineModule(DeleteRowsModule.class,
+-        DeleteRowsParameters.of(flist, rows, compounds));
++    deleteOnThisThread(DeleteRowsParameters.of(flist, rows, compounds));
+   }
+ 
+   /**
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_deleterows/DeleteRowsParameters.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_deleterows/DeleteRowsParameters.java
+index 9ee2f0e31cb..7e1aaeef5fa 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_deleterows/DeleteRowsParameters.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_deleterows/DeleteRowsParameters.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2024 The MZmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -25,15 +25,15 @@
+ 
+ package io.github.mzmine.modules.dataprocessing.filter_deleterows;
+ 
+-import io.github.mzmine.datamodel.features.FeatureList;
+ import io.github.mzmine.datamodel.features.FeatureListRow;
+ import io.github.mzmine.datamodel.features.ModularFeatureList;
+-import io.github.mzmine.datamodel.features.compoundlist.ModularCompoundRow;
++import io.github.mzmine.datamodel.features.compoundlist.CompoundRow;
+ import io.github.mzmine.parameters.impl.SimpleParameterSet;
+ import io.github.mzmine.parameters.parametertypes.StringParameter;
+ import io.github.mzmine.parameters.parametertypes.selectors.FeatureListsParameter;
+ import io.github.mzmine.parameters.parametertypes.selectors.FeatureListsSelection;
+ import io.github.mzmine.util.FeatureListUtils;
++import java.util.ArrayList;
+ import java.util.Collection;
+ import java.util.List;
+ import java.util.stream.Collectors;
+@@ -55,24 +55,28 @@ public DeleteRowsParameters() {
+     super(flist, rowIds, compoundIds);
+   }
+ 
+-  public static @NotNull DeleteRowsParameters of(@NotNull final FeatureList featureList,
+-      @NotNull final List<? extends FeatureListRow> rows) {
+-    final DeleteRowsParameters parameterSet = (DeleteRowsParameters) new DeleteRowsParameters().cloneParameterSet();
+-    parameterSet.setParameter(DeleteRowsParameters.flist,
+-        new FeatureListsSelection((ModularFeatureList) featureList));
+-    parameterSet.setParameter(rowIds, FeatureListUtils.rowsToIdString(rows));
+-    parameterSet.setParameter(compoundIds, "");
+-    return parameterSet;
++  public static @NotNull DeleteRowsParameters of(@NotNull final ModularFeatureList featureList,
++      @NotNull final List<? extends FeatureListRow> allRows) {
++    List<FeatureListRow> rows = new ArrayList<>();
++    List<CompoundRow> compounds = new ArrayList<>();
++    for (FeatureListRow row : allRows) {
++      if (row instanceof CompoundRow comp) {
++        compounds.add(comp);
++      } else {
++        rows.add(row);
++      }
++    }
++    return of(featureList, rows, compounds);
+   }
+ 
+   public static @NotNull DeleteRowsParameters of(@NotNull final ModularFeatureList featureList,
+-      @NotNull final Collection<? extends ModularCompoundRow> compounds) {
++      @NotNull final Collection<? extends CompoundRow> compounds) {
+     return of(featureList, List.of(), compounds);
+   }
+ 
+   public static @NotNull DeleteRowsParameters of(@NotNull final ModularFeatureList featureList,
+       @NotNull final List<? extends FeatureListRow> rows,
+-      @NotNull final Collection<? extends ModularCompoundRow> compounds) {
++      @NotNull final Collection<? extends CompoundRow> compounds) {
+     final DeleteRowsParameters parameterSet = (DeleteRowsParameters) new DeleteRowsParameters().cloneParameterSet();
+     parameterSet.setParameter(DeleteRowsParameters.flist, new FeatureListsSelection(featureList));
+     parameterSet.setParameter(rowIds, FeatureListUtils.rowsToIdString(rows));
+@@ -81,8 +85,8 @@ public DeleteRowsParameters() {
+   }
+ 
+   private static @NotNull String joinCompoundIds(
+-      @NotNull final Collection<? extends ModularCompoundRow> compounds) {
+-    return compounds.stream().map(ModularCompoundRow::getCompoundId).map(Object::toString)
++      @NotNull final Collection<? extends CompoundRow> compounds) {
++    return compounds.stream().map(CompoundRow::getCompoundId).map(Object::toString)
+         .collect(Collectors.joining(","));
+   }
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FeatureTableContextMenu.java b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FeatureTableContextMenu.java
+index 11d771b9e9d..2d3b1ce0652 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FeatureTableContextMenu.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FeatureTableContextMenu.java
+@@ -343,7 +343,7 @@ private void onDeleteSelectedRows() {
+     }
+     table.getSelectionModel().clearSelection();
+     // single module call handles both kinds — confirmation was already shown above
+-    DeleteRowsModule.deleteRows(table.getFeatureList(), flatRows, compounds);
++    DeleteRowsModule.deleteRowsThisThread(table.getFeatureList(), flatRows, compounds);
+     table.updateRows();
+   }
+ 
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FeatureTableFX.java b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FeatureTableFX.java
+index 254ecd97b9b..2cf1755e101 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FeatureTableFX.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FeatureTableFX.java
+@@ -1,5 +1,6 @@
+ /*
+  * Copyright (c) 2004-2026 The mzmine Development Team
++ *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+  * files (the "Software"), to deal in the Software without
+@@ -174,6 +175,14 @@ public class FeatureTableFX extends BorderPane {
+   private static final Logger logger = Logger.getLogger(FeatureTableFX.class.getName());
+   private final FilteredList<TreeItem<ModularFeatureListRow>> filteredRowItems;
+   private final ObservableList<TreeItem<ModularFeatureListRow>> rowItems;
++  // One per compound tree row: the filtered view of that row's member children. Rebuilt by
++  // updateRows() and re-predicated by applyCurrentRowFilter() so children can be hidden when
++  // "filter children" is on.
++  private final List<FilteredList<TreeItem<ModularFeatureListRow>>> childFilteredLists = new ArrayList<>();
++  // last applied row filter and child-filtering flag; re-applied after the tree is rebuilt so a new
++  // tree picks up the active filter without the user re-typing.
++  private @Nullable TableFeatureListRowFilter currentRowFilter = null;
++  private boolean filterChildren = false;
+   // parameters
+   private final ParameterSet parameters;
+   private final DataTypeCheckListParameter rowTypesParameter;
+@@ -203,6 +212,10 @@ public class FeatureTableFX extends BorderPane {
+    */
+   private final DelayedListChangeListener<FeatureListRow> rowsChangedListener = new DelayedListChangeListener<>(
+       Duration.millis(500), this::updateRows);
++  // The compound list keeps its rows in a separate observable list from the flat feature-list rows.
++  // Track which compound list we currently listen to so compound-row deletions/edits (which mutate
++  // CompoundList.getRows() via setRows) refresh the table. Rewired whenever the compound list changes.
++  private @Nullable CompoundList listenedCompoundList = null;
+ 
+   /**
+    * Package private to centralize creation in {@link FxFeatureTableController}
+@@ -294,7 +307,7 @@ public class FeatureTableFX extends BorderPane {
+       if (event.getCode() == KeyCode.DELETE) {
+         final List<ModularFeatureListRow> rows = getSelectedRows();
+         table.getSelectionModel().clearSelection();
+-        DeleteRowsModule.deleteWithConfirmation(featureListProperty.get(), rows);
++        DeleteRowsModule.deleteWithConfirmationThisThread(featureListProperty.get(), rows);
+       }
+     });
+   }
+@@ -673,6 +686,11 @@ public void updateRows() {
+       final TreeItem<ModularFeatureListRow> selectedRow = table.getSelectionModel()
+           .getSelectedItem();
+       table.getSelectionModel().clearSelection(); // leads to npe or index out of bound
++      // discard child filtered lists of the previous tree before rebuilding
++      childFilteredLists.clear();
++      // make sure we are listening to the active compound list's rows (it may have been created or
++      // replaced after the feature list was first shown)
++      rewireCompoundListRowsListener();
+       final ModularFeatureList flist = getFeatureList();
+       if (flist == null) {
+         rowItems.clear();
+@@ -700,6 +718,10 @@ public void updateRows() {
+ 
+       rowItems.setAll(newRows);
+ 
++      // a freshly built tree has new (unfiltered) child lists; re-apply the active filter so the
++      // new rows immediately reflect it (children hidden / parents expanded as needed).
++      applyCurrentRowFilter();
++
+       if (selectedRow != null) {
+         FeatureTableFXUtil.selectAndScrollTo(selectedRow.getValue(), this);
+       }
+@@ -709,15 +731,153 @@ public void updateRows() {
+     });
+   }
+ 
++  /**
++   * Collapse every expandable row so only the top-level (compound) rows remain visible. No-op for
++   * flat feature tables that have no member children.
++   */
++  public void collapseAllRows() {
++    FxThread.runLater(() -> {
++      for (final TreeItem<ModularFeatureListRow> item : rowItems) {
++        item.setExpanded(false);
++      }
++    });
++  }
++
++  /**
++   * Expand every top-level row so all member children become visible.
++   */
++  public void expandAllRows() {
++    FxThread.runLater(() -> {
++      for (final TreeItem<ModularFeatureListRow> item : rowItems) {
++        item.setExpanded(true);
++      }
++    });
++  }
++
++  /**
++   * Keep {@link #rowsChangedListener} attached to the active compound list's rows so compound-row
++   * deletions / edits (which mutate {@link CompoundList#getRows()} rather than the flat
++   * feature-list rows) refresh the table. Idempotent: only re-attaches when the compound list
++   * reference actually changed (including becoming null).
++   */
++  private void rewireCompoundListRowsListener() {
++    final ModularFeatureList flist = getFeatureList();
++    final CompoundList current = flist == null ? null : flist.getCompoundList();
++    if (current == listenedCompoundList) {
++      return;
++    }
++    if (listenedCompoundList != null) {
++      listenedCompoundList.getRows().removeListener(rowsChangedListener);
++    }
++    listenedCompoundList = current;
++    if (current != null) {
++      current.getRows().addListener(rowsChangedListener);
++    }
++  }
++
+   private TreeItem<ModularFeatureListRow> createTreeRow(ModularCompoundRow compound) {
+-    TreeItem<ModularFeatureListRow> root = new TreeItem<>(compound);
++    final TreeItem<ModularFeatureListRow> root = new TreeItem<>(compound);
+ 
++    // back the children by a filtered list so "filter children" can hide non-matching members
++    // while keeping TreeItem identity (selection / expansion) stable.
++    final ObservableList<TreeItem<ModularFeatureListRow>> members = FXCollections.observableArrayList();
+     for (CompoundFeatureMember member : compound.getCompoundMembers()) {
+-      root.getChildren().add(new TreeItem<>((ModularFeatureListRow) member.row()));
++      members.add(new TreeItem<>((ModularFeatureListRow) member.row()));
+     }
++    final FilteredList<TreeItem<ModularFeatureListRow>> filteredMembers = new FilteredList<>(
++        members);
++    Bindings.bindContent(root.getChildren(), filteredMembers);
++    childFilteredLists.add(filteredMembers);
+     return root;
+   }
+ 
++  /**
++   * Apply a row filter to the tree. The non-RT filters are evaluated on both the top-level rows and
++   * their member children: a compound row is kept when it matches itself or when any of its members
++   * match (in which case it is expanded so the match is visible). RT is special and only ever
++   * filters the top-level rows.
++   *
++   * @param filter         the filter to apply, or null to clear filtering
++   * @param filterChildren when true, non-matching member rows are hidden; otherwise all members of
++   *                       a retained compound stay visible
++   */
++  public void applyTreeRowFilter(@Nullable final TableFeatureListRowFilter filter,
++      final boolean filterChildren) {
++    this.currentRowFilter = filter;
++    this.filterChildren = filterChildren;
++    applyCurrentRowFilter();
++    // changing the filter predicate re-populates the filtered list but does not re-trigger the
++    // TreeTableView's active column sort — re-apply it so rows stay sorted by the active sorter.
++    table.sort();
++  }
++
++  /**
++   * (Re)apply {@link #currentRowFilter} / {@link #filterChildren} to the current tree. Child
++   * predicates are set first so that the top-level predicate sees the already-filtered children.
++   */
++  private void applyCurrentRowFilter() {
++    final TableFeatureListRowFilter filter = currentRowFilter;
++
++    // 1) children: hidden only when filtering children is on and a filter is present
++    final Predicate<TreeItem<ModularFeatureListRow>> childPredicate;
++    if (filter == null || !filterChildren) {
++      childPredicate = _ -> true;
++    } else {
++      childPredicate = child -> {
++        final ModularFeatureListRow row = child.getValue();
++        return row != null && filter.matchesAllExceptRT(row);
++      };
++    }
++    for (final FilteredList<TreeItem<ModularFeatureListRow>> children : childFilteredLists) {
++      children.setPredicate(childPredicate);
++    }
++
++    // 2) top level: RT on the top row, plus self-or-any-child match for the non-RT filters
++    filteredRowItems.setPredicate(item -> {
++      if (filter == null) {
++        return true;
++      }
++      final ModularFeatureListRow row = item.getValue();
++      if (row == null) {
++        return false;
++      }
++      if (!filter.matchesRT(row)) {
++        return false;
++      }
++      return filter.matchesAllExceptRT(row) || anyChildMatchesNonRt(item, filter);
++    });
++
++    // 3) expand compounds that are kept only because a member matched, so the match is visible
++    if (filter != null) {
++      for (final TreeItem<ModularFeatureListRow> item : rowItems) {
++        final ModularFeatureListRow row = item.getValue();
++        if (row == null) {
++          continue;
++        }
++        if (filter.matchesRT(row) && !filter.matchesAllExceptRT(row) && anyChildMatchesNonRt(item,
++            filter)) {
++          item.setExpanded(true);
++        }
++      }
++    }
++  }
++
++  /**
++   * @return true if any (currently visible) member of {@code item} passes the non-RT filters. When
++   * "filter children" is on the non-matching members are already hidden, so a match still implies a
++   * visible member; when off all members are present and searched.
++   */
++  private static boolean anyChildMatchesNonRt(@NotNull final TreeItem<ModularFeatureListRow> item,
++      @NotNull final TableFeatureListRowFilter filter) {
++    for (final TreeItem<ModularFeatureListRow> child : item.getChildren()) {
++      final ModularFeatureListRow row = child.getValue();
++      if (row != null && filter.matchesAllExceptRT(row)) {
++        return true;
++      }
++    }
++    return false;
++  }
++
+   /**
+    * Add all columns of {@link FeatureListRow} data
+    *
+@@ -784,7 +944,6 @@ public void addColumns(FeatureList flist) {
+         }
+       }
+     }
+-    
+ 
+     // add features
+     addFeaturesColumns();
+@@ -1342,6 +1501,8 @@ private void updateFeatureList(@Nullable ModularFeatureList oldFeatureList,
+     if (oldFeatureList != null) {
+       oldFeatureList.getRows().removeListener(rowsChangedListener);
+     }
++    // detach/attach the compound-list rows listener for the new feature list (handles null too)
++    rewireCompoundListRowsListener();
+     if (newFeatureList == null) {
+       return;
+     }
+@@ -1443,6 +1604,9 @@ public void closeTable() {
+       return;
+     }
+     flist.getRows().removeListener(rowsChangedListener);
++    if (listenedCompoundList != null) {
++      listenedCompoundList.getRows().removeListener(rowsChangedListener);
++    }
+     flist.onFeatureTableFxClosed();
+   }
+ 
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FxFeatureTableFilterMenu.java b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FxFeatureTableFilterMenu.java
+index 461ba24b3c5..62514e9e02a 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FxFeatureTableFilterMenu.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FxFeatureTableFilterMenu.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -31,6 +31,7 @@
+ import com.google.common.collect.Range;
+ import io.github.mzmine.datamodel.features.compoundlist.CompoundRowSelection;
+ import io.github.mzmine.gui.DesktopService;
++import io.github.mzmine.javafx.components.factories.FxCheckBox;
+ import io.github.mzmine.javafx.components.factories.FxComboBox;
+ import io.github.mzmine.javafx.components.factories.FxPopOvers;
+ import io.github.mzmine.javafx.components.util.FxLayout;
+@@ -56,7 +57,10 @@
+ import javafx.collections.FXCollections;
+ import javafx.collections.ObservableList;
+ import javafx.scene.control.ButtonBase;
++import javafx.scene.control.CheckBox;
++import javafx.scene.control.Label;
+ import javafx.scene.control.TextField;
++import javafx.scene.control.Tooltip;
+ import javafx.scene.layout.BorderPane;
+ import javafx.scene.layout.FlowPane;
+ import javafx.scene.layout.HBox;
+@@ -90,22 +94,25 @@ public FxFeatureTableFilterMenu(FxFeatureTableModel parentModel,
+     setRight(rightButtonMenu);
+ 
+     PropertyUtils.onChangeDelayedSubscription(this::updateFilter, Duration.millis(150),
+-        model.idFilterProperty(), model.mzFilterProperty(), model.rtFilterProperty(),
+-        model.specialRowTypeFilterProperty());
++        model.idFilterProperty(), model.cidFilterProperty(), model.mzFilterProperty(),
++        model.rtFilterProperty(), model.specialRowTypeFilterProperty());
+   }
+ 
+   private void updateFilter() {
+     final String id = model.idFilterProperty().get();
++    final String cid = model.cidFilterProperty().get();
+     final String mz = model.mzFilterProperty().get();
+     final String rt = model.rtFilterProperty().get();
+     final RowTypeFilter rowTypeFilter = model.getSpecialRowTypeFilter();
+ 
+     try {
+       final List<IndexRange> idRanges = parseIndexRanges(id);
++      final List<IndexRange> compoundIdRanges = parseIndexRanges(cid);
+       final Range<Double> mzRange = parseDoubleRange(mz);
+       final Range<Double> rtRange = parseDoubleRange(rt);
+ 
+-      final var filter = new TableFeatureListRowFilter(idRanges, mzRange, rtRange, rowTypeFilter);
++      final var filter = new TableFeatureListRowFilter(idRanges, compoundIdRanges, mzRange, rtRange,
++          rowTypeFilter);
+       model.combinedRowFilter.set(filter);
+ 
+     } catch (Exception e) {
+@@ -131,12 +138,16 @@ private FlowPane createFilters() {
+         "Filter for feature row IDs by index ranges defined as a list of single indices and ranges,e.g, 1,5-6 or 1,5,6",
+         4, 10);
+ 
++    final TextField cidField = newAutoGrowTextField(model.cidFilterProperty(), "1,5-6",
++        "Filter for compound IDs assigned by the compound grouping step, by index ranges defined as a list of single indices and ranges, e.g, 1,5-6 or 1,5,6",
++        4, 10);
++
+     final TextField mzField = newAutoGrowTextField(model.mzFilterProperty(),
+         model.mzFilterPromptProperty(), "Filter for feature row m/z", 5, 10);
+     final TextField rtField = newAutoGrowTextField(model.rtFilterProperty(),
+         model.rtFilterPromptProperty(), "Filter for feature row RT", 4, 10);
+ 
+-    initValidation(idField, mzField, rtField);
++    initValidation(idField, cidField, mzField, rtField);
+ 
+     // toggle between compound list rows and flat feature list rows; the items list is maintained
+     // by the interactor so ALL_ISOTOPES is hidden when no compound row has isotope sub-rows.
+@@ -147,22 +158,49 @@ private FlowPane createFilters() {
+     rowSelection.visibleProperty().bind(model.compoundListAvailableProperty());
+     rowSelection.managedProperty().bind(model.compoundListAvailableProperty());
+ 
++    // when checked, member rows (tree children) are filtered too; only relevant with a compound
++    // tree, so hide it when no compound list is present. default off.
++    final CheckBox filterChildrenBox = FxCheckBox.newCheckBox("Filter children",
++        model.filterChildrenProperty());
++    filterChildrenBox.setTooltip(new Tooltip(
++        "When checked, member rows of a compound are filtered too; otherwise all members of a matching compound stay visible. RT always only filters the top-level compound rows."));
++    FxLayout.bindVisibleManaged(filterChildrenBox, model.compoundListAvailableProperty());
++
++    // compound id filter; only meaningful and only shown when a compound list is present
++    final Label cidLabel = newBoldLabel("CID=");
++    FxLayout.bindVisibleManaged(cidLabel, model.compoundListAvailableProperty());
++    FxLayout.bindVisibleManaged(cidField, model.compoundListAvailableProperty());
++
++    // collapse / expand all compound rows; only relevant with a compound tree
++    final ButtonBase collapseBtn = FxIconUtil.newIconButton(FxIcons.COLLAPSE,
++        "Collapse all compound rows", () -> parentModel.getFeatureTable().collapseAllRows());
++    FxLayout.bindVisibleManaged(collapseBtn, model.compoundListAvailableProperty());
++    final ButtonBase expandBtn = FxIconUtil.newIconButton(FxIcons.EXPAND,
++        "Expand all compound rows", () -> parentModel.getFeatureTable().expandAllRows());
++    FxLayout.bindVisibleManaged(expandBtn, model.compoundListAvailableProperty());
++
+     // layout
+     return FxLayout.newFlowPane( //
+         rowSelection, //
+-        FxIconUtil.getFontIcon(FxIcons.SEARCH), newBoldLabel("ID="), //
+-        idField, newBoldLabel("m/z="), //
+-        mzField, newBoldLabel("RT="), //
+-        rtField, //
++        collapseBtn, expandBtn, //
++        FxIconUtil.getFontIcon(FxIcons.SEARCH), filterChildrenBox, //
++        cidLabel, cidField, //
++        newBoldLabel("ID="), idField, //
++        newBoldLabel("m/z="), mzField, //
++        newBoldLabel("RT="), rtField, //
+         rowTypeFilter);
+   }
+ 
+-  private void initValidation(TextField idField, TextField mzField, TextField rtField) {
++  private void initValidation(TextField idField, TextField cidField, TextField mzField,
++      TextField rtField) {
+     final ValidationSupport support = FxValidation.newValidationSupport();
+     // blank value is also ok
+     FxValidation.registerOnException(support, idField,
+         s -> StringUtils.isBlank(s) || !parseIndexRanges(s).isEmpty(),
+         s -> "Cannot parse index ranges from " + s);
++    FxValidation.registerOnException(support, cidField,
++        s -> StringUtils.isBlank(s) || !parseIndexRanges(s).isEmpty(),
++        s -> "Cannot parse index ranges from " + s);
+ 
+     FxValidation.registerOnException(support, mzField,
+         s -> StringUtils.isBlank(s) || parseDoubleRange(s) != null,
+@@ -227,10 +265,15 @@ public FxFeatureTableFilterMenuModel getModel() {
+   public static class FxFeatureTableFilterMenuModel {
+ 
+     private final StringProperty idFilter = new SimpleStringProperty("");
++    // compound id assigned by the compound grouping step; only meaningful with a compound list
++    private final StringProperty cidFilter = new SimpleStringProperty("");
+     private final StringProperty mzFilter = new SimpleStringProperty("");
+     private final StringProperty rtFilter = new SimpleStringProperty("");
+     private final StringProperty mzFilterPrompt = new SimpleStringProperty("");
+     private final StringProperty rtFilterPrompt = new SimpleStringProperty("");
++    // when true, member rows (tree children) are filtered too; otherwise all members of a matching
++    // compound stay visible. default off.
++    private final BooleanProperty filterChildren = new SimpleBooleanProperty(false);
+     // specific
+     private final ObjectProperty<RowTypeFilter> specialRowTypeFilter = new SimpleObjectProperty<>();
+ 
+@@ -260,6 +303,30 @@ public void setIdFilter(String idFilter) {
+       this.idFilter.set(idFilter);
+     }
+ 
++    public String getCidFilter() {
++      return cidFilter.get();
++    }
++
++    public StringProperty cidFilterProperty() {
++      return cidFilter;
++    }
++
++    public void setCidFilter(String cidFilter) {
++      this.cidFilter.set(cidFilter);
++    }
++
++    public boolean isFilterChildren() {
++      return filterChildren.get();
++    }
++
++    public BooleanProperty filterChildrenProperty() {
++      return filterChildren;
++    }
++
++    public void setFilterChildren(boolean filterChildren) {
++      this.filterChildren.set(filterChildren);
++    }
++
+     public String getMzFilter() {
+       return mzFilter.get();
+     }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FxFeatureTableInteractor.java b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FxFeatureTableInteractor.java
+index 1888ba2515c..ab19a208292 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FxFeatureTableInteractor.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FxFeatureTableInteractor.java
+@@ -94,7 +94,9 @@ private void initListeners() {
+     PropertyUtils.onChange(this::updateFilterPrompts, model.rowsMzRangeProperty(),
+         model.rowsRetentionTimeRangeProperty());
+ 
++    // re-apply when either the parsed filter or the "filter children" flag changes
+     model.getFilterModel().combinedRowFilterProperty().subscribe(this::applyRowsFilter);
++    model.getFilterModel().filterChildrenProperty().subscribe(this::applyRowsFilter);
+ 
+     // bidirectional bind: toggle in filter menu ↔ compound row selection on the table
+     model.getFeatureTable().compoundRowSelectionProperty()
+@@ -341,13 +343,16 @@ private void updateAvailableCompoundRowSelections() {
+     }
+   }
+ 
+-  private void applyRowsFilter(@Nullable TableFeatureListRowFilter filter) {
++  private void applyRowsFilter() {
++    final FxFeatureTableFilterMenuModel filterModel = model.getFilterModel();
++    final TableFeatureListRowFilter filter = filterModel.getCombinedRowFilter();
++    final boolean filterChildren = filterModel.isFilterChildren();
+     // clear selection before changing predicate to avoid stale indices in the
+     // TreeTableView selection model (leads to IndexOutOfBoundsException on sort)
+     final FeatureListRow row = model.getFeatureTable().getSelectedRow();
+     model.getFeatureTable().getSelectionModel().clearSelection();
+-    model.getFilteredRowItems()
+-        .setPredicate(item -> filter == null || filter.test(item.getValue()));
++    // tree-aware filtering: top-level + member children, RT only on top level
++    model.getFeatureTable().applyTreeRowFilter(filter, filterChildren);
+     if (row != null) {
+       // try to re-select and scroll if the previously selected row is still in the filtered items.
+       FeatureTableFXUtil.selectAndScrollTo(row, model.getFeatureTable());
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/TableFeatureListRowFilter.java b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/TableFeatureListRowFilter.java
+index 0f3caf56bed..dcb19c8e75f 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/TableFeatureListRowFilter.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/TableFeatureListRowFilter.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -27,16 +27,25 @@
+ 
+ import com.google.common.collect.Range;
+ import io.github.mzmine.datamodel.features.FeatureListRow;
++import io.github.mzmine.datamodel.features.compoundlist.CompoundRow;
+ import io.github.mzmine.parameters.parametertypes.row_type_filter.filters.RowTypeFilter;
+ import io.github.mzmine.util.collections.IndexRange;
+ import java.util.List;
+ import java.util.function.Predicate;
++import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+ 
+ /**
+- * The filter used in the feature table
++ * The filter used in the feature table.
++ * <p>
++ * When the table shows a compound tree ({@link CompoundRow} parents with member children), the
++ * non-RT filters ({@link #matchesAllExceptRT(FeatureListRow)}) are applied to both the top-level rows and
++ * their children so a compound is kept (and expanded) when any member matches. The RT filter is
++ * special: it is only ever evaluated against the top-level rows (see
++ * {@link FeatureTableFX#applyTreeRowFilter}).
+  */
+ public record TableFeatureListRowFilter(@Nullable List<IndexRange> idRanges,
++                                        @Nullable List<IndexRange> compoundIdRanges,
+                                         @Nullable Range<Double> mzRange,
+                                         @Nullable Range<Double> rtRange,
+                                         @Nullable RowTypeFilter rowTypeFilter) implements
+@@ -44,7 +53,16 @@ public record TableFeatureListRowFilter(@Nullable List<IndexRange> idRanges,
+ 
+   @Override
+   public boolean test(FeatureListRow row) {
+-    return matchesId(row) && matchesRT(row) && matchesMZ(row) && matchAnyRowTypeFilter(row);
++    // flat (non-tree) evaluation: every filter, including RT, on the single row
++    return matchesRT(row) && matchesAllExceptRT(row);
++  }
++
++  /**
++   * All filters except RT. Applied to top-level rows and recursively to child rows of a compound so
++   * the compound is retained when any member matches.
++   */
++  boolean matchesAllExceptRT(@NotNull final FeatureListRow row) {
++    return matchesId(row) && matchesCompoundId(row) && matchesMZ(row) && matchAnyRowTypeFilter(row);
+   }
+ 
+   private boolean matchAnyRowTypeFilter(FeatureListRow row) {
+@@ -58,7 +76,11 @@ private boolean matchesMZ(FeatureListRow row) {
+     return mzRange == null || mzRange.contains(row.getAverageMZ());
+   }
+ 
+-  private boolean matchesRT(FeatureListRow row) {
++  /**
++   * RT is special: only ever evaluated against the top-level tree row and never propagated to
++   * children.
++   */
++  boolean matchesRT(@NotNull final FeatureListRow row) {
+     final Float rt = row.getAverageRT();
+     if (rtRange == null || rt == null) {
+       return true;
+@@ -80,4 +102,24 @@ private boolean matchesId(FeatureListRow row) {
+     return false;
+   }
+ 
++  /**
++   * Matches the compound id assigned by the compound grouping step. Only {@link CompoundRow}s carry
++   * a compound id, so plain feature rows never match an active compound-id filter.
++   */
++  private boolean matchesCompoundId(FeatureListRow row) {
++    if (compoundIdRanges == null || compoundIdRanges.isEmpty()) {
++      return true;
++    }
++    if (!(row instanceof CompoundRow cr)) {
++      return false;
++    }
++    final int compoundId = cr.getCompoundId();
++    for (IndexRange range : compoundIdRanges) {
++      if (range.contains(compoundId)) {
++        return true;
++      }
++    }
++    return false;
++  }
++
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/ComboParameter.java b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/ComboParameter.java
+index 2e2cdb1bab2..27d74c01a13 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/ComboParameter.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/ComboParameter.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2024 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -78,7 +78,13 @@ public String getDescription() {
+   @Override
+   public ComboComponent<ValueType> createEditingComponent() {
+     ComboComponent<ValueType> comboComponent = new ComboComponent<>(choices);
+-    comboComponent.getSelectionModel().selectFirst();
++    if (value != null) {
++      // already select correct value for other components that use this as sub component.
++      comboComponent.getSelectionModel().select(value);
++    }
++    if (comboComponent.getSelectionModel().getSelectedItem() == null) {
++      comboComponent.getSelectionModel().selectFirst();
++    }
+     return comboComponent;
+   }
+ 
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/StringParameter.java b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/StringParameter.java
+index 94bfc70aa0b..27cbd17f4dc 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/StringParameter.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/StringParameter.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2024 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -27,7 +27,6 @@
+ 
+ import static java.util.Objects.requireNonNullElse;
+ 
+-import javafx.scene.control.TextField;
+ import org.jetbrains.annotations.Nullable;
+ 
+ public class StringParameter extends StringValueParameter<StringParameterComponent> {
+@@ -67,6 +66,7 @@ public StringParameter(String name, String description, @Nullable String default
+   public StringParameterComponent createEditingComponent() {
+     StringParameterComponent stringComponent = new StringParameterComponent();
+     stringComponent.setPrefColumnCount(inputsize);
++    stringComponent.setText(requireNonNullElse(value, ""));
+     return stringComponent;
+   }
+ 
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/row_type_filter/RowTypeFilterComponent.java b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/row_type_filter/RowTypeFilterComponent.java
+index e7685b02923..d59ef92b67f 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/row_type_filter/RowTypeFilterComponent.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/row_type_filter/RowTypeFilterComponent.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -56,8 +56,7 @@ public class RowTypeFilterComponent extends HBox implements ValuePropertyCompone
+   private final StringParameterComponent queryField;
+   private final StringProperty queryFormatErrorMessage = new SimpleStringProperty();
+ 
+-  public RowTypeFilterComponent(RowTypeFilter value,
+-      ComboComponent<RowTypeFilterOption> optionCombo,
++  public RowTypeFilterComponent(ComboComponent<RowTypeFilterOption> optionCombo,
+       ComboComponent<MatchingMode> matchingModeCombo, StringParameterComponent queryField,
+       boolean addPresetsMenuButton) {
+ 
+@@ -108,7 +107,6 @@ public RowTypeFilterComponent(RowTypeFilter value,
+       matchingModeCombo.getSelectionModel().select(0);
+     });
+ 
+-    setValue(value);
+     this.value.subscribe(nv -> setToComponents());
+   }
+ 
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/row_type_filter/RowTypeFilterParameter.java b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/row_type_filter/RowTypeFilterParameter.java
+index edd20aae2fb..46c54247e7c 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/row_type_filter/RowTypeFilterParameter.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/row_type_filter/RowTypeFilterParameter.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -43,7 +43,6 @@ public class RowTypeFilterParameter extends
+   private final ComboParameter<MatchingMode> matchingMode;
+   private final ComboParameter<RowTypeFilterOption> selectedType;
+   private final StringParameter searchValue;
+-  private RowTypeFilter value;
+ 
+   public RowTypeFilterParameter() {
+     this("Flexible filter (e.g., annotation)", """
+@@ -55,14 +54,27 @@ Select a filter target, a matching mode (e.g., contains ⊂, equals, greater equ
+ 
+   public RowTypeFilterParameter(String name, String description) {
+     super(name, description);
++    final RowTypeFilterOption DEFAULT_OPTION = RowTypeFilterOption.COMPOUND_NAME;
++
+     matchingMode = new ComboParameter<>("Matching mode",
+         "Determines how the filter should match entries", MatchingMode.values(),
+-        MatchingMode.CONTAINS);
++        DEFAULT_OPTION.getMatchingModes().getFirst());
++
+     selectedType = new ComboParameter<>("Type", "What type of information to match against",
+-        RowTypeFilterOption.values(), RowTypeFilterOption.COMPOUND_NAME);
++        RowTypeFilterOption.values(), DEFAULT_OPTION);
+     searchValue = new StringParameter("Search value", "The value to search for", "");
+   }
+ 
++  public RowTypeFilterParameter(String name, String description,
++      ComboParameter<MatchingMode> matchingMode, ComboParameter<RowTypeFilterOption> selectedType,
++      StringParameter searchValue) {
++    super(name, description);
++
++    this.matchingMode = matchingMode.cloneParameter();
++    this.selectedType = selectedType.cloneParameter();
++    this.searchValue = searchValue.cloneParameter();
++  }
++
+   @Override
+   public Parameter<?>[] getInternalParameters() {
+     return new Parameter[]{matchingMode, selectedType, searchValue};
+@@ -78,7 +90,7 @@ public RowTypeFilterComponent createEditingComponent() {
+   }
+ 
+   public RowTypeFilterComponent createEditingComponent(boolean addPresetButton) {
+-    return new RowTypeFilterComponent(value, selectedType.createEditingComponent(),
++    return new RowTypeFilterComponent(selectedType.createEditingComponent(),
+         matchingMode.createEditingComponent(), searchValue.createEditingComponent(),
+         addPresetButton);
+   }
+@@ -99,19 +111,16 @@ public RowTypeFilter getValue() {
+     final MatchingMode matchingMode = this.matchingMode.getValue();
+     final String query = searchValue.getValue();
+     if (selectedType == null || matchingMode == null || query.isBlank()) {
+-      value = null;
++      return null;
+     } else {
+-      value = RowTypeFilter.create(selectedType, matchingMode, query);
++      return RowTypeFilter.create(selectedType, matchingMode, query);
+     }
+-    return value;
+   }
+ 
+   @Override
+   public void setValue(@Nullable RowTypeFilter value) {
+-    this.value = value;
+     if (value == null) {
+-      matchingMode.setValue(null);
+-      selectedType.setValue(null);
++      // keep the selection here and just empty the query
+       searchValue.setValue("");
+       return;
+     }
+@@ -122,13 +131,13 @@ public void setValue(@Nullable RowTypeFilter value) {
+ 
+   @Override
+   public boolean checkValue(Collection<String> errorMessages) {
+-    return value != null;
++    return getValue() != null;
+   }
+ 
+   @Override
+   public RowTypeFilterParameter cloneParameter() {
+-    RowTypeFilterParameter clone = new RowTypeFilterParameter(getName(), getDescription());
+-    clone.setValue(getValue());
++    RowTypeFilterParameter clone = new RowTypeFilterParameter(getName(), getDescription(),
++        matchingMode, selectedType, searchValue);
+     return clone;
+   }
+ }

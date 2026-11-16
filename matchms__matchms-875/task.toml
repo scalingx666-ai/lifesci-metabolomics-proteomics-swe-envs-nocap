@@ -1,0 +1,70 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-875"
+description = "Linear cosine"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "3ecc41aa0a16768828d2788e65f82e9b0f157ebe"
+reference = "https://github.com/matchms/matchms/pull/875"
+source_access = "auto"
+built_at = "2026-11-16T12:52:59.005808+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:30c413a2bd4ecdd1973227acf7fa44297ac2b0212549b2c41b4f98d577971bb9"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-05-11T19:08:53Z"
+diff_format = "unified"
+context_files = [
+    "matchms/similarity/CosineLinear.py",
+    "matchms/similarity/__init__.py",
+    "matchms/similarity/cosine_linear_functions.py",
+    "pyproject.toml",
+    "readthedocs/conf.py",
+    "tests/cosine_linear_reference.json",
+    "tests/similarity/test_bench_matrix.py",
+    "tests/similarity/test_cosine_linear.py",
+    "uv.lock",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 3526
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

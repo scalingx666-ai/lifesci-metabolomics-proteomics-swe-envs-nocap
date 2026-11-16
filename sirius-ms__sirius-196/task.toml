@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/sirius-ms__sirius-196"
+description = "Bump actions/download-artifact from 2 to 4.1.7 in /.github/workflows"
+
+[metadata]
+difficulty = "easy"
+category = "bugfix"
+keywords = [
+    "sirius",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "sirius-ms/sirius"
+ref = "63a417abc856d1d50d1cc4efde3497eda9777204"
+reference = "https://github.com/sirius-ms/sirius/pull/196"
+source_access = "auto"
+built_at = "2026-11-16T09:51:04.792317+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:fbaa94b5eacb6829e019c38f0c9e66fe5b559b90a2b362db49e957928bfce670"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2024-09-04T13:29:50Z"
+diff_format = "unified"
+context_files = [
+    ".github/workflows/distribute.yaml",
+    ".github/workflows/dockergen.yaml",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 4
+difficulty = "trivial"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

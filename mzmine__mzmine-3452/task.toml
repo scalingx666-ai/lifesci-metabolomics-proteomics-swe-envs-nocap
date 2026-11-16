@@ -1,0 +1,67 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3452"
+description = "Checkbox to activate normalized box plots"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "9f386b2a06879ee4401772a090d6dedc8c46bbab"
+reference = "https://github.com/mzmine/mzmine/pull/3452"
+source_access = "auto"
+built_at = "2026-11-16T08:45:18.225266+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:035e9c8abbba779ace211d97f2ddda5cb9e92fe0c7cee93950af04970dc53e09"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-21T14:38:27Z"
+diff_format = "unified"
+context_files = [
+    "javafx-framework/src/main/java/io/github/mzmine/javafx/util/FxIcons.java",
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/AbundanceMeasure.java",
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/AbstractBoxPlotType.java",
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/fx/MetadataHeaderColumn.java",
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/graphicalnodes/AbundanceBoxPlotCell.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FeatureTableFX.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 144
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

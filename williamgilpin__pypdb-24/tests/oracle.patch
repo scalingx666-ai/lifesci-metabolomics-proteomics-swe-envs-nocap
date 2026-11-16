@@ -1,0 +1,118 @@
+diff --git a/pypdb/clients/search/operators/text_operators.py b/pypdb/clients/search/operators/text_operators.py
+index 6493dc0..935f6fa 100644
+--- a/pypdb/clients/search/operators/text_operators.py
++++ b/pypdb/clients/search/operators/text_operators.py
+@@ -90,6 +90,7 @@ class ComparisonType(Enum):
+     GREATER = "greater"
+     GREATER_OR_EQUAL = "greater_or_equal"
+     EQUAL = "equal"
++    NOT_EQUAL = "not_equal"
+     LESS_OR_EQUAL = "less_or_equal"
+     LESS = "less"
+ 
+@@ -117,12 +118,20 @@ class ComparisonOperator:
+     comparison_type: ComparisonType
+ 
+     def to_dict(self) -> Dict[str,Any]:
+-        return {
+-            "attribute": self.attribute,
+-            "operator": self.comparison_type.value,
+-            "value": self.value
+-        }
+-
++        if self.comparison_type is ComparisonType.NOT_EQUAL:
++            param_dict = {
++                "operator": "equals",
++                "negation": True
++            }
++        else:
++            param_dict = {
++                "operator": self.comparison_type.value
++            }
++
++        param_dict["attribute"] = self.attribute
++        param_dict["value"] = self.value
++
++        return param_dict
+ 
+ @dataclass
+ class RangeOperator:
+diff --git a/pypdb/clients/search/operators/text_operators_test.py b/pypdb/clients/search/operators/text_operators_test.py
+new file mode 100644
+index 0000000..8698af9
+--- /dev/null
++++ b/pypdb/clients/search/operators/text_operators_test.py
+@@ -0,0 +1,24 @@
++"""Tests for RCSB Text Search Service Operators
++(admittedly, a lot is tested in `search_client_test.py` too)
++"""
++
++import unittest
++
++from pypdb.clients.search.operators import text_operators
++
++class TestHTTPRequests(unittest.TestCase):
++
++    def test_not_equals_operator(self):
++        not_equals_operator = text_operators.ComparisonOperator(
++            attribute = "struct.favourite_marvel_movie",
++            value = "Thor: Ragnarok",
++            comparison_type = text_operators.ComparisonType.NOT_EQUAL
++        )
++
++        self.assertEqual(not_equals_operator.to_dict(),
++                         {
++                            "attribute": "struct.favourite_marvel_movie",
++                            "value": "Thor: Ragnarok",
++                            "operator": "equals",
++                            "negation": True
++                         })
+diff --git a/pypdb/clients/search/search_client.py b/pypdb/clients/search/search_client.py
+index f6df144..a081134 100644
+--- a/pypdb/clients/search/search_client.py
++++ b/pypdb/clients/search/search_client.py
+@@ -141,7 +141,7 @@ class InappropriateSearchOperatorException(Exception):
+ 
+ def perform_search(search_service: SearchService,
+                    search_operator: SearchOperator,
+-                   return_type: ReturnType = ReturyType.ENTRY,
++                   return_type: ReturnType = ReturnType.ENTRY,
+                    return_raw_json_dict: bool = False
+                    ) -> Union[List[str],
+                               RawJSONDictResponse]:
+diff --git a/pypdb/clients/search/search_client_test.py b/pypdb/clients/search/search_client_test.py
+index 47dea5f..03a9ed3 100644
+--- a/pypdb/clients/search/search_client_test.py
++++ b/pypdb/clients/search/search_client_test.py
+@@ -248,8 +248,8 @@ def test_comparison_operator_with_entry_return(self,
+             {'type': 'terminal',
+              'service': 'text',
+              'parameters':
+-                {'attribute': 'rcsb_accession_info.initial_release_date',
+-                'operator': 'greater',
++                {'operator': 'greater',
++                'attribute': 'rcsb_accession_info.initial_release_date',
+                 'value': '2019-01-01T00:00:00Z'}
+             },
+         'request_options': {'return_all_hits': True},
+@@ -439,8 +439,8 @@ def test_query_group_after_2019_and_either_musculus_or_human(self, mock_post):
+                 {'type': 'terminal',
+                  'service': 'text',
+                  'parameters':
+-                    {'attribute': 'rcsb_accession_info.initial_release_date',
+-                    'operator': 'greater',
++                    {'operator': 'greater',
++                    'attribute': 'rcsb_accession_info.initial_release_date',
+                     'value': '2019-01-01T00:00:00Z'}
+                 }
+             ]
+@@ -486,8 +486,8 @@ def test_query_structure_resolution(self, mock_post):
+             "type": "terminal",
+             "service": "text",
+             "parameters": {
+-              "attribute": "rcsb_entry_info.resolution_combined",
+               "operator": "less",
++              "attribute": "rcsb_entry_info.resolution_combined",
+               "value": 4
+             }
+           },

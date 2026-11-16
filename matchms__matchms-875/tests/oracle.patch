@@ -1,0 +1,3667 @@
+diff --git a/matchms/similarity/CosineLinear.py b/matchms/similarity/CosineLinear.py
+new file mode 100644
+index 000000000..ec46fc065
+--- /dev/null
++++ b/matchms/similarity/CosineLinear.py
+@@ -0,0 +1,146 @@
++from typing import List
++import numpy as np
++from sparsestack import StackedSparseArray  # type: ignore[import-untyped]
++from tqdm import tqdm  # type: ignore[import-untyped]
++from matchms.typing import SpectrumType
++from .BaseSimilarity import BaseSimilarity
++from .cosine_linear_functions import linear_cosine_score, sirius_merge_close_peaks
++
++
++class CosineLinear(BaseSimilarity):
++    """Calculate 'linear cosine similarity score' between two spectra.
++
++    This implements the CosineLinear similarity from SIRIUS (BOECKER lab), which
++    achieves O(n+m) time complexity by requiring spectra to be "well-separated"
++    (consecutive peaks more than 2x tolerance apart). A preprocessing step
++    (sirius_merge_close_peaks) enforces this invariant by greedily merging close
++    peaks in descending intensity order.
++
++    For example
++
++    .. testcode::
++
++        import numpy as np
++        from matchms import Spectrum
++        from matchms.similarity import CosineLinear
++
++        reference = Spectrum(mz=np.array([100, 150, 200.]),
++                             intensities=np.array([0.7, 0.2, 0.1]))
++        query = Spectrum(mz=np.array([100, 140, 190.]),
++                         intensities=np.array([0.4, 0.2, 0.1]))
++
++        cosine_linear = CosineLinear(tolerance=0.2)
++        score = cosine_linear.pair(reference, query)
++
++        print(f"CosineLinear score is {score['score']:.2f} with {score['matches']} matched peaks")
++
++    Should output
++
++    .. testoutput::
++
++        CosineLinear score is 0.83 with 1 matched peaks
++
++    """
++
++    is_commutative = True
++    score_datatype = [("score", np.float64), ("matches", "int")]  # type: ignore[assignment]
++
++    def __init__(self, tolerance: float = 0.1, mz_power: float = 0.0, intensity_power: float = 1.0):
++        """
++        Parameters
++        ----------
++        tolerance:
++            Peaks will be considered a match when <= tolerance apart. Default is 0.1.
++            Peaks closer than 2 * tolerance are merged before scoring.
++        mz_power:
++            The power to raise m/z to in the cosine function. The default is 0, in which
++            case the peak intensity products will not depend on the m/z ratios.
++        intensity_power:
++            The power to raise intensity to in the cosine function. The default is 1.
++        """
++        self.tolerance = tolerance
++        self.mz_power = mz_power
++        self.intensity_power = intensity_power
++
++    def pair(self, reference: SpectrumType, query: SpectrumType) -> np.ndarray:  # type: ignore[override]
++        """Calculate linear cosine score between two spectra.
++
++        Parameters
++        ----------
++        reference
++            Single reference spectrum.
++        query
++            Single query spectrum.
++
++        Returns
++        -------
++        Score
++            Tuple with cosine score and number of matched peaks.
++        """
++        spec1 = reference.peaks.to_numpy
++        spec2 = query.peaks.to_numpy
++        spec1 = sirius_merge_close_peaks(spec1, self.tolerance)
++        spec2 = sirius_merge_close_peaks(spec2, self.tolerance)
++        score, matches = linear_cosine_score(spec1, spec2, self.tolerance, self.mz_power, self.intensity_power)
++        return np.asarray((score, matches), dtype=self.score_datatype)
++
++    def matrix(
++        self,
++        references: List[SpectrumType],
++        queries: List[SpectrumType],
++        array_type: str = "numpy",
++        is_symmetric: bool = False,
++        progress_bar: bool = True,
++    ) -> np.ndarray:
++        """Optimized matrix computation that precomputes merged spectra.
++
++        Each spectrum is merged once (N+M calls to sirius_merge_close_peaks)
++        instead of 2*N*M times in the naive double-loop approach.
++        """
++        n_rows = len(references)
++        n_cols = len(queries)
++
++        if is_symmetric and n_rows != n_cols:
++            raise ValueError(f"Found unequal number of spectra {n_rows} and {n_cols} while `is_symmetric` is True.")
++
++        merged_refs = [sirius_merge_close_peaks(r.peaks.to_numpy, self.tolerance) for r in references]
++        merged_queries = (
++            merged_refs
++            if is_symmetric
++            else [sirius_merge_close_peaks(q.peaks.to_numpy, self.tolerance) for q in queries]
++        )
++
++        idx_row_list = []
++        idx_col_list = []
++        scores_list = []
++
++        for i_ref in tqdm(range(n_rows), desc="Calculating similarities", disable=not progress_bar):
++            j_start = i_ref if (is_symmetric and self.is_commutative) else 0
++            for i_query in range(j_start, n_cols):
++                score, matches = linear_cosine_score(
++                    merged_refs[i_ref], merged_queries[i_query], self.tolerance, self.mz_power, self.intensity_power
++                )
++                result = np.asarray((score, matches), dtype=self.score_datatype)
++                if self.keep_score(result):
++                    if is_symmetric and self.is_commutative:
++                        idx_row_list += [i_ref, i_query]
++                        idx_col_list += [i_query, i_ref]
++                        scores_list += [result, result]
++                    else:
++                        idx_row_list.append(i_ref)
++                        idx_col_list.append(i_query)
++                        scores_list.append(result)
++
++        idx_row = np.array(idx_row_list, dtype=np.int_)
++        idx_col = np.array(idx_col_list, dtype=np.int_)
++        scores_data = np.array(scores_list, dtype=self.score_datatype)
++
++        if array_type == "numpy":
++            scores_array = np.zeros(shape=(n_rows, n_cols), dtype=self.score_datatype)
++            scores_array[idx_row, idx_col] = scores_data.reshape(-1)
++            return scores_array
++        if array_type == "sparse":
++            scores_array = StackedSparseArray(n_rows, n_cols)
++            scores_array.add_sparse_data(idx_row, idx_col, scores_data, "")
++            return scores_array
++        raise ValueError("array_type must be 'numpy' or 'sparse'.")
+diff --git a/matchms/similarity/__init__.py b/matchms/similarity/__init__.py
+index f09cb6432..cf201df97 100644
+--- a/matchms/similarity/__init__.py
++++ b/matchms/similarity/__init__.py
+@@ -20,10 +20,12 @@
+ It is also easily possible to add own custom similarity measures or import external ones
+ (such as `Spec2Vec <https://github.com/iomega/spec2vec>`_).
+ """
++
+ from .BinnedEmbeddingSimilarity import BinnedEmbeddingSimilarity
+ from .BlinkCosine import BlinkCosine
+ from .CosineGreedy import CosineGreedy
+ from .CosineHungarian import CosineHungarian
++from .CosineLinear import CosineLinear
+ from .FingerprintSimilarity import FingerprintSimilarity
+ from .FlashSimilarity import FlashSimilarity
+ from .IntersectMz import IntersectMz
+@@ -38,13 +40,14 @@
+ __all__ = [
+     "BinnedEmbeddingSimilarity",
+     "BlinkCosine",
+-    "ModifiedCosineGreedy",
+     "CosineGreedy",
+     "CosineHungarian",
++    "CosineLinear",
+     "FingerprintSimilarity",
+     "FlashSimilarity",
+     "IntersectMz",
+     "MetadataMatch",
++    "ModifiedCosineGreedy",
+     "ModifiedCosineHungarian",
+     "NeutralLossesCosine",
+     "ParentMassMatch",
+@@ -61,16 +64,22 @@ def get_similarity_function_by_name(similarity_function_name: str):
+     similarity_function_name : str
+         Name of the similarity function.
+     """
+-    names = __all__
+-    functions = [BinnedEmbeddingSimilarity, BlinkCosine,
+-                 ModifiedCosineGreedy,
+-                 CosineGreedy, CosineHungarian,
+-                 FingerprintSimilarity, FlashSimilarity,
+-                 IntersectMz, MetadataMatch, ModifiedCosineHungarian,
+-                 NeutralLossesCosine, ParentMassMatch, PrecursorMzMatch]
+-
+-    assert similarity_function_name in names, f"Unknown similarity function: {similarity_function_name}"
+-    assert len(names) == len(functions), "Number of similarity functions and names do not match"
++    mapper = {
++        "BinnedEmbeddingSimilarity": BinnedEmbeddingSimilarity,
++        "BlinkCosine": BlinkCosine,
++        "CosineLinear": CosineLinear,
++        "CosineGreedy": CosineGreedy,
++        "CosineHungarian": CosineHungarian,
++        "FingerprintSimilarity": FingerprintSimilarity,
++        "FlashSimilarity": FlashSimilarity,
++        "IntersectMz": IntersectMz,
++        "MetadataMatch": MetadataMatch,
++        "ModifiedCosineGreedy": ModifiedCosineGreedy,
++        "ModifiedCosineHungarian": ModifiedCosineHungarian,
++        "NeutralLossesCosine": NeutralLossesCosine,
++        "ParentMassMatch": ParentMassMatch,
++        "PrecursorMzMatch": PrecursorMzMatch,
++    }
+ 
+-    mapper = dict(zip(names, functions))
++    assert similarity_function_name in mapper, f"Unknown similarity function: {similarity_function_name}"
+     return mapper[similarity_function_name]
+diff --git a/matchms/similarity/cosine_linear_functions.py b/matchms/similarity/cosine_linear_functions.py
+new file mode 100644
+index 000000000..3cf546154
+--- /dev/null
++++ b/matchms/similarity/cosine_linear_functions.py
+@@ -0,0 +1,195 @@
++import numpy as np
++from numba import njit  # type: ignore[attr-defined, import-untyped]
++
++
++@njit(cache=True)
++def _sorted_peak_order(spec):
++    """Return intensity-sorted indices with deterministic tie-breaking.
++
++    Peaks are primarily sorted by ascending intensity. Equal-intensity peaks are
++    reordered by descending original index, so reverse iteration visits the
++    lower-m/z peak first because input spectra are already sorted by m/z.
++    """
++    order = np.argsort(spec[:, 1])
++    start = 0
++    n = order.shape[0]
++
++    while start < n:
++        end = start + 1
++        intensity = spec[order[start], 1]
++        while end < n and spec[order[end], 1] == intensity:
++            end += 1
++
++        for left in range(start, end):
++            max_pos = left
++            for right in range(left + 1, end):
++                if order[right] > order[max_pos]:
++                    max_pos = right
++            if max_pos != left:
++                tmp = order[left]
++                order[left] = order[max_pos]
++                order[max_pos] = tmp
++
++        start = end
++
++    return order
++
++
++@njit(cache=True)
++def sirius_merge_close_peaks(spec, mz_tolerance):
++    """Merge close peaks following the Sirius/BOECKER lab algorithm.
++
++    Peaks are merged greedily in descending intensity order. Each unconsumed peak
++    adopts its own m/z and sums the intensities of all unconsumed neighbors within
++    a merge window of 2 * mz_tolerance. The result is guaranteed to have consecutive
++    m/z gaps > 2 * mz_tolerance. When multiple peaks share the same intensity,
++    the lower-m/z peak is processed first so the representative peak stays
++    deterministic across NumPy and Numba sort implementations.
++
++    Parameters
++    ----------
++    spec
++        2D array (N, 2) with columns [mz, intensity], sorted by ascending m/z.
++    mz_tolerance
++        Tolerance for scoring. Merge window is 2 * mz_tolerance.
++
++    Returns
++    -------
++    numpy.ndarray
++        (M, 2) array of merged peaks sorted by ascending m/z.
++    """
++    n = spec.shape[0]
++    if n == 0:
++        return spec.copy()
++
++    merge_window = 2.0 * mz_tolerance
++
++    # Sort indices by ascending intensity and iterate in reverse (descending).
++    order = _sorted_peak_order(spec)
++
++    consumed = np.zeros(n, dtype=np.bool_)
++    merged_mz = np.empty(n, dtype=np.float64)
++    merged_int = np.empty(n, dtype=np.float64)
++    count = 0
++
++    for k in range(n - 1, -1, -1):
++        i = order[k]
++        if consumed[i]:
++            continue
++
++        # This peak becomes the representative; start with its intensity
++        mz_i = spec[i, 0]
++        total_intensity = spec[i, 1]
++        consumed[i] = True
++
++        # Scan left in m/z order
++        j = i - 1
++        while j >= 0:
++            if consumed[j]:
++                j -= 1
++                continue
++            if mz_i - spec[j, 0] > merge_window:
++                break
++            total_intensity += spec[j, 1]
++            consumed[j] = True
++            j -= 1
++
++        # Scan right in m/z order
++        j = i + 1
++        while j < n:
++            if consumed[j]:
++                j += 1
++                continue
++            if spec[j, 0] - mz_i > merge_window:
++                break
++            total_intensity += spec[j, 1]
++            consumed[j] = True
++            j += 1
++
++        merged_mz[count] = mz_i
++        merged_int[count] = total_intensity
++        count += 1
++
++    # Build result and sort by ascending m/z
++    result = np.empty((count, 2), dtype=np.float64)
++    result[:, 0] = merged_mz[:count]
++    result[:, 1] = merged_int[:count]
++    sort_idx = np.argsort(result[:, 0])
++    return result[sort_idx]
++
++
++@njit(cache=True)
++def linear_cosine_score(spec1, spec2, tolerance, mz_power, intensity_power):
++    """Compute the CosineLinear similarity between two well-separated spectra.
++
++    Both spectra must have consecutive m/z gaps > 2 * tolerance (as ensured by
++    sirius_merge_close_peaks). Uses an O(n+m) two-pointer sweep.
++
++    Parameters
++    ----------
++    spec1
++        2D array (N, 2) with columns [mz, intensity], sorted ascending m/z.
++    spec2
++        2D array (M, 2) with columns [mz, intensity], sorted ascending m/z.
++    tolerance
++        Maximum allowed difference between m/z values for a match.
++    mz_power
++        Power to raise m/z values to.
++    intensity_power
++        Power to raise intensity values to.
++
++    Returns
++    -------
++    score : float
++        Cosine similarity score.
++    matches : int
++        Number of matched peak pairs.
++    """
++    n1 = spec1.shape[0]
++    n2 = spec2.shape[0]
++
++    if n1 == 0 or n2 == 0:
++        return 0.0, 0
++
++    # Compute weighted products for each spectrum
++    products1 = np.empty(n1, dtype=np.float64)
++    for i in range(n1):
++        products1[i] = (spec1[i, 0] ** mz_power) * (spec1[i, 1] ** intensity_power)
++
++    products2 = np.empty(n2, dtype=np.float64)
++    for i in range(n2):
++        products2[i] = (spec2[i, 0] ** mz_power) * (spec2[i, 1] ** intensity_power)
++
++    # Compute norms
++    norm1 = 0.0
++    for i in range(n1):
++        norm1 += products1[i] * products1[i]
++    norm1 = np.sqrt(norm1)
++
++    norm2 = 0.0
++    for i in range(n2):
++        norm2 += products2[i] * products2[i]
++    norm2 = np.sqrt(norm2)
++
++    if norm1 == 0.0 or norm2 == 0.0:
++        return 0.0, 0
++
++    # Two-pointer sweep
++    matched_sum = 0.0
++    matches = 0
++    i = 0
++    j = 0
++    while i < n1 and j < n2:
++        diff = spec1[i, 0] - spec2[j, 0]
++        if abs(diff) <= tolerance:
++            matched_sum += products1[i] * products2[j]
++            matches += 1
++            i += 1
++            j += 1
++        elif diff < 0:
++            i += 1
++        else:
++            j += 1
++
++    score = matched_sum / (norm1 * norm2)
++    return score, matches
+diff --git a/pyproject.toml b/pyproject.toml
+index d9c1b7e7d..00f7d8f76 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -57,6 +57,7 @@ dev = [
+   "pre-commit>=4.5.1",
+   "pytest>=9.0.2",
+   "pytest-cov>=7.0.0",
++  "pytest-benchmark>=5.1.0",
+   "ruff>=0.14.13",
+   "testfixtures>=8.3.0,<9",
+   "twine>=6.2.0",
+@@ -132,6 +133,7 @@ section-order = [
+ "tests/**" = ["D"]
+ 
+ [tool.pytest.ini_options]
++addopts = "--benchmark-disable"
+ testpaths = [
+   "tests",
+   "integration-tests",
+diff --git a/readthedocs/conf.py b/readthedocs/conf.py
+index 27891cb75..df4a3f0b1 100644
+--- a/readthedocs/conf.py
++++ b/readthedocs/conf.py
+@@ -4,16 +4,12 @@
+ # https://www.sphinx-doc.org/en/master/usage/configuration.html
+ 
+ from __future__ import annotations
+-
+ import os
+ import sys
++from importlib.metadata import PackageNotFoundError
++from importlib.metadata import version as pkg_version
+ from pathlib import Path
+ 
+-try:
+-    from importlib.metadata import PackageNotFoundError, version as pkg_version
+-except ImportError:  # pragma: no cover (py<3.8)
+-    from importlib_metadata import PackageNotFoundError, version as pkg_version  # type: ignore
+-
+ 
+ # -- Path setup --------------------------------------------------------------
+ 
+@@ -85,12 +81,6 @@
+     "inherited-members": True,
+ }
+ 
+-# Only mock truly problematic/heavy optional deps at import time.
+-# NOTE: we no longer import matchms in conf.py, so this is mostly for autodoc.
+-autodoc_mock_imports = [
+-    "rdkit",
+-]
+-
+ napoleon_google_docstring = False
+ 
+ 
+@@ -123,4 +113,4 @@
+     "pyteomics": ("https://pyteomics.readthedocs.io/en/latest/", None),
+     "rdkit": ("http://rdkit.org/docs", None),
+     "scipy": ("https://docs.scipy.org/doc/scipy/", None),
+-}
+\ No newline at end of file
++}
+diff --git a/tests/cosine_linear_reference.json b/tests/cosine_linear_reference.json
+new file mode 100644
+index 000000000..21b8a5d63
+--- /dev/null
++++ b/tests/cosine_linear_reference.json
+@@ -0,0 +1,2679 @@
++{
++  "description": "CosineLinear scores after SiriusMerge preprocessing. Ground truth for matchms Python implementation.",
++  "parameter_sets": [
++    {
++      "intensity_power": 1.0,
++      "merged_spectra": {
++        "aspirin": {
++          "intensities": [
++            49377.3984375,
++            53422.1015625,
++            454244.5,
++            57881.0,
++            1997532.0,
++            825848.1875,
++            1153465.5,
++            96202.796875,
++            58626.80078125,
++            44573.80078125,
++            394779.8125,
++            1129287.75,
++            56357.19921875,
++            1654496.5,
++            72487.296875,
++            1827255.75,
++            207437.40625,
++            587441.8125,
++            166384.0,
++            12202460.25,
++            5824675.0,
++            6124332.0,
++            78621.796875,
++            34285448.0,
++            18191732.0,
++            69049.296875,
++            120675.8984375
++          ],
++          "mz": [
++            50.01490020751953,
++            51.02280044555664,
++            53.03850173950195,
++            55.0177001953125,
++            65.03839874267578,
++            77.03829956054688,
++            79.05400085449219,
++            80.02539825439453,
++            81.03340148925781,
++            91.0541000366211,
++            92.02539825439453,
++            93.0333023071289,
++            94.04109954833984,
++            95.04900360107422,
++            98.03610229492188,
++            105.04450225830078,
++            107.04889678955078,
++            111.04389953613281,
++            120.02030181884766,
++            121.0281982421875,
++            133.0281982421875,
++            135.04379272460938,
++            138.0308074951172,
++            149.02310180664062,
++            163.03860473632812,
++            167.03370666503906,
++            181.04910278320312
++          ]
++        },
++        "cocaine": {
++          "intensities": [
++            13342.4931640625,
++            3264.133544921875,
++            1584.2747802734375,
++            2382.930908203125,
++            3257.3662109375,
++            133504.296875,
++            1849.14013671875,
++            1391.7344970703125,
++            86052.375
++          ],
++          "mz": [
++            82.06478881835938,
++            105.03324890136719,
++            109.2137451171875,
++            119.04920959472656,
++            150.09140014648438,
++            182.11767578125,
++            185.8046875,
++            226.57907104492188,
++            304.15313720703125
++          ]
++        },
++        "glucose": {
++          "intensities": [
++            798.85888671875,
++            1257.25341796875,
++            3923.2490234375,
++            1952.9654541015625,
++            169.58734130859375,
++            412.05517578125,
++            309.93951416015625,
++            520.5691528320312,
++            555.742431640625,
++            13786.814453125,
++            1758.81640625,
++            408.8897705078125,
++            892.346923828125,
++            9220.53515625
++          ],
++          "mz": [
++            82.9521484375,
++            105.27044677734375,
++            112.78939819335938,
++            121.20800018310547,
++            129.11669921875,
++            131.10409545898438,
++            131.99069213867188,
++            135.0079345703125,
++            142.50119018554688,
++            143.1029052734375,
++            158.09225463867188,
++            160.23529052734375,
++            173.1004638671875,
++            185.15267944335938
++          ]
++        },
++        "hydroxy_cholesterol": {
++          "intensities": [
++            4.979911804199219,
++            22.76545524597168,
++            16.608736038208008,
++            84.7729721069336,
++            70.1302261352539,
++            11.714973449707031,
++            31.98192596435547,
++            54.6028938293457,
++            91.45502471923828,
++            46.11669158935547,
++            37.930030822753906,
++            74.30709075927734,
++            41.61702346801758,
++            54.82719421386719,
++            3.832051992416382,
++            68.11918640136719,
++            102.47864532470703,
++            114.72334289550781,
++            107.7490234375,
++            12.766851425170898,
++            6.9919657707214355,
++            17.365039825439453,
++            16.66510581970215,
++            121.05883026123047,
++            66.69908905029297,
++            78.69119262695312,
++            21.242490768432617,
++            17.179059982299805,
++            18.20996856689453,
++            16.72152328491211,
++            220.09820556640625,
++            7.839384078979492,
++            180.72280883789062,
++            176.1594696044922,
++            85.95611572265625,
++            18.903169631958008,
++            36.61906051635742,
++            14.848514556884766,
++            26.946313858032227,
++            195.63363647460938,
++            74.91039276123047,
++            184.57904052734375,
++            174.89984130859375,
++            63.30851364135742,
++            11.29302978515625,
++            37.8712272644043,
++            325.63116455078125,
++            7.312701225280762,
++            98.87300872802734,
++            323.9468994140625,
++            71.51020050048828,
++            16.049942016601562,
++            64.06538391113281,
++            192.0312957763672,
++            14.154706954956055,
++            120.74943542480469,
++            368.51678466796875,
++            226.59230041503906,
++            28.575651168823242,
++            15.240299224853516,
++            6.454415798187256,
++            176.75949096679688,
++            10.867486953735352,
++            91.04105377197266,
++            85.68934631347656,
++            7.40976095199585,
++            365.319580078125,
++            28.59548568725586,
++            40.71728515625,
++            11.677838325500488,
++            11.328113555908203,
++            145.452392578125,
++            80.11607360839844,
++            263.12127685546875,
++            252.11195373535156,
++            11.013157844543457,
++            319.30462646484375,
++            56.708919525146484,
++            139.7557373046875,
++            57.95003890991211,
++            23.482685089111328,
++            14.781034469604492,
++            22.184133529663086,
++            454.479736328125,
++            154.09349060058594,
++            368.51959228515625,
++            56.954345703125,
++            42.74482345581055,
++            19.643260955810547,
++            88.46149444580078,
++            94.91017150878906,
++            16.44283676147461,
++            413.6416320800781,
++            7.445189952850342,
++            41.74992370605469,
++            87.4764404296875,
++            128.76333618164062,
++            64.6731185913086,
++            14.391298294067383,
++            13.502330780029297,
++            75.39729309082031,
++            49.663108825683594,
++            169.1502685546875,
++            12.27285099029541,
++            152.57940673828125,
++            113.56498718261719,
++            30.96883773803711,
++            16.352489471435547,
++            310.9302673339844,
++            41.87001419067383,
++            20.039594650268555,
++            72.41603088378906,
++            155.0880584716797,
++            234.50889587402344,
++            24.093280792236328,
++            83.27174377441406,
++            53.76711654663086,
++            85.91554260253906,
++            40.05982208251953,
++            35.14933776855469,
++            25.06899642944336,
++            30.073320388793945,
++            9.299103736877441,
++            60.239253997802734,
++            6.9355010986328125,
++            14848.8876953125,
++            179.36614990234375,
++            46.814239501953125,
++            46.517662048339844,
++            447.7222900390625,
++            12.113778114318848
++          ],
++          "mz": [
++            79.30683135986328,
++            81.03689575195312,
++            83.17062377929688,
++            95.11650085449219,
++            97.14131164550781,
++            103.33063507080078,
++            105.13883972167969,
++            107.09952545166016,
++            109.08866882324219,
++            111.17135620117188,
++            117.06755828857422,
++            119.17308044433594,
++            121.16685485839844,
++            123.2113037109375,
++            125.54904174804688,
++            129.06756591796875,
++            131.02584838867188,
++            133.06011962890625,
++            135.1088104248047,
++            137.158203125,
++            139.15988159179688,
++            143.09524536132812,
++            144.09375,
++            145.11795043945312,
++            147.1353759765625,
++            149.23699951171875,
++            151.34097290039062,
++            155.07818603515625,
++            156.218505859375,
++            157.1280059814453,
++            159.12319946289062,
++            160.32916259765625,
++            161.14500427246094,
++            163.19815063476562,
++            165.24586486816406,
++            167.08836364746094,
++            169.13075256347656,
++            170.00128173828125,
++            171.11575317382812,
++            173.205078125,
++            175.22988891601562,
++            177.12167358398438,
++            179.24374389648438,
++            181.1219482421875,
++            182.87095642089844,
++            185.17625427246094,
++            187.16738891601562,
++            188.1353759765625,
++            189.40036010742188,
++            191.18641662597656,
++            193.24972534179688,
++            197.1407470703125,
++            199.20748901367188,
++            201.1502685546875,
++            202.0186767578125,
++            203.1893310546875,
++            205.1939697265625,
++            207.16464233398438,
++            209.1722412109375,
++            210.23471069335938,
++            211.33407592773438,
++            213.27459716796875,
++            214.41952514648438,
++            215.13983154296875,
++            217.144775390625,
++            218.28744506835938,
++            219.20706176757812,
++            221.18212890625,
++            223.02651977539062,
++            224.17459106445312,
++            225.35479736328125,
++            227.09613037109375,
++            229.2921142578125,
++            231.22824096679688,
++            233.22427368164062,
++            239.40975952148438,
++            241.22613525390625,
++            243.17080688476562,
++            245.26358032226562,
++            247.4163818359375,
++            249.43923950195312,
++            251.27462768554688,
++            253.4276123046875,
++            255.29483032226562,
++            257.3571472167969,
++            259.1942138671875,
++            261.2124938964844,
++            263.7592468261719,
++            267.26141357421875,
++            269.2259826660156,
++            271.2661437988281,
++            272.0154724121094,
++            273.28350830078125,
++            274.1671142578125,
++            283.19818115234375,
++            285.3158874511719,
++            287.2102966308594,
++            288.7436218261719,
++            289.4022521972656,
++            291.2339172363281,
++            293.3188171386719,
++            295.0741271972656,
++            297.28076171875,
++            299.34979248046875,
++            301.3092041015625,
++            303.2643127441406,
++            305.2552795410156,
++            309.2677307128906,
++            311.2625427246094,
++            313.286376953125,
++            315.27020263671875,
++            324.4085998535156,
++            325.4278564453125,
++            327.3179626464844,
++            327.93963623046875,
++            329.2793884277344,
++            338.4605407714844,
++            339.4599914550781,
++            340.2881774902344,
++            341.3694152832031,
++            343.32635498046875,
++            349.2816467285156,
++            354.27203369140625,
++            357.4516296386719,
++            365.5164794921875,
++            367.32904052734375,
++            368.2337951660156,
++            368.8748779296875,
++            384.3243103027344,
++            385.3056640625,
++            386.43731689453125
++          ]
++        },
++        "phenylalanine": {
++          "intensities": [
++            802.6332397460938,
++            527.747314453125,
++            232.55642700195312,
++            297.47216796875,
++            113.40119934082031,
++            8457614.0,
++            5223.298828125,
++            1784.40185546875,
++            733.6038208007812,
++            514.92333984375,
++            680.6416015625,
++            341.42132568359375,
++            44541.625,
++            596.8916015625,
++            781.1204223632812,
++            2167.02001953125,
++            130.0547637939453,
++            264.5392150878906,
++            1620.135986328125,
++            55389.7890625,
++            364218.59375,
++            4676.8095703125,
++            590.623291015625
++          ],
++          "mz": [
++            84.32965087890625,
++            95.2614517211914,
++            104.25553894042969,
++            107.15116119384766,
++            108.493408203125,
++            120.35417175292969,
++            121.3327407836914,
++            122.17408752441406,
++            123.06144714355469,
++            123.87631225585938,
++            125.26976013183594,
++            127.95097351074219,
++            131.0302734375,
++            131.89881896972656,
++            132.98748779296875,
++            133.96694946289062,
++            135.21780395507812,
++            136.68353271484375,
++            138.05044555664062,
++            148.04901123046875,
++            149.00741577148438,
++            149.6342315673828,
++            150.75448608398438
++          ]
++        },
++        "salicin": {
++          "intensities": [
++            2309.0,
++            1977.0,
++            2003.0,
++            2102.0,
++            2177.0,
++            2127.0,
++            2376.0,
++            2380.0,
++            2703.0,
++            2200.0,
++            2232.0,
++            2923.0,
++            2173.0,
++            2257.0,
++            2367.0,
++            4363.0,
++            31526.0,
++            5119.0,
++            2252.0,
++            2233.0,
++            22755.0
++          ],
++          "mz": [
++            52.27001190185547,
++            55.7410888671875,
++            57.76688003540039,
++            60.32212829589844,
++            64.12008666992188,
++            82.39277648925781,
++            87.0296630859375,
++            91.02012634277344,
++            92.3756332397461,
++            93.13435363769531,
++            112.07272338867188,
++            116.9283676147461,
++            123.044677734375,
++            138.61074829101562,
++            140.95814514160156,
++            146.96142578125,
++            174.9570770263672,
++            184.95059204101562,
++            238.55796813964844,
++            305.4481201171875,
++            321.0744323730469
++          ]
++        }
++      },
++      "mz_power": 0.0,
++      "mz_tolerance": 0.1,
++      "similarities": [
++        {
++          "left": "aspirin",
++          "matches": 27,
++          "right": "aspirin",
++          "score": 1.0
++        },
++        {
++          "left": "aspirin",
++          "matches": 1,
++          "right": "cocaine",
++          "score": 0.0008961988263779795
++        },
++        {
++          "left": "aspirin",
++          "matches": 1,
++          "right": "glucose",
++          "score": 0.004400836755772637
++        },
++        {
++          "left": "aspirin",
++          "matches": 8,
++          "right": "hydroxy_cholesterol",
++          "score": 0.002485723780875366
++        },
++        {
++          "left": "aspirin",
++          "matches": 3,
++          "right": "phenylalanine",
++          "score": 0.035365120479775976
++        },
++        {
++          "left": "aspirin",
++          "matches": 1,
++          "right": "salicin",
++          "score": 0.00006266239314259699
++        },
++        {
++          "left": "cocaine",
++          "matches": 9,
++          "right": "cocaine",
++          "score": 0.9999999999999999
++        },
++        {
++          "left": "cocaine",
++          "matches": 0,
++          "right": "glucose",
++          "score": 0.0
++        },
++        {
++          "left": "cocaine",
++          "matches": 0,
++          "right": "hydroxy_cholesterol",
++          "score": 0.0
++        },
++        {
++          "left": "cocaine",
++          "matches": 0,
++          "right": "phenylalanine",
++          "score": 0.0
++        },
++        {
++          "left": "cocaine",
++          "matches": 0,
++          "right": "salicin",
++          "score": 0.0
++        },
++        {
++          "left": "glucose",
++          "matches": 14,
++          "right": "glucose",
++          "score": 1.0
++        },
++        {
++          "left": "glucose",
++          "matches": 6,
++          "right": "hydroxy_cholesterol",
++          "score": 0.0028041566554726205
++        },
++        {
++          "left": "glucose",
++          "matches": 2,
++          "right": "phenylalanine",
++          "score": 0.0001261256068739177
++        },
++        {
++          "left": "glucose",
++          "matches": 0,
++          "right": "salicin",
++          "score": 0.0
++        },
++        {
++          "left": "hydroxy_cholesterol",
++          "matches": 131,
++          "right": "hydroxy_cholesterol",
++          "score": 0.9999999999999998
++        },
++        {
++          "left": "hydroxy_cholesterol",
++          "matches": 3,
++          "right": "phenylalanine",
++          "score": 0.00003695289124669206
++        },
++        {
++          "left": "hydroxy_cholesterol",
++          "matches": 0,
++          "right": "salicin",
++          "score": 0.0
++        },
++        {
++          "left": "phenylalanine",
++          "matches": 23,
++          "right": "phenylalanine",
++          "score": 1.0
++        },
++        {
++          "left": "phenylalanine",
++          "matches": 1,
++          "right": "salicin",
++          "score": 4.640873394762494e-6
++        },
++        {
++          "left": "salicin",
++          "matches": 21,
++          "right": "salicin",
++          "score": 1.0
++        }
++      ]
++    },
++    {
++      "intensity_power": 1.0,
++      "merged_spectra": {
++        "aspirin": {
++          "intensities": [
++            49377.3984375,
++            53422.1015625,
++            454244.5,
++            57881.0,
++            1997532.0,
++            825848.1875,
++            1153465.5,
++            96202.796875,
++            58626.80078125,
++            44573.80078125,
++            394779.8125,
++            1129287.75,
++            56357.19921875,
++            1654496.5,
++            72487.296875,
++            1827255.75,
++            207437.40625,
++            587441.8125,
++            166384.0,
++            12202460.25,
++            5824675.0,
++            6124332.0,
++            78621.796875,
++            34285448.0,
++            18191732.0,
++            69049.296875,
++            120675.8984375
++          ],
++          "mz": [
++            50.01490020751953,
++            51.02280044555664,
++            53.03850173950195,
++            55.0177001953125,
++            65.03839874267578,
++            77.03829956054688,
++            79.05400085449219,
++            80.02539825439453,
++            81.03340148925781,
++            91.0541000366211,
++            92.02539825439453,
++            93.0333023071289,
++            94.04109954833984,
++            95.04900360107422,
++            98.03610229492188,
++            105.04450225830078,
++            107.04889678955078,
++            111.04389953613281,
++            120.02030181884766,
++            121.0281982421875,
++            133.0281982421875,
++            135.04379272460938,
++            138.0308074951172,
++            149.02310180664062,
++            163.03860473632812,
++            167.03370666503906,
++            181.04910278320312
++          ]
++        },
++        "cocaine": {
++          "intensities": [
++            13342.4931640625,
++            3264.133544921875,
++            1584.2747802734375,
++            2382.930908203125,
++            3257.3662109375,
++            133504.296875,
++            1849.14013671875,
++            1391.7344970703125,
++            86052.375
++          ],
++          "mz": [
++            82.06478881835938,
++            105.03324890136719,
++            109.2137451171875,
++            119.04920959472656,
++            150.09140014648438,
++            182.11767578125,
++            185.8046875,
++            226.57907104492188,
++            304.15313720703125
++          ]
++        },
++        "glucose": {
++          "intensities": [
++            798.85888671875,
++            1257.25341796875,
++            3923.2490234375,
++            1952.9654541015625,
++            169.58734130859375,
++            412.05517578125,
++            309.93951416015625,
++            520.5691528320312,
++            555.742431640625,
++            13786.814453125,
++            1758.81640625,
++            408.8897705078125,
++            892.346923828125,
++            9220.53515625
++          ],
++          "mz": [
++            82.9521484375,
++            105.27044677734375,
++            112.78939819335938,
++            121.20800018310547,
++            129.11669921875,
++            131.10409545898438,
++            131.99069213867188,
++            135.0079345703125,
++            142.50119018554688,
++            143.1029052734375,
++            158.09225463867188,
++            160.23529052734375,
++            173.1004638671875,
++            185.15267944335938
++          ]
++        },
++        "hydroxy_cholesterol": {
++          "intensities": [
++            4.979911804199219,
++            22.76545524597168,
++            16.608736038208008,
++            84.7729721069336,
++            70.1302261352539,
++            11.714973449707031,
++            31.98192596435547,
++            54.6028938293457,
++            91.45502471923828,
++            46.11669158935547,
++            37.930030822753906,
++            74.30709075927734,
++            41.61702346801758,
++            54.82719421386719,
++            3.832051992416382,
++            68.11918640136719,
++            102.47864532470703,
++            114.72334289550781,
++            107.7490234375,
++            12.766851425170898,
++            6.9919657707214355,
++            17.365039825439453,
++            16.66510581970215,
++            121.05883026123047,
++            66.69908905029297,
++            78.69119262695312,
++            21.242490768432617,
++            17.179059982299805,
++            18.20996856689453,
++            16.72152328491211,
++            220.09820556640625,
++            7.839384078979492,
++            180.72280883789062,
++            176.1594696044922,
++            85.95611572265625,
++            18.903169631958008,
++            36.61906051635742,
++            14.848514556884766,
++            26.946313858032227,
++            195.63363647460938,
++            74.91039276123047,
++            184.57904052734375,
++            174.89984130859375,
++            63.30851364135742,
++            11.29302978515625,
++            37.8712272644043,
++            325.63116455078125,
++            7.312701225280762,
++            98.87300872802734,
++            323.9468994140625,
++            71.51020050048828,
++            16.049942016601562,
++            64.06538391113281,
++            192.0312957763672,
++            14.154706954956055,
++            120.74943542480469,
++            368.51678466796875,
++            226.59230041503906,
++            28.575651168823242,
++            15.240299224853516,
++            6.454415798187256,
++            176.75949096679688,
++            10.867486953735352,
++            91.04105377197266,
++            85.68934631347656,
++            7.40976095199585,
++            365.319580078125,
++            28.59548568725586,
++            40.71728515625,
++            11.677838325500488,
++            11.328113555908203,
++            145.452392578125,
++            80.11607360839844,
++            263.12127685546875,
++            252.11195373535156,
++            11.013157844543457,
++            319.30462646484375,
++            56.708919525146484,
++            139.7557373046875,
++            57.95003890991211,
++            23.482685089111328,
++            14.781034469604492,
++            22.184133529663086,
++            454.479736328125,
++            154.09349060058594,
++            368.51959228515625,
++            56.954345703125,
++            42.74482345581055,
++            19.643260955810547,
++            88.46149444580078,
++            94.91017150878906,
++            16.44283676147461,
++            413.6416320800781,
++            7.445189952850342,
++            41.74992370605469,
++            87.4764404296875,
++            128.76333618164062,
++            64.6731185913086,
++            14.391298294067383,
++            13.502330780029297,
++            75.39729309082031,
++            49.663108825683594,
++            169.1502685546875,
++            12.27285099029541,
++            152.57940673828125,
++            113.56498718261719,
++            30.96883773803711,
++            16.352489471435547,
++            310.9302673339844,
++            41.87001419067383,
++            20.039594650268555,
++            72.41603088378906,
++            155.0880584716797,
++            234.50889587402344,
++            24.093280792236328,
++            83.27174377441406,
++            53.76711654663086,
++            85.91554260253906,
++            40.05982208251953,
++            35.14933776855469,
++            25.06899642944336,
++            30.073320388793945,
++            9.299103736877441,
++            60.239253997802734,
++            6.9355010986328125,
++            14848.8876953125,
++            179.36614990234375,
++            46.814239501953125,
++            46.517662048339844,
++            447.7222900390625,
++            12.113778114318848
++          ],
++          "mz": [
++            79.30683135986328,
++            81.03689575195312,
++            83.17062377929688,
++            95.11650085449219,
++            97.14131164550781,
++            103.33063507080078,
++            105.13883972167969,
++            107.09952545166016,
++            109.08866882324219,
++            111.17135620117188,
++            117.06755828857422,
++            119.17308044433594,
++            121.16685485839844,
++            123.2113037109375,
++            125.54904174804688,
++            129.06756591796875,
++            131.02584838867188,
++            133.06011962890625,
++            135.1088104248047,
++            137.158203125,
++            139.15988159179688,
++            143.09524536132812,
++            144.09375,
++            145.11795043945312,
++            147.1353759765625,
++            149.23699951171875,
++            151.34097290039062,
++            155.07818603515625,
++            156.218505859375,
++            157.1280059814453,
++            159.12319946289062,
++            160.32916259765625,
++            161.14500427246094,
++            163.19815063476562,
++            165.24586486816406,
++            167.08836364746094,
++            169.13075256347656,
++            170.00128173828125,
++            171.11575317382812,
++            173.205078125,
++            175.22988891601562,
++            177.12167358398438,
++            179.24374389648438,
++            181.1219482421875,
++            182.87095642089844,
++            185.17625427246094,
++            187.16738891601562,
++            188.1353759765625,
++            189.40036010742188,
++            191.18641662597656,
++            193.24972534179688,
++            197.1407470703125,
++            199.20748901367188,
++            201.1502685546875,
++            202.0186767578125,
++            203.1893310546875,
++            205.1939697265625,
++            207.16464233398438,
++            209.1722412109375,
++            210.23471069335938,
++            211.33407592773438,
++            213.27459716796875,
++            214.41952514648438,
++            215.13983154296875,
++            217.144775390625,
++            218.28744506835938,
++            219.20706176757812,
++            221.18212890625,
++            223.02651977539062,
++            224.17459106445312,
++            225.35479736328125,
++            227.09613037109375,
++            229.2921142578125,
++            231.22824096679688,
++            233.22427368164062,
++            239.40975952148438,
++            241.22613525390625,
++            243.17080688476562,
++            245.26358032226562,
++            247.4163818359375,
++            249.43923950195312,
++            251.27462768554688,
++            253.4276123046875,
++            255.29483032226562,
++            257.3571472167969,
++            259.1942138671875,
++            261.2124938964844,
++            263.7592468261719,
++            267.26141357421875,
++            269.2259826660156,
++            271.2661437988281,
++            272.0154724121094,
++            273.28350830078125,
++            274.1671142578125,
++            283.19818115234375,
++            285.3158874511719,
++            287.2102966308594,
++            288.7436218261719,
++            289.4022521972656,
++            291.2339172363281,
++            293.3188171386719,
++            295.0741271972656,
++            297.28076171875,
++            299.34979248046875,
++            301.3092041015625,
++            303.2643127441406,
++            305.2552795410156,
++            309.2677307128906,
++            311.2625427246094,
++            313.286376953125,
++            315.27020263671875,
++            324.4085998535156,
++            325.4278564453125,
++            327.3179626464844,
++            327.93963623046875,
++            329.2793884277344,
++            338.4605407714844,
++            339.4599914550781,
++            340.2881774902344,
++            341.3694152832031,
++            343.32635498046875,
++            349.2816467285156,
++            354.27203369140625,
++            357.4516296386719,
++            365.5164794921875,
++            367.32904052734375,
++            368.2337951660156,
++            368.8748779296875,
++            384.3243103027344,
++            385.3056640625,
++            386.43731689453125
++          ]
++        },
++        "phenylalanine": {
++          "intensities": [
++            802.6332397460938,
++            527.747314453125,
++            232.55642700195312,
++            297.47216796875,
++            113.40119934082031,
++            8457614.0,
++            5223.298828125,
++            1784.40185546875,
++            733.6038208007812,
++            514.92333984375,
++            680.6416015625,
++            341.42132568359375,
++            44541.625,
++            596.8916015625,
++            781.1204223632812,
++            2167.02001953125,
++            130.0547637939453,
++            264.5392150878906,
++            1620.135986328125,
++            55389.7890625,
++            364218.59375,
++            4676.8095703125,
++            590.623291015625
++          ],
++          "mz": [
++            84.32965087890625,
++            95.2614517211914,
++            104.25553894042969,
++            107.15116119384766,
++            108.493408203125,
++            120.35417175292969,
++            121.3327407836914,
++            122.17408752441406,
++            123.06144714355469,
++            123.87631225585938,
++            125.26976013183594,
++            127.95097351074219,
++            131.0302734375,
++            131.89881896972656,
++            132.98748779296875,
++            133.96694946289062,
++            135.21780395507812,
++            136.68353271484375,
++            138.05044555664062,
++            148.04901123046875,
++            149.00741577148438,
++            149.6342315673828,
++            150.75448608398438
++          ]
++        },
++        "salicin": {
++          "intensities": [
++            2309.0,
++            1977.0,
++            2003.0,
++            2102.0,
++            2177.0,
++            2127.0,
++            2376.0,
++            2380.0,
++            2703.0,
++            2200.0,
++            2232.0,
++            2923.0,
++            2173.0,
++            2257.0,
++            2367.0,
++            4363.0,
++            31526.0,
++            5119.0,
++            2252.0,
++            2233.0,
++            22755.0
++          ],
++          "mz": [
++            52.27001190185547,
++            55.7410888671875,
++            57.76688003540039,
++            60.32212829589844,
++            64.12008666992188,
++            82.39277648925781,
++            87.0296630859375,
++            91.02012634277344,
++            92.3756332397461,
++            93.13435363769531,
++            112.07272338867188,
++            116.9283676147461,
++            123.044677734375,
++            138.61074829101562,
++            140.95814514160156,
++            146.96142578125,
++            174.9570770263672,
++            184.95059204101562,
++            238.55796813964844,
++            305.4481201171875,
++            321.0744323730469
++          ]
++        }
++      },
++      "mz_power": 1.0,
++      "mz_tolerance": 0.1,
++      "similarities": [
++        {
++          "left": "aspirin",
++          "matches": 27,
++          "right": "aspirin",
++          "score": 1.0
++        },
++        {
++          "left": "aspirin",
++          "matches": 1,
++          "right": "cocaine",
++          "score": 0.00029674882371045775
++        },
++        {
++          "left": "aspirin",
++          "matches": 1,
++          "right": "glucose",
++          "score": 0.0034916136178254394
++        },
++        {
++          "left": "aspirin",
++          "matches": 8,
++          "right": "hydroxy_cholesterol",
++          "score": 0.0007725652413006187
++        },
++        {
++          "left": "aspirin",
++          "matches": 3,
++          "right": "phenylalanine",
++          "score": 0.04386456013628331
++        },
++        {
++          "left": "aspirin",
++          "matches": 1,
++          "right": "salicin",
++          "score": 0.000015229098031502666
++        },
++        {
++          "left": "cocaine",
++          "matches": 9,
++          "right": "cocaine",
++          "score": 0.9999999999999999
++        },
++        {
++          "left": "cocaine",
++          "matches": 0,
++          "right": "glucose",
++          "score": 0.0
++        },
++        {
++          "left": "cocaine",
++          "matches": 0,
++          "right": "hydroxy_cholesterol",
++          "score": 0.0
++        },
++        {
++          "left": "cocaine",
++          "matches": 0,
++          "right": "phenylalanine",
++          "score": 0.0
++        },
++        {
++          "left": "cocaine",
++          "matches": 0,
++          "right": "salicin",
++          "score": 0.0
++        },
++        {
++          "left": "glucose",
++          "matches": 14,
++          "right": "glucose",
++          "score": 0.9999999999999999
++        },
++        {
++          "left": "glucose",
++          "matches": 6,
++          "right": "hydroxy_cholesterol",
++          "score": 0.0012992613626234036
++        },
++        {
++          "left": "glucose",
++          "matches": 2,
++          "right": "phenylalanine",
++          "score": 0.00011642177386557609
++        },
++        {
++          "left": "glucose",
++          "matches": 0,
++          "right": "salicin",
++          "score": 0.0
++        },
++        {
++          "left": "hydroxy_cholesterol",
++          "matches": 131,
++          "right": "hydroxy_cholesterol",
++          "score": 1.0
++        },
++        {
++          "left": "hydroxy_cholesterol",
++          "matches": 3,
++          "right": "phenylalanine",
++          "score": 0.000014375055736646439
++        },
++        {
++          "left": "hydroxy_cholesterol",
++          "matches": 0,
++          "right": "salicin",
++          "score": 0.0
++        },
++        {
++          "left": "phenylalanine",
++          "matches": 23,
++          "right": "phenylalanine",
++          "score": 0.9999999999999998
++        },
++        {
++          "left": "phenylalanine",
++          "matches": 1,
++          "right": "salicin",
++          "score": 2.5441496206976624e-6
++        },
++        {
++          "left": "salicin",
++          "matches": 21,
++          "right": "salicin",
++          "score": 1.0
++        }
++      ]
++    },
++    {
++      "intensity_power": 0.5,
++      "merged_spectra": {
++        "aspirin": {
++          "intensities": [
++            49377.3984375,
++            53422.1015625,
++            454244.5,
++            57881.0,
++            1997532.0,
++            825848.1875,
++            1249668.296875,
++            58626.80078125,
++            439353.61328125,
++            1129287.75,
++            56357.19921875,
++            1654496.5,
++            72487.296875,
++            1827255.75,
++            207437.40625,
++            587441.8125,
++            166384.0,
++            12202460.25,
++            5824675.0,
++            6124332.0,
++            78621.796875,
++            34285448.0,
++            18191732.0,
++            69049.296875,
++            120675.8984375
++          ],
++          "mz": [
++            50.01490020751953,
++            51.02280044555664,
++            53.03850173950195,
++            55.0177001953125,
++            65.03839874267578,
++            77.03829956054688,
++            79.05400085449219,
++            81.03340148925781,
++            92.02539825439453,
++            93.0333023071289,
++            94.04109954833984,
++            95.04900360107422,
++            98.03610229492188,
++            105.04450225830078,
++            107.04889678955078,
++            111.04389953613281,
++            120.02030181884766,
++            121.0281982421875,
++            133.0281982421875,
++            135.04379272460938,
++            138.0308074951172,
++            149.02310180664062,
++            163.03860473632812,
++            167.03370666503906,
++            181.04910278320312
++          ]
++        },
++        "cocaine": {
++          "intensities": [
++            13342.4931640625,
++            3264.133544921875,
++            1584.2747802734375,
++            2382.930908203125,
++            3257.3662109375,
++            133504.296875,
++            1849.14013671875,
++            1391.7344970703125,
++            86052.375
++          ],
++          "mz": [
++            82.06478881835938,
++            105.03324890136719,
++            109.2137451171875,
++            119.04920959472656,
++            150.09140014648438,
++            182.11767578125,
++            185.8046875,
++            226.57907104492188,
++            304.15313720703125
++          ]
++        },
++        "glucose": {
++          "intensities": [
++            798.85888671875,
++            1257.25341796875,
++            3923.2490234375,
++            1952.9654541015625,
++            169.58734130859375,
++            721.9946899414062,
++            520.5691528320312,
++            14342.556884765625,
++            1758.81640625,
++            408.8897705078125,
++            892.346923828125,
++            9220.53515625
++          ],
++          "mz": [
++            82.9521484375,
++            105.27044677734375,
++            112.78939819335938,
++            121.20800018310547,
++            129.11669921875,
++            131.10409545898438,
++            135.0079345703125,
++            143.1029052734375,
++            158.09225463867188,
++            160.23529052734375,
++            173.1004638671875,
++            185.15267944335938
++          ]
++        },
++        "hydroxy_cholesterol": {
++          "intensities": [
++            4.979911804199219,
++            22.76545524597168,
++            16.608736038208008,
++            84.7729721069336,
++            70.1302261352539,
++            11.714973449707031,
++            31.98192596435547,
++            54.6028938293457,
++            91.45502471923828,
++            46.11669158935547,
++            37.930030822753906,
++            74.30709075927734,
++            41.61702346801758,
++            54.82719421386719,
++            3.832051992416382,
++            68.11918640136719,
++            102.47864532470703,
++            114.72334289550781,
++            107.7490234375,
++            12.766851425170898,
++            6.9919657707214355,
++            34.0301456451416,
++            121.05883026123047,
++            66.69908905029297,
++            78.69119262695312,
++            21.242490768432617,
++            17.179059982299805,
++            34.93149185180664,
++            220.09820556640625,
++            188.56219291687012,
++            176.1594696044922,
++            85.95611572265625,
++            18.903169631958008,
++            51.46757507324219,
++            26.946313858032227,
++            195.63363647460938,
++            74.91039276123047,
++            184.57904052734375,
++            174.89984130859375,
++            63.30851364135742,
++            11.29302978515625,
++            37.8712272644043,
++            332.943865776062,
++            98.87300872802734,
++            323.9468994140625,
++            71.51020050048828,
++            16.049942016601562,
++            64.06538391113281,
++            206.18600273132324,
++            120.74943542480469,
++            368.51678466796875,
++            226.59230041503906,
++            28.575651168823242,
++            15.240299224853516,
++            6.454415798187256,
++            176.75949096679688,
++            101.90854072570801,
++            85.68934631347656,
++            372.72934103012085,
++            28.59548568725586,
++            40.71728515625,
++            11.677838325500488,
++            11.328113555908203,
++            145.452392578125,
++            80.11607360839844,
++            263.12127685546875,
++            252.11195373535156,
++            11.013157844543457,
++            319.30462646484375,
++            56.708919525146484,
++            139.7557373046875,
++            57.95003890991211,
++            23.482685089111328,
++            14.781034469604492,
++            22.184133529663086,
++            454.479736328125,
++            154.09349060058594,
++            368.51959228515625,
++            56.954345703125,
++            42.74482345581055,
++            19.643260955810547,
++            88.46149444580078,
++            111.35300827026367,
++            421.08682203292847,
++            41.74992370605469,
++            87.4764404296875,
++            128.76333618164062,
++            79.06441688537598,
++            13.502330780029297,
++            75.39729309082031,
++            49.663108825683594,
++            169.1502685546875,
++            12.27285099029541,
++            152.57940673828125,
++            113.56498718261719,
++            30.96883773803711,
++            16.352489471435547,
++            310.9302673339844,
++            41.87001419067383,
++            20.039594650268555,
++            72.41603088378906,
++            155.0880584716797,
++            258.60217666625977,
++            83.27174377441406,
++            179.74248123168945,
++            35.14933776855469,
++            25.06899642944336,
++            30.073320388793945,
++            9.299103736877441,
++            60.239253997802734,
++            6.9355010986328125,
++            15028.253845214844,
++            46.814239501953125,
++            494.23995208740234,
++            12.113778114318848
++          ],
++          "mz": [
++            79.30683135986328,
++            81.03689575195312,
++            83.17062377929688,
++            95.11650085449219,
++            97.14131164550781,
++            103.33063507080078,
++            105.13883972167969,
++            107.09952545166016,
++            109.08866882324219,
++            111.17135620117188,
++            117.06755828857422,
++            119.17308044433594,
++            121.16685485839844,
++            123.2113037109375,
++            125.54904174804688,
++            129.06756591796875,
++            131.02584838867188,
++            133.06011962890625,
++            135.1088104248047,
++            137.158203125,
++            139.15988159179688,
++            143.09524536132812,
++            145.11795043945312,
++            147.1353759765625,
++            149.23699951171875,
++            151.34097290039062,
++            155.07818603515625,
++            156.218505859375,
++            159.12319946289062,
++            161.14500427246094,
++            163.19815063476562,
++            165.24586486816406,
++            167.08836364746094,
++            169.13075256347656,
++            171.11575317382812,
++            173.205078125,
++            175.22988891601562,
++            177.12167358398438,
++            179.24374389648438,
++            181.1219482421875,
++            182.87095642089844,
++            185.17625427246094,
++            187.16738891601562,
++            189.40036010742188,
++            191.18641662597656,
++            193.24972534179688,
++            197.1407470703125,
++            199.20748901367188,
++            201.1502685546875,
++            203.1893310546875,
++            205.1939697265625,
++            207.16464233398438,
++            209.1722412109375,
++            210.23471069335938,
++            211.33407592773438,
++            213.27459716796875,
++            215.13983154296875,
++            217.144775390625,
++            219.20706176757812,
++            221.18212890625,
++            223.02651977539062,
++            224.17459106445312,
++            225.35479736328125,
++            227.09613037109375,
++            229.2921142578125,
++            231.22824096679688,
++            233.22427368164062,
++            239.40975952148438,
++            241.22613525390625,
++            243.17080688476562,
++            245.26358032226562,
++            247.4163818359375,
++            249.43923950195312,
++            251.27462768554688,
++            253.4276123046875,
++            255.29483032226562,
++            257.3571472167969,
++            259.1942138671875,
++            261.2124938964844,
++            263.7592468261719,
++            267.26141357421875,
++            269.2259826660156,
++            271.2661437988281,
++            273.28350830078125,
++            283.19818115234375,
++            285.3158874511719,
++            287.2102966308594,
++            288.7436218261719,
++            291.2339172363281,
++            293.3188171386719,
++            295.0741271972656,
++            297.28076171875,
++            299.34979248046875,
++            301.3092041015625,
++            303.2643127441406,
++            305.2552795410156,
++            309.2677307128906,
++            311.2625427246094,
++            313.286376953125,
++            315.27020263671875,
++            324.4085998535156,
++            325.4278564453125,
++            327.3179626464844,
++            329.2793884277344,
++            339.4599914550781,
++            341.3694152832031,
++            343.32635498046875,
++            349.2816467285156,
++            354.27203369140625,
++            357.4516296386719,
++            365.5164794921875,
++            367.32904052734375,
++            368.8748779296875,
++            385.3056640625,
++            386.43731689453125
++          ]
++        },
++        "phenylalanine": {
++          "intensities": [
++            802.6332397460938,
++            527.747314453125,
++            232.55642700195312,
++            297.47216796875,
++            113.40119934082031,
++            8462837.298828125,
++            2518.0056762695312,
++            514.92333984375,
++            680.6416015625,
++            341.42132568359375,
++            45138.5166015625,
++            2948.1404418945312,
++            130.0547637939453,
++            264.5392150878906,
++            1620.135986328125,
++            424285.1923828125,
++            590.623291015625
++          ],
++          "mz": [
++            84.32965087890625,
++            95.2614517211914,
++            104.25553894042969,
++            107.15116119384766,
++            108.493408203125,
++            120.35417175292969,
++            122.17408752441406,
++            123.87631225585938,
++            125.26976013183594,
++            127.95097351074219,
++            131.0302734375,
++            133.96694946289062,
++            135.21780395507812,
++            136.68353271484375,
++            138.05044555664062,
++            149.00741577148438,
++            150.75448608398438
++          ]
++        },
++        "salicin": {
++          "intensities": [
++            2309.0,
++            1977.0,
++            2003.0,
++            2102.0,
++            2177.0,
++            2127.0,
++            2376.0,
++            2380.0,
++            4903.0,
++            2232.0,
++            2923.0,
++            2173.0,
++            2257.0,
++            2367.0,
++            4363.0,
++            31526.0,
++            5119.0,
++            2252.0,
++            2233.0,
++            22755.0
++          ],
++          "mz": [
++            52.27001190185547,
++            55.7410888671875,
++            57.76688003540039,
++            60.32212829589844,
++            64.12008666992188,
++            82.39277648925781,
++            87.0296630859375,
++            91.02012634277344,
++            92.3756332397461,
++            112.07272338867188,
++            116.9283676147461,
++            123.044677734375,
++            138.61074829101562,
++            140.95814514160156,
++            146.96142578125,
++            174.9570770263672,
++            184.95059204101562,
++            238.55796813964844,
++            305.4481201171875,
++            321.0744323730469
++          ]
++        }
++      },
++      "mz_power": 1.0,
++      "mz_tolerance": 0.5,
++      "similarities": [
++        {
++          "left": "aspirin",
++          "matches": 25,
++          "right": "aspirin",
++          "score": 1.0
++        },
++        {
++          "left": "aspirin",
++          "matches": 1,
++          "right": "cocaine",
++          "score": 0.005729940673835145
++        },
++        {
++          "left": "aspirin",
++          "matches": 3,
++          "right": "glucose",
++          "score": 0.101890844346008
++        },
++        {
++          "left": "aspirin",
++          "matches": 13,
++          "right": "hydroxy_cholesterol",
++          "score": 0.06365299113711713
++        },
++        {
++          "left": "aspirin",
++          "matches": 6,
++          "right": "phenylalanine",
++          "score": 0.21453435529947673
++        },
++        {
++          "left": "aspirin",
++          "matches": 1,
++          "right": "salicin",
++          "score": 0.0046068119350158206
++        },
++        {
++          "left": "cocaine",
++          "matches": 9,
++          "right": "cocaine",
++          "score": 1.0
++        },
++        {
++          "left": "cocaine",
++          "matches": 1,
++          "right": "glucose",
++          "score": 0.006946846185363089
++        },
++        {
++          "left": "cocaine",
++          "matches": 3,
++          "right": "hydroxy_cholesterol",
++          "score": 0.0023924447007923283
++        },
++        {
++          "left": "cocaine",
++          "matches": 0,
++          "right": "phenylalanine",
++          "score": 0.0
++        },
++        {
++          "left": "cocaine",
++          "matches": 1,
++          "right": "salicin",
++          "score": 0.004895451344133074
++        },
++        {
++          "left": "glucose",
++          "matches": 12,
++          "right": "glucose",
++          "score": 1.0
++        },
++        {
++          "left": "glucose",
++          "matches": 9,
++          "right": "hydroxy_cholesterol",
++          "score": 0.04383652338790461
++        },
++        {
++          "left": "glucose",
++          "matches": 2,
++          "right": "phenylalanine",
++          "score": 0.009884491222152207
++        },
++        {
++          "left": "glucose",
++          "matches": 1,
++          "right": "salicin",
++          "score": 0.12669116578636846
++        },
++        {
++          "left": "hydroxy_cholesterol",
++          "matches": 115,
++          "right": "hydroxy_cholesterol",
++          "score": 1.0
++        },
++        {
++          "left": "hydroxy_cholesterol",
++          "matches": 7,
++          "right": "phenylalanine",
++          "score": 0.00910862011409918
++        },
++        {
++          "left": "hydroxy_cholesterol",
++          "matches": 6,
++          "right": "salicin",
++          "score": 0.031928862775200566
++        },
++        {
++          "left": "phenylalanine",
++          "matches": 17,
++          "right": "phenylalanine",
++          "score": 1.0
++        },
++        {
++          "left": "phenylalanine",
++          "matches": 0,
++          "right": "salicin",
++          "score": 0.0
++        },
++        {
++          "left": "salicin",
++          "matches": 20,
++          "right": "salicin",
++          "score": 1.0
++        }
++      ]
++    },
++    {
++      "intensity_power": 1.0,
++      "merged_spectra": {
++        "aspirin": {
++          "intensities": [
++            614925.0,
++            1997532.0,
++            2134143.28515625,
++            3351982.359375,
++            2034693.15625,
++            587441.8125,
++            12368844.25,
++            12027628.796875,
++            34285448.0,
++            18260781.296875,
++            120675.8984375
++          ],
++          "mz": [
++            53.03850173950195,
++            65.03839874267578,
++            79.05400085449219,
++            95.04900360107422,
++            105.04450225830078,
++            111.04389953613281,
++            121.0281982421875,
++            135.04379272460938,
++            149.02310180664062,
++            163.03860473632812,
++            181.04910278320312
++          ]
++        },
++        "cocaine": {
++          "intensities": [
++            13342.4931640625,
++            3264.133544921875,
++            1584.2747802734375,
++            2382.930908203125,
++            3257.3662109375,
++            135353.43701171875,
++            1391.7344970703125,
++            86052.375
++          ],
++          "mz": [
++            82.06478881835938,
++            105.03324890136719,
++            109.2137451171875,
++            119.04920959472656,
++            150.09140014648438,
++            182.11767578125,
++            226.57907104492188,
++            304.15313720703125
++          ]
++        },
++        "glucose": {
++          "intensities": [
++            798.85888671875,
++            1257.25341796875,
++            3923.2490234375,
++            1952.9654541015625,
++            169.58734130859375,
++            1242.5638427734375,
++            14342.556884765625,
++            2167.7061767578125,
++            892.346923828125,
++            9220.53515625
++          ],
++          "mz": [
++            82.9521484375,
++            105.27044677734375,
++            112.78939819335938,
++            121.20800018310547,
++            129.11669921875,
++            135.0079345703125,
++            143.1029052734375,
++            158.09225463867188,
++            173.1004638671875,
++            185.15267944335938
++          ]
++        },
++        "hydroxy_cholesterol": {
++          "intensities": [
++            44.354103088378906,
++            154.9031982421875,
++            11.714973449707031,
++            224.15653610229492,
++            153.85414505004883,
++            58.65924620628357,
++            393.07019805908203,
++            19.758817195892334,
++            221.78806495666504,
++            99.93368339538574,
++            17.179059982299805,
++            443.591890335083,
++            281.01875495910645,
++            36.61906051635742,
++            496.9178981781006,
++            249.50138473510742,
++            469.68810176849365,
++            395.4570999145508,
++            16.049942016601562,
++            256.0966796875,
++            758.5888786315918,
++            300.36274671554565,
++            527.7314581871033,
++            168.4583444595337,
++            595.3493041992188,
++            387.0267038345337,
++            197.7057762145996,
++            38.26371955871582,
++            999.2769527435303,
++            99.69916915893555,
++            108.10475540161133,
++            532.4398303031921,
++            41.74992370605469,
++            295.3041934967041,
++            13.502330780029297,
++            306.4835214614868,
++            297.11323165893555,
++            369.15277099609375,
++            20.039594650268555,
++            569.3780097961426,
++            239.9608154296875,
++            30.073320388793945,
++            69.53835773468018,
++            15082.00358581543,
++            506.3537302017212
++          ],
++          "mz": [
++            81.03689575195312,
++            95.11650085449219,
++            103.33063507080078,
++            109.08866882324219,
++            119.17308044433594,
++            123.2113037109375,
++            133.06011962890625,
++            137.158203125,
++            145.11795043945312,
++            149.23699951171875,
++            155.07818603515625,
++            159.12319946289062,
++            163.19815063476562,
++            169.13075256347656,
++            173.205078125,
++            179.24374389648438,
++            187.16738891601562,
++            191.18641662597656,
++            197.1407470703125,
++            201.1502685546875,
++            205.1939697265625,
++            213.27459716796875,
++            219.20706176757812,
++            227.09613037109375,
++            231.22824096679688,
++            241.22613525390625,
++            245.26358032226562,
++            249.43923950195312,
++            255.29483032226562,
++            261.2124938964844,
++            269.2259826660156,
++            273.28350830078125,
++            283.19818115234375,
++            287.2102966308594,
++            291.2339172363281,
++            297.28076171875,
++            301.3092041015625,
++            311.2625427246094,
++            315.27020263671875,
++            327.3179626464844,
++            339.4599914550781,
++            349.2816467285156,
++            357.4516296386719,
++            367.32904052734375,
++            385.3056640625
++          ]
++        },
++        "phenylalanine": {
++          "intensities": [
++            802.6332397460938,
++            527.747314453125,
++            643.4297943115234,
++            8465870.227844238,
++            680.6416015625,
++            48428.078369140625,
++            2014.729965209961,
++            424875.8156738281
++          ],
++          "mz": [
++            84.32965087890625,
++            95.2614517211914,
++            107.15116119384766,
++            120.35417175292969,
++            125.26976013183594,
++            131.0302734375,
++            138.05044555664062,
++            149.00741577148438
++          ]
++        },
++        "salicin": {
++          "intensities": [
++            4286.0,
++            2003.0,
++            4279.0,
++            2127.0,
++            2376.0,
++            7283.0,
++            2232.0,
++            2923.0,
++            2173.0,
++            4624.0,
++            4363.0,
++            31526.0,
++            5119.0,
++            2252.0,
++            2233.0,
++            22755.0
++          ],
++          "mz": [
++            52.27001190185547,
++            57.76688003540039,
++            64.12008666992188,
++            82.39277648925781,
++            87.0296630859375,
++            92.3756332397461,
++            112.07272338867188,
++            116.9283676147461,
++            123.044677734375,
++            140.95814514160156,
++            146.96142578125,
++            174.9570770263672,
++            184.95059204101562,
++            238.55796813964844,
++            305.4481201171875,
++            321.0744323730469
++          ]
++        }
++      },
++      "mz_power": 0.0,
++      "mz_tolerance": 2.0,
++      "similarities": [
++        {
++          "left": "aspirin",
++          "matches": 11,
++          "right": "aspirin",
++          "score": 1.0
++        },
++        {
++          "left": "aspirin",
++          "matches": 5,
++          "right": "cocaine",
++          "score": 0.023951087589805305
++        },
++        {
++          "left": "aspirin",
++          "matches": 4,
++          "right": "glucose",
++          "score": 0.057501031569032225
++        },
++        {
++          "left": "aspirin",
++          "matches": 9,
++          "right": "hydroxy_cholesterol",
++          "score": 0.02449269034915715
++        },
++        {
++          "left": "aspirin",
++          "matches": 3,
++          "right": "phenylalanine",
++          "score": 0.3288324038483376
++        },
++        {
++          "left": "aspirin",
++          "matches": 3,
++          "right": "salicin",
++          "score": 0.00705943950061648
++        },
++        {
++          "left": "cocaine",
++          "matches": 8,
++          "right": "cocaine",
++          "score": 1.0
++        },
++        {
++          "left": "cocaine",
++          "matches": 2,
++          "right": "glucose",
++          "score": 0.005130683792585436
++        },
++        {
++          "left": "cocaine",
++          "matches": 6,
++          "right": "hydroxy_cholesterol",
++          "score": 0.0007782211622047103
++        },
++        {
++          "left": "cocaine",
++          "matches": 2,
++          "right": "phenylalanine",
++          "score": 0.015791802880588693
++        },
++        {
++          "left": "cocaine",
++          "matches": 2,
++          "right": "salicin",
++          "score": 0.03311088875215842
++        },
++        {
++          "left": "glucose",
++          "matches": 10,
++          "right": "glucose",
++          "score": 0.9999999999999999
++        },
++        {
++          "left": "glucose",
++          "matches": 5,
++          "right": "hydroxy_cholesterol",
++          "score": 0.007131333925539568
++        },
++        {
++          "left": "glucose",
++          "matches": 4,
++          "right": "phenylalanine",
++          "score": 0.10923200883082983
++        },
++        {
++          "left": "glucose",
++          "matches": 5,
++          "right": "salicin",
++          "score": 0.12183941461175873
++        },
++        {
++          "left": "hydroxy_cholesterol",
++          "matches": 45,
++          "right": "hydroxy_cholesterol",
++          "score": 1.0
++        },
++        {
++          "left": "hydroxy_cholesterol",
++          "matches": 5,
++          "right": "phenylalanine",
++          "score": 0.010403686191222561
++        },
++        {
++          "left": "hydroxy_cholesterol",
++          "matches": 4,
++          "right": "salicin",
++          "score": 0.026717027803634077
++        },
++        {
++          "left": "phenylalanine",
++          "matches": 8,
++          "right": "phenylalanine",
++          "score": 0.9999999999999998
++        },
++        {
++          "left": "phenylalanine",
++          "matches": 1,
++          "right": "salicin",
++          "score": 4.869641902216867e-6
++        },
++        {
++          "left": "salicin",
++          "matches": 16,
++          "right": "salicin",
++          "score": 0.9999999999999999
++        }
++      ]
++    }
++  ],
++  "raw_spectra": {
++    "aspirin": {
++      "intensities": [
++        49377.3984375,
++        53422.1015625,
++        454244.5,
++        57881.0,
++        1997532.0,
++        825848.1875,
++        1153465.5,
++        96202.796875,
++        58626.80078125,
++        44573.80078125,
++        394779.8125,
++        1129287.75,
++        56357.19921875,
++        1654496.5,
++        72487.296875,
++        707899.375,
++        1119356.375,
++        207437.40625,
++        587441.8125,
++        166384.0,
++        9695889.0,
++        2506571.25,
++        5824675.0,
++        6124332.0,
++        78621.796875,
++        34285448.0,
++        18191732.0,
++        69049.296875,
++        120675.8984375
++      ],
++      "mz": [
++        50.01490020751953,
++        51.02280044555664,
++        53.03850173950195,
++        55.0177001953125,
++        65.03839874267578,
++        77.03829956054688,
++        79.05400085449219,
++        80.02539825439453,
++        81.03340148925781,
++        91.0541000366211,
++        92.02539825439453,
++        93.0333023071289,
++        94.04109954833984,
++        95.04900360107422,
++        98.03610229492188,
++        105.0333023071289,
++        105.04450225830078,
++        107.04889678955078,
++        111.04389953613281,
++        120.02030181884766,
++        121.0281982421875,
++        121.03939819335938,
++        133.0281982421875,
++        135.04379272460938,
++        138.0308074951172,
++        149.02310180664062,
++        163.03860473632812,
++        167.03370666503906,
++        181.04910278320312
++      ],
++      "precursor_mz": 181.0489959716797
++    },
++    "cocaine": {
++      "intensities": [
++        13342.4931640625,
++        3264.133544921875,
++        1584.2747802734375,
++        2382.930908203125,
++        3257.3662109375,
++        133504.296875,
++        1849.14013671875,
++        1391.7344970703125,
++        86052.375
++      ],
++      "mz": [
++        82.06478881835938,
++        105.03324890136719,
++        109.2137451171875,
++        119.04920959472656,
++        150.09140014648438,
++        182.11767578125,
++        185.8046875,
++        226.57907104492188,
++        304.15313720703125
++      ],
++      "precursor_mz": 304.15313720703125
++    },
++    "glucose": {
++      "intensities": [
++        798.85888671875,
++        1257.25341796875,
++        3923.2490234375,
++        1952.9654541015625,
++        169.58734130859375,
++        412.05517578125,
++        309.93951416015625,
++        520.5691528320312,
++        555.742431640625,
++        13786.814453125,
++        1758.81640625,
++        408.8897705078125,
++        892.346923828125,
++        9220.53515625
++      ],
++      "mz": [
++        82.9521484375,
++        105.27044677734375,
++        112.78939819335938,
++        121.20800018310547,
++        129.11669921875,
++        131.10409545898438,
++        131.99069213867188,
++        135.0079345703125,
++        142.50119018554688,
++        143.1029052734375,
++        158.09225463867188,
++        160.23529052734375,
++        173.1004638671875,
++        185.15267944335938
++      ],
++      "precursor_mz": 203.0500030517578
++    },
++    "hydroxy_cholesterol": {
++      "intensities": [
++        4.979911804199219,
++        22.76545524597168,
++        16.608736038208008,
++        84.7729721069336,
++        70.1302261352539,
++        11.714973449707031,
++        31.98192596435547,
++        54.6028938293457,
++        91.45502471923828,
++        46.11669158935547,
++        37.930030822753906,
++        74.30709075927734,
++        41.61702346801758,
++        54.82719421386719,
++        3.832051992416382,
++        68.11918640136719,
++        102.47864532470703,
++        114.72334289550781,
++        107.7490234375,
++        12.766851425170898,
++        6.9919657707214355,
++        17.365039825439453,
++        16.66510581970215,
++        121.05883026123047,
++        66.69908905029297,
++        78.69119262695312,
++        21.242490768432617,
++        17.179059982299805,
++        18.20996856689453,
++        16.72152328491211,
++        220.09820556640625,
++        7.839384078979492,
++        180.72280883789062,
++        176.1594696044922,
++        85.95611572265625,
++        18.903169631958008,
++        36.61906051635742,
++        14.848514556884766,
++        26.946313858032227,
++        195.63363647460938,
++        74.91039276123047,
++        184.57904052734375,
++        174.89984130859375,
++        63.30851364135742,
++        11.29302978515625,
++        37.8712272644043,
++        325.63116455078125,
++        7.312701225280762,
++        98.87300872802734,
++        323.9468994140625,
++        71.51020050048828,
++        16.049942016601562,
++        64.06538391113281,
++        192.0312957763672,
++        14.154706954956055,
++        120.74943542480469,
++        368.51678466796875,
++        226.59230041503906,
++        28.575651168823242,
++        15.240299224853516,
++        6.454415798187256,
++        176.75949096679688,
++        10.867486953735352,
++        91.04105377197266,
++        85.68934631347656,
++        7.40976095199585,
++        365.319580078125,
++        28.59548568725586,
++        40.71728515625,
++        11.677838325500488,
++        11.328113555908203,
++        145.452392578125,
++        80.11607360839844,
++        263.12127685546875,
++        252.11195373535156,
++        11.013157844543457,
++        319.30462646484375,
++        56.708919525146484,
++        139.7557373046875,
++        57.95003890991211,
++        23.482685089111328,
++        14.781034469604492,
++        22.184133529663086,
++        454.479736328125,
++        154.09349060058594,
++        368.51959228515625,
++        56.954345703125,
++        42.74482345581055,
++        19.643260955810547,
++        88.46149444580078,
++        94.91017150878906,
++        16.44283676147461,
++        413.6416320800781,
++        7.445189952850342,
++        41.74992370605469,
++        87.4764404296875,
++        128.76333618164062,
++        64.6731185913086,
++        14.391298294067383,
++        13.502330780029297,
++        75.39729309082031,
++        49.663108825683594,
++        169.1502685546875,
++        12.27285099029541,
++        152.57940673828125,
++        113.56498718261719,
++        30.96883773803711,
++        16.352489471435547,
++        310.9302673339844,
++        41.87001419067383,
++        20.039594650268555,
++        72.41603088378906,
++        155.0880584716797,
++        234.50889587402344,
++        24.093280792236328,
++        83.27174377441406,
++        53.76711654663086,
++        85.91554260253906,
++        40.05982208251953,
++        35.14933776855469,
++        25.06899642944336,
++        30.073320388793945,
++        9.299103736877441,
++        60.239253997802734,
++        6.9355010986328125,
++        14848.8876953125,
++        179.36614990234375,
++        46.814239501953125,
++        46.517662048339844,
++        447.7222900390625,
++        12.113778114318848
++      ],
++      "mz": [
++        79.30683135986328,
++        81.03689575195312,
++        83.17062377929688,
++        95.11650085449219,
++        97.14131164550781,
++        103.33063507080078,
++        105.13883972167969,
++        107.09952545166016,
++        109.08866882324219,
++        111.17135620117188,
++        117.06755828857422,
++        119.17308044433594,
++        121.16685485839844,
++        123.2113037109375,
++        125.54904174804688,
++        129.06756591796875,
++        131.02584838867188,
++        133.06011962890625,
++        135.1088104248047,
++        137.158203125,
++        139.15988159179688,
++        143.09524536132812,
++        144.09375,
++        145.11795043945312,
++        147.1353759765625,
++        149.23699951171875,
++        151.34097290039062,
++        155.07818603515625,
++        156.218505859375,
++        157.1280059814453,
++        159.12319946289062,
++        160.32916259765625,
++        161.14500427246094,
++        163.19815063476562,
++        165.24586486816406,
++        167.08836364746094,
++        169.13075256347656,
++        170.00128173828125,
++        171.11575317382812,
++        173.205078125,
++        175.22988891601562,
++        177.12167358398438,
++        179.24374389648438,
++        181.1219482421875,
++        182.87095642089844,
++        185.17625427246094,
++        187.16738891601562,
++        188.1353759765625,
++        189.40036010742188,
++        191.18641662597656,
++        193.24972534179688,
++        197.1407470703125,
++        199.20748901367188,
++        201.1502685546875,
++        202.0186767578125,
++        203.1893310546875,
++        205.1939697265625,
++        207.16464233398438,
++        209.1722412109375,
++        210.23471069335938,
++        211.33407592773438,
++        213.27459716796875,
++        214.41952514648438,
++        215.13983154296875,
++        217.144775390625,
++        218.28744506835938,
++        219.20706176757812,
++        221.18212890625,
++        223.02651977539062,
++        224.17459106445312,
++        225.35479736328125,
++        227.09613037109375,
++        229.2921142578125,
++        231.22824096679688,
++        233.22427368164062,
++        239.40975952148438,
++        241.22613525390625,
++        243.17080688476562,
++        245.26358032226562,
++        247.4163818359375,
++        249.43923950195312,
++        251.27462768554688,
++        253.4276123046875,
++        255.29483032226562,
++        257.3571472167969,
++        259.1942138671875,
++        261.2124938964844,
++        263.7592468261719,
++        267.26141357421875,
++        269.2259826660156,
++        271.2661437988281,
++        272.0154724121094,
++        273.28350830078125,
++        274.1671142578125,
++        283.19818115234375,
++        285.3158874511719,
++        287.2102966308594,
++        288.7436218261719,
++        289.4022521972656,
++        291.2339172363281,
++        293.3188171386719,
++        295.0741271972656,
++        297.28076171875,
++        299.34979248046875,
++        301.3092041015625,
++        303.2643127441406,
++        305.2552795410156,
++        309.2677307128906,
++        311.2625427246094,
++        313.286376953125,
++        315.27020263671875,
++        324.4085998535156,
++        325.4278564453125,
++        327.3179626464844,
++        327.93963623046875,
++        329.2793884277344,
++        338.4605407714844,
++        339.4599914550781,
++        340.2881774902344,
++        341.3694152832031,
++        343.32635498046875,
++        349.2816467285156,
++        354.27203369140625,
++        357.4516296386719,
++        365.5164794921875,
++        367.32904052734375,
++        368.2337951660156,
++        368.8748779296875,
++        384.3243103027344,
++        385.3056640625,
++        386.43731689453125
++      ],
++      "precursor_mz": 385.3450012207031
++    },
++    "phenylalanine": {
++      "intensities": [
++        802.6332397460938,
++        527.747314453125,
++        232.55642700195312,
++        297.47216796875,
++        113.40119934082031,
++        8457614.0,
++        5223.298828125,
++        1784.40185546875,
++        733.6038208007812,
++        514.92333984375,
++        680.6416015625,
++        341.42132568359375,
++        44541.625,
++        596.8916015625,
++        781.1204223632812,
++        2167.02001953125,
++        130.0547637939453,
++        264.5392150878906,
++        1620.135986328125,
++        55389.7890625,
++        364218.59375,
++        4676.8095703125,
++        590.623291015625
++      ],
++      "mz": [
++        84.32965087890625,
++        95.2614517211914,
++        104.25553894042969,
++        107.15116119384766,
++        108.493408203125,
++        120.35417175292969,
++        121.3327407836914,
++        122.17408752441406,
++        123.06144714355469,
++        123.87631225585938,
++        125.26976013183594,
++        127.95097351074219,
++        131.0302734375,
++        131.89881896972656,
++        132.98748779296875,
++        133.96694946289062,
++        135.21780395507812,
++        136.68353271484375,
++        138.05044555664062,
++        148.04901123046875,
++        149.00741577148438,
++        149.6342315673828,
++        150.75448608398438
++      ],
++      "precursor_mz": 166.08599853515625
++    },
++    "salicin": {
++      "intensities": [
++        2309.0,
++        1977.0,
++        2003.0,
++        2102.0,
++        2177.0,
++        2127.0,
++        2376.0,
++        2380.0,
++        2703.0,
++        2200.0,
++        2232.0,
++        2923.0,
++        2173.0,
++        2257.0,
++        2367.0,
++        4363.0,
++        31526.0,
++        5119.0,
++        2252.0,
++        2233.0,
++        22755.0
++      ],
++      "mz": [
++        52.27001190185547,
++        55.7410888671875,
++        57.76688003540039,
++        60.32212829589844,
++        64.12008666992188,
++        82.39277648925781,
++        87.0296630859375,
++        91.02012634277344,
++        92.3756332397461,
++        93.13435363769531,
++        112.07272338867188,
++        116.9283676147461,
++        123.044677734375,
++        138.61074829101562,
++        140.95814514160156,
++        146.96142578125,
++        174.9570770263672,
++        184.95059204101562,
++        238.55796813964844,
++        305.4481201171875,
++        321.0744323730469
++      ],
++      "precursor_mz": 321.07501220703125
++    }
++  }
++}
+diff --git a/tests/similarity/test_bench_matrix.py b/tests/similarity/test_bench_matrix.py
+new file mode 100644
+index 000000000..2bf3a2a84
+--- /dev/null
++++ b/tests/similarity/test_bench_matrix.py
+@@ -0,0 +1,57 @@
++import numpy as np
++import pytest
++from matchms import Spectrum
++from matchms.similarity import CosineGreedy, CosineHungarian, CosineLinear, FlashSimilarity
++
++
++def _make_synthetic_spectra(n_spectra, n_peaks=30, n_common=50, tolerance=0.02, seed=42):
++    rng = np.random.default_rng(seed)
++    # Build a shared pool of well-separated m/z values (gaps > 2*tolerance)
++    # so that merge/preprocessing is a no-op — we benchmark pure scoring.
++    min_gap = 2.5 * tolerance
++    pool_mz = np.empty(n_common)
++    pool_mz[0] = 50.0
++    for i in range(1, n_common):
++        pool_mz[i] = pool_mz[i - 1] + rng.uniform(min_gap, 10.0)
++    spectra = []
++    for _ in range(n_spectra):
++        chosen = rng.choice(pool_mz, size=n_peaks, replace=False)
++        # Tiny jitter keeps peaks within tolerance of the pool value
++        # but still well-separated from neighboring pool values.
++        mz = np.sort(chosen + rng.uniform(-tolerance * 0.25, tolerance * 0.25, size=n_peaks))
++        intensities = rng.exponential(scale=1.0, size=n_peaks)
++        intensities /= intensities.max()
++        precursor_mz = float(rng.uniform(200, 600))
++        spectra.append(Spectrum(mz=mz, intensities=intensities, metadata={"precursor_mz": precursor_mz}))
++    return spectra
++
++
++SIZES = [50, 100, 200]
++
++
++@pytest.mark.parametrize("n_spectra", SIZES)
++def test_bench_cosine_hungarian(benchmark, n_spectra):
++    spectra = _make_synthetic_spectra(n_spectra)
++    sim = CosineHungarian(tolerance=0.02)
++    benchmark(sim.matrix, spectra, spectra, is_symmetric=True, progress_bar=False)
++
++
++@pytest.mark.parametrize("n_spectra", SIZES)
++def test_bench_cosine_greedy(benchmark, n_spectra):
++    spectra = _make_synthetic_spectra(n_spectra)
++    sim = CosineGreedy(tolerance=0.02)
++    benchmark(sim.matrix, spectra, spectra, is_symmetric=True, progress_bar=False)
++
++
++@pytest.mark.parametrize("n_spectra", SIZES)
++def test_bench_cosine_linear(benchmark, n_spectra):
++    spectra = _make_synthetic_spectra(n_spectra)
++    sim = CosineLinear(tolerance=0.02)
++    benchmark(sim.matrix, spectra, spectra, is_symmetric=True, progress_bar=False)
++
++
++@pytest.mark.parametrize("n_spectra", SIZES)
++def test_bench_flash_similarity(benchmark, n_spectra):
++    spectra = _make_synthetic_spectra(n_spectra)
++    sim = FlashSimilarity(tolerance=0.02)
++    benchmark(sim.matrix, spectra, spectra, is_symmetric=True, n_jobs=1)
+diff --git a/tests/similarity/test_cosine_linear.py b/tests/similarity/test_cosine_linear.py
+new file mode 100644
+index 000000000..d628c5c75
+--- /dev/null
++++ b/tests/similarity/test_cosine_linear.py
+@@ -0,0 +1,374 @@
++import json
++import os
++import numpy as np
++import pytest
++from matchms.similarity import CosineHungarian, CosineLinear, get_similarity_function_by_name
++from matchms.similarity.cosine_linear_functions import (
++    linear_cosine_score,
++    sirius_merge_close_peaks,
++)
++from ..builder_Spectrum import SpectrumBuilder
++
++
++REFERENCE_PATH = os.path.join(os.path.dirname(__file__), "..", "cosine_linear_reference.json")
++
++with open(REFERENCE_PATH, encoding="utf-8") as f:
++    REFERENCE_DATA = json.load(f)
++
++COMPOUND_NAMES = sorted(REFERENCE_DATA["raw_spectra"].keys())
++PARAM_SET_IDS = list(range(len(REFERENCE_DATA["parameter_sets"])))
++
++
++def _raw_spectrum_array(name):
++    """Return raw spectrum as (N, 2) numpy array."""
++    raw = REFERENCE_DATA["raw_spectra"][name]
++    return np.array([raw["mz"], raw["intensities"]], dtype=np.float64).T
++
++
++def _param_label(idx):
++    ps = REFERENCE_DATA["parameter_sets"][idx]
++    return f"tol={ps['mz_tolerance']}_mzp={ps['mz_power']}_ip={ps['intensity_power']}"
++
++
++@pytest.mark.parametrize("param_idx", PARAM_SET_IDS, ids=[_param_label(i) for i in PARAM_SET_IDS])
++@pytest.mark.parametrize("compound", COMPOUND_NAMES)
++def test_merge_close_peaks(param_idx, compound):
++    """Verify that sirius_merge_close_peaks produces the expected merged spectrum."""
++    ps = REFERENCE_DATA["parameter_sets"][param_idx]
++    tolerance = ps["mz_tolerance"]
++
++    raw = _raw_spectrum_array(compound)
++    merged = sirius_merge_close_peaks(raw, tolerance)
++
++    expected = ps["merged_spectra"][compound]
++    expected_mz = np.array(expected["mz"], dtype=np.float64)
++    expected_int = np.array(expected["intensities"], dtype=np.float64)
++
++    assert len(merged) == len(expected_mz), f"Expected {len(expected_mz)} merged peaks, got {len(merged)}"
++    np.testing.assert_allclose(merged[:, 0], expected_mz, rtol=1e-6, err_msg=f"m/z mismatch for {compound}")
++    np.testing.assert_allclose(merged[:, 1], expected_int, rtol=1e-5, err_msg=f"intensity mismatch for {compound}")
++    # Verify well-separated invariant: consecutive m/z gaps > 2 * tolerance
++    if len(merged) > 1:
++        gaps = np.diff(merged[:, 0])
++        assert np.all(gaps > 2 * tolerance), (
++            f"Well-separated invariant violated: min gap {gaps.min():.6f} <= {2 * tolerance}"
++        )
++
++
++def _build_similarity_pairs(param_idx):
++    """Build list of (left, right, expected_score, expected_matches) for a parameter set."""
++    ps = REFERENCE_DATA["parameter_sets"][param_idx]
++    pairs = []
++    for sim in ps["similarities"]:
++        pairs.append((sim["left"], sim["right"], sim["score"], sim["matches"]))
++    return pairs
++
++
++def _all_score_params():
++    """Generate (param_idx, left, right, expected_score, expected_matches) for parametrize."""
++    params = []
++    ids = []
++    for param_idx in PARAM_SET_IDS:
++        for left, right, score, matches in _build_similarity_pairs(param_idx):
++            params.append((param_idx, left, right, score, matches))
++            ids.append(f"{_param_label(param_idx)}_{left}_vs_{right}")
++    return params, ids
++
++
++_SCORE_PARAMS, _SCORE_IDS = _all_score_params()
++
++
++@pytest.mark.parametrize("param_idx,left,right,expected_score,expected_matches", _SCORE_PARAMS, ids=_SCORE_IDS)
++def test_pairwise_scores(param_idx, left, right, expected_score, expected_matches):
++    """Verify pairwise CosineLinear scores match the reference."""
++    ps = REFERENCE_DATA["parameter_sets"][param_idx]
++    tolerance = ps["mz_tolerance"]
++    mz_power = ps["mz_power"]
++    intensity_power = ps["intensity_power"]
++
++    builder = SpectrumBuilder()
++    raw_left = REFERENCE_DATA["raw_spectra"][left]
++    raw_right = REFERENCE_DATA["raw_spectra"][right]
++
++    spec_left = (
++        builder.with_mz(np.array(raw_left["mz"], dtype="float"))
++        .with_intensities(np.array(raw_left["intensities"], dtype="float"))
++        .build()
++    )
++    spec_right = (
++        builder.with_mz(np.array(raw_right["mz"], dtype="float"))
++        .with_intensities(np.array(raw_right["intensities"], dtype="float"))
++        .build()
++    )
++
++    linear_cosine = CosineLinear(tolerance=tolerance, mz_power=mz_power, intensity_power=intensity_power)
++    result = linear_cosine.pair(spec_left, spec_right)
++
++    assert result["matches"] == expected_matches, f"Expected {expected_matches} matches, got {result['matches']}"
++    assert result["score"] == pytest.approx(expected_score, abs=1e-6), (
++        f"Expected score {expected_score}, got {result['score']}"
++    )
++
++
++@pytest.mark.parametrize("param_idx", PARAM_SET_IDS, ids=[_param_label(i) for i in PARAM_SET_IDS])
++def test_commutativity(param_idx):
++    """Verify score(A, B) == score(B, A) for all compound pairs."""
++    ps = REFERENCE_DATA["parameter_sets"][param_idx]
++    tolerance = ps["mz_tolerance"]
++    mz_power = ps["mz_power"]
++    intensity_power = ps["intensity_power"]
++
++    linear_cosine = CosineLinear(tolerance=tolerance, mz_power=mz_power, intensity_power=intensity_power)
++    builder = SpectrumBuilder()
++    spectra = {}
++    for name in COMPOUND_NAMES:
++        raw = REFERENCE_DATA["raw_spectra"][name]
++        spectra[name] = (
++            builder.with_mz(np.array(raw["mz"], dtype="float"))
++            .with_intensities(np.array(raw["intensities"], dtype="float"))
++            .build()
++        )
++
++    for i, name_a in enumerate(COMPOUND_NAMES):
++        for name_b in COMPOUND_NAMES[i + 1 :]:
++            score_ab = linear_cosine.pair(spectra[name_a], spectra[name_b])
++            score_ba = linear_cosine.pair(spectra[name_b], spectra[name_a])
++            assert score_ab["score"] == pytest.approx(score_ba["score"], abs=1e-9), (
++                f"Commutativity failed for {name_a} vs {name_b}"
++            )
++            assert score_ab["matches"] == score_ba["matches"], (
++                f"Match count commutativity failed for {name_a} vs {name_b}"
++            )
++
++
++def _all_hungarian_params():
++    """Generate (param_idx, left, right) for Hungarian parity tests."""
++    params = []
++    ids = []
++    for param_idx in PARAM_SET_IDS:
++        for left, right, _, _ in _build_similarity_pairs(param_idx):
++            params.append((param_idx, left, right))
++            ids.append(f"{_param_label(param_idx)}_{left}_vs_{right}")
++    return params, ids
++
++
++_HUNGARIAN_PARAMS, _HUNGARIAN_IDS = _all_hungarian_params()
++
++
++@pytest.mark.parametrize("param_idx,left,right", _HUNGARIAN_PARAMS, ids=_HUNGARIAN_IDS)
++def test_hungarian_matches_cosine_linear_on_merged_spectra(param_idx, left, right):
++    """On well-separated (merged) spectra, CosineHungarian must match CosineLinear exactly.
++
++    After sirius_merge_close_peaks, consecutive m/z gaps exceed 2*tolerance, so each
++    peak can match at most one peak in the other spectrum. The optimal Hungarian
++    assignment must therefore agree with the O(n+m) two-pointer sweep.
++    """
++    ps = REFERENCE_DATA["parameter_sets"][param_idx]
++    tolerance = ps["mz_tolerance"]
++    mz_power = ps["mz_power"]
++    intensity_power = ps["intensity_power"]
++
++    # Build spectra from the already-merged peaks
++    builder = SpectrumBuilder()
++    merged_left = ps["merged_spectra"][left]
++    merged_right = ps["merged_spectra"][right]
++
++    spec_left = (
++        builder.with_mz(np.array(merged_left["mz"], dtype="float"))
++        .with_intensities(np.array(merged_left["intensities"], dtype="float"))
++        .build()
++    )
++    spec_right = (
++        builder.with_mz(np.array(merged_right["mz"], dtype="float"))
++        .with_intensities(np.array(merged_right["intensities"], dtype="float"))
++        .build()
++    )
++
++    hungarian = CosineHungarian(tolerance=tolerance, mz_power=mz_power, intensity_power=intensity_power)
++    linear = CosineLinear(tolerance=tolerance, mz_power=mz_power, intensity_power=intensity_power)
++
++    result_hungarian = hungarian.pair(spec_left, spec_right)
++    result_linear = linear.pair(spec_left, spec_right)
++
++    assert result_hungarian["matches"] == result_linear["matches"], (
++        f"Match count differs: Hungarian={result_hungarian['matches']}, CosineLinear={result_linear['matches']}"
++    )
++    assert result_hungarian["score"] == pytest.approx(result_linear["score"], abs=1e-9), (
++        f"Score differs: Hungarian={result_hungarian['score']}, CosineLinear={result_linear['score']}"
++    )
++
++
++# ---------------------------------------------------------------------------
++# Standalone edge-case tests (no JSON dependency)
++# ---------------------------------------------------------------------------
++
++
++def _build_spectrum(mz, intensities):
++    """Helper to build a Spectrum from lists."""
++    return (
++        SpectrumBuilder()
++        .with_mz(np.array(mz, dtype="float"))
++        .with_intensities(np.array(intensities, dtype="float"))
++        .build()
++    )
++
++
++def test_empty_spectrum():
++    """Pairing an empty spectrum with a non-empty one gives score=0, matches=0."""
++    empty = _build_spectrum([], [])
++    nonempty = _build_spectrum([100.0, 200.0], [0.5, 0.5])
++    lc = CosineLinear(tolerance=0.1)
++    result = lc.pair(empty, nonempty)
++    assert result["score"] == 0.0
++    assert result["matches"] == 0
++
++
++def test_merge_close_peaks_equal_intensity_prefers_lower_mz():
++    """Equal-intensity merge ties should deterministically keep the lower m/z."""
++    raw = np.array([[100.0, 1.0], [100.15, 1.0], [100.30, 1.0]], dtype=np.float64)
++
++    merged = sirius_merge_close_peaks(raw, 0.1)
++    expected = np.array([[100.0, 2.0], [100.30, 1.0]], dtype=np.float64)
++
++    np.testing.assert_allclose(merged, expected, atol=1e-12)
++
++
++def test_single_peak_match():
++    """Two single-peak spectra within tolerance match perfectly."""
++    a = _build_spectrum([100.0], [1.0])
++    b = _build_spectrum([100.05], [1.0])
++    lc = CosineLinear(tolerance=0.1)
++    result = lc.pair(a, b)
++    assert result["score"] == pytest.approx(1.0, abs=1e-9)
++    assert result["matches"] == 1
++
++
++def test_single_peak_no_match():
++    """Two single-peak spectra outside tolerance don't match."""
++    a = _build_spectrum([100.0], [1.0])
++    b = _build_spectrum([200.0], [1.0])
++    lc = CosineLinear(tolerance=0.1)
++    result = lc.pair(a, b)
++    assert result["score"] == 0.0
++    assert result["matches"] == 0
++
++
++def test_no_overlap():
++    """Multi-peak spectra with no overlapping m/z give score=0."""
++    a = _build_spectrum([100.0, 200.0, 300.0], [0.5, 0.3, 0.2])
++    b = _build_spectrum([400.0, 500.0, 600.0], [0.5, 0.3, 0.2])
++    lc = CosineLinear(tolerance=0.1)
++    result = lc.pair(a, b)
++    assert result["score"] == 0.0
++    assert result["matches"] == 0
++
++
++def test_self_similarity():
++    """A spectrum compared to itself should yield score=1.0."""
++    spec = _build_spectrum([100.0, 200.0, 300.0], [0.7, 0.2, 0.1])
++    lc = CosineLinear(tolerance=0.1)
++    result = lc.pair(spec, spec)
++    assert result["score"] == pytest.approx(1.0, abs=1e-9)
++
++
++def test_all_zero_intensities():
++    """All-zero intensities produce score=0.0, matches=0."""
++    a = _build_spectrum([100.0, 200.0], [0.0, 0.0])
++    b = _build_spectrum([100.0, 200.0], [0.0, 0.0])
++    lc = CosineLinear(tolerance=0.1)
++    result = lc.pair(a, b)
++    assert result["score"] == 0.0
++    assert result["matches"] == 0
++
++
++# ---------------------------------------------------------------------------
++# Direct unit test for linear_cosine_score
++# ---------------------------------------------------------------------------
++
++
++def test_cosine_linear_score_direct():
++    """Hand-crafted well-separated spectra with analytically derivable score.
++
++    spec1: peaks at m/z 100 (intensity 0.6), 200 (intensity 0.8)
++    spec2: peaks at m/z 100 (intensity 0.3), 200 (intensity 0.4)
++    With mz_power=0 and intensity_power=1:
++      products = intensities themselves
++      dot = 0.6*0.3 + 0.8*0.4 = 0.18 + 0.32 = 0.50
++      norm1 = sqrt(0.36 + 0.64) = 1.0
++      norm2 = sqrt(0.09 + 0.16) = 0.5
++      score = 0.50 / (1.0 * 0.5) = 1.0
++      matches = 2
++    """
++    spec1 = np.array([[100.0, 0.6], [200.0, 0.8]])
++    spec2 = np.array([[100.0, 0.3], [200.0, 0.4]])
++    score, matches = linear_cosine_score(spec1, spec2, 0.1, 0.0, 1.0)
++    assert score == pytest.approx(1.0, abs=1e-9)
++    assert matches == 2
++
++
++def test_cosine_linear_score_partial_match():
++    """Only one of two peaks matches; verify score analytically.
++
++    spec1: m/z 100 (int 0.6), m/z 200 (int 0.8)
++    spec2: m/z 100 (int 0.5), m/z 300 (int 0.5)
++    mz_power=0, intensity_power=1:
++      dot = 0.6*0.5 = 0.30
++      norm1 = sqrt(0.36+0.64) = 1.0
++      norm2 = sqrt(0.25+0.25) = sqrt(0.5)
++      score = 0.30 / (1.0 * sqrt(0.5)) = 0.30 / 0.7071... ≈ 0.42426
++      matches = 1
++    """
++    spec1 = np.array([[100.0, 0.6], [200.0, 0.8]])
++    spec2 = np.array([[100.0, 0.5], [300.0, 0.5]])
++    score, matches = linear_cosine_score(spec1, spec2, 0.1, 0.0, 1.0)
++    expected = 0.30 / np.sqrt(0.5)
++    assert score == pytest.approx(expected, abs=1e-9)
++    assert matches == 1
++
++
++# ---------------------------------------------------------------------------
++# Class-level integration tests
++# ---------------------------------------------------------------------------
++
++
++def test_matrix_self_similarity():
++    """matrix() diagonal should be score=1.0 for identical spectra."""
++    spectra = [
++        _build_spectrum([100.0, 200.0], [0.7, 0.3]),
++        _build_spectrum([150.0, 250.0], [0.5, 0.5]),
++        _build_spectrum([100.0, 300.0], [0.9, 0.1]),
++    ]
++    lc = CosineLinear(tolerance=0.1)
++    result = lc.matrix(spectra, spectra, is_symmetric=True, progress_bar=False)
++    for i in range(len(spectra)):
++        assert result[i, i]["score"] == pytest.approx(1.0, abs=1e-9)
++
++
++def test_matrix_matches_pair():
++    """matrix() results should match pair() results."""
++    spectra = [
++        _build_spectrum([100.0, 200.0], [0.7, 0.3]),
++        _build_spectrum([100.0, 250.0], [0.5, 0.5]),
++    ]
++    lc = CosineLinear(tolerance=0.1)
++    mat = lc.matrix(spectra, spectra, is_symmetric=False, progress_bar=False)
++    for i in range(2):
++        for j in range(2):
++            pair_result = lc.pair(spectra[i], spectra[j])
++            assert mat[i, j]["score"] == pytest.approx(pair_result["score"], abs=1e-9)
++            assert mat[i, j]["matches"] == pair_result["matches"]
++
++
++def test_get_similarity_by_name():
++    """The canonical name should resolve to CosineLinear."""
++    assert get_similarity_function_by_name("CosineLinear") is CosineLinear
++
++
++def test_to_dict_round_trip():
++    """to_dict() keys match constructor params."""
++    lc = CosineLinear(tolerance=0.2, mz_power=1.0, intensity_power=0.5)
++    d = lc.to_dict()
++    assert d["__Similarity__"] == "CosineLinear"
++    assert d["tolerance"] == 0.2
++    assert d["mz_power"] == 1.0
++    assert d["intensity_power"] == 0.5
+diff --git a/uv.lock b/uv.lock
+index 294ba34dd..2a849e0dd 100644
+--- a/uv.lock
++++ b/uv.lock
+@@ -1186,6 +1186,7 @@ dev = [
+     { name = "poetry-bumpversion" },
+     { name = "pre-commit" },
+     { name = "pytest" },
++    { name = "pytest-benchmark" },
+     { name = "pytest-cov" },
+     { name = "ruff" },
+     { name = "testfixtures" },
+@@ -1226,6 +1227,7 @@ dev = [
+     { name = "poetry-bumpversion", specifier = ">=0.3.3" },
+     { name = "pre-commit", specifier = ">=4.5.1" },
+     { name = "pytest", specifier = ">=9.0.2" },
++    { name = "pytest-benchmark", specifier = ">=5.1.0" },
+     { name = "pytest-cov", specifier = ">=7.0.0" },
+     { name = "ruff", specifier = ">=0.14.13" },
+     { name = "testfixtures", specifier = ">=8.3.0,<9" },
+@@ -1866,6 +1868,15 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/6b/e3/2c887645f21b94d992a16775bcf81cdf6dcc36cf1606782cb2a3c86e9a35/pubchempy-1.0.5-py3-none-any.whl", hash = "sha256:e936cfed31fa194042ad463be3c803dde5b12ef2f795caf336e3114127c34fa0", size = 21355, upload-time = "2025-09-08T20:53:00.831Z" },
+ ]
+ 
++[[package]]
++name = "py-cpuinfo"
++version = "9.0.0"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/37/a8/d832f7293ebb21690860d2e01d8115e5ff6f2ae8bbdc953f0eb0fa4bd2c7/py-cpuinfo-9.0.0.tar.gz", hash = "sha256:3cdbbf3fac90dc6f118bfd64384f309edeadd902d7c8fb17f02ffa1fc3f49690", size = 104716, upload-time = "2022-10-25T20:38:06.303Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/e0/a9/023730ba63db1e494a271cb018dcd361bd2c917ba7004c3e49d5daf795a2/py_cpuinfo-9.0.0-py3-none-any.whl", hash = "sha256:859625bc251f64e21f077d099d4162689c762b5d6a4c3c97553d56241c9674d5", size = 22335, upload-time = "2022-10-25T20:38:27.636Z" },
++]
++
+ [[package]]
+ name = "pycparser"
+ version = "3.0"
+@@ -2052,6 +2063,19 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/d4/24/a372aaf5c9b7208e7112038812994107bc65a84cd00e0354a88c2c77a617/pytest-9.0.3-py3-none-any.whl", hash = "sha256:2c5efc453d45394fdd706ade797c0a81091eccd1d6e4bccfcd476e2b8e0ab5d9", size = 375249, upload-time = "2026-04-07T17:16:16.13Z" },
+ ]
+ 
++[[package]]
++name = "pytest-benchmark"
++version = "5.2.3"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "py-cpuinfo" },
++    { name = "pytest" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/24/34/9f732b76456d64faffbef6232f1f9dbec7a7c4999ff46282fa418bd1af66/pytest_benchmark-5.2.3.tar.gz", hash = "sha256:deb7317998a23c650fd4ff76e1230066a76cb45dcece0aca5607143c619e7779", size = 341340, upload-time = "2025-11-09T18:48:43.215Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/33/29/e756e715a48959f1c0045342088d7ca9762a2f509b945f362a316e9412b7/pytest_benchmark-5.2.3-py3-none-any.whl", hash = "sha256:bc839726ad20e99aaa0d11a127445457b4219bdb9e80a1afc4b51da7f96b0803", size = 45255, upload-time = "2025-11-09T18:48:39.765Z" },
++]
++
+ [[package]]
+ name = "pytest-cov"
+ version = "7.0.0"

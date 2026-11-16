@@ -1,0 +1,72 @@
+version = "1.0"
+
+[task]
+name = "default/lightdock__lightdock-60"
+description = "Add TOBI ADP-I and ADP-II scoring."
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "lightdock",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "lightdock/lightdock"
+ref = "a5a05d5717c3ae2929ed4517241a25839be57fc5"
+reference = "https://github.com/lightdock/lightdock/pull/60"
+source_access = "auto"
+built_at = "2026-11-15T22:44:50.421423+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:9e3559afd794490d00d16eded9910cf33d9ee5c0e6e4648e07bed81f0936c439"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2023-08-30T05:52:37Z"
+diff_format = "unified"
+context_files = [
+    "lightdock/scoring/tobia1/__init__.py",
+    "lightdock/scoring/tobia1/data/TOBI_A1_step1",
+    "lightdock/scoring/tobia1/data/TOBI_A1_step2",
+    "lightdock/scoring/tobia1/driver.py",
+    "lightdock/scoring/tobia2/__init__.py",
+    "lightdock/scoring/tobia2/data/TOBI_A2_step1",
+    "lightdock/scoring/tobia2/data/TOBI_A2_step2",
+    "lightdock/scoring/tobia2/driver.py",
+    "lightdock/structure/residue.py",
+    "lightdock/test/scoring/test_tobia1_function.py",
+    "lightdock/test/scoring/test_tobia2_function.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 731
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

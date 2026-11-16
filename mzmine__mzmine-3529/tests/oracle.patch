@@ -1,0 +1,22 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FeatureTableContextMenu.java b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FeatureTableContextMenu.java
+index 2d3b1ce0652..bd23c25522c 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FeatureTableContextMenu.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/featurelisttable_modular/FeatureTableContextMenu.java
+@@ -760,12 +760,13 @@ private void initShowMenu() {
+     extractSumSpectrumFromMobScans.visibleProperty().bind(hasIonMobilityData);
+     extractSumSpectrumFromMobScans.setOnAction(e -> {
+       Range<Float> fwhm = IonMobilityUtils.getMobilityFWHM(
+-          ((IonMobilogramTimeSeries) selectedFeature.getFeatureData()).getSummedMobilogram());
++          ((IonMobilogramTimeSeries) selectedOrBestFeature.getFeatureData()).getSummedMobilogram());
+       if (fwhm != null) {
+-        MergedMassSpectrum spectrum = SpectraMerging.extractSummedMobilityScan(selectedFeature,
++        MergedMassSpectrum spectrum = SpectraMerging.extractSummedMobilityScan(
++            selectedOrBestFeature,
+             SpectraMerging.defaultMs1MergeTol, fwhm, null);
+-        SpectraVisualizerModule.addNewSpectrumTab(selectedFeature.getRawDataFile(), spectrum,
+-            selectedFeature);
++        SpectraVisualizerModule.addNewSpectrumTab(selectedOrBestFeature.getRawDataFile(), spectrum,
++            selectedOrBestFeature);
+       }
+     });
+ 

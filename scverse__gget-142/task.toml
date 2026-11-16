@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/scverse__gget-142"
+description = "OpenTargets API"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "gget",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "scverse/gget"
+ref = "79f1b273807f63f3e0371a7793875f6bcdef95e5"
+reference = "https://github.com/scverse/gget/pull/142"
+source_access = "auto"
+built_at = "2026-11-15T21:05:51.139205+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:ef351acfbaad9a9b336ce12426f3f718a520baa6a0b20f91e16bfc0ee39aa91c"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2024-06-26T23:14:08Z"
+diff_format = "unified"
+context_files = [
+    "docs/src/SUMMARY.md",
+    "docs/src/en/opentargets.md",
+    "gget/__init__.py",
+    "gget/constants.py",
+    "gget/gget_opentargets.py",
+    "gget/main.py",
+    "gget/utils.py",
+    "tests/fixtures/test_opentargets.json",
+    "tests/from_json.py",
+    "tests/test_opentargets.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 2092
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

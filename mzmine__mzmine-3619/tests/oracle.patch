@@ -1,0 +1,143 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/gui/mainwindow/MainWindow.fxml b/mzmine-community/src/main/java/io/github/mzmine/gui/mainwindow/MainWindow.fxml
+index 9c726de8ae..53638254b8 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/gui/mainwindow/MainWindow.fxml
++++ b/mzmine-community/src/main/java/io/github/mzmine/gui/mainwindow/MainWindow.fxml
+@@ -94,7 +94,7 @@
+                               <MenuItem onAction="#handleShowRawDataOverview"
+                                 text="Show raw data overview"/>
+                               <MenuItem onAction="#handleShowRawDataSummary"
+-                                text="Show raw data summary"/>
++                                text="Show raw data summary (statistics)"/>
+                               <MenuItem onAction="#handleShowIMSDataOverview"
+                                 text="Show ion mobility raw data overview"/>
+ 
+@@ -109,10 +109,8 @@
+                                 text="Show MS/MS scatter plot"/>
+ 
+                               <SeparatorMenuItem/>
+-                              <MenuItem onAction="#handleRawDataSort"
+-                                text="Sort alphabetically"/>
+                               <MenuItem onAction="#handleShowFileSummary"
+-                                text="Show file summary"/>
++                                text="Show file summary (Applied methods)"/>
+ 
+                               <SeparatorMenuItem/>
+                               <Menu text="Raw data export">
+@@ -123,19 +121,22 @@
+                                   text="Export scans mgf, txt, msp and mzML"
+                                   userData="io.github.mzmine.modules.io.export_scans.ExportScansFromRawFilesModule"/>
+                               </Menu>
++                              <SeparatorMenuItem/>
++                              <Menu text="Set color" fx:id="rawDataSetColorMenu"/>
++                              <MenuItem onAction="#handleColorByMetadata" text="Color by metadata"/>
++                              <SeparatorMenuItem/>
++                              <MenuItem onAction="#handleRawDataSort"
++                                text="Sort alphabetically"/>
+                               <MenuItem onAction="#handleRemoveRawData"
+                                 text="Remove file" fx:id="rawDataRemoveMenuItem"/>
++                              <SeparatorMenuItem/>
++                              <MenuItem onAction="#handleRenameRawDataGroup"
++                                text="Rename group" fx:id="rawDataRenameGroupMenuItem"
++                                disable="true"/>
+                               <MenuItem onAction="#handleGroupRawDataFiles"
+                                 text="Group files" fx:id="rawDataGroupMenuItem"/>
+                               <MenuItem onAction="#handleUngroupRawDataFiles"
+                                 text="Ungroup files" fx:id="rawDataUngroupMenuItem"/>
+-                              <MenuItem onAction="#handleRenameRawDataGroup"
+-                                text="Rename group" fx:id="rawDataRenameGroupMenuItem"
+-                                disable="true"/>
+-
+-                              <SeparatorMenuItem/>
+-                              <Menu text="Set color" fx:id="rawDataSetColorMenu"/>
+-                              <MenuItem onAction="#handleColorByMetadata" text="Color by metadata"/>
+                             </items>
+                           </ContextMenu>
+                         </contextMenu>
+@@ -165,10 +166,15 @@
+                               <SeparatorMenuItem/>
+                               <MenuItem onAction="#handleFeatureListsSort"
+                                 text="Sort alphabetically"/>
+-                              <MenuItem onAction="#handleRenameFeatureList"
+-                                text="Rename feature list" fx:id="featureListsRenameMenuItem"/>
+                               <MenuItem onAction="#handleRemoveFeatureList"
+                                 text="Remove feature list" fx:id="featureListsRemoveMenuItem"/>
++                              <SeparatorMenuItem/>
++                              <MenuItem onAction="#handleRenameFeatureList"
++                                text="Rename feature list" fx:id="featureListsRenameMenuItem"/>
++                              <MenuItem onAction="#handleGroupFeatureLists"
++                                text="Group feature lists"/>
++                              <MenuItem onAction="#handleUngroupFeatureLists"
++                                text="Ungroup feature lists"/>
+                             </items>
+                           </ContextMenu>
+                         </contextMenu>
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/gui/mainwindow/MainWindowController.java b/mzmine-community/src/main/java/io/github/mzmine/gui/mainwindow/MainWindowController.java
+index fa2ce7be4f..6c54980ea6 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/gui/mainwindow/MainWindowController.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/gui/mainwindow/MainWindowController.java
+@@ -254,7 +254,8 @@ private static Pane getRawGraphic(RawDataFile rawDataFile) {
+       HBox box = new HBox(3, rawIcon);
+       if ((rawDataFile.isContainsZeroIntensity() && MassSpectrumType.isCentroided(
+           rawDataFile.getSpectraType())) || rawDataFile.isContainsEmptyScans()) {
+-        FontIcon fontIcon = FxIconUtil.getFontIcon(FxIcons.EXCLAMATION_TRIANGLE, FxIconUtil.LIST_ICON_SIZE,
++        FontIcon fontIcon = FxIconUtil.getFontIcon(FxIcons.EXCLAMATION_TRIANGLE,
++            FxIconUtil.LIST_ICON_SIZE,
+             MZmineCore.getConfiguration().getDefaultColorPalette().getNegativeColor());
+         box.getChildren().add(fontIcon);
+ 
+@@ -282,7 +283,8 @@ Some MS1 scans were recognized as empty (no detected signals).
+ 
+   private static Node getFeatureListIcon(@NotNull FeatureList flist) {
+     if (!flist.isAligned()) {
+-      return FxIconUtil.getFontIcon(FxIcons.FEATURE_LIST, FxIconUtil.LIST_ICON_SIZE, flist.getRawDataFile(0).getColor());
++      return FxIconUtil.getFontIcon(FxIcons.FEATURE_LIST, FxIconUtil.LIST_ICON_SIZE,
++          flist.getRawDataFile(0).getColor());
+     } else {
+       return FxIconUtil.getFontIcon(FxIcons.ALIGNED_FEATURE_LIST, FxIconUtil.LIST_ICON_SIZE);
+     }
+@@ -426,7 +428,8 @@ private void initFeatureListsList() {
+ 
+         if (selectedItems.size() == 1) {
+           featureListsRenameMenuItem.setDisable(false);
+-          if (featureListsList.getTreeView().getSelectionModel().getSelectedItem().getValue()
++          if (featureListsList.getTreeView().getSelectionModel().getSelectedItem() == null
++              || featureListsList.getTreeView().getSelectionModel().getSelectedItem().getValue()
+               == null) {
+             featureListsRenameMenuItem.setText("Rename group");
+           } else {
+@@ -1023,6 +1026,35 @@ public void handleRenameRawDataGroup(Event event) {
+     }
+   }
+ 
++  /**
++   * Groups the selected feature lists into a new user-named group. Switches the feature list view
++   * to a custom grouping if an automatic grouping is active.
++   *
++   * @param event the triggering event
++   */
++  public void handleGroupFeatureLists(@NotNull final Event event) {
++    final var selected = featureListsList.getSelectedItems();
++    if (selected.isEmpty()) {
++      return;
++    }
++
++    final var dialog = DialogLoggerUtil.createTextInputDialog("Group feature lists",
++        "Enter a name for the new group", "Group name:");
++    dialog.getEditor().setText("Group");
++    final Optional<String> result = dialog.showAndWait();
++    result.filter(name -> !name.isBlank()).ifPresent(featureListsList::groupSelected);
++  }
++
++  /**
++   * Moves the selected feature lists out of their groups to the top level. Switches the feature
++   * list view to a custom grouping if an automatic grouping is active.
++   *
++   * @param event the triggering event
++   */
++  public void handleUngroupFeatureLists(@NotNull final Event event) {
++    featureListsList.ungroupSelected();
++  }
++
+   public NotificationPane getNotificationPane() {
+     return notificationPane;
+   }

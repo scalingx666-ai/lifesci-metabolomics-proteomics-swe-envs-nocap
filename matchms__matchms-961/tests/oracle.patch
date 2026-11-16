@@ -1,0 +1,542 @@
+diff --git a/README.rst b/README.rst
+index c4a2d02f8..58527748f 100644
+--- a/README.rst
++++ b/README.rst
+@@ -597,7 +597,7 @@ searching a fixed reference library using a reusable index.
+        matching. Supports fragment, neutral-loss, and hybrid matching as well
+        as reusable library indices.
+      - ``EntropyGreedy``,
+-       ``FlashEntropy``
++       ``EntropyFlash``
+    * - Search-optimized spectral entropy
+      - ``EntropySearch``
+      - High-throughput fragment-only entropy searches against large reference
+@@ -717,6 +717,11 @@ Building the index separately is especially useful when many query batches are
+ searched against the same reference library, because the reference spectra do
+ not need to be prepared and indexed again for every search.
+ 
++.. image:: readthedocs/_static/matchms_similarity_implementations.png
++   :target: readthedocs/_static/matchms_similarity_implementations.png
++   :align: left
++   :alt: matchms similarity implementations and class inheritances
++
+ 
+ Saving and loading similarity indices
+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+@@ -855,7 +860,7 @@ while ``CosineHungarian`` uses optimal peak assignment. ``CosineLinear`` and
+ exposes the indexed Flash-based cosine implementation directly.
+ 
+ For spectral entropy, ``EntropyGreedy`` provides a compact pair-oriented
+-implementation and ``FlashEntropy`` exposes the general indexed implementation
++implementation and ``EntropyFlash`` exposes the general indexed implementation
+ used by ``Entropy``.
+ 
+ For most applications, the high-level ``Cosine``, ``ModifiedCosine``,
+diff --git a/matchms/similarity/__init__.py b/matchms/similarity/__init__.py
+index 2bc347fd8..e354ae464 100644
+--- a/matchms/similarity/__init__.py
++++ b/matchms/similarity/__init__.py
+@@ -62,7 +62,7 @@ class can either merge close peaks during preparation or raise an error when thi
+ 
+ * :class:`~matchms.similarity.EntropyGreedy` for a direct pair-oriented
+   implementation,
+-* :class:`~matchms.similarity.FlashEntropy` for the general indexed entropy
++* :class:`~matchms.similarity.EntropyFlash` for the general indexed entropy
+   backend used by :class:`~matchms.similarity.Entropy`.
+ 
+ Other similarity measures
+@@ -103,7 +103,7 @@ class can either merge close peaks during preparation or raise an error when thi
+ from .entropy_greedy import EntropyGreedy
+ from .entropy_search import EntropySearch
+ from .fingerprint_similarity import FingerprintSimilarity
+-from .flash_similarity import CosineFlash, FlashEntropy
++from .flash_similarity import CosineFlash, EntropyFlash
+ from .metadata_match import MetadataMatch
+ from .modified_cosine import ModifiedCosine
+ from .modified_cosine_greedy import ModifiedCosineGreedy
+@@ -123,10 +123,10 @@ class can either merge close peaks during preparation or raise an error when thi
+     "CosineHungarian",
+     "CosineLinear",
+     "Entropy",
++    "EntropyFlash",
+     "EntropyGreedy",
+     "EntropySearch",
+     "FingerprintSimilarity",
+-    "FlashEntropy",
+     "MetadataMatch",
+     "ModifiedCosine",
+     "ModifiedCosineGreedy",
+@@ -168,7 +168,7 @@ def get_similarity_function_by_name(similarity_function_name: str):
+         "EntropyGreedy": EntropyGreedy,
+         "EntropySearch": EntropySearch,
+         "FingerprintSimilarity": FingerprintSimilarity,
+-        "FlashEntropy": FlashEntropy,
++        "EntropyFlash": EntropyFlash,
+         "MetadataMatch": MetadataMatch,
+         "ModifiedCosine": ModifiedCosine,
+         "ModifiedCosineGreedy": ModifiedCosineGreedy,
+diff --git a/matchms/similarity/entropy.py b/matchms/similarity/entropy.py
+index db9001264..6d8babe16 100644
+--- a/matchms/similarity/entropy.py
++++ b/matchms/similarity/entropy.py
+@@ -6,10 +6,10 @@
+     DEFAULT_NOISE_CUTOFF,
+     DEFAULT_OFFSET_TO_PRECURSOR,
+ )
+-from .flash_similarity import FlashEntropy
++from .flash_similarity import EntropyFlash
+ 
+ 
+-class Entropy(FlashEntropy):
++class Entropy(EntropyFlash):
+     """Compare mass spectra using entropy-weighted spectral similarity.
+ 
+     Intensities are entropy-weighted and normalized to sum to 0.5 per spectrum.
+diff --git a/matchms/similarity/entropy_greedy.py b/matchms/similarity/entropy_greedy.py
+index 0295fa410..74d6f499e 100644
+--- a/matchms/similarity/entropy_greedy.py
++++ b/matchms/similarity/entropy_greedy.py
+@@ -177,7 +177,7 @@ class EntropyGreedy(BaseSimilarityWithSparse):
+     entropy similarity. It is intended as the transparent reference
+     implementation for single or small numbers of comparisons. For larger
+     all-vs-all calculations, use :class:`~matchms.similarity.Entropy`, whose
+-    matrix implementation uses :class:`~matchms.similarity.FlashEntropy`.
++    matrix implementation uses :class:`~matchms.similarity.EntropyFlash`.
+ 
+     Intensities are preprocessed using entropy weighting and normalized to a
+     total weighted intensity of 0.5 per spectrum.
+diff --git a/matchms/similarity/flash_similarity.py b/matchms/similarity/flash_similarity.py
+index f7cb719c6..3e9c5c92b 100644
+--- a/matchms/similarity/flash_similarity.py
++++ b/matchms/similarity/flash_similarity.py
+@@ -138,7 +138,7 @@ class _BaseFlashSimilarity(BaseSimilarity):
+         precursor filtering. Set to zero or None to disable noise filtering.
+     normalize_to_half
+         Normalize prepared intensities to sum to 0.5. Enabled by default in
+-        ``FlashEntropy``; required for the usual entropy-similarity scale.
++        ``EntropyFlash``; required for the usual entropy-similarity scale.
+     merge_within
+         Optional within-spectrum merge distance, in Da. Zero disables merging.
+         Neither scorer requires merging to resolve overlapping matching windows.
+@@ -548,7 +548,7 @@ def run(start, stop):
+         return Scores({field: arrays[field] for field in fields})
+ 
+ 
+-class FlashEntropy(_BaseFlashSimilarity):
++class EntropyFlash(_BaseFlashSimilarity):
+     """Entropy similarity accumulated directly from matching indexed peaks.
+ 
+     Fragment matches are consumed one-to-one in ascending m/z order. Neutral-loss
+diff --git a/readthedocs/_static/matchms_modular_design_v1_0.png b/readthedocs/_static/matchms_modular_design_v1_0.png
+index cbe49d1ef..6c3fbc6b1 100644
+Binary files a/readthedocs/_static/matchms_modular_design_v1_0.png and b/readthedocs/_static/matchms_modular_design_v1_0.png differ
+diff --git a/readthedocs/_static/matchms_similarity_implementations.png b/readthedocs/_static/matchms_similarity_implementations.png
+new file mode 100644
+index 000000000..ddfe1acfb
+Binary files /dev/null and b/readthedocs/_static/matchms_similarity_implementations.png differ
+diff --git a/tests/networking/test_networking_functions.py b/tests/networking/test_networking_functions.py
+index 77b41b698..026b6b0cf 100644
+--- a/tests/networking/test_networking_functions.py
++++ b/tests/networking/test_networking_functions.py
+@@ -5,7 +5,7 @@
+     get_top_hits_by_column,
+     get_top_hits_by_row,
+ )
+-from matchms.similarity import FlashEntropy
++from matchms.similarity import EntropyFlash
+ 
+ 
+ def create_dummy_spectra():
+@@ -31,7 +31,7 @@ def create_dummy_scores():
+     spectra_1 = spectra[:5]
+     spectra_2 = spectra[5:]
+ 
+-    similarity_measure = FlashEntropy(matching_mode="hybrid")
++    similarity_measure = EntropyFlash(matching_mode="hybrid")
+     scores = calculate_scores(spectra_1, spectra_2, similarity_measure)
+     return scores, spectra_1, spectra_2
+ 
+@@ -227,7 +227,7 @@ def test_get_top_hits_default_identifiers():
+ 
+ def test_get_top_hits_ignore_diagonal():
+     spectra = create_dummy_spectra()[:5]
+-    similarity_measure = FlashEntropy(matching_mode="hybrid")
++    similarity_measure = EntropyFlash(matching_mode="hybrid")
+     scores = calculate_scores(spectra, spectra, similarity_measure)
+     identifiers = [s.get("spectrum_id") for s in spectra]
+ 
+diff --git a/tests/similarity/test_default_parameters.py b/tests/similarity/test_default_parameters.py
+index 863bf61c2..3eb12a194 100644
+--- a/tests/similarity/test_default_parameters.py
++++ b/tests/similarity/test_default_parameters.py
+@@ -17,7 +17,7 @@ def test_peak_similarity_default_tolerances_are_consistent():
+         mssim.ModifiedCosineHungarian(),
+         mssim.Entropy(),
+         mssim.EntropyGreedy(),
+-        mssim.FlashEntropy(),
++        mssim.EntropyFlash(),
+     ]
+ 
+     assert all(
+diff --git a/tests/similarity/test_entropy.py b/tests/similarity/test_entropy.py
+index f374643cf..a49532b08 100644
+--- a/tests/similarity/test_entropy.py
++++ b/tests/similarity/test_entropy.py
+@@ -3,7 +3,7 @@
+ from matchms import SpectraCollection
+ from matchms.scores import Scores
+ from matchms.similarity import Entropy, EntropyGreedy
+-from matchms.similarity.flash_similarity import FlashEntropy
++from matchms.similarity.flash_similarity import EntropyFlash
+ from ..builder_spectrum import SpectrumBuilder
+ 
+ 
+@@ -59,7 +59,7 @@ def test_entropy_greedy_nonmatching_spectra_score_zero():
+ 
+ 
+ def test_entropy_greedy_one_of_two_equal_peaks_matching_has_known_score():
+-    """Independent analytical check, without using FlashEntropy as oracle.
++    """Independent analytical check, without using EntropyFlash as oracle.
+ 
+     With two equal peaks per spectrum, entropy weighting keeps both peaks equal.
+     Normalization to sum 0.5 therefore gives intensity 0.25 per peak. If exactly
+@@ -316,7 +316,7 @@ def test_entropy_greedy_merge_within_can_restore_peak_match():
+ 
+ 
+ # ----------------------------
+-# EntropyGreedy vs FlashEntropy parity
++# EntropyGreedy vs EntropyFlash parity
+ # ----------------------------
+ 
+ 
+@@ -414,7 +414,7 @@ def test_entropy_greedy_matches_flash_entropy_fragment_pair(
+     }
+ 
+     baseline = EntropyGreedy(**kwargs)
+-    flash = FlashEntropy(
++    flash = EntropyFlash(
+         matching_mode="fragment",
+         normalize_to_half=True,
+         **kwargs,
+@@ -447,7 +447,7 @@ def test_entropy_greedy_matches_flash_entropy_after_precursor_cleanup():
+     }
+ 
+     baseline = EntropyGreedy(**kwargs).pair(spectrum_1, spectrum_2)
+-    flash = FlashEntropy(
++    flash = EntropyFlash(
+         matching_mode="fragment",
+         normalize_to_half=True,
+         **kwargs,
+@@ -513,7 +513,7 @@ def test_entropy_matrix_matches_flash_entropy_with_same_configuration():
+         progress_bar=False,
+         n_jobs=0,
+     )
+-    expected = FlashEntropy(
++    expected = EntropyFlash(
+         matching_mode="fragment",
+         normalize_to_half=True,
+         **kwargs,
+@@ -691,7 +691,7 @@ def test_entropy_greedy_matches_flash_entropy(matching_mode):
+     }
+ 
+     greedy = float(EntropyGreedy(**kwargs).pair(reference, query))
+-    flash = float(FlashEntropy(**kwargs).pair(reference, query))
++    flash = float(EntropyFlash(**kwargs).pair(reference, query))
+ 
+     assert greedy == pytest.approx(flash, abs=1e-12)
+ 
+diff --git a/tests/similarity/test_entropy_search.py b/tests/similarity/test_entropy_search.py
+index 5f5f3f31a..469b41d5c 100644
+--- a/tests/similarity/test_entropy_search.py
++++ b/tests/similarity/test_entropy_search.py
+@@ -2,7 +2,7 @@
+ import pytest
+ from matchms import SpectraCollection
+ from matchms.scores import Scores
+-from matchms.similarity.flash_similarity import CosineFlash, FlashEntropy
++from matchms.similarity.flash_similarity import CosineFlash, EntropyFlash
+ from ..builder_spectrum import SpectrumBuilder
+ 
+ 
+@@ -100,7 +100,7 @@ def _example_cosine_inputs():
+ 
+ 
+ # -------------------------------------------------------------------------
+-# FlashEntropy: input handling and matrix API
++# EntropyFlash: input handling and matrix API
+ # -------------------------------------------------------------------------
+ 
+ 
+@@ -112,7 +112,7 @@ def test_flash_entropy_collection_input_matches_list_input(matching_mode):
+     """List and SpectraCollection inputs should produce identical scores."""
+     references, queries = _example_entropy_inputs()
+ 
+-    similarity = FlashEntropy(
++    similarity = EntropyFlash(
+         matching_mode=matching_mode,
+         tolerance=0.01,
+         remove_precursor=False,
+@@ -165,7 +165,7 @@ def test_flash_entropy_self_comparison_is_symmetric():
+         ),
+     ]
+ 
+-    similarity = FlashEntropy(
++    similarity = EntropyFlash(
+         matching_mode="fragment",
+         tolerance=0.01,
+         remove_precursor=False,
+@@ -206,7 +206,7 @@ def test_flash_entropy_pair_matches_matrix_element():
+         precursor_mz=510.0,
+     )
+ 
+-    similarity = FlashEntropy(
++    similarity = EntropyFlash(
+         matching_mode="hybrid",
+         tolerance=0.01,
+         remove_precursor=False,
+@@ -229,7 +229,7 @@ def test_flash_entropy_rectangular_matrix_preserves_requested_orientation():
+     """Rows must correspond to spectra_1 and columns to spectra_2."""
+     references, queries = _example_entropy_inputs()
+ 
+-    similarity = FlashEntropy(
++    similarity = EntropyFlash(
+         matching_mode="fragment",
+         tolerance=0.01,
+         remove_precursor=False,
+@@ -256,7 +256,7 @@ def test_flash_entropy_rectangular_matrix_preserves_requested_orientation():
+ 
+ 
+ # -------------------------------------------------------------------------
+-# FlashEntropy: matching modes and precursor handling
++# EntropyFlash: matching modes and precursor handling
+ # -------------------------------------------------------------------------
+ 
+ 
+@@ -265,7 +265,7 @@ def test_flash_entropy_neutral_loss_requires_precursor_mz():
+     reference = _build_spectrum([100.0], [1.0])
+     query = _build_spectrum([100.0], [1.0])
+ 
+-    similarity = FlashEntropy(
++    similarity = EntropyFlash(
+         matching_mode="neutral_loss",
+         tolerance=0.01,
+         remove_precursor=False,
+@@ -296,7 +296,7 @@ def test_flash_entropy_hybrid_combines_distinct_fragment_and_loss_matches():
+         precursor_mz=510.0,
+     )
+ 
+-    similarity = FlashEntropy(
++    similarity = EntropyFlash(
+         matching_mode="hybrid",
+         tolerance=0.01,
+         remove_precursor=False,
+@@ -327,7 +327,7 @@ def test_flash_entropy_identity_precursor_gate_excludes_distant_precursor():
+         precursor_mz=500.3,
+     )
+ 
+-    similarity = FlashEntropy(
++    similarity = EntropyFlash(
+         matching_mode="fragment",
+         tolerance=0.01,
+         identity_precursor_tolerance=0.2,
+diff --git a/tests/similarity/test_flash_search_integration.py b/tests/similarity/test_flash_search_integration.py
+index 5f27cf9b4..f6b147367 100644
+--- a/tests/similarity/test_flash_search_integration.py
++++ b/tests/similarity/test_flash_search_integration.py
+@@ -11,7 +11,7 @@
+ from matchms.similarity.cosine import Cosine
+ from matchms.similarity.entropy import Entropy
+ from matchms.similarity.flash_index import FlashIndex
+-from matchms.similarity.flash_similarity import CosineFlash, FlashEntropy
++from matchms.similarity.flash_similarity import CosineFlash, EntropyFlash
+ from matchms.similarity.modified_cosine import ModifiedCosine
+ 
+ 
+@@ -33,7 +33,7 @@ def inputs():
+     return queries,library
+ 
+ 
+-@pytest.mark.parametrize("cls", [Cosine, Entropy, ModifiedCosine, CosineFlash, FlashEntropy])
++@pytest.mark.parametrize("cls", [Cosine, Entropy, ModifiedCosine, CosineFlash, EntropyFlash])
+ def test_public_search_signature(cls):
+     params=inspect.signature(cls.search).parameters
+     assert list(params)==["self", "query_spectra", "library_index", "score_fields", "progress_bar", "n_jobs"]
+@@ -43,7 +43,7 @@ def test_public_search_signature(cls):
+     assert params["n_jobs"].default == -1
+ 
+ 
+-@pytest.mark.parametrize("cls", [CosineFlash, FlashEntropy])
++@pytest.mark.parametrize("cls", [CosineFlash, EntropyFlash])
+ @pytest.mark.parametrize("mode", ["fragment", "neutral_loss", "hybrid"])
+ @pytest.mark.parametrize("dtype", [np.float32, np.float64])
+ def test_search_matrix_prepared_persistence_and_threads(cls, mode, dtype, tmp_path):
+@@ -93,7 +93,7 @@ def fail(*args, **kwargs):
+         s.search(index, queries, progress_bar=False, n_jobs=1)
+ 
+ 
+-@pytest.mark.parametrize("cls", [CosineFlash, FlashEntropy])
++@pytest.mark.parametrize("cls", [CosineFlash, EntropyFlash])
+ def test_matching_mode_is_capability_not_preprocessing(cls):
+     queries, library=inputs()
+     kwargs={"tolerance": .02, "noise_cutoff": 0., "remove_precursor": False}
+@@ -132,7 +132,7 @@ def test_score_and_match_field_selection_share_public_index(mode):
+     np.testing.assert_array_equal(count_only.to_array(), full.to_array("matches"))
+ 
+ 
+-@pytest.mark.parametrize("cls", [CosineFlash, FlashEntropy])
++@pytest.mark.parametrize("cls", [CosineFlash, EntropyFlash])
+ def test_search_after_loading_original_version_two(tmp_path, cls):
+     queries, library=inputs()
+     s=cls(matching_mode="hybrid", tolerance=.02, noise_cutoff=0., remove_precursor=False)
+@@ -173,7 +173,7 @@ def test_cosine_matrix_search_agree_even_for_direction_sensitive_ties():
+     np.testing.assert_array_equal(actual.to_array("matches"), expected.to_array("matches"))
+ 
+ 
+-@pytest.mark.parametrize("cls", [CosineFlash, FlashEntropy])
++@pytest.mark.parametrize("cls", [CosineFlash, EntropyFlash])
+ def test_settings_rejection_and_search_time_tolerance_reuse(cls):
+     queries, library=inputs()
+     a=cls(tolerance=.01)
+@@ -181,7 +181,7 @@ def test_settings_rejection_and_search_time_tolerance_reuse(cls):
+     cls(tolerance=.2, use_ppm=True).search(queries, index, progress_bar=False, n_jobs=1)
+     with pytest.raises(ValueError, match="noise_cutoff"):
+         cls(noise_cutoff=.05).search(queries, index, progress_bar=False, n_jobs=1)
+-    if cls is FlashEntropy:
++    if cls is EntropyFlash:
+         with pytest.raises(ValueError, match="weighing_type"):
+             CosineFlash().search(queries, index, progress_bar=False, n_jobs=1)
+ 
+@@ -192,7 +192,7 @@ def test_hungarian_index_rejected_with_original_error_kind():
+         Cosine(use_hungarian=True).build_index(library)
+ 
+ 
+-@pytest.mark.parametrize("cls", [Cosine, Entropy, ModifiedCosine, CosineFlash, FlashEntropy])
++@pytest.mark.parametrize("cls", [Cosine, Entropy, ModifiedCosine, CosineFlash, EntropyFlash])
+ def test_to_dict_stays_constructor_only(cls):
+     source=cls(tolerance=.02, noise_cutoff=None, dtype=np.float32)
+     config=json.loads(json.dumps(source.to_dict()))
+diff --git a/tests/similarity/test_flash_similarity.py b/tests/similarity/test_flash_similarity.py
+index 5f5f3f31a..469b41d5c 100644
+--- a/tests/similarity/test_flash_similarity.py
++++ b/tests/similarity/test_flash_similarity.py
+@@ -2,7 +2,7 @@
+ import pytest
+ from matchms import SpectraCollection
+ from matchms.scores import Scores
+-from matchms.similarity.flash_similarity import CosineFlash, FlashEntropy
++from matchms.similarity.flash_similarity import CosineFlash, EntropyFlash
+ from ..builder_spectrum import SpectrumBuilder
+ 
+ 
+@@ -100,7 +100,7 @@ def _example_cosine_inputs():
+ 
+ 
+ # -------------------------------------------------------------------------
+-# FlashEntropy: input handling and matrix API
++# EntropyFlash: input handling and matrix API
+ # -------------------------------------------------------------------------
+ 
+ 
+@@ -112,7 +112,7 @@ def test_flash_entropy_collection_input_matches_list_input(matching_mode):
+     """List and SpectraCollection inputs should produce identical scores."""
+     references, queries = _example_entropy_inputs()
+ 
+-    similarity = FlashEntropy(
++    similarity = EntropyFlash(
+         matching_mode=matching_mode,
+         tolerance=0.01,
+         remove_precursor=False,
+@@ -165,7 +165,7 @@ def test_flash_entropy_self_comparison_is_symmetric():
+         ),
+     ]
+ 
+-    similarity = FlashEntropy(
++    similarity = EntropyFlash(
+         matching_mode="fragment",
+         tolerance=0.01,
+         remove_precursor=False,
+@@ -206,7 +206,7 @@ def test_flash_entropy_pair_matches_matrix_element():
+         precursor_mz=510.0,
+     )
+ 
+-    similarity = FlashEntropy(
++    similarity = EntropyFlash(
+         matching_mode="hybrid",
+         tolerance=0.01,
+         remove_precursor=False,
+@@ -229,7 +229,7 @@ def test_flash_entropy_rectangular_matrix_preserves_requested_orientation():
+     """Rows must correspond to spectra_1 and columns to spectra_2."""
+     references, queries = _example_entropy_inputs()
+ 
+-    similarity = FlashEntropy(
++    similarity = EntropyFlash(
+         matching_mode="fragment",
+         tolerance=0.01,
+         remove_precursor=False,
+@@ -256,7 +256,7 @@ def test_flash_entropy_rectangular_matrix_preserves_requested_orientation():
+ 
+ 
+ # -------------------------------------------------------------------------
+-# FlashEntropy: matching modes and precursor handling
++# EntropyFlash: matching modes and precursor handling
+ # -------------------------------------------------------------------------
+ 
+ 
+@@ -265,7 +265,7 @@ def test_flash_entropy_neutral_loss_requires_precursor_mz():
+     reference = _build_spectrum([100.0], [1.0])
+     query = _build_spectrum([100.0], [1.0])
+ 
+-    similarity = FlashEntropy(
++    similarity = EntropyFlash(
+         matching_mode="neutral_loss",
+         tolerance=0.01,
+         remove_precursor=False,
+@@ -296,7 +296,7 @@ def test_flash_entropy_hybrid_combines_distinct_fragment_and_loss_matches():
+         precursor_mz=510.0,
+     )
+ 
+-    similarity = FlashEntropy(
++    similarity = EntropyFlash(
+         matching_mode="hybrid",
+         tolerance=0.01,
+         remove_precursor=False,
+@@ -327,7 +327,7 @@ def test_flash_entropy_identity_precursor_gate_excludes_distant_precursor():
+         precursor_mz=500.3,
+     )
+ 
+-    similarity = FlashEntropy(
++    similarity = EntropyFlash(
+         matching_mode="fragment",
+         tolerance=0.01,
+         identity_precursor_tolerance=0.2,
+diff --git a/tests/similarity/test_flash_similarity_ms_entropy_parity.py b/tests/similarity/test_flash_similarity_ms_entropy_parity.py
+index d22209a3c..38919d40d 100644
+--- a/tests/similarity/test_flash_similarity_ms_entropy_parity.py
++++ b/tests/similarity/test_flash_similarity_ms_entropy_parity.py
+@@ -10,7 +10,7 @@
+     salicin,
+ )
+ from matchms.scores import Scores
+-from matchms.similarity.flash_similarity import FlashEntropy
++from matchms.similarity.flash_similarity import EntropyFlash
+ 
+ 
+ def _reference_spectra():
+@@ -40,7 +40,7 @@ def test_flash_entropy_fragment_matches_ms_entropy_on_reference_spectra():
+     refs = _reference_spectra()
+     refs_for_ms_entropy = [_normalize_peaks_for_ms_entropy(s) for s in refs]
+ 
+-    flash = FlashEntropy(
++    flash = EntropyFlash(
+         matching_mode="fragment",
+         tolerance=tolerance_da,
+         use_ppm=False,
+@@ -78,7 +78,7 @@ def test_flash_entropy_fragment_matches_ms_entropy_on_reference_spectra_ppm():
+     refs = _reference_spectra()
+     refs_for_ms_entropy = [_normalize_peaks_for_ms_entropy(s) for s in refs]
+ 
+-    flash = FlashEntropy(
++    flash = EntropyFlash(
+         matching_mode="fragment",
+         tolerance=tolerance_ppm,
+         use_ppm=True,

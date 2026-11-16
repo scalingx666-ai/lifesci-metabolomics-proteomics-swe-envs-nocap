@@ -1,0 +1,75 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3368"
+description = "Extensions to integration dashboard"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "b3a5eb1e009069662d8105cd13527cad9cdefa33"
+reference = "https://github.com/mzmine/mzmine/pull/3368"
+source_access = "auto"
+built_at = "2026-11-16T08:46:20.721772+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e0984f6180899f38d545123ff6f8510173c13987518394d53ac461badb33be8b"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-20T10:44:51Z"
+diff_format = "unified"
+context_files = [
+    "javafx-framework/src/main/java/io/github/mzmine/javafx/components/factories/FxCheckBox.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/dash_integration/IntegrationDashboardAreaSortDirection.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/dash_integration/IntegrationDashboardController.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/dash_integration/IntegrationDashboardModel.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/dash_integration/IntegrationDashboardSortOption.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/dash_integration/IntegrationDashboardViewBuilder.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/otherdetectors/chromatogramplot/ChromatogramPlotBuilder.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/otherdetectors/chromatogramplot/ChromatogramPlotController.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/otherdetectors/chromatogramplot/ChromatogramPlotModel.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/otherdetectors/integrationplot/IntegrationPane.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/otherdetectors/integrationplot/IntegrationPlotController.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/otherdetectors/integrationplot/IntegrationPlotModel.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/otherdetectors/integrationplot/IntegrationPlotViewBuilder.java",
+    "mzmine-community/src/main/resources/themes/jabref_additions_common.css",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 725
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,12 @@
+diff --git a/.github/workflows/dependabot.yml b/.github/workflows/dependabot.yml
+new file mode 100644
+index 000000000..6483b1dd7
+--- /dev/null
++++ b/.github/workflows/dependabot.yml
+@@ -0,0 +1,6 @@
++version: 2
++updates:
++  - package-ecosystem: "uv"
++    directory: "/"
++    schedule:
++      interval: "weekly"

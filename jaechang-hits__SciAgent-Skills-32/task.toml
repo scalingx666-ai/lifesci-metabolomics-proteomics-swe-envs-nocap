@@ -1,0 +1,65 @@
+version = "1.0"
+
+[task]
+name = "default/jaechang-hits__SciAgent-Skills-32"
+description = "fix: strip palette leaks, audit skill-creator, compress smina+mdtraj"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "SciAgent-Skills",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "jaechang-hits/SciAgent-Skills"
+ref = "d3d04b27f29c5bc6bb2346adce0632c95d819193"
+reference = "https://github.com/jaechang-hits/SciAgent-Skills/pull/32"
+source_access = "auto"
+built_at = "2026-11-15T15:24:33.321608+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:46c989ccfe0d6ee25a2f73c17f79f329696c594963b73983b390837515456bc1"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-05-28T05:24:12Z"
+diff_format = "unified"
+context_files = [
+    ".claude/skills/sciagent-skill-creator/SKILL.md",
+    ".claude/skills/sciagent-skill-creator/scripts/scaffold.py",
+    "skills/structural-biology-drug-discovery/mdtraj-trajectory-analysis/SKILL.md",
+    "skills/structural-biology-drug-discovery/smina-molecular-docking/SKILL.md",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 854
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

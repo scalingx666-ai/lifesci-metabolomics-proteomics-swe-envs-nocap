@@ -1,0 +1,14 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/networking/visual/enums/NodeAtt.java b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/networking/visual/enums/NodeAtt.java
+index 66159e069a1..1302e48b819 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/networking/visual/enums/NodeAtt.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/networking/visual/enums/NodeAtt.java
+@@ -193,8 +193,7 @@ public Object getValue(FeatureListRow row) {
+           .map(match -> match.getSimilarity().getExplainedLibraryIntensity()).findFirst()
+           .orElse(null);
+       case MATCHED_SIGNALS -> row.getSpectralLibraryMatches().stream()
+-          .map(match -> match.getSimilarity().getAlignedDataPoints().length).findFirst()
+-          .orElse(null);
++          .map(match -> match.getSimilarity().getOverlap()).findFirst().orElse(null);
+     };
+   }
+ 

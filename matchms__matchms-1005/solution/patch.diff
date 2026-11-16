@@ -1,0 +1,569 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 4c560b60b..1a51705d5 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
+ ## unpublished
+ ### Added
+ - New `ModifiedCosineLinear`, the linear-time exact modified cosine from SIRIUS. Same score as `ModifiedCosineHungarian` on merged spectra.
++- `SpectraProcessor` now applies the configured `harmonize_missing_entries` step once more to the final result, so missing values introduced by later processing steps are handled consistently [#951](https://github.com/matchms/matchms/issues/951).
++- `ProcessingReport` now counts metadata entries that are still missing after processing (`report.missing_metadata`), making failed derivations visible [#951](https://github.com/matchms/matchms/issues/951).
+ 
+ ### Changed
+ - `CosineBlink` now computes and returns scores as `np.float64` (`DEFAULT_DTYPE`) by default, consistent with the other similarity scores. The new `dtype` parameter can be set to `np.float32` to reduce memory usage [#880](https://github.com/matchms/matchms/issues/880).
+diff --git a/matchms/filtering/__init__.py b/matchms/filtering/__init__.py
+index b0953dd3c..02d9f489e 100644
+--- a/matchms/filtering/__init__.py
++++ b/matchms/filtering/__init__.py
+@@ -139,6 +139,10 @@
+ - the number of spectra with changed metadata,
+ - the number of spectra with changed fragments.
+ 
++The report also counts, per metadata key, how many processed spectra still have
++a missing entry for that key (``report.missing_metadata``). This shows which
++metadata could not be derived or repaired during processing.
++
+ Metadata and fragment changes are detected using hashes. This means that
+ reporting does not require keeping a complete copy of the dataset before every
+ processing step.
+diff --git a/matchms/filtering/filter_utils/metadata_conversions.py b/matchms/filtering/filter_utils/metadata_conversions.py
+index c34998a29..bb407d792 100644
+--- a/matchms/filtering/filter_utils/metadata_conversions.py
++++ b/matchms/filtering/filter_utils/metadata_conversions.py
+@@ -1,8 +1,9 @@
+ 
+ import logging
+-from collections.abc import Mapping
++from collections.abc import Iterable, Mapping
+ import numpy as np
+ import pandas as pd
++from matchms.utils import ALIASES_FOR_NONE
+ 
+ 
+ logger = logging.getLogger("matchms")
+@@ -59,6 +60,33 @@ def is_missing_metadata_value(value) -> bool:
+     return False
+ 
+ 
++def is_missing_metadata_alias(value, aliases: Iterable | None = None) -> bool:
++    """Return True if a scalar metadata value represents a missing entry.
++
++    This covers the canonical missing values (``None``, ``NaN``, ``pd.NA``) as
++    well as the known string aliases for missing entries
++    (see :data:`matchms.utils.ALIASES_FOR_NONE`).
++
++    Parameters
++    ----------
++    value
++        Metadata value to check.
++    aliases
++        Values that should additionally be interpreted as missing. If ``None``,
++        ``ALIASES_FOR_NONE`` is used.
++    """
++    if is_missing_metadata_value(value):
++        return True
++
++    if aliases is None:
++        aliases = ALIASES_FOR_NONE
++
++    try:
++        return value in aliases
++    except TypeError:
++        return False
++
++
+ def metadata_value_to_python(value):
+     """Convert a pandas/NumPy metadata scalar to a plain Python value.
+ 
+diff --git a/matchms/filtering/metadata_processing/harmonize_missing_entries.py b/matchms/filtering/metadata_processing/harmonize_missing_entries.py
+index 4ee322307..d042b7c7d 100644
+--- a/matchms/filtering/metadata_processing/harmonize_missing_entries.py
++++ b/matchms/filtering/metadata_processing/harmonize_missing_entries.py
+@@ -1,6 +1,6 @@
+ from collections.abc import Iterable
+ from matchms.filtering._dispatch import metadata_update_filter
+-from matchms.filtering.filter_utils.metadata_conversions import is_missing_metadata_value
++from matchms.filtering.filter_utils.metadata_conversions import is_missing_metadata_alias
+ from matchms.utils import ALIASES_FOR_NONE
+ 
+ 
+@@ -17,16 +17,6 @@ def _normalize_keys(keys):
+     raise TypeError("'keys' must be None, a string, or an iterable of strings.")
+ 
+ 
+-def _is_missing_alias(value, aliases) -> bool:
+-    if is_missing_metadata_value(value):
+-        return True
+-
+-    try:
+-        return value in aliases
+-    except TypeError:
+-        return False
+-
+-
+ def _harmonize_missing_entries(
+     metadata,
+     keys: str | Iterable[str] | None = None,
+@@ -68,7 +58,7 @@ def _harmonize_missing_entries(
+     updates = {}
+     for key in keys:
+         value = metadata.get(key)
+-        if _is_missing_alias(value, aliases):
++        if is_missing_metadata_alias(value, aliases):
+             updates[key] = undefined
+ 
+     return updates
+diff --git a/matchms/filtering/spectra_processor.py b/matchms/filtering/spectra_processor.py
+index ff8674d75..f446d0c36 100644
+--- a/matchms/filtering/spectra_processor.py
++++ b/matchms/filtering/spectra_processor.py
+@@ -2,7 +2,7 @@
+ import inspect
+ import logging
+ from collections import OrderedDict
+-from collections.abc import Callable, Iterable
++from collections.abc import Callable, Iterable, Mapping
+ from dataclasses import dataclass
+ from functools import partial
+ import numpy as np
+@@ -15,14 +15,21 @@
+     REMOVE,
+ )
+ from matchms.filtering.filter_order import ALL_FILTERS, FILTER_FUNCTION_NAMES
++from matchms.filtering.filter_utils.metadata_conversions import is_missing_metadata_alias
+ from matchms.spectra_collection import SpectraCollection
+ from matchms.spectrum import Spectrum
++from matchms.utils import ALIASES_FOR_NONE
+ from matchms.yaml_file_functions import ordered_dump
+ 
+ 
+ logger = logging.getLogger("matchms")
+ FunctionWithParametersType = tuple[Callable | str, dict[str, object]]
+ 
++# Filter used to harmonize missing metadata entries. Steps running after it can
++# introduce new missing values, so it is applied again once processing is done
++# (see https://github.com/matchms/matchms/issues/951).
++MISSING_VALUE_HARMONIZATION_FILTER = "harmonize_missing_entries"
++
+ 
+ @dataclass
+ class _ProcessingStepReport:
+@@ -51,6 +58,10 @@ class ProcessingReport:
+     how many spectra were removed, and how many retained spectra changed in
+     metadata or fragments.
+ 
++    In addition, it counts how many processed spectra still have missing entries
++    per metadata key. This makes metadata that could not be derived or repaired
++    during processing visible in the final report.
++
+     For built-in matchms filters, :mod:`matchms.filtering.filter_effects`
+     determines which hashes need to be compared. Unknown/custom filters are
+     compared using both metadata and fragment hashes when row counts stay the
+@@ -62,11 +73,24 @@ def __init__(self, filter_functions: Iterable[Callable] | None = None):
+         self.filter_names = []
+         self._steps: dict[str, _ProcessingStepReport] = {}
+         self.counter_number_processed = 0
++        self.missing_metadata: dict[str, int] = {}
+ 
+         if filter_functions is not None:
+             for filter_function in filter_functions:
+                 self._ensure_filter(filter_function.__name__)
+ 
++    def add_missing_metadata(self, counts: Mapping[str, int]) -> None:
++        """Add counts of metadata entries that are still missing after processing.
++
++        Parameters
++        ----------
++        counts
++            Mapping of metadata key to the number of processed spectra for which
++            that key is still missing.
++        """
++        for key, count in counts.items():
++            self.missing_metadata[key] = self.missing_metadata.get(key, 0) + int(count)
++
+     def _ensure_filter(self, filter_name: str) -> _ProcessingStepReport:
+         if filter_name not in self._steps:
+             self.filter_names.append(filter_name)
+@@ -199,11 +223,25 @@ def to_dataframe(self) -> pd.DataFrame:
+             report[column] = pd.array(report[column], dtype="Int64")
+         return report
+ 
++    def missing_metadata_summary(self) -> str:
++        """Return one aggregated line describing missing metadata entries."""
++        if not self.missing_metadata:
++            return "Missing metadata after processing: none"
++
++        sorted_counts = sorted(
++            self.missing_metadata.items(),
++            key=lambda item: (-item[1], item[0]),
++        )
++        return "Missing metadata after processing: " + ", ".join(
++            f"{key}={count}" for key, count in sorted_counts
++        )
++
+     def __str__(self) -> str:
+         return (
+             "----- Spectra Processing Report -----\n"
+             f"Number of spectra processed: {self.counter_number_processed}\n"
+             f"Number of spectra removed: {sum(step.removed for step in self._steps.values())}\n"
++            f"{self.missing_metadata_summary()}\n"
+             "Changes during processing:\n"
+             f"{self.to_dataframe()}"
+         )
+@@ -228,6 +266,11 @@ class SpectraProcessor:
+     Both paths clone/copy the input once before processing. Filters that expose a
+     ``clone`` parameter are then called with ``clone=False``.
+ 
++    If the pipeline contains ``harmonize_missing_entries``, that step is applied
++    once more to the final result. Processing steps running after it (such as
++    derive or repair actions) can introduce new missing metadata values, and this
++    keeps the missing-value representation consistent across the whole pipeline.
++
+     Parameters
+     ----------
+     filters
+@@ -326,6 +369,26 @@ def create_processing_report(self) -> ProcessingReport:
+         """Return an empty ProcessingReport configured for this pipeline."""
+         return ProcessingReport(self.filters)
+ 
++    @property
++    def missing_value_harmonization(self) -> Callable | None:
++        """Return the configured missing-value harmonization filter, if any.
++
++        Filters running after ``harmonize_missing_entries`` can introduce new
++        missing metadata values. Returning that filter here allows the processor
++        to apply the same harmonization once more to the final result.
++        """
++        for filter_func in self.filters:
++            if filter_func.__name__ == MISSING_VALUE_HARMONIZATION_FILTER:
++                return filter_func
++        return None
++
++    def _harmonize_missing_values(self, spectra):
++        """Apply the configured missing-value harmonization to the final result."""
++        harmonize = self.missing_value_harmonization
++        if harmonize is None:
++            return spectra
++        return _apply_filter(harmonize, spectra)
++
+     def process_spectrum(
+         self,
+         spectrum: Spectrum,
+@@ -389,6 +452,13 @@ def process_spectrum(
+ 
+             working_spectrum = spectrum_out
+ 
++        working_spectrum = self._harmonize_missing_values(working_spectrum)
++
++        if processing_report is not None:
++            processing_report.add_missing_metadata(
++                _count_missing_metadata_entries(working_spectrum.metadata)
++            )
++
+         return working_spectrum
+ 
+     def process_spectra(
+@@ -510,6 +580,13 @@ def process_collection(
+ 
+             working_collection = collection_out
+ 
++        working_collection = self._harmonize_missing_values(working_collection)
++
++        if processing_report is not None:
++            processing_report.add_missing_metadata(
++                _count_missing_metadata_entries(working_collection.metadata)
++            )
++
+         return working_collection
+ 
+     @property
+@@ -539,6 +616,42 @@ def _apply_filter(filter_func: Callable, spectra):
+     return filter_func(spectra, **kwargs)
+ 
+ 
++def _count_missing_metadata_entries(metadata, aliases = None) -> dict[str, int]:
++    """Count missing entries per metadata key.
++
++    Accepts Spectrum-style metadata (a mapping of scalar values) or the metadata
++    table of a :class:`~matchms.spectra_collection.SpectraCollection`. Values
++    that are only aliases for missing entries (such as ``""`` or ``"n/a"``) are
++    counted as missing, consistent with ``harmonize_missing_entries``.
++    """
++    if aliases is None:
++        aliases = ALIASES_FOR_NONE
++
++    if isinstance(metadata, pd.DataFrame):
++        counts = {}
++
++        for column in metadata.columns:
++            values = metadata[column]
++            missing = values.isna()
++
++            if pd.api.types.is_object_dtype(values) or pd.api.types.is_string_dtype(values):
++                missing = missing | values.isin(aliases)
++
++            n_missing = int(missing.sum())
++            if n_missing:
++                counts[column] = n_missing
++
++        return counts
++
++    # Fallback when working with lists of Spectrum objects (slower!)
++    counts = {}
++    for key, value in metadata.items():
++        if is_missing_metadata_alias(value, aliases=aliases):
++            counts[key] = counts.get(key, 0) + 1
++
++    return counts
++
++
+ def _take_hash_snapshot(
+     spectra: Spectrum | SpectraCollection | None,
+     effect: str | None,
+diff --git a/tests/filtering/test_spectra_processor.py b/tests/filtering/test_spectra_processor.py
+index 0a2a9e804..8f87f96ee 100644
+--- a/tests/filtering/test_spectra_processor.py
++++ b/tests/filtering/test_spectra_processor.py
+@@ -1191,4 +1191,240 @@ def test_process_spectra_accepts_generator(spectra):
+     )
+ 
+     assert len(processed) == 3
+-    assert [s.get("charge") for s in processed] == [1, -1, -1]
+\ No newline at end of file
++    assert [s.get("charge") for s in processed] == [1, -1, -1]
++
++
++# -----------------------------------------------------------------------------
++# Missing metadata values (issue #951)
++# -----------------------------------------------------------------------------
++
++
++def _derive_inchikey_failing(spectrum, clone=True):
++    """Stand-in for a derive action that fails and leaves a missing alias."""
++    target = spectrum.clone() if clone else spectrum
++    target.set("inchikey", "n/a")
++    return target
++
++
++def _derive_inchikey_failing_for_collection(collection, clone=True):
++    """Collection version of :func:`_derive_inchikey_failing`."""
++    target = collection.copy() if clone else collection
++    target.add_metadata(
++        ["n/a"] * len(target),
++        col_name="inchikey",
++        overwrite=True,
++    )
++    return target
++
++
++@pytest.fixture
++def spectrum_with_inchi():
++    return (
++        SpectrumBuilder()
++        .with_metadata(
++            {
++                "compound_name": "Caffeine",
++                "precursor_mz": 195.0876,
++                "inchi": "InChI=1S/C8H10N4O2/c1-10-4-9-6-5(10)7(13)12(3)8(14)11(6)2/h4H,1-3H3",
++            }
++        )
++        .with_mz([10, 20, 30])
++        .with_intensities([0.1, 0.4, 10])
++        .build()
++    )
++
++
++def test_missing_values_present_before_processing_are_harmonized(spectra):
++    """Missing entries that already exist before processing stay harmonized."""
++    processor = SpectraProcessor(filters=["harmonize_missing_entries"])
++
++    processed = processor.process_spectrum(spectra[0])
++
++    assert processed.get("smiles") is None
++    assert processed.get("compound_name") == "compound 1"
++
++
++def test_missing_values_created_during_processing_are_harmonized(spectrum_with_inchi):
++    """Regression test for #951: missing values from later steps are harmonized."""
++    processor = SpectraProcessor(
++        filters=[
++            ("harmonize_missing_entries", {"keys": ["inchi", "inchikey"]}),
++            _derive_inchikey_failing,
++        ]
++    )
++
++    processed = processor.process_spectrum(spectrum_with_inchi)
++
++    assert processed.get("inchikey") is None
++
++
++def test_missing_values_created_during_processing_are_harmonized_for_collection(spectrum_with_inchi):
++    """Same as above, but for the collection-wise processing path."""
++    collection = SpectraCollection([spectrum_with_inchi])
++    processor = SpectraProcessor(
++        filters=[
++            ("harmonize_missing_entries", {"keys": ["inchi", "inchikey"]}),
++            _derive_inchikey_failing_for_collection,
++        ]
++    )
++
++    processed = processor.process_collection(collection)
++
++    assert pd.isna(processed.metadata.loc[0, "inchikey"])
++
++
++def test_successful_derivation_is_not_affected(spectrum_with_inchi):
++    """Metadata derived after the harmonization step is kept unchanged."""
++    processor = SpectraProcessor(
++        filters=["harmonize_missing_entries", "derive_inchikey_from_inchi"]
++    )
++
++    processed = processor.process_spectrum(spectrum_with_inchi)
++
++    assert processed.get("inchikey") == "RYYVLZVUVIJVGH-UHFFFAOYSA-N"
++    assert processed.get("inchi") == spectrum_with_inchi.get("inchi")
++    assert processed.get("compound_name") == "Caffeine"
++
++
++def test_missing_value_harmonization_is_idempotent(spectra):
++    """Harmonizing twice gives the same result as harmonizing once."""
++    once = msfilters.harmonize_missing_entries(spectra[0])
++    twice = msfilters.harmonize_missing_entries(once)
++
++    assert twice.metadata == once.metadata
++
++
++def test_pipeline_without_harmonization_keeps_late_missing_alias(spectrum_with_inchi):
++    """Without harmonization, a late-generated missing alias is not normalized."""
++    processor = SpectraProcessor(filters=[_derive_inchikey_failing])
++
++    processed = processor.process_spectrum(spectrum_with_inchi)
++
++    assert processed.get("inchikey") == "n/a"
++
++
++def test_processing_report_counts_existing_missing_metadata(collection):
++    """Explicit missing aliases in input metadata are counted after processing."""
++    processor = SpectraProcessor(filters=["harmonize_missing_entries"])
++    report = processor.create_processing_report()
++
++    processed = processor.process_collection(collection, processing_report=report)
++
++    assert pd.isna(processed.metadata.loc[0, "smiles"])
++    assert pd.isna(processed.metadata.loc[2, "smiles"])
++    assert report.missing_metadata == {"smiles": 2}
++    assert report.missing_metadata_summary() == "Missing metadata after processing: smiles=2"
++    assert "Missing metadata after processing: smiles=2" in str(report)
++
++
++def test_processing_report_without_explicit_missing_values(spectrum_with_inchi):
++    """Present, nonmissing values do not contribute to the missing-value count.
++
++    Whether absent *keys* should be counted is a separate API contract question.
++    """
++    processor = SpectraProcessor(filters=["make_charge_int"])
++    report = processor.create_processing_report()
++
++    processor.process_spectrum(spectrum_with_inchi, processing_report=report)
++
++    assert report.missing_metadata == {}
++    assert report.missing_metadata_summary() == "Missing metadata after processing: none"
++
++# -----------------------------------------------------------------------------
++# Additional issue #951 regression tests
++# -----------------------------------------------------------------------------
++
++
++def test_processing_report_counts_failed_derivation_for_spectrum(spectrum_with_inchi):
++    """A missing alias created after harmonization is counted in the final report."""
++    processor = SpectraProcessor([
++        ("harmonize_missing_entries", {"keys": ["inchi", "inchikey"]}),
++        _derive_inchikey_failing,
++    ])
++    report = processor.create_processing_report()
++
++    processed = processor.process_spectrum(spectrum_with_inchi, processing_report=report)
++
++    assert processed.get("inchikey") is None
++    assert report.missing_metadata == {"inchikey": 1}
++    assert report.counter_number_processed == 1
++
++
++def test_processing_report_counts_failed_derivation_for_collection(spectrum_with_inchi):
++    """The collection path must count the same late-generated missing value."""
++    processor = SpectraProcessor([
++        ("harmonize_missing_entries", {"keys": ["inchi", "inchikey"]}),
++        _derive_inchikey_failing_for_collection,
++    ])
++    report = processor.create_processing_report()
++
++    processed = processor.process_collection(
++        SpectraCollection([spectrum_with_inchi]),
++        processing_report=report,
++    )
++
++    assert pd.isna(processed.metadata.loc[0, "inchikey"])
++    assert report.missing_metadata == {"inchikey": 1}
++    assert report.counter_number_processed == 1
++
++
++def test_missing_metadata_counts_accumulate_across_processing_calls(spectra, collection):
++    """The same report can aggregate Spectrum and SpectraCollection runs."""
++    processor = SpectraProcessor(["harmonize_missing_entries"])
++    report = processor.create_processing_report()
++
++    processor.process_spectrum(spectra[0], processing_report=report)
++    processor.process_collection(collection, processing_report=report)
++    processor.process_spectrum(spectra[2], processing_report=report)
++
++    # One from spectra[0], two from collection, one from spectra[2].
++    assert report.missing_metadata == {"smiles": 4}
++    assert report.counter_number_processed == 5
++
++
++def test_final_harmonization_respects_configured_keys(spectrum_with_inchi):
++    """A second harmonization pass must not normalize fields outside `keys`."""
++    spectrum = spectrum_with_inchi.clone()
++    spectrum.set("smiles", "n/a")
++    processor = SpectraProcessor([
++        ("harmonize_missing_entries", {"keys": ["inchikey"]}),
++        _derive_inchikey_failing,
++    ])
++
++    processed = processor.process_spectrum(spectrum)
++
++    assert processed.get("inchikey") is None
++    assert processed.get("smiles") == "n/a"
++    assert spectrum.get("smiles") == "n/a"
++    assert spectrum.get("inchikey") is None
++
++
++def test_collection_without_harmonization_keeps_late_missing_alias(spectrum_with_inchi):
++    """Automatic final harmonization should only happen when configured."""
++    collection = SpectraCollection([spectrum_with_inchi])
++    processor = SpectraProcessor([_derive_inchikey_failing_for_collection])
++
++    processed = processor.process_collection(collection)
++
++    assert processed.metadata.loc[0, "inchikey"] == "n/a"
++    assert "inchikey" not in collection.metadata.columns
++
++
++def test_missing_value_reports_match_for_explicit_missing_values(spectra):
++    """Both processing modes should count the same explicitly missing values."""
++    processor = SpectraProcessor(["harmonize_missing_entries"])
++    spectrum_report = processor.create_processing_report()
++    collection_report = processor.create_processing_report()
++
++    processor.process_spectra(
++        spectra,
++        processing_report=spectrum_report,
++        progress_bar=False,
++    )
++    processor.process_collection(
++        SpectraCollection(spectra),
++        processing_report=collection_report,
++    )
++
++    assert spectrum_report.missing_metadata == {"smiles": 2}
++    assert collection_report.missing_metadata == spectrum_report.missing_metadata

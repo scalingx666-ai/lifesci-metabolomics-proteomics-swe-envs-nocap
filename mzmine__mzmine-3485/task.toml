@@ -1,0 +1,66 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3485"
+description = "local-max: add gaussian smoothing option"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "7c45369b71d3a5781efa1ee85e58ea932010fe3b"
+reference = "https://github.com/mzmine/mzmine/pull/3485"
+source_access = "auto"
+built_at = "2026-11-16T08:44:32.745455+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:80851dcdaca04bd15af130b9f4ab5e1663edd995584b1d688de2bfb2cf91fb06"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-09-08T14:58:14Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxGaussianModule.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxGaussianParameters.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxMassDetectorParameters.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxSmoothingOptions.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_smoothing/gaussian/GaussianFilter.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 244
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

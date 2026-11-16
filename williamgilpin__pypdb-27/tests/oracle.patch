@@ -1,0 +1,706 @@
+diff --git a/pypdb/clients/search/EXAMPLES.md b/pypdb/clients/search/EXAMPLES.md
+index 1dcd8ea..6685ca7 100644
+--- a/pypdb/clients/search/EXAMPLES.md
++++ b/pypdb/clients/search/EXAMPLES.md
+@@ -162,6 +162,38 @@ return_type = ReturnType.ENTRY
+ results = perform_search(search_service, search_operator, return_type)
+ ```
+ 
++### Search for top 100 structures matching the given protein sequence, by date
++
++(this sequence matches the SARS-CoV-2 NSP3 macrodomain)
++
++```
++from pypdb.clients.search.search_client import perform_search, RequestOptions
++from pypdb.clients.search.search_client import SearchService, ReturnType
++from pypdb.clients.search.operators.sequence_operators import SequenceOperator
++from pypdb.clients.search.operators.sequence_operators import SequenceType
++
++results = perform_search(
++    search_service=SearchService.SEQUENCE,
++    return_type=ReturnType.ENTRY,
++    search_operator=SequenceOperator(
++        sequence_type=SequenceType.PROTEIN,
++        sequence=(
++          "SMVNSFSGYLKLTDNVYIKNADIVEEAKKVKPTVVVNAANVYLKHGGGVAGALNKATNNAMQVESDDY"
++          "IATNGPLKVGGSCVLSGHNLAKHCLHVVGPNVNKGEDIQLLKSAYENFNQHEVLLAPLLSAGIFGADP"
++          "IHSLRVCVDTVRTNVYLAVFDKNLYDKLVSSFL"),
++        identity_cutoff=0.99,
++        evalue_cutoff=1000
++      ),
++    request_options=RequestOptions(
++        result_start_index=0,
++        num_results=100,
++        sort_by="rcsb_accession_info.initial_release_date",
++        desc=False
++      ),
++    return_with_scores=True
++)
++```
++
+ ## `perform_search_with_graph` Example
+ 
+ ### Search for 'Mus musculus' or 'Homo sapiens' structures after 2019
+@@ -210,3 +242,42 @@ results = perform_search_with_graph(
+   query_object=is_under_4A_and_human_or_mus_group,
+   return_type=return_type)
+ ```
++
++## Search for Calcium-Bound Calmodulin Structures
++
++Note that "1CLL" corresponds to a Calmodulin structure bound to Ca2+.
++
++Also, searching for `rcsb_chem_comp_container_identifiers.comp_id` with
++an exact match to `"CA"` yields only structures in complex with Ca2+
++(filtering out structures in complex with other metals like strontium).
++
++```
++from pypdb.clients.search.search_client import perform_search_with_graph
++from pypdb.clients.search.search_client import SearchService, ReturnType
++from pypdb.clients.search.search_client import QueryNode, QueryGroup, LogicalOperator
++from pypdb.clients.search.operators import text_operators, structure_operators
++
++is_similar_to_1CLL = QueryNode(
++  search_service=SearchService.STRUCTURE,
++  search_operator=structure_operators.StructureOperator(
++      pdb_entry_id="1CLL",
++      assembly_id=1,
++      search_mode=structure_operators.StructureSearchMode.STRICT_SHAPE_MATCH
++  )
++)
++
++is_in_complex_with_calcium = QueryNode(
++  search_service=SearchService.TEXT,
++  search_operator=text_operators.ExactMatchOperator(
++    attribute="rcsb_chem_comp_container_identifiers.comp_id",
++    value="CA"
++  )
++)
++
++results = perform_search_with_graph(
++  query_object=QueryGroup(
++    logical_operator=LogicalOperator.AND,
++    queries=[is_similar_to_1CLL, is_in_complex_with_calcium]
++  ),
++  return_type=ReturnType.ENTRY
++)
+diff --git a/pypdb/clients/search/operators/sequence_operators.py b/pypdb/clients/search/operators/sequence_operators.py
+new file mode 100644
+index 0000000..05ee86a
+--- /dev/null
++++ b/pypdb/clients/search/operators/sequence_operators.py
+@@ -0,0 +1,32 @@
++"""Search operator for searching sequences using MMseqs2 (BLAST-like)."""
++from dataclasses import dataclass
++from enum import Enum
++from typing import Any, Dict, Union
++
++class SequenceType(Enum):
++    """Type of sequence being searched."""
++    DNA = "pdb_dna_sequence"
++    RNA = "pdb_rna_sequence"
++    PROTEIN= "pdb_protein_sequence"
++
++
++@dataclass
++class SequenceOperator:
++    """Default search operator; searches across available fields search,
++    and returns a hit if a match happens in any field."""
++    sequence: str
++    sequence_type: SequenceType
++    # Maximum E Value allowed for results
++    # (see: https://www.ncbi.nlm.nih.gov/BLAST/tutorial/Altschul-1.html)
++    evalue_cutoff: float = 100
++    # Minimum identity cutoff allowed for results
++    # (see: https://www.ncbi.nlm.nih.gov/books/NBK62051/def-item/identity/)
++    identity_cutoff: float = 0.95
++
++    def _to_dict(self) -> Dict[str, Any]:
++        return {
++            "evalue_cutoff": self.evalue_cutoff,
++            "identity_cutoff": self.identity_cutoff,
++            "target": self.sequence_type.value,
++            "value": self.sequence
++        }
+diff --git a/pypdb/clients/search/operators/sequence_operators_test.py b/pypdb/clients/search/operators/sequence_operators_test.py
+new file mode 100644
+index 0000000..429a2d7
+--- /dev/null
++++ b/pypdb/clients/search/operators/sequence_operators_test.py
+@@ -0,0 +1,27 @@
++"""Tests for RCSB Text Search Service Operators
++(admittedly, a lot is tested in `search_client_test.py` too)
++"""
++
++import unittest
++
++from pypdb.clients.search.operators import sequence_operators
++
++class TestSequenceOperators(unittest.TestCase):
++
++    def test_sequence_operator(self):
++        search_operator = sequence_operators.SequenceOperator(
++            sequence="AUGAUUCGGCGCUAAAAAAAA",
++            sequence_type = sequence_operators.SequenceType.RNA,
++            evalue_cutoff=100,
++            identity_cutoff=0.95
++        )
++
++        self.assertEqual(
++            search_operator._to_dict(),
++            {
++                "evalue_cutoff": 100,
++                "identity_cutoff": 0.95,
++                "target": "pdb_rna_sequence",
++                "value": "AUGAUUCGGCGCUAAAAAAAA",
++            }
++        )
+diff --git a/pypdb/clients/search/operators/structure_operators.py b/pypdb/clients/search/operators/structure_operators.py
+new file mode 100644
+index 0000000..fe557d5
+--- /dev/null
++++ b/pypdb/clients/search/operators/structure_operators.py
+@@ -0,0 +1,35 @@
++"""Operators associated with RCSB structural search."""
++
++from dataclasses import dataclass
++from enum import Enum
++from typing import Any, Dict
++
++class StructureSearchMode(Enum):
++    """Mode to search structures with. See:
++    https://github.com/biocryst/biozernike/
++    """
++    STRICT_SHAPE_MATCH = "strict_shape_match"
++    RELAXED_SHAPE_MATCH = "relaxed_shape_match"
++
++@dataclass
++class StructureOperator:
++    """Operator to perform 3D Structural search using:
++    https://github.com/biocryst/biozernike/
++
++    Will return similar 3D structures using default search options.
++    """
++    # Entry and Assembly # for the chainstructure you want to use for search.
++    # (results will show other PDB entities with similiar 3D Structures)
++    pdb_entry_id: str
++    assembly_id: int = 1
++    # Structure search mode
++    search_mode: StructureSearchMode = StructureSearchMode.STRICT_SHAPE_MATCH
++
++    def _to_dict(self) -> Dict[str, Any]:
++        return {
++            "value": {
++                "entry_id": self.pdb_entry_id,
++                "assembly_id": str(self.assembly_id)
++            },
++            "operator": self.search_mode.value
++        }
+diff --git a/pypdb/clients/search/operators/structure_operators_test.py b/pypdb/clients/search/operators/structure_operators_test.py
+new file mode 100644
+index 0000000..d8b3c26
+--- /dev/null
++++ b/pypdb/clients/search/operators/structure_operators_test.py
+@@ -0,0 +1,38 @@
++"""Tests for Structural searches against RCSB Search API."""
++
++import unittest
++
++from pypdb.clients.search.operators import structure_operators
++
++class TestStructureOperators(unittest.TestCase):
++
++    def test_not_equals_operator(self):
++        structure_operator = structure_operators.StructureOperator(
++            pdb_entry_id="HK97",
++            assembly_id=4,
++            search_mode=structure_operators.StructureSearchMode.STRICT_SHAPE_MATCH
++        )
++
++        self.assertEqual(structure_operator._to_dict(),
++                         {
++                            "value": {
++                                "entry_id": "HK97",
++                                "assembly_id": "4"
++                            },
++                            "operator": "strict_shape_match"
++                         })
++
++        structure_operator_two = structure_operators.StructureOperator(
++            pdb_entry_id="CP77",
++            assembly_id=7,
++            search_mode=structure_operators.StructureSearchMode.RELAXED_SHAPE_MATCH
++        )
++
++        self.assertEqual(structure_operator_two._to_dict(),
++                         {
++                            "value": {
++                                "entry_id": "CP77",
++                                "assembly_id": "7"
++                            },
++                            "operator": "relaxed_shape_match"
++                         })
+diff --git a/pypdb/clients/search/operators/text_operators.py b/pypdb/clients/search/operators/text_operators.py
+index 935f6fa..56d9904 100644
+--- a/pypdb/clients/search/operators/text_operators.py
++++ b/pypdb/clients/search/operators/text_operators.py
+@@ -15,7 +15,7 @@ class DefaultOperator:
+     and returns a hit if a match happens in any field."""
+     value: str
+ 
+-    def to_dict(self) -> Dict[str, str]:
++    def _to_dict(self) -> Dict[str, str]:
+         return {
+             "value": self.value
+         }
+@@ -27,7 +27,7 @@ class ExactMatchOperator:
+     attribute: str
+     value: Any
+ 
+-    def to_dict(self) -> Dict[str, Any]:
++    def _to_dict(self) -> Dict[str, Any]:
+         return {
+             "attribute": self.attribute,
+             "operator": "exact_match",
+@@ -43,7 +43,7 @@ class InOperator:
+     attribute: str
+     values: List[Any]  # List of strings, numbers or date strings
+ 
+-    def to_dict(self) -> Dict[str, Any]:
++    def _to_dict(self) -> Dict[str, Any]:
+         return {
+             "attribute": self.attribute,
+             "operator": "in",
+@@ -61,7 +61,7 @@ class ContainsWordsOperator:
+     attribute: str
+     value: str
+ 
+-    def to_dict(self) -> Dict[str,str]:
++    def _to_dict(self) -> Dict[str,str]:
+         return {
+             "attribute": self.attribute,
+             "operator": "contains_words",
+@@ -79,7 +79,7 @@ class ContainsPhraseOperator:
+     attribute: str
+     value: str
+ 
+-    def to_dict(self) -> Dict[str,str]:
++    def _to_dict(self) -> Dict[str,str]:
+         return {
+             "attribute": self.attribute,
+             "operator": "contains_phrase",
+@@ -117,7 +117,7 @@ class ComparisonOperator:
+     value: Any
+     comparison_type: ComparisonType
+ 
+-    def to_dict(self) -> Dict[str,Any]:
++    def _to_dict(self) -> Dict[str,Any]:
+         if self.comparison_type is ComparisonType.NOT_EQUAL:
+             param_dict = {
+                 "operator": "equals",
+@@ -142,7 +142,7 @@ class RangeOperator:
+     include_lower: bool = True # Default inclusive
+     include_upper: bool = True # Default inclusive
+ 
+-    def to_dict(self) -> Dict[str,Any]:
++    def _to_dict(self) -> Dict[str,Any]:
+         return {
+         "operator": "range",
+         "attribute": self.attribute,
+@@ -158,7 +158,7 @@ def to_dict(self) -> Dict[str,Any]:
+ class ExistsOperator:
+     attribute: str
+ 
+-    def to_dict(self) -> Dict[str,str]:
++    def _to_dict(self) -> Dict[str,str]:
+         return {
+             "operator": "exists",
+             "attribute": self.attribute
+diff --git a/pypdb/clients/search/operators/text_operators_test.py b/pypdb/clients/search/operators/text_operators_test.py
+index 8698af9..e1dd615 100644
+--- a/pypdb/clients/search/operators/text_operators_test.py
++++ b/pypdb/clients/search/operators/text_operators_test.py
+@@ -6,7 +6,7 @@
+ 
+ from pypdb.clients.search.operators import text_operators
+ 
+-class TestHTTPRequests(unittest.TestCase):
++class TestTextOperators(unittest.TestCase):
+ 
+     def test_not_equals_operator(self):
+         not_equals_operator = text_operators.ComparisonOperator(
+@@ -15,7 +15,7 @@ def test_not_equals_operator(self):
+             comparison_type = text_operators.ComparisonType.NOT_EQUAL
+         )
+ 
+-        self.assertEqual(not_equals_operator.to_dict(),
++        self.assertEqual(not_equals_operator._to_dict(),
+                          {
+                             "attribute": "struct.favourite_marvel_movie",
+                             "value": "Thor: Ragnarok",
+diff --git a/pypdb/clients/search/search_client.py b/pypdb/clients/search/search_client.py
+index befa79c..6813a3b 100644
+--- a/pypdb/clients/search/search_client.py
++++ b/pypdb/clients/search/search_client.py
+@@ -16,7 +16,10 @@
+ import warnings
+ 
+ from pypdb.clients.search.operators import text_operators
++from pypdb.clients.search.operators import sequence_operators
+ from pypdb.clients.search.operators.text_operators import TextSearchOperator
++from pypdb.clients.search.operators.sequence_operators import SequenceOperator
++from pypdb.clients.search.operators.structure_operators import StructureOperator
+ 
+ SEARCH_URL_ENDPOINT: str = "https://search.rcsb.org/rcsbsearch/v1/query"
+ 
+@@ -42,7 +45,10 @@ class LogicalOperator(Enum):
+ # Currently, the only available search operators are associated with the
+ # 'text' service. For the list of available RCSB services,
+ # see: https://search.rcsb.org/index.html#search-services
+-SearchOperator = TextSearchOperator
++SearchOperator = Union[
++    TextSearchOperator,
++    SequenceOperator,
++    StructureOperator]
+ 
+ 
+ @dataclass
+@@ -53,32 +59,45 @@ class QueryNode:
+     search_service: SearchService
+     search_operator: SearchOperator
+ 
+-    def to_dict(self):
++    def _to_dict(self):
+         return {
+             "type": "terminal",
+             "service": self.search_service.value,
+-            "parameters": self.search_operator.to_dict()
++            "parameters": self.search_operator._to_dict()
+         }
+ 
+-    def _validate(self):
++    def _validate(self) -> None:
+         """Validates queries to SearchService use a supporting SearchOperator.
+ 
+         Used to raise Errors notifying users of invalid RCSB queries before
+         those queries hit RCSB's Search servers."""
+ 
+-        if self.search_service != SearchService.TEXT:
++        if self.search_service not in [SearchService.TEXT,
++                                       SearchService.SEQUENCE,
++                                       SearchService.STRUCTURE]:
+             raise NotImplementedError(
+-                "Not currently implemented (but watch this space)")
++                "This service isn't yet implemented in the RCSB 2.0 API "
++                "(but watch this space)")
+ 
++        # Each SearchService is assocaited with a list of valid search operators
+         if self.search_service is SearchService.TEXT:
+-            # Uses undocumented `__args__` to check if operator is TEXT
+-            # (see: https://stackoverflow.com/questions/45957615/ )
+-            if not type(
+-                    self.search_operator) in text_operators.TEXT_SEARCH_OPERATORS:
+-                raise InappropriateSearchOperatorException(
+-                    "Searches against the 'text' service should have SearchOperators "
+-                    "that are TextSearchOperators, as in `text_search_operators.py`.")
+-
++            appropriate_operator_list = text_operators.TEXT_SEARCH_OPERATORS # type: ignore
++            operator_file="pypdb/clients/search/operators/text_operators.py"
++        elif self.search_service is SearchService.SEQUENCE:
++            appropriate_operator_list = [SequenceOperator] # type: ignore
++            operator_file="pypdb/clients/search/operators/sequence_operators.py"
++        elif self.search_service is SearchService.STRUCTURE:
++            appropriate_operator_list = [StructureOperator] # type: ignore
++            operator_file="pypdb/clients/search/operators/structure_operators.py"
++        else:
++            # Default to search being OK if there's no validation for
++            # this operator defined yet
++            return
++
++        if not type(self.search_operator) in appropriate_operator_list:
++            raise InappropriateSearchOperatorException(
++                "Searches against the '{}' service should only use ".format(self.search_service),
++                " SearchOperators defined in in `{}`.".format(operator_file))
+ 
+ @dataclass
+ class QueryGroup:
+@@ -102,11 +121,11 @@ class QueryGroup:
+     # Boolean to aggregate the results of `queries`.
+     logical_operator: LogicalOperator
+ 
+-    def to_dict(self):
++    def _to_dict(self):
+         return {
+             "type": "group",
+             "logical_operator": self.logical_operator.value,
+-            "nodes": [query.to_dict() for query in self.queries]
++            "nodes": [query._to_dict() for query in self.queries]
+         }
+ 
+     def _validate(self):
+@@ -126,6 +145,44 @@ class ReturnType(Enum):
+     NON_POLYMER_ENTITY = "non_polymer_entity"
+     POLYMER_INSTANCE = "polymer_instance"
+ 
++@dataclass
++class RequestOptions:
++    """Options to configure which results are returned, and in what order."""
++    # Returns `num_results` results starting at`result_start_index` (pagination)
++    # If these indices are not defined, defaults to return all results.
++    # (returning all results can be slow for compute-intensive searches)
++    result_start_index: Optional[int] = None
++    num_results: Optional[int] = None
++    # What attribute to sort by.
++    # This should either be "score"  (to sort by score),
++    # or a valid RCSB attribute value
++    # (e.g. "rcsb_accession_info.initial_release_date")
++    sort_by: Optional[str] = "score"
++    # Whether to sort by score ascending, or score descending
++    desc: Optional[bool] = True
++
++    def _to_dict(self):
++        result_dict = {}
++        if self.result_start_index != None and self.num_results != None:
++            result_dict["pager"] = {
++                "start": self.result_start_index,
++                "rows": self.num_results
++            }
++
++        if self.sort_by != None and self.desc != None:
++            result_dict["sort"] = [
++                {
++                "sort_by": self.sort_by,
++                "direction": "desc" if self.desc else "asc"
++                }
++            ]
++
++        return result_dict
++
++@dataclass
++class ScoredResult:
++    entity_id: str  # PDB Entity ID (e.g. 5JUP for the entry return type)
++    score: float
+ 
+ class InappropriateSearchOperatorException(Exception):
+     """Raised when the provided SearchService and SearchOperator are
+@@ -142,8 +199,11 @@ class InappropriateSearchOperatorException(Exception):
+ def perform_search(search_service: SearchService,
+                    search_operator: SearchOperator,
+                    return_type: ReturnType = ReturnType.ENTRY,
++                   request_options: Optional[RequestOptions] = None,
++                   return_with_scores: bool = False,
+                    return_raw_json_dict: bool = False
+                    ) -> Union[List[str],
++                              List[ScoredResult],
+                               RawJSONDictResponse]:
+     """Performs search specified by `search_operator`, against `search_service`.
+     Returns entity strings of type `return_type` that match the resulting hits.
+@@ -159,6 +219,13 @@ def perform_search(search_service: SearchService,
+         search_service: What type of RCSB Search Service to query.
+         search_operator: Parameters defining the search condition.
+         return_type: What type of RCSB entity to return.
++        request_options: Object containing information for result pagination
++          and sorting functionality.
++        return_with_scores: Whether or not to return the entity results with
++            their associated scores. For example, you might want to do this to
++            get
++            the top X hits that are similar to a certain protein sequence.
++            (if this is true, returns List[ScoredResult] instead of List[str])
+         return_raw_json_dict: If True, this function returns the raw JSON
+             response from RCSB, instead of a
+ 
+@@ -166,6 +233,9 @@ def perform_search(search_service: SearchService,
+         List of entity ids, corresponding to entities that match the given
+         query.
+ 
++        If `return_with_scores=True`, returns a list of ScoredResult instead.
++        If `return_raw_json_dict=True`, returns the raw JSON response from RCSB.
++
+     Example usage to search for PDB entries that are from 'Mus musculus':
+     ```
+     from pypdb.clients.search. import perform_search
+@@ -188,12 +258,19 @@ def perform_search(search_service: SearchService,
+ 
+     return perform_search_with_graph(query_object=query_node,
+                                      return_type=return_type,
++                                     request_options=request_options,
++                                     return_with_scores=return_with_scores,
+                                      return_raw_json_dict=return_raw_json_dict)
+ 
+ 
+ def perform_search_with_graph(query_object: Union[QueryNode, QueryGroup],
+                               return_type: ReturnType = ReturnType.ENTRY,
+-                              return_raw_json_dict: bool = False) -> List[str]:
++                              request_options: Optional[RequestOptions] = None,
++                              return_with_scores: bool = False,
++                              return_raw_json_dict: bool = False
++                              ) -> Union[List[str],
++                                         RawJSONDictResponse,
++                                         List[ScoredResult]]:
+     """Performs specified search using RCSB's search node logic.
+ 
+     Essentially, this allows you to ask multiple questions in one RCSB query.
+@@ -212,21 +289,32 @@ def perform_search_with_graph(query_object: Union[QueryNode, QueryGroup],
+         query_object: Fully-specified QueryNode or QueryGroup
+             object corresponding to the desired search.
+         return_type: Type of entities to return.
++        return_with_scores: Whether or not to return the entity results with
++            their associated scores. For example, you might want to do this to
++            get the top X hits that are similar to a certain protein sequence.
+         return_raw_json_dict: Whether to return raw JSON response.
+             (for example, to analyze the scores of various matches)
+ 
+     Returns:
+         List of strings, corresponding to hits in the database. Will be of the
+         format specified by the `return_type`.
++
++        If `return_with_scores=True`, returns a list of ScoredResult instead.
++        If `return_raw_json_dict=True`, returns the raw JSON response from RCSB.
+     """
+ 
+     # Validates that, to the best of our knowledge, the `query_object`
+     # is a valid query against the RCSB Search API.
+     query_object._validate()
+ 
++    if request_options is not None:
++        request_options_dict = request_options._to_dict()
++    else:
++        request_options_dict = {'return_all_hits': True}
++
+     rcsb_query_dict = {
+-        "query": query_object.to_dict(),
+-        "request_options": {"return_all_hits": True},
++        "query": query_object._to_dict(),
++        "request_options": request_options_dict,
+         "return_type": return_type.value
+     }
+ 
+@@ -250,9 +338,15 @@ def perform_search_with_graph(query_object: Union[QueryNode, QueryGroup],
+         return response.json()
+ 
+     # Converts RCSB result to list of identifiers corresponding to
+-    # the `return_type`.
+-    identifiers = []
++    # the `return_type`. Annotated with score if `return_with_scores`.
++    results = []
+     for query_hit in response.json()["result_set"]:
+-        identifiers.append(query_hit["identifier"])
+-
+-    return identifiers
++        if return_with_scores:
++            results.append(ScoredResult(
++                entity_id=query_hit["identifier"],
++                score=query_hit["score"]
++            ))
++        else:
++            results.append(query_hit["identifier"])
++
++    return results
+diff --git a/pypdb/clients/search/search_client_test.py b/pypdb/clients/search/search_client_test.py
+index 03a9ed3..5655cdc 100644
+--- a/pypdb/clients/search/search_client_test.py
++++ b/pypdb/clients/search/search_client_test.py
+@@ -1,11 +1,12 @@
+ """Tests for RCSB Search API Python wrapper."""
+ import json
++import pytest
+ import requests
+ import unittest
+ from unittest import mock
+ 
+ from pypdb.clients.search import search_client
+-from pypdb.clients.search.operators import text_operators
++from pypdb.clients.search.operators import sequence_operators, text_operators
+ 
+ class TestHTTPRequests(unittest.TestCase):
+ 
+@@ -500,6 +501,89 @@ def test_query_structure_resolution(self, mock_post):
+         self.assertEqual(results,
+                          canned_json_return_as_dict)
+ 
++    @mock.patch.object(requests, "post")
++    def test_sequence_operator_search(self,
++                                                 mock_post):
++        # Creates a mock HTTP response, as wrapped by `requests`
++        canned_json_return_as_dict = {
++            "result_set": [
++                {"identifier": "5JUP"},
++                {"identifier": "5JUS"},
++                {"identifier": "5JUO"}
++            ]
++        }
++        mock_response = mock.create_autospec(requests.Response, instance=True)
++        mock_response.json.return_value = canned_json_return_as_dict
++        mock_post.return_value = mock_response
++
++        results = search_client.perform_search(
++            search_service=search_client.SearchService.SEQUENCE,
++            search_operator=sequence_operators.SequenceOperator(
++                sequence="ATGAGGTAA",
++                sequence_type=sequence_operators.SequenceType.DNA,
++                evalue_cutoff=100,
++                identity_cutoff=0.90
++            ),
++            return_type=search_client.ReturnType.ENTRY)
++
++
++
++        expected_json_dict = {
++        'query':
++            {'type': 'terminal',
++             'service': 'sequence',
++             'parameters':
++                {
++                'evalue_cutoff': 100,
++                'identity_cutoff': 0.90,
++                'target': 'pdb_dna_sequence',
++                'value': 'ATGAGGTAA'
++                }
++            },
++        'request_options': {'return_all_hits': True},
++        'return_type': 'entry'}
++
++        mock_post.assert_called_once_with(url=search_client.SEARCH_URL_ENDPOINT,
++                                          data=json.dumps(expected_json_dict))
++        self.assertEqual(results,
++                         ["5JUP", "5JUS", "5JUO"])
++
++    def test_inappropriate_operator_raises_exception(self):
++        with pytest.raises(search_client.InappropriateSearchOperatorException):
++            search_client.perform_search(
++                search_service=search_client.SearchService.TEXT,
++                search_operator=sequence_operators.SequenceOperator(
++                    sequence="ATGAGGTAA",
++                    sequence_type=sequence_operators.SequenceType.DNA,
++                    evalue_cutoff=100,
++                    identity_cutoff=0.90
++                ),
++                return_type=search_client.ReturnType.ENTRY)
++
++    def test_request_options_to_dict(self):
++        request_options = search_client.RequestOptions(
++            result_start_index = 42,
++            num_results = 8675309,
++            sort_by="fake.rcsb.attribute",
++            desc=False
++        )
++
++        self.assertEqual(
++            request_options._to_dict(),
++            {
++                "pager": {
++                    "start": 42,
++                    "rows": 8675309
++                },
++                "sort": [
++                    {
++                        "sort_by": "fake.rcsb.attribute",
++                        "direction": "asc"
++                    }
++                ]
++            }
++        )
++
+ 
+ if __name__ == '__main__':
+     unittest.main()

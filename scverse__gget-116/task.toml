@@ -1,0 +1,69 @@
+version = "1.0"
+
+[task]
+name = "default/scverse__gget-116"
+description = "Update elm.md"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "gget",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "scverse/gget"
+ref = "a961addab1f1b24d91d7cb3713f777634950047b"
+reference = "https://github.com/scverse/gget/pull/116"
+source_access = "auto"
+built_at = "2026-11-15T21:06:18.845074+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:9154e9463decf12176176f50fdc49c701cf3bec16be234bdf031ce238fd98bc0"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2024-01-05T21:57:10Z"
+diff_format = "unified"
+context_files = [
+    "README.md",
+    "docs/src/en/elm.md",
+    "docs/src/en/ref.md",
+    "docs/src/en/search.md",
+    "docs/src/es/ref.md",
+    "docs/src/es/search.md",
+    "tests/fixtures.py",
+    "tests/test_info.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 58
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

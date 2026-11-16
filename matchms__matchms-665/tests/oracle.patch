@@ -1,0 +1,34 @@
+diff --git a/matchms/filtering/peak_processing/remove_profiled_spectra.py b/matchms/filtering/peak_processing/remove_profiled_spectra.py
+index d28ec51dc..4a250c6cd 100644
+--- a/matchms/filtering/peak_processing/remove_profiled_spectra.py
++++ b/matchms/filtering/peak_processing/remove_profiled_spectra.py
+@@ -15,11 +15,12 @@ def remove_profiled_spectra(spectrum: Spectrum, mz_window=0.5):
+     Reproduced from MZmine.
+     https://github.com/mzmine/mzmine3/blob/master/src/main/java/io/github/mzmine/util/scans/ScanUtils.java#L609
+     """
++    if spectrum is None:
++        return None
+     peaks_n = spectrum.mz.shape[0]
+     if peaks_n < 3:
+         return spectrum
+ 
+-    # mz_window = spectrum.mz[-1] - spectrum.mz[0] / 1000
+     number_of_high_intensity_surounding_peaks = _get_number_of_high_intensity_surounding_peaks(spectrum.intensities,
+                                                                                                spectrum.mz, mz_window)
+     if number_of_high_intensity_surounding_peaks < 3:
+diff --git a/tests/filtering/test_predefined_pipelines.py b/tests/filtering/test_predefined_pipelines.py
+index 1152ec292..561356291 100644
+--- a/tests/filtering/test_predefined_pipelines.py
++++ b/tests/filtering/test_predefined_pipelines.py
+@@ -6,3 +6,11 @@ def test_run_predefined_filter_sets():
+     """Tests if all predefined filter sets can be run"""
+     for filter_set in ALL_FILTER_SETS:
+         SpectrumProcessor(filter_set)
++
++
++def test_all_filters_can_handle_none():
++    """All filters should be able to take None as input instead of a spectrum object"""
++    for filter_set in ALL_FILTER_SETS:
++        spectrum_processor = SpectrumProcessor(filter_set)
++        for selected_filter in spectrum_processor.filters:
++            assert selected_filter(None) is None, f"The filter {selected_filter.__name__} cannot hande None as input"

@@ -1,0 +1,329 @@
+diff --git a/matchms/similarity/BaseEmbeddingSimilarity.py b/matchms/similarity/BaseEmbeddingSimilarity.py
+index dff9751e1..9975acdf2 100644
+--- a/matchms/similarity/BaseEmbeddingSimilarity.py
++++ b/matchms/similarity/BaseEmbeddingSimilarity.py
+@@ -1,11 +1,12 @@
+-import numpy as np
+-from typing import List, Iterable, Union, Optional, Dict, Any, Tuple
+-from pathlib import Path
++import pickle
+ from abc import abstractmethod
++from pathlib import Path
++from typing import Any, Iterable, List, Optional, Tuple, Union
++import numpy as np
+ from sklearn.metrics.pairwise import cosine_similarity, euclidean_distances
+ from matchms.similarity.BaseSimilarity import BaseSimilarity
+ from matchms.typing import SpectrumType
+-import pickle
++
+ 
+ try:
+     import pynndescent
+@@ -38,7 +39,7 @@ class BaseEmbeddingSimilarity(BaseSimilarity):
+         Number of nearest neighbors used in the ANN index; if index is built.
+     """
+ 
+-    def __init__(self, similarity: str = "cosine"):  
++    def __init__(self, similarity: str = "cosine"):
+         self.similarity = similarity
+         self.index = None
+         self.index_backend = None
+@@ -55,12 +56,12 @@ def __init__(self, similarity: str = "cosine"):
+     @abstractmethod
+     def compute_embeddings(self, spectra: Iterable[SpectrumType]) -> np.ndarray:
+         """Compute embeddings for a list of spectra.
+-        
++
+         Parameters
+         ----------
+         spectra:
+             List of spectra to compute embeddings for.
+-            
++
+         Returns
+         -------
+         np.ndarray
+@@ -124,7 +125,7 @@ def pair(self, reference: SpectrumType, query: SpectrumType) -> float:
+             Similarity score between the spectra.
+         """
+         return self.matrix([reference], [query])[0, 0]
+-            
++
+     def matrix(
+             self,
+             references: List[SpectrumType],
+@@ -161,7 +162,7 @@ def matrix(
+         embs_ref = self.compute_embeddings(references)
+         embs_query = self.compute_embeddings(queries)
+ 
+-        # Compute pairwise similarities matrix                
++        # Compute pairwise similarities matrix
+         return self.pairwise_similarity_fn(embs_ref, embs_query)
+ 
+     def build_ann_index(
+@@ -248,7 +249,7 @@ def get_anns(
+ 
+         if k > self.index_k:
+             raise ValueError(f"k ({k}) is larger than the k used to build the index ({self.index_k}).")
+-    
++
+         if isinstance(query_spectra, np.ndarray):
+             embs_query = query_spectra
+             if embs_query.ndim != 2:
+@@ -304,19 +305,19 @@ def _distances_to_similarities(self, distances: np.ndarray) -> np.ndarray:
+         """
+         if self.similarity == "cosine":
+             return 1 - distances
+-        elif self.similarity == "euclidean":
++        if self.similarity == "euclidean":
+             return -distances
+         raise ValueError(f"Only cosine and euclidean similarities are supported for now. Got {self.similarity}.")
+ 
+     @staticmethod
+     def load_embeddings(npy_path: Union[str, Path]) -> np.ndarray:
+         """Load embeddings from a numpy file.
+-        
++
+         Parameters
+         ----------
+         npy_path : Union[str, Path]
+             Path to the numpy file.
+-        
++
+         Returns
+         -------
+         np.ndarray
+@@ -335,7 +336,7 @@ def load_embeddings(npy_path: Union[str, Path]) -> np.ndarray:
+     @staticmethod
+     def store_embeddings(npy_path: Union[str, Path], embs: np.ndarray) -> None:
+         """Store embeddings in a numpy file.
+-        
++
+         Parameters
+         ----------
+         npy_path : Union[str, Path]
+@@ -347,7 +348,7 @@ def store_embeddings(npy_path: Union[str, Path], embs: np.ndarray) -> None:
+ 
+     def save_ann_index(self, path: Union[str, Path]) -> None:
+         """Save the ANN index to disk.
+-        
++
+         Parameters
+         ----------
+         path : Union[str, Path]
+@@ -360,7 +361,7 @@ def save_ann_index(self, path: Union[str, Path]) -> None:
+         """
+         if self.index is None:
+             raise ValueError("No index to save. Please build an index first using build_ann_index().")
+-        
++
+         save_dict = {
+             'index': self.index,
+             'backend': self.index_backend,
+@@ -368,18 +369,18 @@ def save_ann_index(self, path: Union[str, Path]) -> None:
+             'index_kwargs': self.index_kwargs,
+             'index_k': self.index_k
+         }
+-        
++
+         with open(path, 'wb') as f:
+             pickle.dump(save_dict, f)
+ 
+     def load_ann_index(self, path: Union[str, Path]) -> Any:
+         """Load an ANN index from disk.
+-        
++
+         Parameters
+         ----------
+         path : Union[str, Path]
+             Path to load the index from.
+-            
++
+         Returns
+         -------
+         Any
+@@ -392,16 +393,16 @@ def load_ann_index(self, path: Union[str, Path]) -> Any:
+         """
+         with open(path, 'rb') as f:
+             load_dict = pickle.load(f)
+-            
++
+         if load_dict['similarity'] != self.similarity:
+             raise ValueError(
+                 f"Loaded index similarity metric ({load_dict['similarity']}) does not match "
+                 f"current similarity metric ({self.similarity})"
+             )
+-            
++
+         self.index = load_dict['index']
+         self.index_backend = load_dict['backend']
+         self.index_kwargs = load_dict['index_kwargs']
+         self.index_k = load_dict['index_k']
+-        
++
+         return self.index
+diff --git a/matchms/similarity/BinnedEmbeddingSimilarity.py b/matchms/similarity/BinnedEmbeddingSimilarity.py
+index b5a7df913..2bbdc24ab 100644
+--- a/matchms/similarity/BinnedEmbeddingSimilarity.py
++++ b/matchms/similarity/BinnedEmbeddingSimilarity.py
+@@ -1,7 +1,7 @@
++from typing import Iterable
+ import numpy as np
+-from matchms.similarity import BaseEmbeddingSimilarity
+ from matchms.typing import SpectrumType
+-from typing import Iterable
++from .BaseEmbeddingSimilarity import BaseEmbeddingSimilarity
+ 
+ 
+ class BinnedEmbeddingSimilarity(BaseEmbeddingSimilarity):
+diff --git a/matchms/similarity/__init__.py b/matchms/similarity/__init__.py
+index 396bc0c68..638711092 100644
+--- a/matchms/similarity/__init__.py
++++ b/matchms/similarity/__init__.py
+@@ -18,6 +18,7 @@
+ It is also easily possible to add own custom similarity measures or import external ones
+ (such as `Spec2Vec <https://github.com/iomega/spec2vec>`_).
+ """
++from .BinnedEmbeddingSimilarity import BinnedEmbeddingSimilarity
+ from .CosineGreedy import CosineGreedy
+ from .CosineHungarian import CosineHungarian
+ from .FingerprintSimilarity import FingerprintSimilarity
+@@ -27,8 +28,8 @@
+ from .NeutralLossesCosine import NeutralLossesCosine
+ from .ParentMassMatch import ParentMassMatch
+ from .PrecursorMzMatch import PrecursorMzMatch
+-from .BaseEmbeddingSimilarity import BaseEmbeddingSimilarity
+-from .BinnedEmbeddingSimilarity import BinnedEmbeddingSimilarity
++
++
+ __all__ = [
+     "CosineGreedy",
+     "CosineHungarian",
+@@ -39,7 +40,6 @@
+     "NeutralLossesCosine",
+     "ParentMassMatch",
+     "PrecursorMzMatch",
+-    "BaseEmbeddingSimilarity",
+     "BinnedEmbeddingSimilarity"
+ ]
+ 
+@@ -55,8 +55,7 @@ def get_similarity_function_by_name(similarity_function_name: str):
+     """
+     names = __all__
+     functions = [CosineGreedy, CosineHungarian, FingerprintSimilarity, IntersectMz, MetadataMatch, ModifiedCosine,
+-                 NeutralLossesCosine, ParentMassMatch, PrecursorMzMatch, BaseEmbeddingSimilarity,
+-                 BinnedEmbeddingSimilarity]
++                 NeutralLossesCosine, ParentMassMatch, PrecursorMzMatch, BinnedEmbeddingSimilarity]
+ 
+     assert similarity_function_name in names, f"Unknown similarity function: {similarity_function_name}"
+     assert len(names) == len(functions), "Number of similarity functions and names do not match"
+diff --git a/tests/similarity/test_base_embedding_similarity.py b/tests/similarity/test_base_embedding_similarity.py
+new file mode 100644
+index 000000000..06727e954
+--- /dev/null
++++ b/tests/similarity/test_base_embedding_similarity.py
+@@ -0,0 +1,77 @@
++from typing import Iterable
++import numpy as np
++import pytest
++from matchms.similarity.BaseEmbeddingSimilarity import BaseEmbeddingSimilarity
++from matchms.typing import SpectrumType
++from tests.builder_Spectrum import SpectrumBuilder
++
++
++class MockEmbeddingSimilarity(BaseEmbeddingSimilarity):
++    def __init__(self, similarity: str = "cosine"):
++        super().__init__(similarity=similarity)
++
++    def compute_embeddings(self, spectra: Iterable[SpectrumType]) -> np.ndarray:
++        return np.array([[0.1, 0.2, 0.3]])
++
++
++@pytest.fixture
++def spectra():
++    builder = SpectrumBuilder()
++    spectrum_1 = builder.with_mz(np.array([100, 150, 200.])) \
++        .with_intensities(np.array([0.7, 0.2, 0.1])) \
++        .with_metadata({'id': 'spectrum1', "precursor_mz": 210, "parent_mass": 210, "smiles": "CCC(C)C(C(=O)O)NC(=O)CCl"}) \
++        .build()
++    spectrum_2 = builder.with_mz(np.array([100, 140, 190.])) \
++        .with_intensities(np.array([0.4, 0.2, 0.1])) \
++        .with_metadata({'id': 'spectrum2', "precursor_mz": 200, "parent_mass": 200, "smiles": "CCC(C)C(C(=O)O)NC(=O)CCl"}) \
++        .build()
++    spectrum_3 = builder.with_mz(np.array([110, 140, 195.])) \
++        .with_intensities(
++        np.array([0.6, 0.2, 0.1])) \
++        .with_metadata({'id': 'spectrum3', "precursor_mz": 205, "parent_mass": 205, "smiles": "C(C(=O)O)(NC(=O)O)S"}) \
++        .build()
++    spectrum_4 = builder.with_mz(np.array([100, 150, 200.])) \
++        .with_intensities(
++        np.array([0.6, 0.1, 0.6])) \
++        .with_metadata({'id': 'spectrum4', "precursor_mz": 210, "parent_mass": 210, "smiles": "C(C(=O)O)(NC(=O)O)S"}) \
++        .build()
++
++    yield [spectrum_1, spectrum_2, spectrum_3, spectrum_4]
++
++
++def test_compute_embeddings_not_implemented():
++    with pytest.raises(NotImplementedError, match="Subclasses must implement this method."):
++        base_similarity = BaseEmbeddingSimilarity()
++        base_similarity.compute_embeddings([])
++
++
++def test_no_input_specified_error():
++    base_similarity = BaseEmbeddingSimilarity()
++
++    with pytest.raises(ValueError, match="Either spectra or npy_path must be provided."):
++        base_similarity.get_embeddings(spectra=None, npy_path=None)
++
++
++def test_matrix_asymmetric_false_error(spectra):
++    base_similarity = MockEmbeddingSimilarity()
++
++    queries = spectra
++    references = spectra[1:3]
++
++    with pytest.raises(ValueError, match="Any embedding base similarity matrix is supposed to be dense and symmetric."):
++        base_similarity.matrix(references, queries, is_symmetric=False)
++
++
++def test_build_ann_index_missing_backend(spectra):
++    similarity = MockEmbeddingSimilarity()
++
++    with pytest.raises(ValueError, match="Only pynndescent is supported for now. Got missing."):
++        similarity.build_ann_index(spectra, index_backend="missing")
++
++
++def test_get_anns_incorrect_query_dim_error(spectra):
++    similarity = MockEmbeddingSimilarity()
++
++    with pytest.raises(ValueError, match="Expected 2D embeddings array, got 1D array."):
++        similarity.build_ann_index(spectra)
++        similarity.get_anns(query_spectra=np.array([100, 200, 300]))
+diff --git a/tests/test_scores_read_write.py b/tests/test_scores_read_write.py
+index 2f0500a25..bbe993594 100644
+--- a/tests/test_scores_read_write.py
++++ b/tests/test_scores_read_write.py
+@@ -68,17 +68,20 @@ def symmetrical_scores(similarity_function, spectra):
+     queries = spectra
+     references = spectra
+ 
+-    scores = calculate_scores(queries, references, similarity_function=similarity_function)
++    scores = calculate_scores(queries=queries, references=references, similarity_function=similarity_function, is_symmetric=True)
+     yield scores
+ 
+ 
+ @pytest.fixture
+ def asymmetrical_scores(similarity_function, spectra):
+     """Return asymmetrical scores for each similarity metric that matchms.similarity module exposes."""
++    if similarity_function.__class__.__name__ == "BinnedEmbeddingSimilarity":
++        pytest.skip("BinnedEmbeddingSimilarity can only handle symmetric references/queries.")
++
+     queries = spectra
+     references = spectra[1:3]
+ 
+-    scores = calculate_scores(queries, references, similarity_function=similarity_function)
++    scores = calculate_scores(queries=queries, references=references, similarity_function=similarity_function)
+     yield scores
+ 
+ 

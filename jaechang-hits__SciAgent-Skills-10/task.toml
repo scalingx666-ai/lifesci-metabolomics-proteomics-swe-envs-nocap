@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/jaechang-hits__SciAgent-Skills-10"
+description = "fix: add K-Dense-AI attribution to LICENSE"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "SciAgent-Skills",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "jaechang-hits/SciAgent-Skills"
+ref = "7e822f2ce08492b6e36128558f3aabd9f0db39bf"
+reference = "https://github.com/jaechang-hits/SciAgent-Skills/pull/10"
+source_access = "auto"
+built_at = "2026-11-15T15:25:14.160270+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e9fe2d68206cf98458b06248e6b804d896cf8fdf237f4af17d56b4221216b11c"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-04-09T05:16:42Z"
+diff_format = "unified"
+context_files = [
+    "LICENSE",
+    "skills/genomics-bioinformatics/gget-genomic-databases/SKILL.md",
+    "skills/genomics-bioinformatics/gget-genomic-databases/references/databases_workflows.md",
+    "skills/proteomics-protein-engineering/hmdb-database/SKILL.md",
+    "skills/structural-biology-drug-discovery/chembl-database-bioactivity/SKILL.md",
+    "skills/structural-biology-drug-discovery/clinicaltrials-database-search/SKILL.md",
+    "skills/structural-biology-drug-discovery/medchem/SKILL.md",
+    "skills/structural-biology-drug-discovery/molfeat-molecular-featurization/SKILL.md",
+    "skills/structural-biology-drug-discovery/pdb-database/SKILL.md",
+    "skills/systems-biology-multiomics/string-database-ppi/SKILL.md",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 25
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

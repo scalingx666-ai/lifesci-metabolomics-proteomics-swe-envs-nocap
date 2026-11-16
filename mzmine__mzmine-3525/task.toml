@@ -1,0 +1,64 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3525"
+description = "Formula parser allow D and T as synonyms for H"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "26c02165f164cec5d8a7d1f83bcffea71327fb63"
+reference = "https://github.com/mzmine/mzmine/pull/3525"
+source_access = "auto"
+built_at = "2026-11-16T08:43:53.361650+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:38270cd96f2428f9a7b530dd5a4ea58d83f5c587e72a8e959ff2281c5023e337"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-09-22T09:38:32Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/util/FormulaParser.java",
+    "mzmine-community/src/test/java/io/github/mzmine/datamodel/structures/StructureUtilsTest.java",
+    "mzmine-community/src/test/java/io/github/mzmine/util/FormulaUtilsTest.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 258
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

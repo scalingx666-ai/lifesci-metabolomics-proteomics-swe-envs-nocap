@@ -1,0 +1,1288 @@
+diff --git a/gget/__init__.py b/gget/__init__.py
+index 159316472..f51f68dd5 100644
+--- a/gget/__init__.py
++++ b/gget/__init__.py
+@@ -18,6 +18,6 @@
+ # Mute numexpr threads info
+ logging.getLogger("numexpr").setLevel(logging.WARNING)
+ 
+-__version__ = "0.2.4"
++__version__ = "0.2.5"
+ __author__ = "Laura Luebbert"
+ __email__ = "lauraluebbert@caltech.edu"
+diff --git a/gget/constants.py b/gget/constants.py
+index 08ffa402f..c6469beaf 100644
+--- a/gget/constants.py
++++ b/gget/constants.py
+@@ -8,7 +8,7 @@
+ NCBI_URL = "https://www.ncbi.nlm.nih.gov"
+ 
+ # UniProt REST API server for gget seq
+-UNIPROT_REST_API = "https://www.uniprot.org/uploadlists/"
++UNIPROT_REST_API = "https://rest.uniprot.org/uniprotkb/search?query="
+ 
+ # BLAST API endpoints
+ BLAST_URL = "https://blast.ncbi.nlm.nih.gov/Blast.cgi"
+diff --git a/gget/gget_info.py b/gget/gget_info.py
+index 788358945..f045e2230 100644
+--- a/gget/gget_info.py
++++ b/gget/gget_info.py
+@@ -149,149 +149,119 @@ def info(ens_ids, wrap_text=False, expand=False, json=False, verbose=True, save=
+         }
+     )
+ 
+-    ## For genes and transcripts, get gene names and descriptions from UniProt
++    ## Get gene names and descriptions from UniProt
+     df_temp = pd.DataFrame()
+-    for ens_id, id_type in zip(ens_ids_clean_2, df.loc["object_type"].values):
+-        if id_type == "Gene" or id_type == "Transcript":
+-
+-            # Check if this is a wrombase ID:
+-            if ens_id.startswith("WB"):
+-                df_uniprot = get_uniprot_info(
+-                    UNIPROT_REST_API, ens_id, id_type="WB_Gene", verbose=verbose
+-                )
+-            elif ens_id.startswith("T"):
+-                df_uniprot = get_uniprot_info(
+-                    UNIPROT_REST_API,
+-                    ".".join(
+-                        ens_id.split(".")[:-1]
+-                    ),  # Remove the version number from WormBase TRS IDs for submission to UniProt
+-                    id_type="WB_Transcript",
+-                    verbose=verbose,
+-                )
+-
+-            # Check if this is a flybase ID:
+-            elif ens_id.startswith("FB"):
+-                if id_type == "Gene":
+-                    df_uniprot = get_uniprot_info(
+-                        UNIPROT_REST_API, ens_id, id_type="FB_Gene", verbose=verbose
+-                    )
+-                else:
+-                    df_uniprot = get_uniprot_info(
+-                        UNIPROT_REST_API,
+-                        ens_id,
+-                        id_type="FB_Transcript",
+-                        verbose=verbose,
++    for ens_id in ens_ids_clean_2:
++        df_uniprot = get_uniprot_info(UNIPROT_REST_API, ens_id, verbose=verbose)
++
++        if not isinstance(df_uniprot, type(None)):
++            # If two different UniProt IDs for a single query ID are returned, they should be merged into one column
++            # So len(df_uniprot) should always be 1
++            if len(df_uniprot) > 1:
++                # If the above somehow failed, we will only return the first result.
++                df_uniprot = df_uniprot.iloc[[0]]
++                if verbose is True:
++                    logging.warning(
++                        f"More than one UniProt match was found for ID {ens_id}. Only the first match and its associated information will be returned."
+                     )
+ 
+-            else:
+-                df_uniprot = get_uniprot_info(
+-                    UNIPROT_REST_API, ens_id, id_type=id_type, verbose=verbose
+-                )
+-
+-            if not isinstance(df_uniprot, type(None)):
+-                # If two different UniProt IDs for a single query ID are returned, they should be merged into one column
+-                # So len(df_uniprot) should always be 1
+-                if len(df_uniprot) > 1:
+-                    # If the above somehow failed, we will only return the first result.
+-                    df_uniprot = df_uniprot.iloc[[0]]
+-                    if verbose is True:
+-                        logging.warning(
+-                            f"More than one UniProt match was found for ID {ens_id}. Only the first match and its associated information will be returned."
+-                        )
+-
+-            else:
+-                if verbose is True:
+-                    logging.warning(f"No UniProt entry was found for ID {ens_id}.")
++        else:
++            if verbose is True:
++                logging.warning(f"No UniProt entry was found for ID {ens_id}.")
+ 
+-            ## Get NCBI gene ID and description (for genes only)
+-            url = NCBI_URL + f"/gene/?term={ens_id}"
+-            html = requests.get(url)
++        ## Get NCBI gene ID and description (for genes only)
++        url = NCBI_URL + f"/gene/?term={ens_id}"
++        html = requests.get(url)
+ 
+-            # Raise error if status code not "OK" Response
+-            if html.status_code != 200:
+-                raise RuntimeError(
+-                    f"NCBI returned error status code {html.status_code}. Please try again."
+-                )
++        # Raise error if status code not "OK" Response
++        if html.status_code != 200:
++            raise RuntimeError(
++                f"NCBI returned error status code {html.status_code}. Please double-check arguments or try again later."
++            )
+ 
+-            ## Web scrape NCBI website for gene ID, synonyms and description
+-            soup = BeautifulSoup(html.text, "html.parser")
++        ## Web scrape NCBI website for gene ID, synonyms and description
++        soup = BeautifulSoup(html.text, "html.parser")
+ 
+-            # Check if NCBI gene ID is available
+-            try:
+-                ncbi_gene_id = soup.find("input", {"id": "gene-id-value"}).get("value")
+-            except:
+-                ncbi_gene_id = np.nan
++        # Check if NCBI gene ID is available
++        try:
++            ncbi_gene_id = soup.find("input", {"id": "gene-id-value"}).get("value")
++        except:
++            ncbi_gene_id = np.nan
+ 
+-            # Check if NCBI description is available
+-            try:
+-                ncbi_description = (
+-                    soup.find("div", class_="section", id="summaryDiv")
+-                    .find("dt", text="Summary")
+-                    .find_next_sibling("dd")
+-                    .text
+-                )
+-            except:
+-                ncbi_description = np.nan
++        # Check if NCBI description is available
++        try:
++            ncbi_description = (
++                soup.find("div", class_="section", id="summaryDiv")
++                .find("dt", text="Summary")
++                .find_next_sibling("dd")
++                .text
++            )
++        except:
++            ncbi_description = np.nan
+ 
+-            # Check if NCBI synonyms are available
+-            try:
+-                ncbi_synonyms = (
+-                    soup.find("div", class_="section", id="summaryDiv")
+-                    .find("dt", text="Also known as")
+-                    .find_next_sibling("dd")
+-                    .text
+-                )
+-                # Split NCBI synonyms
+-                ncbi_synonyms = ncbi_synonyms.split("; ")
+-            except:
+-                ncbi_synonyms = None
+-
+-            # If both NCBI and UniProt synonyms available,
+-            # final synonyms list will be combined a set of both lists
+-            if ncbi_synonyms is not None and not isinstance(df_uniprot, type(None)):
+-                # Collect and flatten UniProt synonyms
+-                uni_synonyms = df_uniprot["uni_synonyms"].values[0]
+-                synonyms = list(set().union(uni_synonyms, ncbi_synonyms))
+-            # Add only UniProt synonyms if NCBI syns not available
+-            elif ncbi_synonyms is None and not isinstance(df_uniprot, type(None)):
+-                synonyms = df_uniprot["uni_synonyms"].values[0]
+-            else:
+-                synonyms = np.nan
+-
+-            # Sort synonyms alphabetically (is sortable)
+-            try:
+-                synonyms = sorted(synonyms)
+-            except:
+-                None
+-
+-            # Save NCBI info to data frame
+-            df_ncbi = pd.DataFrame(
+-                {
+-                    "ncbi_gene_id": [ncbi_gene_id],
+-                    "ncbi_description": [ncbi_description],
+-                    "synonyms": [synonyms],
+-                },
++        # Check if NCBI synonyms are available
++        try:
++            ncbi_synonyms = (
++                soup.find("div", class_="section", id="summaryDiv")
++                .find("dt", text="Also known as")
++                .find_next_sibling("dd")
++                .text
+             )
++            # Split NCBI synonyms
++            ncbi_synonyms = ncbi_synonyms.split("; ")
++        except:
++            ncbi_synonyms = None
++
++        # If both NCBI and UniProt synonyms available,
++        # final synonyms list will be combined a set of both lists
++        if ncbi_synonyms is not None and not isinstance(df_uniprot, type(None)):
++            # Collect and flatten UniProt synonyms
++            uni_synonyms = df_uniprot["uni_synonyms"].values[0]
++            synonyms = list(set().union(uni_synonyms, ncbi_synonyms))
++            # Remove nan values
++            synonyms = [item for item in synonyms if not (pd.isnull(item)) == True]
++        # Add only UniProt synonyms if NCBI syns not available
++        elif ncbi_synonyms is None and not isinstance(df_uniprot, type(None)):
++            synonyms = df_uniprot["uni_synonyms"].values[0]
++            # Remove nan values
++            synonyms = [item for item in synonyms if not (pd.isnull(item)) == True]
++        else:
++            synonyms = []
++
++        # Sort synonyms alphabetically (if sortable)
++        try:
++            synonyms = sorted(synonyms)
++        except:
++            None
++
++        # Save NCBI info to data frame
++        df_ncbi = pd.DataFrame(
++            {
++                "ncbi_gene_id": [ncbi_gene_id],
++                "ncbi_description": [ncbi_description],
++                "synonyms": [synonyms],
++            },
++        )
+ 
+-            # Transpost NCBI df and add Ensembl ID as column name
+-            df_ncbi = df_ncbi.T
+-            df_ncbi.columns = [ens_id]
++        # Transpose NCBI df and add Ensembl ID as column name
++        df_ncbi = df_ncbi.T
++        df_ncbi.columns = [ens_id]
+ 
+-            ## Add NCBI and UniProt info to data frame
+-            if not isinstance(df_uniprot, type(None)):
+-                # Transpose UniProt data frame and add Ensembl ID as column name
+-                df_uniprot = df_uniprot.T
+-                df_uniprot.columns = [ens_id]
++        ## Add NCBI and UniProt info to data frame
++        if not isinstance(df_uniprot, type(None)):
++            # Transpose UniProt data frame and add Ensembl ID as column name
++            df_uniprot = df_uniprot.T
++            df_uniprot.columns = [ens_id]
+ 
+-                # Combine Ensembl and NCBI info
+-                df_uni_ncbi = pd.concat([df_uniprot, df_ncbi])
++            # Combine Ensembl and NCBI info
++            df_uni_ncbi = pd.concat([df_uniprot, df_ncbi])
+ 
+-                # Append NCBI and UniProt info to df_temp
+-                df_temp = pd.concat([df_temp, df_uni_ncbi], axis=1)
++            # Append NCBI and UniProt info to df_temp
++            df_temp = pd.concat([df_temp, df_uni_ncbi], axis=1)
+ 
+-            else:
+-                # Add only NCBI info to df_temp
+-                df_temp = pd.concat([df_temp, df_ncbi], axis=1)
++        else:
++            # Add only NCBI info to df_temp
++            df_temp = pd.concat([df_temp, df_ncbi], axis=1)
+ 
+     # Append UniProt and NCBI info to df
+     df = pd.concat([df, df_temp])
+diff --git a/gget/gget_seq.py b/gget/gget_seq.py
+index 8ee1da36d..985d16f91 100644
+--- a/gget/gget_seq.py
++++ b/gget/gget_seq.py
+@@ -253,9 +253,9 @@ def seq(
+ 
+                     elif ensembl_ID.startswith("WB"):
+                         # Remove added "." at the end of transcript IDs
+-                        temp_trans_id1 = ".".join(can_trans.split(".")[:-1])
+-                        # For WormBase transcript IDs, also remove the version number for submission to UniProt API
+-                        temp_trans_id = ".".join(temp_trans_id1.split(".")[:-1])
++                        temp_trans_id = ".".join(can_trans.split(".")[:-1])
++                        # # For WormBase transcript IDs, also remove the version number for submission to UniProt API
++                        # temp_trans_id = ".".join(temp_trans_id1.split(".")[:-1])
+                         trans_ids.append(temp_trans_id)
+ 
+                     else:
+@@ -269,11 +269,11 @@ def seq(
+ 
+                 # If the ID is a transcript, append the ID directly
+                 elif ens_ID_type == "Transcript":
+-                    # For WormBase transcript IDs, remove the version number for submission to UniProt API
+-                    if ensembl_ID.startswith("T"):
+-                        trans_ids.append(".".join(ensembl_ID.split(".")[:-1]))
+-                    else:
+-                        trans_ids.append(ensembl_ID)
++                    # # For WormBase transcript IDs, remove the version number for submission to UniProt API
++                    # if ensembl_ID.startswith("T"):
++                    #     trans_ids.append(".".join(ensembl_ID.split(".")[:-1]))
++                    # else:
++                    trans_ids.append(ensembl_ID)
+ 
+                     logging.info(
+                         f"Requesting amino acid sequence of {ensembl_ID} from UniProt."
+@@ -284,19 +284,10 @@ def seq(
+                         f"{ensembl_ID} not recognized as either a gene or transcript ID. It will not be included in the UniProt query."
+                     )
+ 
+-            # Check if this is a Wrombase ID:
+-            if ensembl_ID.startswith("WB") or ensembl_ID.startswith("T"):
+-                id_type = "wormbase"
+-            # Check if this is a flybase ID:
+-            elif ensembl_ID.startswith("FB"):
+-                id_type = "flybase"
+-            else:
+-                id_type = "ensembl"
+-
+             # Fetch the amino acid sequences of the transcript Ensembl IDs
+-            df_uniprot = get_uniprot_seqs(UNIPROT_REST_API, trans_ids, id_type=id_type)
++            df_uniprot = get_uniprot_seqs(UNIPROT_REST_API, trans_ids)
+ 
+-        if isoforms == True:
++        if isoforms is True:
+             # List to collect transcript IDs
+             trans_ids = []
+ 
+@@ -321,10 +312,10 @@ def seq(
+                             # Append transcript ID (without Ensembl version number) to list of transcripts to fetch
+                             trans_ids.append(transcipt_id.split(".")[0])
+ 
+-                        elif ensembl_ID.startswith("WB"):
+-                            # For WormBase transcript IDs, remove the version number for submission to UniProt API
+-                            temp_trans_id = ".".join(transcipt_id.split(".")[:-1])
+-                            trans_ids.append(temp_trans_id)
++                        # elif ensembl_ID.startswith("WB"):
++                        #     # For WormBase transcript IDs, remove the version number for submission to UniProt API
++                        #     temp_trans_id = ".".join(transcipt_id.split(".")[:-1])
++                        #     trans_ids.append(temp_trans_id)
+ 
+                         else:
+                             # Note: No need to remove the added "." at the end of unversioned transcripts here, because "all_transcripts" are returned without it
+@@ -335,12 +326,12 @@ def seq(
+                     )
+ 
+                 elif ens_ID_type == "Transcript":
+-                    # For WormBase transcript IDs, remove the version number for submission to UniProt API
+-                    if ensembl_ID.startswith("T"):
+-                        trans_ids.append(".".join(ensembl_ID.split(".")[:-1]))
++                    # # For WormBase transcript IDs, remove the version number for submission to UniProt API
++                    # if ensembl_ID.startswith("T"):
++                    #     trans_ids.append(".".join(ensembl_ID.split(".")[:-1]))
+ 
+-                    else:
+-                        trans_ids.append(ensembl_ID)
++                    # else:
++                    trans_ids.append(ensembl_ID)
+ 
+                     logging.info(
+                         f"Requesting amino acid sequence of {ensembl_ID} from UniProt."
+@@ -352,31 +343,15 @@ def seq(
+                         f"{ensembl_ID} not recognized as either a gene or transcript ID. It will not be included in the UniProt query."
+                     )
+ 
+-            # Check if this is a Wormbase ID:
+-            if ensembl_ID.startswith("WB") or ensembl_ID.startswith("T"):
+-                id_type = "wormbase"
+-            # Check if this is a flybase ID:
+-            elif ensembl_ID.startswith("FB"):
+-                id_type = "flybase"
+-            else:
+-                id_type = "ensembl"
+-
+             # Fetch amino acid sequences of all isoforms from the UniProt REST API
+-            df_uniprot = get_uniprot_seqs(UNIPROT_REST_API, trans_ids, id_type=id_type)
+-
+-        # Check if less results were found than IDs put in
+-        if len(df_uniprot) != len(trans_ids) and len(df_uniprot) > 0:
+-            logging.warning(
+-                "The number of results does not match the number of IDs requested. "
+-                "It is possible that UniProt amino acid sequences were not found for some of the IDs."
+-            )
++            df_uniprot = get_uniprot_seqs(UNIPROT_REST_API, trans_ids)
+ 
+-        # Check if no results were found
++        # Check if any results were found
+         if len(df_uniprot) < 1:
+             logging.error("No UniProt amino acid sequences were found for these ID(s).")
+ 
+         else:
+-            # Build UniProt results FASTA file
++            # Build FASTA file from UniProt results
+             for (
+                 uniprot_id,
+                 query_ensembl_id,
+@@ -399,7 +374,7 @@ def seq(
+                     + uniprot_id
+                     + " ensembl_id: "
+                     + query_ensembl_id
+-                    + " gene_name(s): "
++                    + " gene_name: "
+                     + gene_name
+                     + " organism: "
+                     + organism
+diff --git a/gget/utils.py b/gget/utils.py
+index b6978905a..cfaf9b628 100644
+--- a/gget/utils.py
++++ b/gget/utils.py
+@@ -134,15 +134,13 @@ def aa_colors(amino_acid):
+     return f"\033[38;5;{textcolor}m\033[48;5;{bkg_color}m{amino_acid}\033[0;0m"
+ 
+ 
+-def get_uniprot_seqs(server, ensembl_ids, id_type="ensembl"):
++def get_uniprot_seqs(server, ensembl_ids):
+     """
+-    Retrieve UniProt sequences based on Ensemsbl identifiers.
++    Retrieve UniProt sequences based on Ensemsbl, WormBase or FlyBase identifiers.
+ 
+     Args:
+-    - server
+-    Link to UniProt REST API server.
+-    - ensembl_ids:
+-    One or more transcript Ensembl IDs (string or list of strings).
++    - server        Link to UniProt REST API server.
++    - ensembl_ids   One or more Ensembl, WormBase or FlyBase IDs (string or list of strings).
+ 
+     Returns data frame with UniProt ID, gene name, organism, sequence, sequence length, and query ID.
+     """
+@@ -151,254 +149,225 @@ def get_uniprot_seqs(server, ensembl_ids, id_type="ensembl"):
+     if type(ensembl_ids) == str:
+         ensembl_ids = [ensembl_ids]
+ 
+-    # Define Ensembl ID type
+-    if id_type == "ensembl":
+-        ens_id_type = "ENSEMBL_TRS_ID"
+-    elif id_type == "flybase":
+-        ens_id_type = "ENSEMBLGENOME_TRS_ID"
+-    elif id_type == "wormbase":
+-        ens_id_type = "WORMBASE_TRS_ID"
+-    else:
+-        raise ValueError(
+-            f"ID type defined as {id_type}. Expected one of: ensembl, flybase, wormbase"
+-        )
+-
+-    # Define query arguments
+-    # Columns documentation: https://www.uniprot.org/help/uniprotkb%5Fcolumn%5Fnames
+-    # from/to IDs documentation: https://www.uniprot.org/help/api_idmapping
+-    query_args = {
+-        "from": ens_id_type,
+-        "to": "ACC",
+-        "format": "tab",
+-        "query": " ".join(ensembl_ids),
+-        "columns": "id,genes,organism,sequence,length",
+-    }
+-    # Reformat query arguments
+-    query_args = urllib.parse.urlencode(query_args)
+-    query_args = query_args.encode("ascii")
+-
+-    # Submit query to UniProt server
+-    request = urllib.request.Request(server, query_args)
+-
+-    # Read and clean up results
+-    try:
+-        with urllib.request.urlopen(request) as response:
+-            res = response.read()
++    # Initiate data frame so empty df will be returned if no matches are found
++    master_df = pd.DataFrame()
+ 
+-        # Check if URL retruned error code
+-        if response.getcode() != 200:
++    for id_ in ensembl_ids:
++        # API documentation: https://www.uniprot.org/help/api_queries
++        # Submit server request
++        r = requests.get(server + id_ + "+AND+reviewed:true")
++        if not r.ok:
+             logging.error(
+-                f"The UniProt server returned error status code {response.getcode()}. Please try again later."
++                f"UniProt server request returned with error status code: {r.status_code}. Please double-check arguments or try again later."
+             )
+-            res = None
+-
+-    except Exception as e:
+-        logging.error(
+-            f"The UniProt server returned status code: '{e}'. Please try again later."
+-        )
+-        res = None
+-
+-    # Initiate data frame so empty df will be returned if no matches are found
+-    df = pd.DataFrame()
+-
+-    if not isinstance(res, type(None)):
+-        try:
+-            # This will throw an EmptyDataError if no results were found
+-            df = pd.read_csv(StringIO(res.decode("utf-8")), sep="\t")
+-
+-            if len(df.columns) == 6:
+-                # Rename columns
+-                df.columns = [
+-                    "uniprot_id",
+-                    "gene_name",
+-                    "organism",
+-                    "sequence",
+-                    "sequence_length",
+-                    "query",
+-                ]
+-
+-            # Sometimes a seventh "isomap" column is returned.
+-            if len(df.columns) == 7:
+-                # Drop isoform column (last column)
+-                df = df.iloc[:, :-1]
+-                # Rename columns
+-                df.columns = [
+-                    "uniprot_id",
+-                    "gene_name",
+-                    "organism",
+-                    "sequence",
+-                    "sequence_length",
+-                    "query",
++        # Convert to json
++        json = r.json()
++
++        # If no reviewed results were found, try again for unreviewed results
++        if not len(json["results"]) > 0:
++            # Submit server request
++            r = requests.get(server + id_)
++            if not r.ok:
++                logging.error(
++                    f"UniProt server request returned with error status code: {r.status_code}. Please double-check arguments or try again later."
++                )
++            # Convert to json
++            json = r.json()
++
++            # Warn user if unreviewed results were found
++            if len(json["results"]) > 0:
++                logging.warning(
++                    f"No reviewed UniProt results were found for ID {id_}. Returning all unreviewed results."
++                )
++
++        if len(json["results"]) > 0:
++            # Convert results to data frame
++            df = pd.json_normalize(json["results"])
++
++            # Remove non-relevant columns
++            df = df[
++                [
++                    "primaryAccession",
++                    "organism.scientificName",
++                    "sequence.value",
++                    "sequence.length",
+                 ]
++            ]
++
++            # Rename columns
++            df.columns = [
++                "uniprot_id",
++                "organism",
++                "sequence",
++                "sequence_length",
++            ]
++
++            # Add gene name and query columns
++            gene_names = []
++            for i in np.arange(len(json["results"])):
++                try:
++                    gene_names.append(
++                        json["results"][i]["genes"][0]["geneName"]["value"]
++                    )
++                except:
++                    gene_names.append(np.NaN)
++            df["gene_name"] = gene_names
++            df["query"] = id_
+ 
+-            # Split rows if two different UniProt IDs for a single query ID are returned
+-            df = df.assign(Query=df["query"].str.split(",")).explode("query")
++            # Append results for this ID to master data frame
++            master_df = master_df.append(df)
+ 
+-        # If no results were found, do nothing (returns the empty data frame)
+-        except pd.errors.EmptyDataError:
+-            None
+-    else:
+-        None
++        else:
++            # If no results were found, warn user and do nothing -> returns empty df
++            logging.warning(f"No UniProt sequences were found for ID {id_}.")
+ 
+-    return df
++    return master_df
+ 
+ 
+-def get_uniprot_info(server, ensembl_id, id_type, verbose=True):
++def get_uniprot_info(server, ensembl_id, verbose=True):
+     """
+     Retrieve UniProt synonyms and description based on Ensemsbl identifiers.
+ 
+     Args:
+     - server          Link to UniProt REST API server.
+-    - ensembl_id      Ensembl ID (str).
+-    - id_type         "Gene" or "Transcript"
++    - ensembl_id      Ensembl, WormBase or FlyBase ID (str).
++    - verbose         True/False to print logging messages.
+ 
+     Returns data frame with UniProt ID, gene name, organism, sequence, sequence length, and query ID.
+     """
+-
+-    if id_type == "Gene":
+-        ens_id_type = "ENSEMBL_ID"
+-    elif id_type == "Transcript":
+-        ens_id_type = "ENSEMBL_TRS_ID"
+-    elif id_type == "FB_Gene":
+-        ens_id_type = "FLYBASE_ID"
+-    elif id_type == "FB_Transcript":
+-        ens_id_type = "ENSEMBLGENOME_TRS_ID"
+-    elif id_type == "WB_Gene":
+-        ens_id_type = "WORMBASE_ID"
+-    elif id_type == "WB_Transcript":
+-        ens_id_type = "WORMBASE_TRS_ID"
+-
+-    else:
+-        logging.warning(
+-            f"Ensembl_ID '{ensembl_id}' was not recognized as either gene or transcript. UniProt ID, synonyms, and description will not be fetched from UniProt."
++    # API documentation: https://www.uniprot.org/help/api_queries
++    # Submit server request for reviewed entries
++    r = requests.get(server + ensembl_id + "+AND+reviewed:true")
++    if not r.ok:
++        logging.error(
++            f"UniProt server request returned with error status code: {r.status_code}. Please double-check arguments or try again later."
+         )
+-        return
+-
+-    # Define query arguments
+-    # Columns documentation: https://www.uniprot.org/help/uniprotkb%5Fcolumn%5Fnames
+-    # from/to IDs documentation: https://www.uniprot.org/help/api_idmapping
+-    query_args = {
+-        "from": ens_id_type,
+-        "to": "ACC",
+-        "format": "tab",
+-        "query": ensembl_id,
+-        "columns": "id,genes(PREFERRED),genes,protein names,comment(FUNCTION),reviewed",
+-    }
+-    # Reformat query arguments
+-    query_args = urllib.parse.urlencode(query_args)
+-    query_args = query_args.encode("ascii")
+-
+-    # Submit query to UniProt server
+-    request = urllib.request.Request(server, query_args)
+-
+-    # Read and clean up results
+-    try:
+-        with urllib.request.urlopen(request) as response:
+-            res = response.read()
+-
+-        # Check if URL retruned error code
+-        if response.getcode() != 200:
++    # Convert to json
++    json = r.json()
++
++    # If no reviewed entries were found, try again for unreviewed entries
++    if not len(json["results"]) > 0:
++        # Submit server request
++        r = requests.get(server + ensembl_id)
++        if not r.ok:
+             logging.error(
+-                f"The UniProt server returned error status code {response.getcode()}. Please try again later."
++                f"UniProt server request returned with error status code: {r.status_code}. Please double-check arguments or try again later."
+             )
+-            res = None
++        # Convert to json
++        json = r.json()
++
++        # Warn user if unreviewed results were found
++        if len(json["results"]) > 0:
++            if verbose is True:
++                logging.warning(
++                    f"No reviewed UniProt results were found for ID {ensembl_id}. Returning all unreviewed results."
++                )
++
++    if len(json["results"]) > 0:
++        # Convert results to data frame
++        df = pd.json_normalize(json["results"])
++
++        # Remove non-relevant columns
++        df = df[
++            [
++                "primaryAccession",
++            ]
++        ]
++        # Rename column
++        df.columns = [
++            "uniprot_id",
++        ]
++
++        # Get primary gene name for each result
++        gene_names = []
++        for i in np.arange(len(json["results"])):
++            try:
++                gene_names.append(json["results"][i]["genes"][0]["geneName"]["value"])
++            except:
++                gene_names.append(np.NaN)
++        df["primary_gene_name"] = gene_names
+ 
+-    except Exception as e:
+-        logging.error(
+-            f"The UniProt server returned status code: '{e}'. Please try again later."
+-        )
+-        res = None
++        # Get synonyms for each result
++        uni_synonyms = []
++        for i in np.arange(len(json["results"])):
++            uni_syn_temp = []
++            try:
++                for syn in json["results"][i]["genes"][0]["synonyms"]:
++                    uni_syn_temp.append(syn["value"])
++            except:
++                uni_syn_temp.append(np.NaN)
++            uni_synonyms.append(uni_syn_temp)
++        df["uni_synonyms"] = uni_synonyms
+ 
+-    # Initiate data frame so empty df will be returned if no matches are found
+-    df = pd.DataFrame()
+-
+-    if not isinstance(res, type(None)):
+-        try:
+-            # This will throw an EmptyDataError if no results were found
+-            df = pd.read_csv(StringIO(res.decode("utf-8")), sep="\t")
+-
+-            if len(df.columns) == 7:
+-                # Rename columns
+-                df.columns = [
+-                    "uniprot_id",
+-                    "primary_gene_name",
+-                    "uni_synonyms",
+-                    "protein_names",
+-                    "uniprot_description",
+-                    "status",
+-                    "query",
+-                ]
+-            # Sometimes an extra "isomap" column is returned.
+-            if len(df.columns) == 8:
+-                # Drop isomap column (last column)
+-                df = df.iloc[:, :-1]
+-                # Rename columns
+-                df.columns = [
+-                    "uniprot_id",
+-                    "primary_gene_name",
+-                    "uni_synonyms",
+-                    "protein_names",
+-                    "uniprot_description",
+-                    "status",
+-                    "query",
+-                ]
++        # Get protein names for each result
++        protein_names = []
++        for i in np.arange(len(json["results"])):
+             try:
+-                # Split gene names into list of strings
+-                df["uni_synonyms"] = df["uni_synonyms"].str.split(" ")
++                protein_names.append(
++                    json["results"][i]["proteinDescription"]["recommendedName"][
++                        "fullName"
++                    ]["value"]
++                )
+             except:
+-                None
++                protein_names.append(np.NaN)
++        df["protein_names"] = protein_names
+ 
+-            # If there are reviewed results, return only reviewed results
+-            if "reviewed" in df["status"].values:
+-                if verbose is True:
+-                    logging.info(
+-                        f"Returning only reviewed UniProt results for Ensembl ID {ensembl_id}."
+-                    )
+-                # Only keep rows where status is "reviewed"
+-                df = df[df.status == "reviewed"]
++        # Get descriptions for each result
++        descriptions = []
++        for i in np.arange(len(json["results"])):
++            des_temp = []
++            try:
++                for text in json["results"][i]["comments"]:
++                    if text["commentType"] == "FUNCTION":
++                        des_temp.append(text["texts"][0]["value"])
++                # Keep only unique descriptions
++                des_temp = np.unique(np.array(des_temp))
++                # Append all descriptions to a single string object
++                des_temp = " ".join(des_temp)
++            except:
++                des_temp.append(np.NaN)
++
++            descriptions.append(des_temp)
++        df["uniprot_description"] = descriptions
++
++        # Add query colunm
++        df["query"] = ensembl_id
++
++        # Return set of all results if more than one UniProt entry was found for this Ensembl ID
++        if len(df) > 1:
++            final_df = pd.DataFrame()
++            for column in df.columns:
++                if column == "uni_synonyms":
++                    # Flatten synonym lists
++                    syn_lists = df[column].values
++                    try:
++                        flat_list = [item for sublist in syn_lists for item in sublist]
++                        final_df[column] = [list({value: "" for value in flat_list})]
++
++                    except:
++                        final_df[column] = [syn_lists]
++
++                else:
++                    val_list = df[column].values
++                    try:
++                        final_df[column] = [list({value: "" for value in val_list})]
++                    except:
++                        final_df[column] = [val_list]
++
++                # Try to clean up the entries (so they are not a bunch of lists of one item)
++                # I will not do this with the UniProt synonyms so I can later find the set between NCBI and UniProt synonyms
++                if len(final_df[column]) == 1 and column != "uni_synonyms":
++                    try:
++                        final_df[column] = final_df[column][0]
++                    except:
++                        None
++
++            return final_df
++
++        # If a single result was found, return df
++        else:
++            return df
+ 
+-            else:
+-                if verbose is True:
+-                    logging.warning(
+-                        f"No reviewed UniProt results were found for Ensembl ID {ensembl_id}. Returning all unreviewed results."
+-                    )
+-            # Return set of all results if more than one UniProt ID was found for this Ensembl ID
+-            if len(df) > 1:
+-                final_df = pd.DataFrame()
+-                for column in df.columns:
+-                    if column == "uni_synonyms":
+-                        # Flatten synonym lists
+-                        syn_lists = df[column].values
+-                        try:
+-                            flat_list = [item for sublist in syn_lists for item in sublist]
+-                            final_df[column] = [sorted(list(set(flat_list)))]
+-                        except:
+-                            final_df[column] = [syn_lists]
+-
+-                    else:
+-                        val_list = df[column].values
+-                        try:
+-                            final_df[column] = [sorted(list(set(val_list)))]
+-                        except:
+-                            final_df[column] = [val_list]
+-
+-                    # Try to clean up the entries (so they are not a bunch of lists of one item)
+-                    # I will not do this with the UniProt synonyms so I can later find the set between NCBI and UniProt synonyms
+-                    if len(final_df[column]) == 1 and column != "uni_synonyms":
+-                        try:
+-                            final_df[column] = final_df[column][0]
+-                        except:
+-                            None
+-                return final_df
+-
+-            else:
+-                return df
+-
+-        # If no results were found, return None
+-        except pd.errors.EmptyDataError:
+-            return None
+-
+-    # Return None if the UniProt returned an error
+     else:
+         return None
+ 
+diff --git a/tests/test_gget_info.py b/tests/test_gget_info.py
+index 4fc20d8b3..01cd41abd 100644
+--- a/tests/test_gget_info.py
++++ b/tests/test_gget_info.py
+@@ -18,10 +18,10 @@ def test_info_WB_gene(self):
+                 "WBcel235",
+                 "aaim-1",
+                 "T14E8.4",
+-                ["T14E8.4", "aaim-1"],
+-                "Protein aaim-1 (Antibacterial and aids invasion by microsporidia 1 protein)",
++                [],
++                "Protein aaim-1",
+                 "Uncharacterized protein [Source:NCBI gene (formerly Entrezgene);Acc:3565421]",
+-                "FUNCTION: Plays a role in promoting resistance to bacterial pathogens such as P.aeruginosa by inhibiting bacterial intestinal colonization. {ECO:0000269|PubMed:34994689}.; FUNCTION: (Microbial infection) Promotes infection by microsporidian pathogens such as N.parisii in the early larval stages of development (PubMed:34994689). Involved in ensuring the proper orientation and location of the spore proteins of N.parisii during intestinal cell invasion (PubMed:34994689). {ECO:0000269|PubMed:34994689}.",
++                "(Microbial infection) Promotes infection by microsporidian pathogens such as N.parisii in the early larval stages of development (PubMed:34994689). Involved in ensuring the proper orientation and location of the spore proteins of N.parisii during intestinal cell invasion (PubMed:34994689) Plays a role in promoting resistance to bacterial pathogens such as P.aeruginosa by inhibiting bacterial intestinal colonization",
+                 "Gene",
+                 "protein_coding",
+                 "T14E8.4.1.",
+@@ -46,14 +46,22 @@ def test_info_WB_transcript(self):
+         expected_result = [
+             [
+                 "T14E8.4.1",
+-                "Q5WRS0",
++                ["Q6RYS9", "H2KZU7", "Q5WRS0"],
+                 "caenorhabditis_elegans",
+                 "WBcel235",
+-                "aaim-1",
+-                ["T14E8.4", "aaim-1"],
++                ["dop-3", "svh-2", "aaim-1"],
++                [],
+                 "WBGene00043981",
+-                "Protein aaim-1 (Antibacterial and aids invasion by microsporidia 1 protein)",
+-                "FUNCTION: Plays a role in promoting resistance to bacterial pathogens such as P.aeruginosa by inhibiting bacterial intestinal colonization. {ECO:0000269|PubMed:34994689}.; FUNCTION: (Microbial infection) Promotes infection by microsporidian pathogens such as N.parisii in the early larval stages of development (PubMed:34994689). Involved in ensuring the proper orientation and location of the spore proteins of N.parisii during intestinal cell invasion (PubMed:34994689). {ECO:0000269|PubMed:34994689}.",
++                [
++                    "Dopamine receptor 3",
++                    "Tyrosine-protein kinase receptor svh-2",
++                    "Protein aaim-1",
++                ],
++                [
++                    "G-protein coupled receptor which binds to the neurotransmitter dopamine with high affinity leading to the activation of an associated G-protein and downstream signaling pathways (PubMed:15378064, PubMed:16001968). Couples to G-proteins to inhibit adenylate cyclase (AC) activity and cAMP production (PubMed:15378064, PubMed:16001968). Antagonizes the D1-like dopamine receptor dop-1 to negatively regulate the rate of locomotion (PubMed:15378064). In GABAergic, RIC, and SIA neurons, antagonizes the function of dop-1 to play a role in behavioral plasticity and regulate the decision-making process when conflicting alternatives are present (PubMed:25536037). Antagonizes octopamine signaling in response to food by promoting the dopamine-mediated suppression of crh-1/CREB1 transcription factor activation in cholinergic SIA neurons (PubMed:19609300). This is most likely in association with the G(o)-alpha G-protein subunit goa-1 (PubMed:19609300). Promotes male mating behavior by antagonizing acetylcholine signaling to control the protrusion of copulatory spicules from the tail of males during hermaphrodite vulval location (PubMed:23166505)",
++                    "Receptor tyrosine kinase which may phosphorylate mlk-1, a component of the mlk-1, mek-1 and kgb-1 pathway (PubMed:22388962). Involved in axon regeneration after injury by promoting the generation of productive and stable growth cones (PubMed:22388962, PubMed:27984580, PubMed:31109965)",
++                    "(Microbial infection) Promotes infection by microsporidian pathogens such as N.parisii in the early larval stages of development (PubMed:34994689). Involved in ensuring the proper orientation and location of the spore proteins of N.parisii during intestinal cell invasion (PubMed:34994689) Plays a role in promoting resistance to bacterial pathogens such as P.aeruginosa by inhibiting bacterial intestinal colonization",
++                ],
+                 "Transcript",
+                 "protein_coding",
+                 "X",
+@@ -143,10 +151,10 @@ def test_info_FB_gene(self):
+                 "BDGP6.32",
+                 "sws",
+                 "sws",
+-                ["CG2212", "Dmel\\CG2212", "PNPLA6", "SWS", "Sws", "olfE", "sws"],
+-                "Neuropathy target esterase sws (Swiss cheese) (DSWS) (EC 3.1.1.5)",
++                ["CG2212", "Dmel\\CG2212", "PNPLA6", "SWS", "Sws", "olfE"],
++                "Neuropathy target esterase sws",
+                 "swiss cheese",
+-                "FUNCTION: Phospholipase B that deacylates intracellular phosphatidylcholine (PtdCho), generating glycerophosphocholine (GroPtdCho). This deacylation occurs at both sn-2 and sn-1 positions of PtdCho. Its specific chemical modification by certain organophosphorus (OP) compounds leads to distal axonopathy. Plays a role in the signaling mechanism between neurons and glia that regulates glia wrapping during development of the adult brain. Essential for membrane lipid homeostasis and cell survival in both neurons and glia of the adult brain. {ECO:0000269|PubMed:15772346, ECO:0000269|PubMed:18945896, ECO:0000269|PubMed:9295388}.",
++                "Phospholipase B that deacylates intracellular phosphatidylcholine (PtdCho), generating glycerophosphocholine (GroPtdCho). This deacylation occurs at both sn-2 and sn-1 positions of PtdCho. Its specific chemical modification by certain organophosphorus (OP) compounds leads to distal axonopathy. Plays a role in the signaling mechanism between neurons and glia that regulates glia wrapping during development of the adult brain. Essential for membrane lipid homeostasis and cell survival in both neurons and glia of the adult brain",
+                 "Enables lysophospholipase activity and protein kinase A catalytic subunit binding activity. Involved in several processes, including negative regulation of cAMP-dependent protein kinase activity; photoreceptor cell maintenance; and sensory perception of smell. Located in endoplasmic reticulum membrane and plasma membrane. Is expressed in adult head and interface glial cell. Used to study blindness; cerebellar ataxia; hereditary spastic paraplegia; and neurodegenerative disease. Human ortholog(s) of this gene implicated in Boucher-Neuhauser syndrome; Laurence-Moon syndrome; Oliver-McFarlane syndrome; and hereditary spastic paraplegia 39. Orthologous to human PNPLA6 (patatin like phospholipase domain containing 6) and PNPLA7 (patatin like phospholipase domain containing 7). [provided by Alliance of Genome Resources, Apr 2022]",
+                 "Gene",
+                 "protein_coding",
+@@ -178,10 +186,10 @@ def test_info_gene(self):
+                 "GRCm39",
+                 "Gnai3",
+                 "Gnai3",
+-                ["AI158965", "AW537698", "Galphai3", "Gnai-3", "Gnai3", "Hg1a"],
+-                "Guanine nucleotide-binding protein G(i) subunit alpha-3 (G(i) alpha-3)",
++                ["AI158965", "AW537698", "Galphai3", "Gnai-3", "Hg1a"],
++                "Guanine nucleotide-binding protein G(i) subunit alpha-3",
+                 "guanine nucleotide binding protein (G protein), alpha inhibiting 3 [Source:MGI Symbol;Acc:MGI:95773]",
+-                "FUNCTION: Heterotrimeric guanine nucleotide-binding proteins (G proteins) function as transducers downstream of G protein-coupled receptors (GPCRs) in numerous signaling cascades. The alpha chain contains the guanine nucleotide binding site and alternates between an active, GTP-bound state and an inactive, GDP-bound state. Signaling by an activated GPCR promotes GDP release and GTP binding. The alpha subunit has a low GTPase activity that converts bound GTP to GDP, thereby terminating the signal. Both GDP release and GTP hydrolysis are modulated by numerous regulatory proteins. Signaling is mediated via effector proteins, such as adenylate cyclase. Inhibits adenylate cyclase activity, leading to decreased intracellular cAMP levels. Stimulates the activity of receptor-regulated K(+) channels. The active GTP-bound form prevents the association of RGS14 with centrosomes and is required for the translocation of RGS14 from the cytoplasm to the plasma membrane. May play a role in cell division. {ECO:0000250|UniProtKB:P08754}.",
++                "Heterotrimeric guanine nucleotide-binding proteins (G proteins) function as transducers downstream of G protein-coupled receptors (GPCRs) in numerous signaling cascades. The alpha chain contains the guanine nucleotide binding site and alternates between an active, GTP-bound state and an inactive, GDP-bound state. Signaling by an activated GPCR promotes GDP release and GTP binding. The alpha subunit has a low GTPase activity that converts bound GTP to GDP, thereby terminating the signal. Both GDP release and GTP hydrolysis are modulated by numerous regulatory proteins. Signaling is mediated via effector proteins, such as adenylate cyclase. Inhibits adenylate cyclase activity, leading to decreased intracellular cAMP levels. Stimulates the activity of receptor-regulated K(+) channels. The active GTP-bound form prevents the association of RGS14 with centrosomes and is required for the translocation of RGS14 from the cytoplasm to the plasma membrane. May play a role in cell division",
+                 "Predicted to enable several functions, including G-protein beta/gamma-subunit complex binding activity; GDP binding activity; and GTPase activating protein binding activity. Predicted to be involved in several processes, including positive regulation of NAD(P)H oxidase activity; positive regulation of superoxide anion generation; and positive regulation of vascular associated smooth muscle cell proliferation. Predicted to act upstream of or within G protein-coupled receptor signaling pathway. Located in Golgi apparatus. Is expressed in early conceptus; inner ear; and oocyte. Orthologous to human GNAI3 (G protein subunit alpha i3). [provided by Alliance of Genome Resources, Apr 2022]",
+                 "Gene",
+                 "protein_coding",
+@@ -211,6 +219,7 @@ def test_info_gene_list_non_model(self):
+                 "ENSMMUG00000054106.1",
+                 "macaca_mulatta",
+                 "Mmul_10",
++                [],
+                 "Gene",
+                 "lncRNA",
+                 "ENSMMUT00000080640.1",
+@@ -229,6 +238,7 @@ def test_info_gene_list_non_model(self):
+                 "ENSMMUG00000053116.1",
+                 "macaca_mulatta",
+                 "Mmul_10",
++                [],
+                 "Gene",
+                 "protein_coding",
+                 "ENSMMUT00000091015.1",
+@@ -247,6 +257,7 @@ def test_info_gene_list_non_model(self):
+                 "ENSMMUG00000021246.4",
+                 "macaca_mulatta",
+                 "Mmul_10",
++                ["HIGD1A"],
+                 "Gene",
+                 "protein_coding",
+                 "ENSMMUT00000029894.4",
+@@ -278,7 +289,18 @@ def test_info_gene_list_non_model(self):
+                     "protein_coding",
+                     "protein_coding",
+                 ],
+-                [unittest.mock.ANY, unittest.mock.ANY, unittest.mock.ANY, unittest.mock.ANY, unittest.mock.ANY, unittest.mock.ANY, unittest.mock.ANY, unittest.mock.ANY, unittest.mock.ANY, unittest.mock.ANY],
++                [
++                    unittest.mock.ANY,
++                    unittest.mock.ANY,
++                    unittest.mock.ANY,
++                    unittest.mock.ANY,
++                    unittest.mock.ANY,
++                    unittest.mock.ANY,
++                    unittest.mock.ANY,
++                    unittest.mock.ANY,
++                    unittest.mock.ANY,
++                    unittest.mock.ANY,
++                ],
+                 [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1],
+                 [
+                     98646979,
+@@ -306,7 +328,6 @@ def test_info_gene_list_non_model(self):
+                 ],
+             ],
+         ]
+-
+         self.assertListEqual(result_to_test, expected_result)
+ 
+     def test_info_gene_list_non_model_json(self):
+@@ -323,7 +344,7 @@ def test_info_gene_list_non_model_json(self):
+                 "assembly_name": "Mmul_10",
+                 "primary_gene_name": None,
+                 "ensembl_gene_name": None,
+-                "synonyms": None,
++                "synonyms": [],
+                 "parent_gene": None,
+                 "protein_names": None,
+                 "ensembl_description": None,
+@@ -365,11 +386,11 @@ def test_info_gene_list_non_model_json(self):
+                 "assembly_name": "Mmul_10",
+                 "primary_gene_name": None,
+                 "ensembl_gene_name": None,
+-                "synonyms": None,
++                "synonyms": [],
+                 "parent_gene": None,
+-                "protein_names": "Uncharacterized protein",
++                "protein_names": None,
+                 "ensembl_description": None,
+-                "uniprot_description": None,
++                "uniprot_description": [None],
+                 "ncbi_description": None,
+                 "object_type": "Gene",
+                 "biotype": "protein_coding",
+@@ -399,11 +420,11 @@ def test_info_gene_list_non_model_json(self):
+                 "assembly_name": "Mmul_10",
+                 "primary_gene_name": None,
+                 "ensembl_gene_name": None,
+-                "synonyms": None,
++                "synonyms": [],
+                 "parent_gene": "ENSMMUG00000053116",
+-                "protein_names": "Uncharacterized protein",
++                "protein_names": None,
+                 "ensembl_description": None,
+-                "uniprot_description": None,
++                "uniprot_description": [None],
+                 "ncbi_description": None,
+                 "object_type": "Transcript",
+                 "biotype": "protein_coding",
+@@ -455,10 +476,10 @@ def test_info_transcript(self):
+                 "GRCm39",
+                 "Gnai3",
+                 "Gnai3-201",
+-                ["AI158965", "AW537698", "Galphai3", "Gnai-3", "Gnai3", "Hg1a"],
++                ["AI158965", "AW537698", "Galphai3", "Gnai-3", "Hg1a"],
+                 "ENSMUSG00000000001",
+-                "Guanine nucleotide-binding protein G(i) subunit alpha-3 (G(i) alpha-3)",
+-                "FUNCTION: Heterotrimeric guanine nucleotide-binding proteins (G proteins) function as transducers downstream of G protein-coupled receptors (GPCRs) in numerous signaling cascades. The alpha chain contains the guanine nucleotide binding site and alternates between an active, GTP-bound state and an inactive, GDP-bound state. Signaling by an activated GPCR promotes GDP release and GTP binding. The alpha subunit has a low GTPase activity that converts bound GTP to GDP, thereby terminating the signal. Both GDP release and GTP hydrolysis are modulated by numerous regulatory proteins. Signaling is mediated via effector proteins, such as adenylate cyclase. Inhibits adenylate cyclase activity, leading to decreased intracellular cAMP levels. Stimulates the activity of receptor-regulated K(+) channels. The active GTP-bound form prevents the association of RGS14 with centrosomes and is required for the translocation of RGS14 from the cytoplasm to the plasma membrane. May play a role in cell division. {ECO:0000250|UniProtKB:P08754}.",
++                "Guanine nucleotide-binding protein G(i) subunit alpha-3",
++                "Heterotrimeric guanine nucleotide-binding proteins (G proteins) function as transducers downstream of G protein-coupled receptors (GPCRs) in numerous signaling cascades. The alpha chain contains the guanine nucleotide binding site and alternates between an active, GTP-bound state and an inactive, GDP-bound state. Signaling by an activated GPCR promotes GDP release and GTP binding. The alpha subunit has a low GTPase activity that converts bound GTP to GDP, thereby terminating the signal. Both GDP release and GTP hydrolysis are modulated by numerous regulatory proteins. Signaling is mediated via effector proteins, such as adenylate cyclase. Inhibits adenylate cyclase activity, leading to decreased intracellular cAMP levels. Stimulates the activity of receptor-regulated K(+) channels. The active GTP-bound form prevents the association of RGS14 with centrosomes and is required for the translocation of RGS14 from the cytoplasm to the plasma membrane. May play a role in cell division",
+                 "Predicted to enable several functions, including G-protein beta/gamma-subunit complex binding activity; GDP binding activity; and GTPase activating protein binding activity. Predicted to be involved in several processes, including positive regulation of NAD(P)H oxidase activity; positive regulation of superoxide anion generation; and positive regulation of vascular associated smooth muscle cell proliferation. Predicted to act upstream of or within G protein-coupled receptor signaling pathway. Located in Golgi apparatus. Is expressed in early conceptus; inner ear; and oocyte. Orthologous to human GNAI3 (G protein subunit alpha i3). [provided by Alliance of Genome Resources, Apr 2022]",
+                 "Transcript",
+                 "protein_coding",
+@@ -534,7 +555,6 @@ def test_info_transcript(self):
+                 ],
+             ]
+         ]
+-
+         self.assertListEqual(result_to_test, expected_result)
+ 
+     def test_info_mix(self):
+@@ -549,8 +569,8 @@ def test_info_mix(self):
+                 "bTaeGut1_v1.p",
+                 "FUNDC1",
+                 "FUNDC1-202",
+-                ["FUNDC1"],
+-                "Uncharacterized protein",
++                [],
++                "",
+                 "Transcript",
+                 "protein_coding",
+                 "1",
+@@ -565,18 +585,8 @@ def test_info_mix(self):
+                 "GRCh38",
+                 "PCSK9",
+                 "PCSK9",
+-                [
+-                    "FH3",
+-                    "FHCL3",
+-                    "HCHOLA3",
+-                    "LDLCQ1",
+-                    "NARC-1",
+-                    "NARC1",
+-                    "PC9",
+-                    "PCSK9",
+-                    "PSEC0052",
+-                ],
+-                "Proprotein convertase subtilisin/kexin type 9 (EC 3.4.21.-) (Neural apoptosis-regulated convertase 1) (NARC-1) (Proprotein convertase 9) (PC9) (Subtilisin/kexin-like protease PC9)",
++                ["FH3", "FHCL3", "HCHOLA3", "LDLCQ1", "NARC-1", "NARC1", "PC9"],
++                "Crucial player in the regulation of plasma cholesterol homeostasis. Binds to low-density lipid receptor family members: low density lipoprotein receptor (LDLR), very low density lipoprotein receptor (VLDLR), apolipoprotein E receptor (LRP1/APOER) and apolipoprotein receptor 2 (LRP8/APOER2), and promotes their degradation in intracellular acidic compartments (PubMed:18039658). Acts via a non-proteolytic mechanism to enhance the degradation of the hepatic LDLR through a clathrin LDLRAP1/ARH-mediated pathway. May prevent the recycling of LDLR from endosomes to the cell surface or direct it to lysosomes for degradation. Can induce ubiquitination of LDLR leading to its subsequent degradation (PubMed:18799458, PubMed:17461796, PubMed:18197702, PubMed:22074827). Inhibits intracellular degradation of APOB via the autophagosome/lysosome pathway in a LDLR-independent manner. Involved in the disposal of non-acetylated intermediates of BACE1 in the early secretory pathway (PubMed:18660751). Inhibits epithelial Na(+) channel (ENaC)-mediated Na(+) absorption by reducing ENaC surface expression primarily by increasing its proteasomal degradation. Regulates neuronal apoptosis via modulation of LRP8/APOER2 levels and related anti-apoptotic signaling pathways",
+                 "Gene",
+                 "protein_coding",
+                 "1",
+@@ -585,7 +595,6 @@ def test_info_mix(self):
+                 55064852,
+             ],
+         ]
+-
+         self.assertListEqual(result_to_test, expected_result)
+ 
+     def test_info_exon_expand(self):
+@@ -597,6 +606,7 @@ def test_info_exon_expand(self):
+                 "ENSTGUEE00000179311.1",
+                 "taeniopygia_guttata",
+                 "bTaeGut1_v1.p",
++                [],
+                 "Exon",
+                 "1",
+                 -1,
+diff --git a/tests/test_gget_seq.py b/tests/test_gget_seq.py
+index 40e7a9501..2e368c429 100644
+--- a/tests/test_gget_seq.py
++++ b/tests/test_gget_seq.py
+@@ -15,7 +15,11 @@ def test_seq_gene(self):
+     def test_seq_transcript_gene_WB(self):
+         result_to_test = seq("WBGene00043981", translate=True)
+         expected_result = [
+-            ">T14E8.4 uniprot_id: Q5WRS0 ensembl_id: T14E8.4 gene_name(s): aaim-1 T14E8.4 organism: Caenorhabditis elegans sequence_length: 515",
++            ">T14E8.4.1 uniprot_id: Q6RYS9 ensembl_id: T14E8.4.1 gene_name: dop-3 organism: Caenorhabditis elegans sequence_length: 607",
++            "MLAGQHHVTDIESPLMVVLWRVAAGVFLPLVPTMAVFGNVLVIMSVFRERSLQTVTNMLIVSLAVSDFMVAIGVMSFGVYYEWNDFKWGLGSFFCHVYQALDVACSTASILNLLAISLDRYIAIGHPISYAQYGARGGRAMISITIVWGVSVAVALPLLLGVNPMEENDLQECELANPYFNMISSIFSFFIPCIAMIILYTIIFRRLRQRERARSLRQAQRSENDKISSALLGGAQIARQMGKHFKNRTDQILLEISFQTSSFPTMSESSEDASTISPMINSFNNFLPKKTPYPSTSIPAIPECGSMPNLTIIERPEAEKEKEISIMDLRDTVEMLDDKYSSAILTSFQTSRSFGEELEEILPFIDGSNSVKHSREQLHTTRSNTSTTRLLDVKPELRSISVPSIQDEKKLSQKSNDLPFSHQNGTHKQKLLPNPGILMKSKSTTLLKTNGYMDTDSLNRNSHKKSLADLLANDEFSFSDSMRVYKNRLFKSLSRATSGWNKPRPSRHMVKKATKQMRREHKATVTLAVVLAVFLFCWLPFFVLHLSNSICLIIDENSACVGFLPLYLATWLGYLNSSLNPLIYTVFDQRFRNAFRNILSCGIFKKR",
++            ">T14E8.4.1 uniprot_id: H2KZU7 ensembl_id: T14E8.4.1 gene_name: svh-2 organism: Caenorhabditis elegans sequence_length: 1086",
++            "MVLGSSQSSAKELTTQSSIFRFLVLLLCFTSATGGQINGKLLNGNGVFVSRDELQNKNVLGVITGFDLLVVATHSRFQVFENNEERRTVGHVSLDMHPRTKFLELKLFSKSEIFYCDESSCGLCTYSGVTSSCSTFMLNGDEPKIQEILSSSAVKIENLGQIMLAISFKNEEDPDNPRTMILRYNAQDTGTVIPTAYHADSSFIHNNHALTGFEREGFVYFVMTASQIFEPEVFLHDQSNNKVTVTKVIRFCATDQTADLASKISILVGCDQEFRNISSRGETAVYDHANDLINIVMFNHTSMNHLMCRFKMANIEKRFKTIWSTCQETSFSGSTAKTTRCKYPQIFDQMKVKKGCLTYSRLDDESSPTLCVRYGRGDALDNCQLHTAKSNSYRYGWLEDYNVLQGELMMRIPYPFFGIAESLITDGKSYFAAVSGEFDMSDVLRFSASESADIRPHWRTNISVVGKFSITKTKENQLLYTTVEGLQSLDISCKGLYPNCQTLRQGGWEDPLECSWCADDNAQRTITSSEVSSCKNNLKHECPPSMRWIHKYNNNSGFTAVVDGFRALKNPKLNACGTNCVVTVVDSSSIQCDTNPDEVIGDSCKQVFLSGMIGDKNYSFPFDYQQADRGTQTDVKNSQVDDKKGSSPGWKIAIAIISVMTIILIVAIIVYYMRNRFPRIKTHVRPPIGQRIENEYDMGHMAGRQAQLAINGDNYVKVFRSMRPDLKVDFKNLRVDKLDPIGQGHYGVVYKAMYSPSKSLEEKVVCKYLKEGKISEFYEEARTMSEFDHPNILKLIGVALDDSSHLPIIITEYMAKGDLKSFIENVENTIKMRDLFEFAFDIAKGMNYMHSKKFIHRDLACRNCLLDEHLRVKIADFGLCRKVDIETELYVQMHERDLPVRWFPPEISEQGFGITSDIWSFGVVIWELFTRGSTPYSNMASWILILPWLKESETNRLRKPPYCPEKLYTDVMLACWKANPAERPQFSDLVTIIPNVVKYMEGYDRSQLQAGYERVSSRFLSLSRHDPAFPIYQNEMPNTPLLANCQNDTNDSKTLAELPSDSPSTSTAIPQSTPYQLLSECSETSV",
++            ">T14E8.4.1 uniprot_id: Q5WRS0 ensembl_id: T14E8.4.1 gene_name: aaim-1 organism: Caenorhabditis elegans sequence_length: 515",
+             "MRLLFFFSILYTASLCCQLKDFLPCVMQLSAQKVDFNMNPIEVIFNITTEAKLMHTCRTYSRILPCFDQKMVQCGKPSEKTQLERGKRLHSYLCAPFSLQRQKIFLRRSKCIQDVLAEPQSSVCNRNDTVFADKLQSCREMCTRPDCVSKIELSEVSTCTYINIGKKCTAEAAQFFAQMQQVLTNKEYPMQCQYDLRKKPESELKKGLPIESLVAQTTSSTTYVTVHPPALPSVIDGVVTRTSLPIMRRTDPNSKFKPRPTTSQSNGPVIKTVIVDERGAPMNQPTSTQKPKVVHKFLPNPYTTKNPNTLKNDIIRTTRTIIPVVDKHTYVPWNYKVDAVQVSTLTSALAPVKPTETVISSPPVAFNFKLPAEQTSTQPFRVEINWHDDEVKQEPTKAPGVFVSPWYLKTPSHIPPEIEFATPTPLISSPLEAVSPILSQLKSNSLNFTELGNQANNYFSAALSAFAETKKEMAHNDPWRTIIDAVAPTIHKFSPDVIPRIREEINRIQPHQQKN",
+         ]
+ 
+@@ -24,7 +28,11 @@ def test_seq_transcript_gene_WB(self):
+     def test_seq_transcript_transcript_WB(self):
+         result_to_test = seq("T14E8.4.1", translate=True)
+         expected_result = [
+-            ">T14E8.4 uniprot_id: Q5WRS0 ensembl_id: T14E8.4 gene_name(s): aaim-1 T14E8.4 organism: Caenorhabditis elegans sequence_length: 515",
++            ">T14E8.4.1 uniprot_id: Q6RYS9 ensembl_id: T14E8.4.1 gene_name: dop-3 organism: Caenorhabditis elegans sequence_length: 607",
++            "MLAGQHHVTDIESPLMVVLWRVAAGVFLPLVPTMAVFGNVLVIMSVFRERSLQTVTNMLIVSLAVSDFMVAIGVMSFGVYYEWNDFKWGLGSFFCHVYQALDVACSTASILNLLAISLDRYIAIGHPISYAQYGARGGRAMISITIVWGVSVAVALPLLLGVNPMEENDLQECELANPYFNMISSIFSFFIPCIAMIILYTIIFRRLRQRERARSLRQAQRSENDKISSALLGGAQIARQMGKHFKNRTDQILLEISFQTSSFPTMSESSEDASTISPMINSFNNFLPKKTPYPSTSIPAIPECGSMPNLTIIERPEAEKEKEISIMDLRDTVEMLDDKYSSAILTSFQTSRSFGEELEEILPFIDGSNSVKHSREQLHTTRSNTSTTRLLDVKPELRSISVPSIQDEKKLSQKSNDLPFSHQNGTHKQKLLPNPGILMKSKSTTLLKTNGYMDTDSLNRNSHKKSLADLLANDEFSFSDSMRVYKNRLFKSLSRATSGWNKPRPSRHMVKKATKQMRREHKATVTLAVVLAVFLFCWLPFFVLHLSNSICLIIDENSACVGFLPLYLATWLGYLNSSLNPLIYTVFDQRFRNAFRNILSCGIFKKR",
++            ">T14E8.4.1 uniprot_id: H2KZU7 ensembl_id: T14E8.4.1 gene_name: svh-2 organism: Caenorhabditis elegans sequence_length: 1086",
++            "MVLGSSQSSAKELTTQSSIFRFLVLLLCFTSATGGQINGKLLNGNGVFVSRDELQNKNVLGVITGFDLLVVATHSRFQVFENNEERRTVGHVSLDMHPRTKFLELKLFSKSEIFYCDESSCGLCTYSGVTSSCSTFMLNGDEPKIQEILSSSAVKIENLGQIMLAISFKNEEDPDNPRTMILRYNAQDTGTVIPTAYHADSSFIHNNHALTGFEREGFVYFVMTASQIFEPEVFLHDQSNNKVTVTKVIRFCATDQTADLASKISILVGCDQEFRNISSRGETAVYDHANDLINIVMFNHTSMNHLMCRFKMANIEKRFKTIWSTCQETSFSGSTAKTTRCKYPQIFDQMKVKKGCLTYSRLDDESSPTLCVRYGRGDALDNCQLHTAKSNSYRYGWLEDYNVLQGELMMRIPYPFFGIAESLITDGKSYFAAVSGEFDMSDVLRFSASESADIRPHWRTNISVVGKFSITKTKENQLLYTTVEGLQSLDISCKGLYPNCQTLRQGGWEDPLECSWCADDNAQRTITSSEVSSCKNNLKHECPPSMRWIHKYNNNSGFTAVVDGFRALKNPKLNACGTNCVVTVVDSSSIQCDTNPDEVIGDSCKQVFLSGMIGDKNYSFPFDYQQADRGTQTDVKNSQVDDKKGSSPGWKIAIAIISVMTIILIVAIIVYYMRNRFPRIKTHVRPPIGQRIENEYDMGHMAGRQAQLAINGDNYVKVFRSMRPDLKVDFKNLRVDKLDPIGQGHYGVVYKAMYSPSKSLEEKVVCKYLKEGKISEFYEEARTMSEFDHPNILKLIGVALDDSSHLPIIITEYMAKGDLKSFIENVENTIKMRDLFEFAFDIAKGMNYMHSKKFIHRDLACRNCLLDEHLRVKIADFGLCRKVDIETELYVQMHERDLPVRWFPPEISEQGFGITSDIWSFGVVIWELFTRGSTPYSNMASWILILPWLKESETNRLRKPPYCPEKLYTDVMLACWKANPAERPQFSDLVTIIPNVVKYMEGYDRSQLQAGYERVSSRFLSLSRHDPAFPIYQNEMPNTPLLANCQNDTNDSKTLAELPSDSPSTSTAIPQSTPYQLLSECSETSV",
++            ">T14E8.4.1 uniprot_id: Q5WRS0 ensembl_id: T14E8.4.1 gene_name: aaim-1 organism: Caenorhabditis elegans sequence_length: 515",
+             "MRLLFFFSILYTASLCCQLKDFLPCVMQLSAQKVDFNMNPIEVIFNITTEAKLMHTCRTYSRILPCFDQKMVQCGKPSEKTQLERGKRLHSYLCAPFSLQRQKIFLRRSKCIQDVLAEPQSSVCNRNDTVFADKLQSCREMCTRPDCVSKIELSEVSTCTYINIGKKCTAEAAQFFAQMQQVLTNKEYPMQCQYDLRKKPESELKKGLPIESLVAQTTSSTTYVTVHPPALPSVIDGVVTRTSLPIMRRTDPNSKFKPRPTTSQSNGPVIKTVIVDERGAPMNQPTSTQKPKVVHKFLPNPYTTKNPNTLKNDIIRTTRTIIPVVDKHTYVPWNYKVDAVQVSTLTSALAPVKPTETVISSPPVAFNFKLPAEQTSTQPFRVEINWHDDEVKQEPTKAPGVFVSPWYLKTPSHIPPEIEFATPTPLISSPLEAVSPILSQLKSNSLNFTELGNQANNYFSAALSAFAETKKEMAHNDPWRTIIDAVAPTIHKFSPDVIPRIREEINRIQPHQQKN",
+         ]
+ 
+@@ -33,7 +41,11 @@ def test_seq_transcript_transcript_WB(self):
+     def test_seq_transcript_gene_WB_iso(self):
+         result_to_test = seq("WBGene00043981", translate=True, isoforms=True)
+         expected_result = [
+-            ">T14E8.4 uniprot_id: Q5WRS0 ensembl_id: T14E8.4 gene_name(s): aaim-1 T14E8.4 organism: Caenorhabditis elegans sequence_length: 515",
++            ">T14E8.4.1 uniprot_id: Q6RYS9 ensembl_id: T14E8.4.1 gene_name: dop-3 organism: Caenorhabditis elegans sequence_length: 607",
++            "MLAGQHHVTDIESPLMVVLWRVAAGVFLPLVPTMAVFGNVLVIMSVFRERSLQTVTNMLIVSLAVSDFMVAIGVMSFGVYYEWNDFKWGLGSFFCHVYQALDVACSTASILNLLAISLDRYIAIGHPISYAQYGARGGRAMISITIVWGVSVAVALPLLLGVNPMEENDLQECELANPYFNMISSIFSFFIPCIAMIILYTIIFRRLRQRERARSLRQAQRSENDKISSALLGGAQIARQMGKHFKNRTDQILLEISFQTSSFPTMSESSEDASTISPMINSFNNFLPKKTPYPSTSIPAIPECGSMPNLTIIERPEAEKEKEISIMDLRDTVEMLDDKYSSAILTSFQTSRSFGEELEEILPFIDGSNSVKHSREQLHTTRSNTSTTRLLDVKPELRSISVPSIQDEKKLSQKSNDLPFSHQNGTHKQKLLPNPGILMKSKSTTLLKTNGYMDTDSLNRNSHKKSLADLLANDEFSFSDSMRVYKNRLFKSLSRATSGWNKPRPSRHMVKKATKQMRREHKATVTLAVVLAVFLFCWLPFFVLHLSNSICLIIDENSACVGFLPLYLATWLGYLNSSLNPLIYTVFDQRFRNAFRNILSCGIFKKR",
++            ">T14E8.4.1 uniprot_id: H2KZU7 ensembl_id: T14E8.4.1 gene_name: svh-2 organism: Caenorhabditis elegans sequence_length: 1086",
++            "MVLGSSQSSAKELTTQSSIFRFLVLLLCFTSATGGQINGKLLNGNGVFVSRDELQNKNVLGVITGFDLLVVATHSRFQVFENNEERRTVGHVSLDMHPRTKFLELKLFSKSEIFYCDESSCGLCTYSGVTSSCSTFMLNGDEPKIQEILSSSAVKIENLGQIMLAISFKNEEDPDNPRTMILRYNAQDTGTVIPTAYHADSSFIHNNHALTGFEREGFVYFVMTASQIFEPEVFLHDQSNNKVTVTKVIRFCATDQTADLASKISILVGCDQEFRNISSRGETAVYDHANDLINIVMFNHTSMNHLMCRFKMANIEKRFKTIWSTCQETSFSGSTAKTTRCKYPQIFDQMKVKKGCLTYSRLDDESSPTLCVRYGRGDALDNCQLHTAKSNSYRYGWLEDYNVLQGELMMRIPYPFFGIAESLITDGKSYFAAVSGEFDMSDVLRFSASESADIRPHWRTNISVVGKFSITKTKENQLLYTTVEGLQSLDISCKGLYPNCQTLRQGGWEDPLECSWCADDNAQRTITSSEVSSCKNNLKHECPPSMRWIHKYNNNSGFTAVVDGFRALKNPKLNACGTNCVVTVVDSSSIQCDTNPDEVIGDSCKQVFLSGMIGDKNYSFPFDYQQADRGTQTDVKNSQVDDKKGSSPGWKIAIAIISVMTIILIVAIIVYYMRNRFPRIKTHVRPPIGQRIENEYDMGHMAGRQAQLAINGDNYVKVFRSMRPDLKVDFKNLRVDKLDPIGQGHYGVVYKAMYSPSKSLEEKVVCKYLKEGKISEFYEEARTMSEFDHPNILKLIGVALDDSSHLPIIITEYMAKGDLKSFIENVENTIKMRDLFEFAFDIAKGMNYMHSKKFIHRDLACRNCLLDEHLRVKIADFGLCRKVDIETELYVQMHERDLPVRWFPPEISEQGFGITSDIWSFGVVIWELFTRGSTPYSNMASWILILPWLKESETNRLRKPPYCPEKLYTDVMLACWKANPAERPQFSDLVTIIPNVVKYMEGYDRSQLQAGYERVSSRFLSLSRHDPAFPIYQNEMPNTPLLANCQNDTNDSKTLAELPSDSPSTSTAIPQSTPYQLLSECSETSV",
++            ">T14E8.4.1 uniprot_id: Q5WRS0 ensembl_id: T14E8.4.1 gene_name: aaim-1 organism: Caenorhabditis elegans sequence_length: 515",
+             "MRLLFFFSILYTASLCCQLKDFLPCVMQLSAQKVDFNMNPIEVIFNITTEAKLMHTCRTYSRILPCFDQKMVQCGKPSEKTQLERGKRLHSYLCAPFSLQRQKIFLRRSKCIQDVLAEPQSSVCNRNDTVFADKLQSCREMCTRPDCVSKIELSEVSTCTYINIGKKCTAEAAQFFAQMQQVLTNKEYPMQCQYDLRKKPESELKKGLPIESLVAQTTSSTTYVTVHPPALPSVIDGVVTRTSLPIMRRTDPNSKFKPRPTTSQSNGPVIKTVIVDERGAPMNQPTSTQKPKVVHKFLPNPYTTKNPNTLKNDIIRTTRTIIPVVDKHTYVPWNYKVDAVQVSTLTSALAPVKPTETVISSPPVAFNFKLPAEQTSTQPFRVEINWHDDEVKQEPTKAPGVFVSPWYLKTPSHIPPEIEFATPTPLISSPLEAVSPILSQLKSNSLNFTELGNQANNYFSAALSAFAETKKEMAHNDPWRTIIDAVAPTIHKFSPDVIPRIREEINRIQPHQQKN",
+         ]
+ 
+@@ -43,7 +55,7 @@ def test_seq_transcript_gene(self):
+         result_to_test = seq("ENSG00000241794", translate=True)
+         # This should return the amino acid sequence of the canonical transcript of ENSG00000241794 which is ENST00000392653
+         expected_result = [
+-            ">ENST00000392653 uniprot_id: P35326 ensembl_id: ENST00000392653 gene_name(s): SPRR2A organism: Homo sapiens (Human) sequence_length: 72",
++            ">ENST00000392653 uniprot_id: P35326 ensembl_id: ENST00000392653 gene_name: SPRR2A organism: Homo sapiens sequence_length: 72",
+             "MSYQQQQCKQPCQPPPVCPTPKCPEPCPPPKCPEPCPPPKCPQPCPPQQCQQKYPPVTPSPPCQSKYPPKSK",
+         ]
+ 
+@@ -52,7 +64,7 @@ def test_seq_transcript_gene(self):
+     def test_seq_transcript(self):
+         result_to_test = seq("ENST00000392653", translate=True)
+         expected_result = [
+-            ">ENST00000392653 uniprot_id: P35326 ensembl_id: ENST00000392653 gene_name(s): SPRR2A organism: Homo sapiens (Human) sequence_length: 72",
++            ">ENST00000392653 uniprot_id: P35326 ensembl_id: ENST00000392653 gene_name: SPRR2A organism: Homo sapiens sequence_length: 72",
+             "MSYQQQQCKQPCQPPPVCPTPKCPEPCPPPKCPEPCPPPKCPQPCPPQQCQQKYPPVTPSPPCQSKYPPKSK",
+         ]
+ 
+@@ -82,7 +94,7 @@ def test_seq_transcript_gene_iso(self):
+         result_to_test = seq("ENSG00000241794", isoforms=True, translate=True)
+         # Since ENSG00000241794 only has one transcript, the expected results is the AA sequence of ENST00000392653
+         expected_result = [
+-            ">ENST00000392653 uniprot_id: P35326 ensembl_id: ENST00000392653 gene_name(s): SPRR2A organism: Homo sapiens (Human) sequence_length: 72",
++            ">ENST00000392653 uniprot_id: P35326 ensembl_id: ENST00000392653 gene_name: SPRR2A organism: Homo sapiens sequence_length: 72",
+             "MSYQQQQCKQPCQPPPVCPTPKCPEPCPPPKCPEPCPPPKCPQPCPPQQCQQKYPPVTPSPPCQSKYPPKSK",
+         ]
+ 
+@@ -92,7 +104,7 @@ def test_seq_transcript_transcript_iso(self):
+         result_to_test = seq("ENST00000392653.2", isoforms=True, translate=True)
+         # The isoform should not change the output for transcripts
+         expected_result = [
+-            ">ENST00000392653 uniprot_id: P35326 ensembl_id: ENST00000392653 gene_name(s): SPRR2A organism: Homo sapiens (Human) sequence_length: 72",
++            ">ENST00000392653 uniprot_id: P35326 ensembl_id: ENST00000392653 gene_name: SPRR2A organism: Homo sapiens sequence_length: 72",
+             "MSYQQQQCKQPCQPPPVCPTPKCPEPCPPPKCPEPCPPPKCPQPCPPQQCQQKYPPVTPSPPCQSKYPPKSK",
+         ]
+ 
+diff --git a/tests/test_utils.py b/tests/test_utils.py
+index 8ec2d4140..980a3920b 100644
+--- a/tests/test_utils.py
++++ b/tests/test_utils.py
+@@ -37,46 +37,34 @@ def test_get_uniprot_seqs(self):
+         expected_result = [
+             [
+                 "P35326",
+-                "SPRR2A",
+-                "Homo sapiens (Human)",
++                "Homo sapiens",
+                 "MSYQQQQCKQPCQPPPVCPTPKCPEPCPPPKCPEPCPPPKCPQPCPPQQCQQKYPPVTPSPPCQSKYPPKSK",
+                 72,
++                "SPRR2A",
+                 "ENST00000392653.3",
+-                list(["ENST00000392653.3"]),
+             ],
+             [
+                 "A7KAX9",
+-                "ARHGAP32 GRIT KIAA0712 RICS",
+-                "Homo sapiens (Human)",
++                "Homo sapiens",
+                 "METESESSTLGDDSVFWLESEVIIQVTDCEEEEREEKFRKMKSSVHSEEDDFVPELHRNVHPRERPDWEETLSAMARGADVPEIPGDLTLKTCGSTASMKVKHVKKLPFTKGHFPKMAECAHFHYENVEFGSIQLSLSEEQNEVMKNGCESKELVYLVQIACQGKSWIVKRSYEDFRVLDKHLHLCIYDRRFSQLSELPRSDTLKDSPESVTQMLMAYLSRLSAIAGNKINCGPALTWMEIDNKGNHLLVHEESSINTPAVGAAHVIKRYTARAPDELTLEVGDIVSVIDMPPKVLSTWWRGKHGFQVGLFPGHCVELINQKVPQSVTNSVPKPVSKKHGKLITFLRTFMKSRPTKQKLKQRGILKERVFGCDLGEHLLNSGFEVPQVLQSCTAFIERYGIVDGIYRLSGVASNIQRLRHEFDSEHVPDLTKEPYVQDIHSVGSLCKLYFRELPNPLLTYQLYEKFSDAVSAATDEERLIKIHDVIQQLPPPHYRTLEFLMRHLSLLADYCSITNMHAKNLAIVWAPNLLRSKQIESACFSGTAAFMEVRIQSVVVEFILNHVDVLFSGRISMAMQEGAASLSRPKSLLVSSPSTKLLTLEEAQARTQAQVNSPIVTENKYIEVGEGPAALQGKFHTIIEFPLERKRPQNKMKKSPVGSWRSFFNLGKSSSVSKRKLQRNESEPSEMKAMALKGGRAEGTLRSAKSEESLTSLHAVDGDSKLFRPRRPRSSSDALSASFNGEMLGNRCNSYDNLPHDNESEEEGGLLHIPALMSPHSAEDVDLSPPDIGVASLDFDPMSFQCSPPKAESECLESGASFLDSPGYSKDKPSANKKDAETGSSQCQTPGSTASSEPVSPLQEKLSPFFTLDLSPTEDKSSKPSSFTEKVVYAFSPKIGRKLSKSPSMSISEPISVTLPPRVSEVIGTVSNTTAQNASSSTWDKCVEERDATNRSPTQIVKMKTNETVAQEAYESEVQPLDQVAAEEVELPGKEDQSVSSSQSKAVASGQTQTGAVTHDPPQDSVPVSSVSLIPPPPPPKNVARMLALALAESAQQASTQSLKRPGTSQAGYTNYGDIAVATTEDNLSSSYSAVALDKAYFQTDRPAEQFHLQNNAPGNCDHPLPETTATGDPTHSNTTESGEQHHQVDLTGNQPHQAYLSGDPEKARITSVPLDSEKSDDHVSFPEDQSGKNSMPTVSFLDQDQSPPRFYSGDQPPSYLGASVDKLHHPLEFADKSPTPPNLPSDKIYPPSGSPEENTSTATMTYMTTTPATAQMSTKEASWDVAEQPTTADFAAATLQRTHRTNRPLPPPPSQRSAEQPPVVGQVQAATNIGLNNSHKVQGVVPVPERPPEPRAMDDPASAFISDSGAAAAQCPMATAVQPGLPEKVRDGARVPLLHLRAESVPAHPCGFPAPLPPTRMMESKMIAAIHSSSADATSSSNYHSFVTASSTSVDDALPLPLPVPQPKHASQKTVYSSFARPDVTTEPFGPDNCLHFNMTPNCQYRPQSVPPHHNKLEQHQVYGARSEPPASMGLRYNTYVAPGRNASGHHSKPCSRVEYVSSLSSSVRNTCYPEDIPPYPTIRRVQSLHAPPSSMIRSVPISRTEVPPDDEPAYCPRPLYQYKPYQSSQARSDYHVTQLQPYFENGRVHYRYSPYSSSSSSYYSPDGALCDVDAYGTVQLRPLHRLPNRDFAFYNPRLQGKSLYSYAGLAPRPRANVTGYFSPNDHNVVSMPPAADVKHTYTSWDLEDMEKYRMQSIRRESRARQKVKGPVMSQYDNMTPAVQDDLGGIYVIHLRSKSDPGKTGLLSVAEGKESRHAAKAISPEGEDRFYRRHPEAEMDRAHHHGGHGSTQPEKPSLPQKQSSLRSRKLPDMGCSLPEHRAHQEASHRQFCESKNGPPYPQGAGQLDYGSKGIPDTSEPVSYHNSGVKYAASGQESLRLNHKEVRLSKEMERPWVRQPSAPEKHSRDCYKEEEHLTQSIVPPPKPERSHSLKLHHTQNVERDPSVLYQYQPHGKRQSSVTVVSQYDNLEDYHSLPQHQRGVFGGGGMGTYVPPGFPHPQSRTYATALGQGAFLPAELSLQHPETQIHAE",
+                 2087,
++                "ARHGAP32",
+                 "ENST00000392657.7",
+-                list(["ENST00000392657.7"]),
+             ],
+         ]
+ 
+         self.assertListEqual(result_to_test, expected_result)
+ 
+-    def test_get_uniprot_seqs_bad_type(self):
+-        result_to_test = get_uniprot_seqs(UNIPROT_REST_API, "banana")
+-        # Expect an empty data frame
+-        self.assertTrue(result_to_test.empty)
+-
+     def test_get_uniprot_info_gene(self):
+-        df = get_uniprot_info(
+-            UNIPROT_REST_API,
+-            "ENSG00000187140",
+-            id_type="Gene",
+-        )
++        df = get_uniprot_info(UNIPROT_REST_API, "ENSG00000187140")
+         result_to_test = df.values.tolist()
+         expected_result = [
+             [
+                 "Q9UJU5",
+                 "FOXD3",
+-                ["FOXD3", "HFH2"],
+-                "Forkhead box protein D3 (HNF3/FH transcription factor genesis)",
+-                "FUNCTION: Binds to the consensus sequence 5'-A[AT]T[AG]TTTGTTT-3' and acts as a transcriptional repressor. Also acts as a transcriptional activator. Promotes development of neural crest cells from neural tube progenitors. Restricts neural progenitor cells to the neural crest lineage while suppressing interneuron differentiation. Required for maintenance of pluripotent cells in the pre-implantation and peri-implantation stages of embryogenesis. {ECO:0000269|PubMed:11891324}.",
+-                "reviewed",
++                ["HFH2"],
++                "Forkhead box protein D3",
++                "Binds to the consensus sequence 5'-A[AT]T[AG]TTTGTTT-3' and acts as a transcriptional repressor. Also acts as a transcriptional activator. Promotes development of neural crest cells from neural tube progenitors. Restricts neural progenitor cells to the neural crest lineage while suppressing interneuron differentiation. Required for maintenance of pluripotent cells in the pre-implantation and peri-implantation stages of embryogenesis",
+                 "ENSG00000187140",
+             ]
+         ]
+@@ -87,30 +75,21 @@ def test_get_uniprot_info_transcript(self):
+         df = get_uniprot_info(
+             UNIPROT_REST_API,
+             "ENST00000325404.3",
+-            id_type="Transcript",
+         )
+         result_to_test = df.values.tolist()
+         expected_result = [
+             [
+                 "P48431",
+                 "SOX2",
+-                ["SOX2"],
++                [unittest.mock.ANY],
+                 "Transcription factor SOX-2",
+-                "FUNCTION: Transcription factor that forms a trimeric complex with OCT4 on DNA and controls the expression of a number of genes involved in embryonic development such as YES1, FGF4, UTF1 and ZFP206 (By similarity). Binds to the proximal enhancer region of NANOG (By similarity). Critical for early embryogenesis and for embryonic stem cell pluripotency (PubMed:18035408). Downstream SRRT target that mediates the promotion of neural stem cell self-renewal (By similarity). Keeps neural cells undifferentiated by counteracting the activity of proneural proteins and suppresses neuronal differentiation (By similarity). May function as a switch in neuronal development (By similarity). {ECO:0000250|UniProtKB:P48430, ECO:0000250|UniProtKB:P48432, ECO:0000269|PubMed:18035408}.",
+-                "reviewed",
++                "Transcription factor that forms a trimeric complex with OCT4 on DNA and controls the expression of a number of genes involved in embryonic development such as YES1, FGF4, UTF1 and ZFP206 (By similarity). Binds to the proximal enhancer region of NANOG (By similarity). Critical for early embryogenesis and for embryonic stem cell pluripotency (PubMed:18035408). Downstream SRRT target that mediates the promotion of neural stem cell self-renewal (By similarity). Keeps neural cells undifferentiated by counteracting the activity of proneural proteins and suppresses neuronal differentiation (By similarity). May function as a switch in neuronal development (By similarity)",
+                 "ENST00000325404.3",
+             ]
+         ]
+ 
+         self.assertListEqual(result_to_test, expected_result)
+ 
+-    def test_get_uniprot_info_bad_type(self):
+-        result_to_test = get_uniprot_info(
+-            UNIPROT_REST_API, "banana", id_type="Transcript"
+-        )
+-        # expected_result = None
+-        self.assertIsNone(result_to_test)
+-
+     def test_rest_query(self):
+         server = ENSEMBL_REST_API
+         content_type = "application/json"

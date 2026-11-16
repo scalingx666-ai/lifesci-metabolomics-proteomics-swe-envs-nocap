@@ -1,0 +1,166 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/util/scans/ScanUtils.java b/mzmine-community/src/main/java/io/github/mzmine/util/scans/ScanUtils.java
+index 4ec4890ef95..593887ca205 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/util/scans/ScanUtils.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/util/scans/ScanUtils.java
+@@ -99,6 +99,7 @@
+ import java.util.Map.Entry;
+ import java.util.Objects;
+ import java.util.Optional;
++import java.util.TreeMap;
+ import java.util.function.Consumer;
+ import java.util.logging.Logger;
+ import java.util.stream.Collectors;
+@@ -1715,31 +1716,29 @@ private static double probabilityProductScore(DataPoint lp, DataPoint rp, double
+   public static DataPoint[] integerDataPoints(final DataPoint[] dataPoints,
+       final IntegerMode intMode) {
+ 
+-    int size = dataPoints.length;
++    // TreeMap so the result is sorted by m/z: MSP/MGF consumers expect ascending peak lists and a
++    // HashMap emitted them in an arbitrary, run-to-run unstable order.
++    final Map<Integer, Double> integerDataPoints = new TreeMap<>();
+ 
+-    Map<Double, Double> integerDataPoints = new HashMap<>();
++    for (final DataPoint dataPoint : dataPoints) {
++      final int mz = Math.toIntExact(Math.round(dataPoint.getMZ()));
++      final double intensity = dataPoint.getIntensity();
++      final Double prevIntensity = integerDataPoints.get(mz);
+ 
+-    for (int i = 0; i < size; ++i) {
+-      double mz = Math.round(dataPoints[i].getMZ());
+-      double intensity = dataPoints[i].getIntensity();
+-      Double prevIntensity = integerDataPoints.get(mz);
+       if (prevIntensity == null) {
+-        prevIntensity = 0.0;
++        integerDataPoints.put(mz, intensity);
++        continue;
+       }
+ 
+-      switch (intMode) {
+-        case MAX:
+-          integerDataPoints.put(mz, prevIntensity + intensity);
+-          break;
+-        case SUM:
+-          integerDataPoints.put(mz, Math.max(prevIntensity, intensity));
+-          break;
+-      }
++      integerDataPoints.put(mz, switch (intMode) {
++        case MAX -> Math.max(prevIntensity, intensity);
++        case SUM -> prevIntensity + intensity;
++      });
+     }
+ 
+     DataPoint[] result = new DataPoint[integerDataPoints.size()];
+     int count = 0;
+-    for (Entry<Double, Double> e : integerDataPoints.entrySet()) {
++    for (Entry<Integer, Double> e : integerDataPoints.entrySet()) {
+       result[count++] = new SimpleDataPoint(e.getKey(), e.getValue());
+     }
+ 
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/util/scans/ScanUtilsIntegerDataPointsTest.java b/mzmine-community/src/test/java/io/github/mzmine/util/scans/ScanUtilsIntegerDataPointsTest.java
+new file mode 100644
+index 00000000000..b0ad77572a4
+--- /dev/null
++++ b/mzmine-community/src/test/java/io/github/mzmine/util/scans/ScanUtilsIntegerDataPointsTest.java
+@@ -0,0 +1,102 @@
++/*
++ * Copyright (c) 2004-2025 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.util.scans;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++import static org.junit.jupiter.api.Assertions.assertTrue;
++
++import io.github.mzmine.datamodel.DataPoint;
++import io.github.mzmine.datamodel.impl.SimpleDataPoint;
++import io.github.mzmine.util.scans.ScanUtils.IntegerMode;
++import org.junit.jupiter.api.DisplayName;
++import org.junit.jupiter.api.Test;
++
++/**
++ * Tests {@link ScanUtils#integerDataPoints(DataPoint[], IntegerMode)}. The MAX and SUM cases used to
++ * be swapped and the output order was that of a HashMap.
++ */
++class ScanUtilsIntegerDataPointsTest {
++
++  /**
++   * 100.1 and 99.8 both round to 100; 55.4 and 55.2 both round to 55. Deliberately unsorted so the
++   * ordering of the result is actually exercised.
++   */
++  private static DataPoint[] input() {
++    return new DataPoint[]{new SimpleDataPoint(100.1, 30.0), new SimpleDataPoint(55.4, 5.0),
++        new SimpleDataPoint(99.8, 70.0), new SimpleDataPoint(200.2, 10.0),
++        new SimpleDataPoint(55.2, 15.0)};
++  }
++
++  @Test
++  @DisplayName("MAX keeps the highest intensity of the merged signals")
++  void maxTakesMaximum() {
++
++    final DataPoint[] result = ScanUtils.integerDataPoints(input(), IntegerMode.MAX);
++
++    assertEquals(3, result.length);
++    assertEquals(55.0, result[0].getMZ());
++    assertEquals(15.0, result[0].getIntensity());
++    assertEquals(100.0, result[1].getMZ());
++    assertEquals(70.0, result[1].getIntensity());
++    assertEquals(200.0, result[2].getMZ());
++    assertEquals(10.0, result[2].getIntensity());
++  }
++
++  @Test
++  @DisplayName("SUM adds the intensities of the merged signals")
++  void sumAddsIntensities() {
++
++    final DataPoint[] result = ScanUtils.integerDataPoints(input(), IntegerMode.SUM);
++
++    assertEquals(3, result.length);
++    assertEquals(55.0, result[0].getMZ());
++    assertEquals(20.0, result[0].getIntensity());
++    assertEquals(100.0, result[1].getMZ());
++    assertEquals(100.0, result[1].getIntensity());
++    assertEquals(200.0, result[2].getMZ());
++    assertEquals(10.0, result[2].getIntensity());
++  }
++
++  @Test
++  @DisplayName("Output is sorted by ascending m/z")
++  void resultIsSortedByMz() {
++
++    for (final IntegerMode mode : IntegerMode.values()) {
++      final DataPoint[] result = ScanUtils.integerDataPoints(input(), mode);
++
++      for (int i = 1; i < result.length; i++) {
++        assertTrue(result[i - 1].getMZ() < result[i].getMZ(),
++            () -> mode + " produced an unsorted peak list");
++      }
++    }
++  }
++
++  @Test
++  @DisplayName("An empty spectrum stays empty")
++  void emptyInput() {
++    assertEquals(0, ScanUtils.integerDataPoints(new DataPoint[0], IntegerMode.SUM).length);
++  }
++}

@@ -1,0 +1,45 @@
+diff --git a/pypdb/clients/data/data_types.py b/pypdb/clients/data/data_types.py
+index 3dfe8c4..eb6b7f3 100644
+--- a/pypdb/clients/data/data_types.py
++++ b/pypdb/clients/data/data_types.py
+@@ -18,7 +18,6 @@
+ - DrugBank integrated data
+ """
+ from dataclasses import dataclass, field
+-import pandas as pd
+ from enum import Enum
+ 
+ #TODO: handle batch requests
+@@ -162,9 +161,9 @@ def fetch_data(self):
+         if len(self.response['data'][self.data_type.value]) != len(self.id):
+             print("WARNING: one or more IDs not found in the PDB.")
+ 
+-    def return_data_as_pandas_df(self):
++    def return_data_as_df_dict(self):
+         """
+-        Return the fetched data as a pandas dataframe.
++        Return the fetched data as a dict usable by pandas or polars.
+         """
+         if not self.response:
+             return None
+@@ -190,4 +189,4 @@ def return_data_as_pandas_df(self):
+                         curr_dict[new_key] = val
+             data_flat[id] = curr_dict
+ 
+-        return pd.DataFrame.from_dict(data_flat, orient='index')
+\ No newline at end of file
++        return data_flat
+\ No newline at end of file
+diff --git a/setup.py b/setup.py
+index d4ebccc..ed95607 100755
+--- a/setup.py
++++ b/setup.py
+@@ -17,7 +17,7 @@
+     packages=modules_list,  # same as 'name'
+     py_modules=modules_list,
+     version='2.03',
+-    install_requires=['requests', 'pandas'],
++    install_requires=['requests'],
+     description='A Python wrapper for the RCSB Protein Data Bank (PDB) API',
+     author='William Gilpin',
+     author_email='firstnamelastname@gmail.com',

@@ -1,0 +1,32 @@
+diff --git a/matchms/exporting/save_as_mgf.py b/matchms/exporting/save_as_mgf.py
+index 366f3e8dd..ca6eb3274 100644
+--- a/matchms/exporting/save_as_mgf.py
++++ b/matchms/exporting/save_as_mgf.py
+@@ -56,4 +56,4 @@ def spectrum_dict_generator(matchms_spectra):
+                 del spectrum_dict["params"]["fingerprint"]
+             yield spectrum_dict
+ 
+-    py_mgf.write(spectrum_dict_generator(spectra), filename, file_mode="a")
++    py_mgf.write(spectrum_dict_generator(spectra), filename, file_mode="a", encoding="utf-8")
+diff --git a/matchms/importing/load_from_mgf.py b/matchms/importing/load_from_mgf.py
+index 52a4bf584..1a7bead3e 100644
+--- a/matchms/importing/load_from_mgf.py
++++ b/matchms/importing/load_from_mgf.py
+@@ -35,13 +35,13 @@ def load_from_mgf(filename: Union[str, TextIO],
+         The default is True.
+     """
+     if not os.path.isfile(filename):
+-        raise FileNotFoundError(f"The specified file: {filename} doesn't exist.") 
+-    
++        raise FileNotFoundError(f"The specified file: {filename} doesn't exist.")
++
+     def parse_file():
+-        with MGF(filename, convert_arrays=1) as reader:
++        with MGF(filename, convert_arrays=1, encoding="utf-8") as reader:
+             for pyteomics_spectrum in reader:
+                 yield parse_spectrum_dict(
+                     spectrum=pyteomics_spectrum,
+                     metadata_harmonization=metadata_harmonization)
+-    
++
+     return parse_file()

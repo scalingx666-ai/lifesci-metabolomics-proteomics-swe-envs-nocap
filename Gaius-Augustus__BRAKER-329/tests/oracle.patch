@@ -1,0 +1,213 @@
+diff --git a/scripts/braker.pl b/scripts/braker.pl
+index 15da7bf..62c3fb2 100755
+--- a/scripts/braker.pl
++++ b/scripts/braker.pl
+@@ -304,7 +304,11 @@
+                                     gtf file. Instead, you may provide such a
+                                     file from another location. If geneMarkGtf
+                                     option is set, skipGeneMark-ES/ET/EP/ETP is
+-                                    automatically also set.
++                                    automatically also set. Note that gene and
++                                    transcript ids in the final output may not
++                                    match the ids in the input genemark.gtf
++                                    because BRAKER internally re-assigns these
++                                    ids.
+ --rounds                            The number of optimization rounds used in
+                                     optimize_augustus.pl (default 5)
+ --skipAllTraining                   Skip GeneMark-EX (training and
+@@ -3851,6 +3855,10 @@ sub check_upfront {
+         "filterGenemark.pl",    $AUGUSTUS_BIN_PATH,
+         $AUGUSTUS_SCRIPTS_PATH, $AUGUSTUS_CONFIG_PATH
+     );
++    find(
++        "sortGeneMark.py",    $AUGUSTUS_BIN_PATH,
++        $AUGUSTUS_SCRIPTS_PATH, $AUGUSTUS_CONFIG_PATH
++    );
+     if($lambda){
+         find(
+         "downsample_traingenes.pl",    $AUGUSTUS_BIN_PATH,
+@@ -4240,6 +4248,17 @@ sub check_options {
+         $logString .= $prtStr;
+     }
+ 
++if( defined($geneMarkGtf) ) {
++        $prtStr = "#*********\n"
++                . "# WARNING: gene and transcript ids in the final output may "
++                . "not match the ids in the input genemark.gtf (specified "
++                . "with the --geneMarkGtf option) because BRAKER internally "
++                . "re-assigns these ids.\n"
++                . "#*********\n";
++        print STDOUT $prtStr;
++        $logString .= $prtStr;
++    }
++
+     # UTR training only
+     if ( defined($AUGUSTUS_hints_preds) ) {
+         $skipoptimize = 1;
+@@ -6919,6 +6938,8 @@ sub filter_genemark {
+                 }
+             }
+ 
++            sortGeneMark("$genemarkDir/genemark.gtf");
++
+             print LOG "\# "
+                 . (localtime)
+                 . ": filtering GeneMark genes by intron hints\n" if ($v > 3);
+@@ -6987,6 +7008,7 @@ sub filter_genemark {
+         if (!uptodate([ "$genemarkDir/genemark.gtf"],
+             [ "$genemarkDir/genemark.f.good.gtf"]) || $overwrite ) 
+         {
++            sortGeneMark("$genemarkDir/genemark.gtf");
+ 
+             open( ESPRED, "<", "$genemarkDir/genemark.gtf" ) or 
+                 clean_abort("$AUGUSTUS_CONFIG_PATH/species/$species",
+@@ -9987,6 +10009,43 @@ sub make_gtf {
+     }
+ }
+ 
++####################### sortGeneMark ###############################################
++# * call sortGeneMark.py to make BRAKER runs insensitive to the order in which
++#   GeneMark reports predictions
++# * note that the function exits with "clean_abort" upon failure
++################################################################################
++
++sub sortGeneMark {
++    my $gtf = shift;
++    print LOG "\# "
++        . (localtime)
++        . ": sorting GeneMark predictions in $gtf\n" if ($v > 3);
++
++    my $cmdString = "";
++    my $script = find(
++        "sortGeneMark.py",      $AUGUSTUS_BIN_PATH,
++        $AUGUSTUS_SCRIPTS_PATH, $AUGUSTUS_CONFIG_PATH
++    );
++    if ($nice) {
++        $cmdString .= "nice ";
++    }
++    $cmdString .= "$PYTHON3_PATH/python3 $script $gtf "
++               .  "> $gtf.sorted "
++               .  "2> $errorfilesDir/sortGeneMark.err";
++    print LOG "$cmdString\n" if ( $v > 3 );
++    system("$cmdString") == 0
++        or clean_abort("$AUGUSTUS_CONFIG_PATH/species/$species",
++        $useexisting, "ERROR in file " . __FILE__ ." at line "
++        . __LINE__ ."\nFailed to execute: $cmdString\n");
++
++    $cmdString = "mv $gtf.sorted $gtf";
++    print LOG "$cmdString\n" if ( $v > 3 );
++    system("$cmdString") == 0
++        or clean_abort("$AUGUSTUS_CONFIG_PATH/species/$species",
++        $useexisting, "ERROR in file " . __FILE__ ." at line "
++        . __LINE__ ."\nFailed to execute: $cmdString\n");
++}
++
+ ####################### evaluate ###############################################
+ # * evaluate gene predictions (find prediction files, start eval_gene_pred)
+ ################################################################################
+diff --git a/scripts/sortGeneMark.py b/scripts/sortGeneMark.py
+new file mode 100755
+index 0000000..4b06cd4
+--- /dev/null
++++ b/scripts/sortGeneMark.py
+@@ -0,0 +1,100 @@
++#!/usr/bin/env python3
++# ==============================================================
++# Tomas Bruna
++#
++# Sort genemark.gtf by coordinates; change gene and transcript IDs to appear in
++# ascending order.
++# ==============================================================
++
++
++import argparse
++import csv
++import re
++import sys
++import tempfile
++import os
++import subprocess
++
++
++def extractFeatureGtf(text, feature):
++    regex = feature + ' "([^"]+)"'
++    return re.search(regex, text).groups()[0]
++
++
++def replaceFeatureGtf(text, feature, oldValue, newValue):
++    old = feature + " \"" + oldValue + "\""
++    new = feature + " \"" + newValue + "\""
++    return text.replace(old, new)
++
++
++def sort(gtf, sortedOut):
++    cmd = "sort -k1,1 -k4,4n -k5,5n -o " + sortedOut + " " + gtf
++
++    if subprocess.call(cmd, shell=True) != 0:
++        sys.exit("error in " + __file__ + " while executing the following " +
++                 "command: " + cmd)
++
++
++def updateIdsAndPrint(input, sortedInput):
++    geneIdCounter = 1
++    trIdCounter = 1
++    geneIdMap = {}
++    trIdMap = {}
++    # This map exists just for checking purposes
++    gene2tr = {}
++
++    for row in csv.reader(open(sortedInput), delimiter='\t'):
++        if row[0][0] == "#":
++            continue
++
++        geneId = extractFeatureGtf(row[8], "gene_id")
++        trId = extractFeatureGtf(row[8], "transcript_id")
++
++        if geneId not in geneIdMap:
++            geneIdMap[geneId] = str(geneIdCounter) + "_g"
++            geneIdCounter += 1
++            gene2tr[geneId] = trId
++
++        if trId not in trIdMap:
++            trIdMap[trId] = str(trIdCounter) + "_t"
++            trIdCounter += 1
++
++        if gene2tr[geneId] != trId:
++            sys.exit("error in " + __file__ + ": The GeneMark file " + input +
++                     " is expected to contain one transcript per gene. More " +
++                     "than 1 transcript were detected for gene " + geneId + ".")
++
++        row[8] = replaceFeatureGtf(row[8], "gene_id", geneId,
++                                   geneIdMap[geneId])
++        row[8] = replaceFeatureGtf(row[8], "transcript_id", trId,
++                                   trIdMap[trId])
++
++        print("\t".join(row))
++
++
++def main():
++    args = parseCmd()
++
++    inputDir = os.path.dirname(os.path.realpath(args.input))
++    sortedInput = tempfile.NamedTemporaryFile(prefix="genemark", dir=inputDir,
++                                              delete=False).name
++
++    sort(args.input, sortedInput)
++    updateIdsAndPrint(args.input, sortedInput)
++    os.remove(sortedInput)
++
++
++def parseCmd():
++
++    parser = argparse.ArgumentParser(description='Sort genemark.gtf by\
++        coordinates; change gene and transcript IDs to appear in ascending\
++        order.')
++
++    parser.add_argument('input', metavar='genemark.gtf', type=str,
++                        help='Input GeneMark file in gtf format.')
++
++    return parser.parse_args()
++
++
++if __name__ == '__main__':
++    main()

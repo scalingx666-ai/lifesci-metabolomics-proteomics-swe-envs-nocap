@@ -1,0 +1,69 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3397"
+description = "fix mzml parsing for \"inf\" precursor"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "644a28e697ae46d15b51a2d19abc590ac3e2d725"
+reference = "https://github.com/mzmine/mzmine/pull/3397"
+source_access = "auto"
+built_at = "2026-11-16T08:46:07.588844+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:d0cfd405a0caab4c9c29d164099826286b6f0bce2cc03ff96dd5b4ce9d731da2"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-07-10T13:15:27Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/impl/DDAMsMsInfoImpl.java",
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/impl/MSnInfoImpl.java",
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/msms/MsMsInfo.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_mzml/msdk/data/BuildingMzMLMsScan.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_mzml/msdk/data/MzMLCVGroup.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_mzml/msdk/data/MzMLCVParam.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_mzml/msdk/data/MzMLPrecursorElement.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_mzml/msdk/data/MzMLPrecursorSelectedIonList.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 265
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/jaechang-hits__SciAgent-Skills-25"
+description = "refactor: relocate misplaced biostatistics entries"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "SciAgent-Skills",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "jaechang-hits/SciAgent-Skills"
+ref = "57d410131d278cfda13949364cb4dbcf038d5890"
+reference = "https://github.com/jaechang-hits/SciAgent-Skills/pull/25"
+source_access = "auto"
+built_at = "2026-11-15T15:24:53.246987+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:77664098a4b2ad318dc14d9473a4cef58fc66428553a7635e3a1ef371b0a8dd3"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-05-28T02:33:36Z"
+diff_format = "unified"
+context_files = [
+    "registry.yaml",
+    "skills/data-visualization/matplotlib-scientific-plotting/SKILL.md",
+    "skills/scientific-computing/degenerate-input-filtering/SKILL.md",
+    "skills/scientific-computing/nan-safe-correlation/SKILL.md",
+    "skills/scientific-computing/pyhealth/SKILL.md",
+    "skills/scientific-computing/scikit-learn-machine-learning/SKILL.md",
+    "skills/scientific-computing/shap-model-explainability/SKILL.md",
+    "skills/scientific-computing/shap-model-explainability/references/theory.md",
+    "skills/scientific-writing/clinical-decision-support-documents/SKILL.md",
+    "skills/scientific-writing/hypothesis-generation/SKILL.md",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 32
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

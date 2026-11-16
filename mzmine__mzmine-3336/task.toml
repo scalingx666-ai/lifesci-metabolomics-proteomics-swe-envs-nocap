@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3336"
+description = "isotopes: add fallback for isotope detection in ims data"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "60937cc926bf20663fd4399d871bd5a6f96a8f24"
+reference = "https://github.com/mzmine/mzmine/pull/3336"
+source_access = "auto"
+built_at = "2026-11-16T08:47:15.960741+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:54c6f646e37be5b7995ff68b131306e20d06b530c853fb8c91df289bcc63b81d"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-05-31T17:19:41Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/align_join/RowAlignmentScoreCalculator.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_isotopefinder/IsotopeFinderTask.java",
+    "mzmine-community/src/test/resources/rawdatafiles/integration_tests/diaPASEF/expected_results.csv",
+    "mzmine-community/src/test/resources/rawdatafiles/integration_tests/lc_tims/expected_results.csv",
+    "mzmine-community/src/test/resources/rawdatafiles/integration_tests/mse/mse_project.mzmine",
+    "mzmine-community/src/test/resources/rawdatafiles/integration_tests/timstof_ditimsms_pasef/expected_results.csv",
+    "mzmine-community/src/test/resources/rawdatafiles/integration_tests/workshop_dataset/project.mzmine",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 3716
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

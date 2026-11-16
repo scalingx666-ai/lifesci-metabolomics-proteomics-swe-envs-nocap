@@ -1,0 +1,65 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-899"
+description = "Add support for Python 3.14"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "d5b0c4fe2ae1b65b1c70898cc058e1da14989a35"
+reference = "https://github.com/matchms/matchms/pull/899"
+source_access = "auto"
+built_at = "2026-11-16T12:52:43.042354+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:4c7d45aa29c51a159f762fb9f3dc52cfa24bfca42bc9bb38492883a7e14a97c4"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-06-08T08:19:34Z"
+diff_format = "unified"
+context_files = [
+    ".github/workflows/CI_build.yml",
+    "README.rst",
+    "pyproject.toml",
+    "uv.lock",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 2931
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

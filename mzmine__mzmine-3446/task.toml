@@ -1,0 +1,76 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3446"
+description = "Allow pressure compensation for bruker tdf data"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "7312cf2c419fed519ba6e1359859eeb84d0ee55a"
+reference = "https://github.com/mzmine/mzmine/pull/3446"
+source_access = "auto"
+built_at = "2026-11-16T08:45:33.583937+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:21c2d21ba0f6f29cbcb60c0659ef0acf9afe9e78f06fc6d548f8b4a24cae90dc"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-19T14:32:08Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/data_access/BinningMobilogramDataAccess.java",
+    "mzmine-community/src/main/java/io/github/mzmine/gui/preferences/MZminePreferences.java",
+    "mzmine-community/src/main/java/io/github/mzmine/gui/preferences/VendorImportParameters.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_bruker_tdf/TDFImportTask.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_bruker_tdf/TDFUtils.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/io/import_rawdata_bruker_tdf/datamodel/TdfPressureCompensation.java",
+    "mzmine-community/src/main/java/io/github/mzmine/util/IonMobilityUtils.java",
+    "mzmine-community/src/test/java/import_data/MassLynxImportTest.java",
+    "mzmine-community/src/test/java/import_data/speed/ImportSpeedTestMain.java",
+    "mzmine-community/src/test/java/io/github/mzmine/datamodel/data_access/BinningMobilogramDataAccessMultiSegmentTest.java",
+    "mzmine-community/src/test/java/io/github/mzmine/datamodel/data_access/BinningMobilogramDataAccessTdfTest.java",
+    "mzmine-community/src/test/java/io/github/mzmine/datamodel/data_access/BinningMobilogramDataAccessTest.java",
+    "mzmine-community/src/test/java/io/github/mzmine/datamodel/data_access/VendorImportParametersTestUtils.java",
+    "mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/MassDetectionErrorTests.java",
+    "mzmine-community/src/test/java/resolver_tests/FilesToImport.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 1359
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

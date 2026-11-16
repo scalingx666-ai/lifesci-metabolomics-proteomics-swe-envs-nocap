@@ -1,0 +1,65 @@
+version = "1.0"
+
+[task]
+name = "default/williamgilpin__pypdb-24"
+description = "[RCSB Search API] - Added support for `NOT_EQUAL` comparison type"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "pypdb",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "williamgilpin/pypdb"
+ref = "83c9f7fdd7eaa4aaa8fbe61e0ba59bdd048d3efb"
+reference = "https://github.com/williamgilpin/pypdb/pull/24"
+source_access = "auto"
+built_at = "2026-11-16T00:16:56.088310+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:b566099ee5b5f431a7c5ad3a5b61ce8e140bbe50b41334e16c69c3a962411312"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2020-11-17T05:53:24Z"
+diff_format = "unified"
+context_files = [
+    "pypdb/clients/search/operators/text_operators.py",
+    "pypdb/clients/search/operators/text_operators_test.py",
+    "pypdb/clients/search/search_client.py",
+    "pypdb/clients/search/search_client_test.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 57
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

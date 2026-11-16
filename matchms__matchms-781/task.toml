@@ -1,0 +1,69 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-781"
+description = "Added a few reference spectra"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "5d8adb211e7ab2a8bc472048d317df62c2f8abcf"
+reference = "https://github.com/matchms/matchms/pull/781"
+source_access = "auto"
+built_at = "2026-11-16T12:55:03.802169+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:da46e0fd8391531b2e10f01a15933d05a9530443e848b6f81c4655aabc06b61e"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-03-27T11:49:57Z"
+diff_format = "unified"
+context_files = [
+    "matchms/reference_spectra/__init__.py",
+    "matchms/reference_spectra/aspirin.py",
+    "matchms/reference_spectra/cocaine.py",
+    "matchms/reference_spectra/glucose.py",
+    "matchms/reference_spectra/hydroxy_cholesterol.py",
+    "matchms/reference_spectra/phenylalanine.py",
+    "matchms/reference_spectra/salicin.py",
+    "tests/test_reference_spectra.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 673
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

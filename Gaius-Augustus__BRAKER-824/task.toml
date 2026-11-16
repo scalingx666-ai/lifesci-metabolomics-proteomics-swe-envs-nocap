@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/Gaius-Augustus__BRAKER-824"
+description = "fixed pseudo gene removal in evaluation script"
+
+[metadata]
+difficulty = "easy"
+category = "bugfix"
+keywords = [
+    "BRAKER",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "Gaius-Augustus/BRAKER"
+ref = "3f1f9b426a3e65381eaf39d2ffb799940e289fbd"
+reference = "https://github.com/Gaius-Augustus/BRAKER/pull/824"
+source_access = "auto"
+built_at = "2026-11-15T22:37:13.535158+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:80c45d5cbf671dd67315b5cacb9bfe6fa3d29e82e1062a366034bdde139d2342"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2024-05-13T11:16:51Z"
+diff_format = "unified"
+context_files = [
+    "scripts/compare_intervals_exact.pl",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 2
+difficulty = "trivial"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

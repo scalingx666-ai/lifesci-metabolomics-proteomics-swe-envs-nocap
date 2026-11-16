@@ -1,0 +1,76 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-963"
+description = "Switch to `uv`"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "2e814060bcd29b541ebd5bf4b9fd49c08caf9c8d"
+reference = "https://github.com/matchms/matchms/pull/963"
+source_access = "auto"
+built_at = "2026-11-16T12:51:40.857598+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:f521f5fb6b3d2545d2ba2f98b8dfecd2c9335387a0e0e367ac56189bec6994d2"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-30T17:21:36Z"
+diff_format = "unified"
+context_files = [
+    ".github/workflows/CI_build.yml",
+    ".github/workflows/CI_first_code_check.yml",
+    ".github/workflows/CI_generate_dev_requirements.yml",
+    ".github/workflows/CI_publish_pypi.yml",
+    ".github/workflows/SonarCloud.yml",
+    ".github/workflows/test_ecosystem.yml",
+    ".gitignore",
+    ".pre-commit-config.yaml",
+    "CONTRIBUTING.md",
+    "README.rst",
+    "dev-requirements.txt",
+    "poetry.toml",
+    "pyproject.toml",
+    "readthedocs/index.rst",
+    "uv.lock",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 4295
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

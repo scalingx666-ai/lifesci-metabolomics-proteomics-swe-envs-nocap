@@ -1,0 +1,62 @@
+diff --git a/.pre-commit-config.yaml b/.pre-commit-config.yaml
+new file mode 100644
+index 000000000..3da12f3e4
+--- /dev/null
++++ b/.pre-commit-config.yaml
+@@ -0,0 +1,44 @@
++default_stages: [pre-commit]
++
++default_language_version:
++  python: python3.11
++
++repos:
++  - repo: https://github.com/pre-commit/pre-commit-hooks
++    rev: v5.0.0
++    hooks:
++      - id: trailing-whitespace
++      - id: end-of-file-fixer
++      - id: check-json
++      - id: check-toml
++      - id: check-xml
++      - id: check-yaml
++      - id: debug-statements
++      - id: check-builtin-literals
++      - id: check-case-conflict
++      - id: check-docstring-first
++      - id: detect-private-key
++
++  # Run the Ruff linter.
++  - repo: https://github.com/astral-sh/ruff-pre-commit
++    rev: v0.8.3
++    hooks:
++      # Linter
++      - id: ruff
++        args: [--fix, --exit-non-zero-on-fix]
++
++  # Run pytest on commit.
++  - repo: local
++    hooks:
++      - id: pytest
++        name: pytest
++        entry: pytest
++        language: system
++        pass_filenames: false
++        always_run: true
++
++# sets up .pre-commit-ci.yaml to ensure pre-commit dependencies stay up to date
++ci:
++  autoupdate_schedule: weekly
++  skip: []
++  submodules: false
+diff --git a/pyproject.toml b/pyproject.toml
+index 4fe93e90a..df1894f5b 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -57,6 +57,7 @@ testfixtures = "^7.1.0"
+ twine = "^5.1.0"
+ black = "^23.7.0"
+ poetry-bumpversion = "^0.3.1"
++pre_commit = "4.1.0"
+ 
+ [tool.poetry.group.docs.dependencies]
+ sphinxcontrib-apidoc = "^0.3.0"

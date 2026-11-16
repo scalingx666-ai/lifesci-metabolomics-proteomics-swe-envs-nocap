@@ -1,0 +1,131 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index defa19c88..aeecb35d0 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -6,8 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+ 
+ ## Unreleased
+-### Changed
++### Added
+ - Added remove_profile_spectra filter
++- Added require_matching_ionmode_and_adduct filter
+ 
+ ## [0.25.0] -2024-05-21
+ ### Added
+diff --git a/matchms/filtering/__init__.py b/matchms/filtering/__init__.py
+index e020f3681..019de0731 100644
+--- a/matchms/filtering/__init__.py
++++ b/matchms/filtering/__init__.py
+@@ -126,6 +126,8 @@
+     require_correct_ionmode
+ from matchms.filtering.metadata_processing.require_formula import \
+     require_formula
++from matchms.filtering.metadata_processing.require_matching_adduct_and_ionmode import \
++    require_matching_adduct_and_ionmode
+ from matchms.filtering.metadata_processing.require_parent_mass_match_smiles import \
+     require_parent_mass_match_smiles
+ from matchms.filtering.metadata_processing.require_precursor_below_mz import \
+@@ -200,6 +202,7 @@
+     "repair_not_matching_annotation",
+     "require_valid_annotation",
+     "require_parent_mass_match_smiles",
++    "require_matching_adduct_and_ionmode",
+     "require_minimum_number_of_peaks",
+     "require_minimum_number_of_high_peaks",
+     "require_precursor_below_mz",
+diff --git a/matchms/filtering/default_pipelines.py b/matchms/filtering/default_pipelines.py
+index 7a84abce7..6421dcf36 100644
+--- a/matchms/filtering/default_pipelines.py
++++ b/matchms/filtering/default_pipelines.py
+@@ -40,7 +40,8 @@
+     (msfilters.derive_annotation_from_compound_name, {"mass_tolerance": 0.1}),
+ ]
+ REQUIRE_COMPLETE_ANNOTATION = [(msfilters.require_parent_mass_match_smiles, {'mass_tolerance': 0.1}),
+-                               msfilters.require_valid_annotation, ]
++                               msfilters.require_valid_annotation,
++                               msfilters.require_matching_adduct_and_ionmode]
+ CLEAN_PEAKS = [(msfilters.select_by_mz, {"mz_from": 0, "mz_to": 1000}),
+                (msfilters.select_by_relative_intensity, {"intensity_from": 0.001}),
+                (msfilters.reduce_to_number_of_peaks, {"n_max": 1000}),
+diff --git a/matchms/filtering/filter_order.py b/matchms/filtering/filter_order.py
+index 9ba1ba753..543047f17 100644
+--- a/matchms/filtering/filter_order.py
++++ b/matchms/filtering/filter_order.py
+@@ -41,6 +41,7 @@
+                msfilters.require_parent_mass_match_smiles,
+                msfilters.require_retention_index,
+                msfilters.require_retention_time,
++               msfilters.require_matching_adduct_and_ionmode,
+                msfilters.remove_profiled_spectra,
+                msfilters.normalize_intensities,
+                msfilters.select_by_intensity,
+diff --git a/matchms/filtering/metadata_processing/require_matching_adduct_and_ionmode.py b/matchms/filtering/metadata_processing/require_matching_adduct_and_ionmode.py
+new file mode 100644
+index 000000000..d844d5b94
+--- /dev/null
++++ b/matchms/filtering/metadata_processing/require_matching_adduct_and_ionmode.py
+@@ -0,0 +1,20 @@
++import logging
++from matchms.filtering.filter_utils.interpret_unknown_adduct import \
++    get_charge_of_adduct
++
++
++logger = logging.getLogger("matchms")
++
++
++def require_matching_adduct_and_ionmode(spectrum):
++    if spectrum is None:
++        return None
++    ionmode = spectrum.get("ionmode")
++    adduct = spectrum.get("adduct")
++    charge_of_adduct = get_charge_of_adduct(adduct)
++    if charge_of_adduct is None:
++        return None
++    if (charge_of_adduct > 0 and ionmode != "positive") or (charge_of_adduct < 0 and ionmode != "negative"):
++        logger.warning("Ionmode: %s does not correspond to the charge or the adduct %s", ionmode, adduct)
++        return None
++    return spectrum
+diff --git a/tests/filtering/test_all_filter_order.py b/tests/filtering/test_all_filter_order.py
+index a7853ff0e..d8142884e 100644
+--- a/tests/filtering/test_all_filter_order.py
++++ b/tests/filtering/test_all_filter_order.py
+@@ -39,6 +39,10 @@
+     [[msfilters.derive_adduct_from_name, ], [msfilters.clean_adduct]],
+     [[msfilters.derive_annotation_from_compound_name, ], DERIVE_ANNOTATION_FILTERS],
+     [[msfilters.derive_formula_from_name, ], [msfilters.require_formula]],
++    [[msfilters.repair_adduct_based_on_parent_mass, msfilters.repair_adduct_and_parent_mass_based_on_smiles,
++      msfilters.clean_adduct, msfilters.require_correct_ionmode, msfilters.derive_ionmode,
++      msfilters.derive_adduct_from_name],
++     [msfilters.require_matching_adduct_and_ionmode]],
+     [[msfilters.remove_profiled_spectra,], [msfilters.remove_peaks_around_precursor_mz]]
+ ])
+ def test_all_filter_order(early_filters: List[Callable], later_filters: List[Callable]):
+diff --git a/tests/filtering/test_require_matching_adduct_and_ionmode.py b/tests/filtering/test_require_matching_adduct_and_ionmode.py
+new file mode 100644
+index 000000000..af4da875c
+--- /dev/null
++++ b/tests/filtering/test_require_matching_adduct_and_ionmode.py
+@@ -0,0 +1,22 @@
++import pytest
++from matchms.filtering.metadata_processing.require_matching_adduct_and_ionmode import \
++    require_matching_adduct_and_ionmode
++from tests.builder_Spectrum import SpectrumBuilder
++
++
++@pytest.mark.parametrize("ionmode, adduct, spectrum_kept", [
++    ["positive", "[M+H]+", True],
++    ["positive", "[M-H]-", False],
++    ["negative", "[M-H]-", True],
++    ["negative", "[M+H]+", False],
++    ["negative", "bladiebla", False],
++    [None, "[M+H]+", False],
++])
++def test_require_matching_adduct_and_ionmode(ionmode, adduct, spectrum_kept):
++    spectrum = SpectrumBuilder().with_metadata(
++        {"ionmode": ionmode, "adduct": adduct}).build()
++    result = require_matching_adduct_and_ionmode(spectrum)
++    if result is None:
++        assert spectrum_kept is False
++    else:
++        assert spectrum_kept is True

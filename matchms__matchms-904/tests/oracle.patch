@@ -1,0 +1,267 @@
+diff --git a/README.rst b/README.rst
+index 9fcf8e1a8..4f4d4828e 100644
+--- a/README.rst
++++ b/README.rst
+@@ -98,7 +98,7 @@ SpectraCollection
+ ``SpectraCollection`` represents many spectra in a synchronized tabular/sparse
+ layout. It separates dataset-level storage into:
+ 
+-- ``MetadataTable``: a pandas-based table where each row corresponds to one
++- ``MetadataCollection``: a pandas-based table where each row corresponds to one
+   spectrum.
+ - ``FragmentCollection``: a backend for storing all fragment peaks. The default
+   backend is ``CSRFragmentCollection``, which stores peaks in a sparse matrix
+@@ -170,7 +170,7 @@ For ``Spectrum`` inputs, filters return either a modified ``Spectrum`` or
+ ``None`` if the spectrum should be removed.
+ 
+ For ``SpectraCollection`` inputs, filters operate on the full collection. Filters
+-that remove spectra drop the corresponding rows from both ``MetadataTable`` and
++that remove spectra drop the corresponding rows from both ``MetadataCollection`` and
+ ``FragmentCollection``. If all spectra are removed, the filter may return
+ ``None``.
+ 
+@@ -274,7 +274,7 @@ Example: collection-first workflow
+ 
+ This workflow avoids repeatedly converting a full dataset into lists of
+ ``Spectrum`` objects. Filters with native collection implementations can operate
+-directly on ``MetadataTable`` or ``FragmentCollection``.
++directly on ``MetadataCollection`` or ``FragmentCollection``.
+ 
+ 
+ Metadata handling
+@@ -288,7 +288,7 @@ keys are harmonized to matchms-style names, for example:
+     "Precursor MZ" -> "precursor_mz"
+     "Compound Name" -> "compound_name"
+ 
+-For collections, metadata is stored in ``MetadataTable``, a pandas-based table.
++For collections, metadata is stored in ``MetadataCollection``, a pandas-based table.
+ Column names can be harmonized using the same matchms key conventions.
+ 
+ .. code-block:: python
+@@ -516,7 +516,7 @@ only on peak arrays should usually get a native collection implementation.
+ 
+ General recommendations:
+ 
+-- Metadata-only filters should operate on ``MetadataTable``.
++- Metadata-only filters should operate on ``MetadataCollection``.
+ - Peak-only filters should operate on ``FragmentCollection``.
+ - Filters that drop spectra should return ``None`` for failing ``Spectrum``
+   inputs and should drop rows for ``SpectraCollection`` inputs.
+diff --git a/matchms/MetadataTable.py b/matchms/MetadataCollection.py
+similarity index 93%
+rename from matchms/MetadataTable.py
+rename to matchms/MetadataCollection.py
+index f90f50d9b..65d02a699 100644
+--- a/matchms/MetadataTable.py
++++ b/matchms/MetadataCollection.py
+@@ -41,7 +41,7 @@ def harmonize_metadata_column_name(column_name: str) -> str:
+     return column_name
+ 
+ 
+-def harmonize_metadata_table_columns(metadata: pd.DataFrame) -> pd.DataFrame:
++def harmonize_metadata_collection_columns(metadata: pd.DataFrame) -> pd.DataFrame:
+     """Return DataFrame with harmonized metadata column names.
+ 
+     If multiple columns map to the same harmonized column name, values are
+@@ -82,7 +82,7 @@ def harmonize_metadata_table_columns(metadata: pd.DataFrame) -> pd.DataFrame:
+     return harmonized
+ 
+ 
+-class MetadataTable(pd.DataFrame):
++class MetadataCollection(pd.DataFrame):
+     """
+     Metadata proxy class.
+     Used for filter directly on metadata and synchronize fragments.
+@@ -97,7 +97,7 @@ def __init__(self, data, collection=None, *args, **kwargs):
+     @property
+     def _constructor(self):
+         def _c(*args, **kwargs):
+-            return MetadataTable(*args, collection=self._collection, **kwargs)
++            return MetadataCollection(*args, collection=self._collection, **kwargs)
+ 
+         return _c
+ 
+@@ -107,7 +107,7 @@ def sort_values(self, by, inplace=False, **kwargs):
+ 
+     def harmonize_columns(self, inplace: bool = False):
+         """Harmonize metadata columns to matchms key style."""
+-        harmonized = harmonize_metadata_table_columns(self)
++        harmonized = harmonize_metadata_collection_columns(self)
+ 
+         if inplace:
+             self.drop(columns=list(self.columns), inplace=True)
+@@ -120,7 +120,7 @@ def harmonize_columns(self, inplace: bool = False):
+ 
+             return None
+ 
+-        return MetadataTable(harmonized, collection=self._collection)
++        return MetadataCollection(harmonized, collection=self._collection)
+ 
+     def apply_to_rows(
+         self,
+@@ -147,8 +147,8 @@ def apply_to_rows(
+         Parameters
+         ----------
+         func
+-            Function that receives a ``MetadataTable`` or ``DataFrame`` subset as
+-            first argument and returns a ``DataFrame``/``MetadataTable`` or ``None``.
++            Function that receives a ``MetadataCollection`` or ``DataFrame`` subset as
++            first argument and returns a ``DataFrame``/``MetadataCollection`` or ``None``.
+         *args
+             Positional arguments passed to ``func``.
+         row_mask
+@@ -156,7 +156,7 @@ def apply_to_rows(
+             directly to ``func``.
+         inplace
+             If True, update the bound collection metadata in place and return
+-            ``None``. If False, return a new ``MetadataTable``.
++            ``None``. If False, return a new ``MetadataCollection``.
+         drop_missing_updates
+             If True, missing values in the DataFrame returned by ``func`` are treated
+             as "no update" and do not overwrite existing metadata values. If False,
+@@ -167,7 +167,7 @@ def apply_to_rows(
+ 
+         Returns
+         -------
+-        MetadataTable or None
++        MetadataCollection or None
+             Updated metadata table if ``inplace=False``. Otherwise ``None``.
+         """
+         target = pd.DataFrame(self).copy()
+@@ -294,4 +294,4 @@ def _finalize_apply_to_rows(
+ 
+             return None
+ 
+-        return MetadataTable(target, collection=self._collection)
++        return MetadataCollection(target, collection=self._collection)
+diff --git a/matchms/SpectraCollection.py b/matchms/SpectraCollection.py
+index 957ebcf77..1f08f825e 100644
+--- a/matchms/SpectraCollection.py
++++ b/matchms/SpectraCollection.py
+@@ -3,7 +3,7 @@
+ from functools import cached_property
+ import numpy as np
+ import pandas as pd
+-from matchms.MetadataTable import MetadataTable, harmonize_metadata_table_columns
++from matchms.MetadataCollection import MetadataCollection, harmonize_metadata_collection_columns
+ from matchms.Spectrum import Spectrum
+ from .FragmentCollection import CSRFragmentCollection, FragmentCollection
+ from .hashing import compute_combined_hashes
+@@ -104,11 +104,11 @@ def _construct_metadata(self, spectra):
+         if len(metadata) == 0:  # allow empty metadata if spectra have no metadata
+             metadata = pd.DataFrame(index=np.arange(len(spectra)))
+ 
+-        return harmonize_metadata_table_columns(metadata).reset_index(drop=True)
++        return harmonize_metadata_collection_columns(metadata).reset_index(drop=True)
+ 
+     @property
+     def metadata(self) -> pd.DataFrame:
+-        return MetadataTable(self._metadata, self)
++        return MetadataCollection(self._metadata, self)
+ 
+     @property
+     def fragments(self) -> FragmentCollection:
+@@ -263,7 +263,7 @@ def harmonize_metadata_columns(self, inplace: bool = False):
+         """Harmonize metadata column names to matchms key style."""
+         target = self if inplace else self.copy()
+ 
+-        target._metadata = harmonize_metadata_table_columns(target._metadata).reset_index(
++        target._metadata = harmonize_metadata_collection_columns(target._metadata).reset_index(
+             drop=True
+         )
+         target._clear_cache(["metadata_hashes", "spectra_hashes"])
+diff --git a/matchms/__init__.py b/matchms/__init__.py
+index d0121c00d..f19a6d580 100644
+--- a/matchms/__init__.py
++++ b/matchms/__init__.py
+@@ -7,7 +7,7 @@
+ from .Fragments import Fragments
+ from .logging_functions import _init_logger, set_matchms_logger_level
+ from .Metadata import Metadata
+-from .MetadataTable import MetadataTable
++from .MetadataCollection import MetadataCollection
+ from .Pipeline import Pipeline
+ from .Scores import Scores
+ from .SpectraCollection import SpectraCollection
+@@ -28,7 +28,7 @@
+     "Fragments",
+     "importing",
+     "Metadata",
+-    "MetadataTable",
++    "MetadataCollection",
+     "networking",
+     "Pipeline",
+     "plotting",
+diff --git a/readthedocs/_static/matchms_modular_design_v1_0.png b/readthedocs/_static/matchms_modular_design_v1_0.png
+index 987eef901..8889d880c 100644
+Binary files a/readthedocs/_static/matchms_modular_design_v1_0.png and b/readthedocs/_static/matchms_modular_design_v1_0.png differ
+diff --git a/tests/test_metadata_table.py b/tests/test_metadata_collection.py
+similarity index 90%
+rename from tests/test_metadata_table.py
+rename to tests/test_metadata_collection.py
+index 408bf07a0..45bc8d3ec 100644
+--- a/tests/test_metadata_table.py
++++ b/tests/test_metadata_collection.py
+@@ -2,9 +2,9 @@
+ import pandas as pd
+ import pytest
+ from matchms import SpectraCollection
+-from matchms.MetadataTable import (
++from matchms.MetadataCollection import (
++    harmonize_metadata_collection_columns,
+     harmonize_metadata_column_name,
+-    harmonize_metadata_table_columns,
+ )
+ from tests.builder_Spectrum import SpectrumBuilder
+ 
+@@ -14,7 +14,7 @@ def test_harmonize_metadata_column_name_lowercase_and_regex():
+     assert harmonize_metadata_column_name("Precursor MZ") == "precursor_mz"
+ 
+ 
+-def test_harmonize_metadata_table_columns():
++def test_harmonize_metadata_collection_columns():
+     metadata = pd.DataFrame(
+         {
+             "Compound Name": ["A", "B"],
+@@ -22,14 +22,14 @@ def test_harmonize_metadata_table_columns():
+         }
+     )
+ 
+-    result = harmonize_metadata_table_columns(metadata)
++    result = harmonize_metadata_collection_columns(metadata)
+ 
+     assert list(result.columns) == ["compound_name", "precursor_mz"]
+     assert result.loc[0, "compound_name"] == "A"
+     assert result.loc[1, "precursor_mz"] == 200.0
+ 
+ 
+-def test_harmonize_metadata_table_columns_combines_duplicate_columns():
++def test_harmonize_metadata_collection_columns_combines_duplicate_columns():
+     metadata = pd.DataFrame(
+         {
+             "Compound Name": ["A", None],
+@@ -37,13 +37,13 @@ def test_harmonize_metadata_table_columns_combines_duplicate_columns():
+         }
+     )
+ 
+-    result = harmonize_metadata_table_columns(metadata)
++    result = harmonize_metadata_collection_columns(metadata)
+ 
+     assert list(result.columns) == ["compound_name"]
+     assert result["compound_name"].tolist() == ["A", "B"]
+ 
+ 
+-def test_harmonize_metadata_table_columns_keeps_first_non_null_on_conflict():
++def test_harmonize_metadata_collection_columns_keeps_first_non_null_on_conflict():
+     metadata = pd.DataFrame(
+         {
+             "Compound Name": ["A"],
+@@ -51,7 +51,7 @@ def test_harmonize_metadata_table_columns_keeps_first_non_null_on_conflict():
+         }
+     )
+ 
+-    result = harmonize_metadata_table_columns(metadata)
++    result = harmonize_metadata_collection_columns(metadata)
+ 
+     assert list(result.columns) == ["compound_name"]
+     assert result.loc[0, "compound_name"] == "A"

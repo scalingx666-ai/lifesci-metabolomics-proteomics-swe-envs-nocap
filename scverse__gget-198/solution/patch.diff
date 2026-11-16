@@ -1,0 +1,431 @@
+diff --git a/docs/src/SUMMARY.md b/docs/src/SUMMARY.md
+index fd9761f0c..9ccbe4bed 100644
+--- a/docs/src/SUMMARY.md
++++ b/docs/src/SUMMARY.md
+@@ -9,7 +9,7 @@
+ * [Quick Start Guide](en/quick_start_guide.md)  
+ 
+ # Manual
+-* [gget 8cubedb](en/8cubedb.md) 
++* [gget 8cube](en/8cube.md) 
+ * [gget alphafold](en/alphafold.md)  
+ * [gget archs4](en/archs4.md)
+ * [gget bgee](en/bgee.md)
+@@ -51,7 +51,7 @@
+ * [Guía de inicio rápido](es/quick_start_guide.md)  
+ 
+ # Manuál
+-* [gget 8cubedb](es/8cubedb.md) 
++* [gget 8cube](es/8cube.md) 
+ * [gget alphafold](es/alphafold.md)  
+ * [gget archs4](es/archs4.md)  
+ * [gget bgee](es/bgee.md)  
+diff --git a/docs/src/en/8cubedb.md b/docs/src/en/8cube.md
+similarity index 81%
+rename from docs/src/en/8cubedb.md
+rename to docs/src/en/8cube.md
+index 75f93fdc8..4a0faa96a 100644
+--- a/docs/src/en/8cubedb.md
++++ b/docs/src/en/8cube.md
+@@ -1,17 +1,17 @@
+ > Python arguments are equivalent to long-option arguments (`--arg`), unless otherwise specified. Flags are True/False arguments in Python. The manual for any gget tool can be called from the command-line using the `-h` `--help` flag.
+-# gget 8cubedb 🔬
++# gget 8cube 🔬
+ 
+ Query [**8cubeDB**](https://eightcubedb.onrender.com/) ([biorxiv.org/content/10.1101/2025.04.21.649844](https://www.biorxiv.org/content/10.1101/2025.04.21.649844)) for gene-level specificity metrics and normalized expression values.   
+ Return format: **JSON** (command-line) or **data frame/CSV** (Python).
+ 
+ ---
+ 
+-# gget 8cubedb specificity 🎯
++# gget 8cube specificity 🎯
+ 
+ Retrieve **ψ** and **ζ** specificity statistics for one or more genes.
+ 
+ ```
+-gget 8cubedb specificity <GENES...>
++gget 8cube specificity <GENES...>
+ ```
+ 
+ **Positional argument**  
+@@ -35,12 +35,12 @@ Python: use `verbose=False`.
+ ### Example
+ 
+ ```bash
+-gget 8cubedb specificity Acsm2 ENSMUSG00000046623.9
++gget 8cube specificity Acsm2 ENSMUSG00000046623.9
+ ```
+ 
+ ```python
+ # Python
+-from gget.gget_8cubedb import specificity
++from gget.gget_8cube import specificity
+ specificity(["Acsm2", "ENSMUSG00000046623.9"])
+ ```
+ 
+@@ -48,12 +48,12 @@ specificity(["Acsm2", "ENSMUSG00000046623.9"])
+ 
+ ---
+ 
+-# gget 8cubedb psi_block 🧩
++# gget 8cube psi_block 🧩
+ 
+ Retrieve **ψ-block** (block-level specificity) values for one or more genes.
+ 
+ ```
+-gget 8cubedb psi_block <GENES...> --analysis_level <LEVEL> --analysis_type <TYPE>
++gget 8cube psi_block <GENES...> --analysis_level <LEVEL> --analysis_type <TYPE>
+ ```
+ 
+ **Positional argument**  
+@@ -82,14 +82,14 @@ Suppress progress printing.
+ ### Example
+ 
+ ```bash
+-gget 8cubedb psi_block Acsm2 \
++gget 8cube psi_block Acsm2 \
+     --analysis_level Kidney \
+     --analysis_type "Sex:Celltype"
+ ```
+ 
+ ```python
+ # Python
+-from gget.gget_8cubedb import psi_block
++from gget.gget_8cube import psi_block
+ psi_block(["Acsm2"], analysis_level="Kidney", analysis_type="Sex:Celltype")
+ ```
+ 
+@@ -97,12 +97,12 @@ psi_block(["Acsm2"], analysis_level="Kidney", analysis_type="Sex:Celltype")
+ 
+ ---
+ 
+-# gget 8cubedb expression 📊
++# gget 8cube expression 📊
+ 
+ Retrieve **mean and variance of normalized expression values** for one or more genes.
+ 
+ ```
+-gget 8cubedb expression <GENES...> --analysis_level <LEVEL> --analysis_type <TYPE>
++gget 8cube expression <GENES...> --analysis_level <LEVEL> --analysis_type <TYPE>
+ ```
+ 
+ **Positional argument**  
+@@ -131,14 +131,14 @@ Suppress progress messages.
+ ### Example
+ 
+ ```bash
+-gget 8cubedb expression ENSMUSG00000046623.9 \
++gget 8cube expression ENSMUSG00000046623.9 \
+     --analysis_level Across_tissues \
+     --analysis_type Strain
+ ```
+ 
+ ```python
+ # Python
+-from gget.gget_8cubedb import gene_expression
++from gget.gget_8cube import gene_expression
+ gene_expression(["ENSMUSG00000046623.9"], analysis_level="Across_tissues", analysis_type="Strain")
+ ```
+ 
+@@ -150,20 +150,20 @@ gene_expression(["ENSMUSG00000046623.9"], analysis_level="Across_tissues", analy
+ 
+ ```bash
+ # Specificity
+-gget 8cubedb specificity Gjb4
++gget 8cube specificity Gjb4
+ 
+ # ψ-block specificity
+-gget 8cubedb psi_block Gjb4 --analysis_level Across_tissues --analysis_type Strain
++gget 8cube psi_block Gjb4 --analysis_level Across_tissues --analysis_type Strain
+ 
+ # Expression values
+-gget 8cubedb expression Gjb4 --analysis_level Across_tissues --analysis_type Strain
++gget 8cube expression Gjb4 --analysis_level Across_tissues --analysis_type Strain
+ ```
+ 
+ ---
+ 
+ # Python API
+ ```python
+-from gget.gget_8cubedb import specificity, psi_block, gene_expression
++from gget.gget_8cube import specificity, psi_block, gene_expression
+ ```
+ or
+ ```python
+@@ -182,7 +182,7 @@ from gget import specificity, psi_block, gene_expression
+ 
+ # References
+ 
+-If you use `gget 8cubedb` in a publication, please cite:
++If you use `gget 8cube` in a publication, please cite:
+ 
+ * **Luebbert, L., & Pachter, L. (2023).**
+   *Efficient querying of genomic reference databases with gget.* Bioinformatics.
+diff --git a/docs/src/en/updates.md b/docs/src/en/updates.md
+index 1bd2415c1..47458fa07 100644
+--- a/docs/src/en/updates.md
++++ b/docs/src/en/updates.md
+@@ -1,7 +1,7 @@
+ ## ✨ What's new
+ **Version ≥ 0.30.0** (Jan 18, 2026):  
+ - NEW MODULES:
+-  - [`gget 8cubedb`](8cubedb.md)
++  - [`gget 8cube`](8cube.md)
+   - [`gget virus`](virus.md)
+ - SECURITY IMPROVEMENTS:
+   - Replaced `os.system()` with f-strings containing URLs from external APIs in `gget/main.py`
+diff --git a/docs/src/es/8cubedb.md b/docs/src/es/8cube.md
+similarity index 83%
+rename from docs/src/es/8cubedb.md
+rename to docs/src/es/8cube.md
+index b51850078..967374af0 100644
+--- a/docs/src/es/8cubedb.md
++++ b/docs/src/es/8cube.md
+@@ -1,18 +1,18 @@
+ > Parámetros de Python són iguales a los parámetros largos (`--parámetro`) de Terminal, si no especificado de otra manera. Banderas son parámetros de verdadero o falso (True/False) en Python. El manuál para cualquier modulo de gget se puede llamar desde la Terminal con la bandera `-h` `--help`.
+-# gget 8cubedb 🔬
++# gget 8cube 🔬
+ 
+ Consulta [**8cubeDB**](https://eightcubedb.onrender.com/) ([biorxiv.org/content/10.1101/2025.04.21.649844](https://www.biorxiv.org/content/10.1101/2025.04.21.649844)) para métricas de especificidad a nivel génico y valores de expresión normalizados.  
+ Formato de salida: **JSON** (línea de comandos) o **data frame/CSV** (Python).
+ 
+ ---
+ 
+-# gget 8cubedb specificity 🎯
++# gget 8cube specificity 🎯
+ 
+ Recupera estadísticas de especificidad **ψ** y **ζ** para uno o más genes.
+ 
+ ```
+ 
+-gget 8cubedb specificity <GENES...>
++gget 8cube specificity <GENES...>
+ 
+ ````
+ 
+@@ -37,12 +37,12 @@ Python: usar `verbose=False`.
+ ### Ejemplo
+ 
+ ```bash
+-gget 8cubedb specificity Acsm2 ENSMUSG00000046623.9
++gget 8cube specificity Acsm2 ENSMUSG00000046623.9
+ ````
+ 
+ ```python
+ # Python
+-from gget.gget_8cubedb import specificity
++from gget.gget_8cube import specificity
+ specificity(["Acsm2", "ENSMUSG00000046623.9"])
+ ```
+ 
+@@ -50,12 +50,12 @@ specificity(["Acsm2", "ENSMUSG00000046623.9"])
+ 
+ ---
+ 
+-# gget 8cubedb psi_block 🧩
++# gget 8cube psi_block 🧩
+ 
+ Recupera valores de **ψ-block** (especificidad a nivel de bloque) para uno o más genes.
+ 
+ ```
+-gget 8cubedb psi_block <GENES...> --analysis_level <LEVEL> --analysis_type <TYPE>
++gget 8cube psi_block <GENES...> --analysis_level <LEVEL> --analysis_type <TYPE>
+ ```
+ 
+ **Argumento posicional**
+@@ -84,14 +84,14 @@ Suprime la impresión del progreso.
+ ### Ejemplo
+ 
+ ```bash
+-gget 8cubedb psi_block Acsm2 \
++gget 8cube psi_block Acsm2 \
+     --analysis_level Kidney \
+     --analysis_type "Sex:Celltype"
+ ```
+ 
+ ```python
+ # Python
+-from gget.gget_8cubedb import psi_block
++from gget.gget_8cube import psi_block
+ psi_block(["Acsm2"], analysis_level="Kidney", analysis_type="Sex:Celltype")
+ ```
+ 
+@@ -99,12 +99,12 @@ psi_block(["Acsm2"], analysis_level="Kidney", analysis_type="Sex:Celltype")
+ 
+ ---
+ 
+-# gget 8cubedb expression 📊
++# gget 8cube expression 📊
+ 
+ Recupera la **media y varianza de los valores de expresión normalizados** para uno o más genes.
+ 
+ ```
+-gget 8cubedb expression <GENES...> --analysis_level <LEVEL> --analysis_type <TYPE>
++gget 8cube expression <GENES...> --analysis_level <LEVEL> --analysis_type <TYPE>
+ ```
+ 
+ **Argumento posicional**
+@@ -133,14 +133,14 @@ Suprime los mensajes de progreso.
+ ### Ejemplo
+ 
+ ```bash
+-gget 8cubedb expression ENSMUSG00000046623.9 \
++gget 8cube expression ENSMUSG00000046623.9 \
+     --analysis_level Across_tissues \
+     --analysis_type Strain
+ ```
+ 
+ ```python
+ # Python
+-from gget.gget_8cubedb import gene_expression
++from gget.gget_8cube import gene_expression
+ gene_expression(["ENSMUSG00000046623.9"], analysis_level="Across_tissues", analysis_type="Strain")
+ ```
+ 
+@@ -152,13 +152,13 @@ gene_expression(["ENSMUSG00000046623.9"], analysis_level="Across_tissues", analy
+ 
+ ```bash
+ # Especificidad
+-gget 8cubedb specificity Gjb4
++gget 8cube specificity Gjb4
+ 
+ # Especificidad ψ-block
+-gget 8cubedb psi_block Gjb4 --analysis_level Across_tissues --analysis_type Strain
++gget 8cube psi_block Gjb4 --analysis_level Across_tissues --analysis_type Strain
+ 
+ # Valores de expresión
+-gget 8cubedb expression Gjb4 --analysis_level Across_tissues --analysis_type Strain
++gget 8cube expression Gjb4 --analysis_level Across_tissues --analysis_type Strain
+ ```
+ 
+ ---
+@@ -166,7 +166,7 @@ gget 8cubedb expression Gjb4 --analysis_level Across_tissues --analysis_type Str
+ # API de Python
+ 
+ ```python
+-from gget.gget_8cubedb import specificity, psi_block, gene_expression
++from gget.gget_8cube import specificity, psi_block, gene_expression
+ ```
+ 
+ o
+@@ -188,7 +188,7 @@ from gget import specificity, psi_block, gene_expression
+ 
+ # Citar
+ 
+-Si utiliza `gget 8cubedb` en una publicación, por favor cite:
++Si utiliza `gget 8cube` en una publicación, por favor cite:
+ 
+ * **Luebbert, L., & Pachter, L. (2023).**
+   *Efficient querying of genomic reference databases with gget.* Bioinformatics.
+diff --git a/docs/src/es/updates.md b/docs/src/es/updates.md
+index 69d0a4379..31f2e3b4f 100644
+--- a/docs/src/es/updates.md
++++ b/docs/src/es/updates.md
+@@ -1,7 +1,7 @@
+ ## ✨ ¡Lo más reciente!  
+ **Versión ≥ 0.30.0** (18 de enero de 2026):  
+ - NUEVOS MÓDULOS:
+-  - [`gget 8cubedb`](8cubedb.md)
++  - [`gget 8cube`](8cube.md)
+   - [`gget virus`](virus.md)
+ - MEJORAS DE SEGURIDAD:
+   - Se reemplazó `os.system()` con f-strings que contienen URLs de APIs externas en `gget/main.py`
+diff --git a/gget/__init__.py b/gget/__init__.py
+index 1f6f4f9be..3c65663f0 100644
+--- a/gget/__init__.py
++++ b/gget/__init__.py
+@@ -19,7 +19,7 @@
+ from .gget_opentargets import opentargets
+ from .gget_cbio import cbio_plot, cbio_search
+ from .gget_bgee import bgee
+-from .gget_8cubedb import specificity, psi_block, gene_expression
++from .gget_8cube import specificity, psi_block, gene_expression
+ from .gget_virus import virus
+ 
+ import logging
+diff --git a/gget/gget_8cubedb.py b/gget/gget_8cube.py
+similarity index 100%
+rename from gget/gget_8cubedb.py
+rename to gget/gget_8cube.py
+diff --git a/gget/main.py b/gget/main.py
+index 88d432829..600536f1b 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -40,7 +40,7 @@
+ from .gget_opentargets import opentargets, OPENTARGETS_RESOURCES
+ from .gget_cbio import cbio_plot, cbio_search
+ from .gget_bgee import bgee
+-from .gget_8cubedb import specificity, psi_block, gene_expression
++from .gget_8cube import specificity, psi_block, gene_expression
+ from .gget_virus import virus
+ 
+ 
+@@ -2330,10 +2330,10 @@ def main():
+         help="Does not print progress information.",
+     )
+ 
+-    ## gget 8cubedb subparser
++    ## gget 8cube subparser
+     cube_desc = "Query 8cubeDB (https://eightcubedb.onrender.com/)."
+     parser_8cube = parent_subparsers.add_parser(
+-        "8cubedb",
++        "8cube",
+         parents=[parent],
+         description=cube_desc,
+         help=cube_desc,
+@@ -2341,7 +2341,7 @@ def main():
+         formatter_class=CustomHelpFormatter,
+     )
+ 
+-    # Subcommands under "8cubedb"
++    # Subcommands under "8cube"
+     cube_subparsers = parser_8cube.add_subparsers(dest="cube_command")
+ 
+     spec_desc = "Retrieve ψ and ζ specificity metrics for one or more genes."
+@@ -2750,7 +2750,7 @@ def main():
+         "opentargets": parser_opentargets,
+         "cbio": parser_cbio,
+         "bgee": parser_bgee,
+-        "8cubedb": parser_8cube,
++        "8cube": parser_8cube,
+         "virus": parser_virus,
+     }
+ 
+@@ -3667,9 +3667,9 @@ def main():
+                     bgee_results.to_json(orient="records", force_ascii=False, indent=4)
+                 )
+ 
+-    ## 8cubedb return
+-    if args.command == "8cubedb":
+-        from .gget_8cubedb import specificity, psi_block, gene_expression
++    ## 8cube return
++    if args.command == "8cube":
++        from .gget_8cube import specificity, psi_block, gene_expression
+ 
+         if args.cube_command is None:
+             parser_8cube.error(
+diff --git a/tests/fixtures/test_8cubedb.json b/tests/fixtures/test_8cube.json
+similarity index 100%
+rename from tests/fixtures/test_8cubedb.json
+rename to tests/fixtures/test_8cube.json
+diff --git a/tests/test_8cubedb.py b/tests/test_8cube.py
+similarity index 90%
+rename from tests/test_8cubedb.py
+rename to tests/test_8cube.py
+index ccff7fc12..a26bfdafc 100644
+--- a/tests/test_8cubedb.py
++++ b/tests/test_8cube.py
+@@ -2,11 +2,11 @@
+ import json
+ import os
+ 
+-from gget.gget_8cubedb import specificity, psi_block, gene_expression
++from gget.gget_8cube import specificity, psi_block, gene_expression
+ from .from_json import from_json
+ 
+ # Load JSON fixture
+-fixture_path = os.path.join(os.path.dirname(__file__), "fixtures", "test_8cubedb.json")
++fixture_path = os.path.join(os.path.dirname(__file__), "fixtures", "test_8cube.json")
+ 
+ with open(fixture_path) as f:
+     fixture = json.load(f)

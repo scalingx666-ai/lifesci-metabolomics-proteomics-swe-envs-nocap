@@ -1,0 +1,255 @@
+diff --git a/gget/gget_info.py b/gget/gget_info.py
+index 629bd8a46..845affc72 100644
+--- a/gget/gget_info.py
++++ b/gget/gget_info.py
+@@ -5,7 +5,8 @@
+ from bs4 import BeautifulSoup
+ 
+ # Custom functions
+-from .utils import rest_query, get_uniprot_info, wrap_cols_func, get_pdb_ids, set_up_logger
++from .utils import rest_query, get_uniprot_info, wrap_cols_func, get_pdb_ids, set_up_logger, post_query
++
+ logger = set_up_logger()
+ 
+ # Constants
+@@ -105,56 +106,54 @@ def info(
+     master_dict = {}
+ 
+     # Query REST APIs from https://rest.ensembl.org/
+-    for ensembl_ID in ens_ids_clean:
+-        # Create dict to save query results
+-        results_dict = {ensembl_ID: {}}
++    endpoint = "lookup/id/"
++    query = {"ids": ens_ids_clean, "expand": True}
+ 
+-        # Define the REST query
+-        query = "lookup/id/" + ensembl_ID + "?" + "expand=1"
++    results_dict = post_query(server, endpoint, query)
++    results_dict = {k: v for k, v in results_dict.items() if v is not None}
+ 
+-        # Submit query
++    for ensembl_ID, df_temp in results_dict.items():
+         try:
+-            df_temp = rest_query(server, query, content_type)
+-
++            # Add Ensembl ID with latest version number to df_temp
++            df_temp["ensembl_id"] = str(df_temp["id"]) + "." + str(df_temp["version"])
++        except KeyError:
++            # Just add Ensembl ID if no version found
++            df_temp["ensembl_id"] = str(df_temp["id"])
++
++    # second pass for ids that were not found in the initial query
++    ens_ids_clean_tmp = [ensembl_ID for ensembl_ID in ens_ids_clean if ensembl_ID not in results_dict.keys()]
++
++    if len(ens_ids_clean_tmp) > 0:
++        # print(f"Second pass for ids: {ens_ids_clean_tmp}")
++        # Try submitting query without expand (expand does not work for exons and translation IDs)
++        query = {"ids": ens_ids_clean_tmp}
++        results_dict_new = post_query(server, endpoint, query)
++        results_dict_new = {k: v for k, v in results_dict_new.items() if v is not None}
++
++        for ensembl_ID, df_temp in results_dict_new.items():
+             try:
+                 # Add Ensembl ID with latest version number to df_temp
+-                ensembl_id_dict = {
+-                    "ensembl_id": str(df_temp["id"]) + "." + str(df_temp["version"])
+-                }
+-                df_temp.update(ensembl_id_dict)
+-
++                df_temp["ensembl_id"] = str(df_temp["id"]) + "." + str(df_temp["version"])
+             except KeyError:
+                 # Just add Ensembl ID if no version found
+-                ensembl_id_dict = {"ensembl_id": str(df_temp["id"])}
+-                df_temp.update(ensembl_id_dict)
++                df_temp["ensembl_id"] = str(df_temp["id"])
+ 
+-        # If query returns in an error:
+-        except RuntimeError:
+-            # Try submitting query without expand (expand does not work for exons and translation IDs)
+-            try:
+-                query = "lookup/id/" + ensembl_ID + "?"
+-                df_temp = rest_query(server, query, content_type)
+-                # Add Ensembl ID with latest version number to df_temp
+-                ensembl_id_dict = {
+-                    "ensembl_id": str(df_temp["id"]) + "." + str(df_temp["version"])
+-                }
+-                df_temp.update(ensembl_id_dict)
+-
+-            # Log error if this also did not work
+-            except RuntimeError:
+-                if verbose:
+-                    logger.warning(
+-                        f"ID '{ensembl_ID}' not found. Please double-check spelling/arguments and try again."
+-                    )
++        results_dict.update(results_dict_new)
+ 
+-                # Remove IDs that were not found from ID list
+-                ens_ids_clean_2.remove(ensembl_ID)
++    ens_ids_clean_2 = []
++    for ensembl_ID in ens_ids_clean:
++        if ensembl_ID in results_dict.keys():
++            ens_ids_clean_2.append(ensembl_ID)
++        else:
++            if verbose:
++                logger.warning(
++                    f"ID '{ensembl_ID}' not found. Please double-check spelling/arguments and try again."
++                )
+ 
+-                continue
++    # rewrite results to be in the input order
++    results_dict = {ensembl_ID: results_dict[ensembl_ID] for ensembl_ID in ens_ids_clean_2}
+ 
+-        # Add results to master dict
+-        results_dict[ensembl_ID].update(df_temp)
+-        master_dict.update(results_dict)
++    master_dict.update(results_dict)
+ 
+     # Return None if none of the Ensembl IDs were found
+     if len(master_dict) == 0:
+diff --git a/gget/gget_seq.py b/gget/gget_seq.py
+index a1145956c..5656e0c27 100644
+--- a/gget/gget_seq.py
++++ b/gget/gget_seq.py
+@@ -1,7 +1,8 @@
+ import numpy as np
+ 
+ # Custom functions
+-from .utils import rest_query, get_uniprot_seqs, set_up_logger
++from .utils import rest_query, get_uniprot_seqs, set_up_logger, post_query
++
+ logger = set_up_logger()
+ from .gget_info import info
+ 
+@@ -85,41 +86,52 @@ def seq(
+         master_dict = {}
+ 
+         # Query REST APIs from https://rest.ensembl.org/
+-        for ensembl_ID in ens_ids_clean:
+-            # Create dict to save query results
+-            results_dict = {ensembl_ID: {}}
+ 
+-            # If isoforms False, just fetch sequences of passed Ensembl ID
+-            if isoforms == False:
+-                # sequence/id/ query: Request sequence by stable identifier
+-                query = "sequence/id/" + ensembl_ID + "?"
++        # If isoforms False, just fetch sequences of passed Ensembl ID
++        if not isoforms:
++            actual_results_dict = {}
+ 
+-                # Try if query valid
+-                try:
+-                    # Submit query; this will throw RuntimeError if ID not found
+-                    df_temp = rest_query(server, query, content_type)
++            endpoint = "sequence/id/"
++            query = {"ids": ens_ids_clean}
+ 
+-                    # Delete superfluous entries
+-                    keys_to_delete = ["query", "id", "version", "molecule"]
+-                    for key in keys_to_delete:
+-                        # Pop keys, None -> do not raise an error if key to delete not found
+-                        df_temp.pop(key, None)
++            # noinspection PyTypeChecker
++            results_list: list[dict[str, ...]] = post_query(server, endpoint, query)
++            results_dict: dict[str, dict[str, ...]] = {v['query']: v for v in results_list if v is not None}
+ 
+-                    # Add results to main dict
+-                    results_dict[ensembl_ID].update({"seq": df_temp})
++            for ensembl_ID, df_temp in results_dict.items():
++                df_temp: dict[str, ...]
+ 
+-                    if verbose:
+-                        logger.info(
+-                            f"Requesting nucleotide sequence of {ensembl_ID} from Ensembl."
+-                        )
++                # Delete superfluous entries
++                keys_to_delete = ["query", "id", "version", "molecule"]
++                for key in keys_to_delete:
++                    # Pop keys, None -> do not raise an error if key to delete not found
++                    df_temp.pop(key, None)
+ 
+-                except RuntimeError:
+-                    logger.error(
+-                        f"ID {ensembl_ID} not found. Please double-check spelling/arguments and try again."
++                # Add results to main dict
++                actual_results_dict[ensembl_ID] = {"seq": df_temp}
++
++                if verbose:
++                    logger.info(
++                        f"Requesting nucleotide sequence of {ensembl_ID} from Ensembl."
+                     )
+ 
+-            # If isoforms true, fetch sequences of isoforms instead
+-            if isoforms == True:
++            missing_ids = set(ens_ids_clean) - set(actual_results_dict.keys())
++
++            for missing in missing_ids:
++                logger.error(
++                    f"ID {missing} not found. Please double-check spelling/arguments and try again."
++                )
++
++            # Add results to master dict
++            master_dict.update(actual_results_dict)
++
++        # If isoforms true, fetch sequences of isoforms instead
++        # todo this could possibly be refactored to use bulk queries
++        else:
++            for ensembl_ID in ens_ids_clean:
++                # Create dict to save query results
++                results_dict = {ensembl_ID: {}}
++
+                 # Get ID type (gene, transcript, ...) using gget info
+                 info_df = info(ensembl_ID, verbose=False, pdb=False, ncbi=False, uniprot=False)
+ 
+@@ -198,8 +210,8 @@ def seq(
+                             "Please double-check spelling/arguments and try again."
+                         )
+ 
+-            # Add results to master dict
+-            master_dict.update(results_dict)
++                # Add results to master dict
++                master_dict.update(results_dict)
+ 
+         # Build FASTA file
+         for ens_ID in master_dict:
+diff --git a/gget/utils.py b/gget/utils.py
+index 7e00c32b4..5800ac4c3 100644
+--- a/gget/utils.py
++++ b/gget/utils.py
+@@ -651,6 +651,27 @@ def rest_query(server, query, content_type):
+         return r.text
+ 
+ 
++def post_query(server: str, endpoint: str, query: dict[str, ...]) -> dict[str, ...]:
++    """
++    Function to perform a POST API query.
++
++    :param server:  Server to query .
++    :param query:   Query that is passed to server.
++
++    :return: server output
++    """
++
++    r = requests.post(server + endpoint, json=query, headers={"Content-Type": "application/json"})
++
++    if not r.ok:
++        raise RuntimeError(
++            f"{server} returned error status code {r.status_code}. "
++            "Please double-check arguments and try again.\n"
++        )
++
++    return r.json()
++
++
+ def graphql_query(server: str, query: str, variables: dict[str, ...]) -> dict[str, ...]:
+     """
+     Function to perform a GraphQL API query.
+diff --git a/tests/test_info.py b/tests/test_info.py
+index 9e622e005..a2752b545 100644
+--- a/tests/test_info.py
++++ b/tests/test_info.py
+@@ -1,4 +1,5 @@
+ import unittest
++import unittest.mock
+ import pandas as pd
+ import json
+ from gget.gget_info import info

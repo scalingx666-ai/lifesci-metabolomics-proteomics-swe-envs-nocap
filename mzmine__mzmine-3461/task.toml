@@ -1,0 +1,76 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3461"
+description = "requests: "
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "0f1e4d4135a596cb7afdceb7f41f71e2a06b9105"
+reference = "https://github.com/mzmine/mzmine/pull/3461"
+source_access = "auto"
+built_at = "2026-11-16T08:44:59.560141+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:81b5c0d491e10d8df0e314bb3f70de0c499063e42976bed671c19b0ca59d0c26"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-21T14:14:02Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/annotations/PreferredAnnotationType.java",
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/annotations/SpectralLibraryMatchesType.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/io/export_features_csv/CSVExportModularTask.java",
+    "mzmine-community/src/main/java/io/github/mzmine/util/spectraldb/entry/SpectralDBAnnotation.java",
+    "mzmine-community/src/test/java/integrationtest/IntegrationTests.java",
+    "mzmine-community/src/test/resources/rawdatafiles/integration_tests/diaPASEF/expected_results.csv",
+    "mzmine-community/src/test/resources/rawdatafiles/integration_tests/gc_tof_ms/expected_results.csv",
+    "mzmine-community/src/test/resources/rawdatafiles/integration_tests/lc_tims/expected_results.csv",
+    "mzmine-community/src/test/resources/rawdatafiles/integration_tests/library_to_flist/expected_results.csv",
+    "mzmine-community/src/test/resources/rawdatafiles/integration_tests/mse/expected_results.csv",
+    "mzmine-community/src/test/resources/rawdatafiles/integration_tests/mse/expected_results_project.csv",
+    "mzmine-community/src/test/resources/rawdatafiles/integration_tests/timstof_ditimsms_pasef/expected_results.csv",
+    "mzmine-community/src/test/resources/rawdatafiles/integration_tests/workshop_dataset/expected_results.csv",
+    "mzmine-community/src/test/resources/rawdatafiles/integration_tests/workshop_dataset/expected_results_full.csv",
+    "mzmine-community/src/test/resources/rawdatafiles/integration_tests/workshop_dataset/expected_results_project.csv",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 13070
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

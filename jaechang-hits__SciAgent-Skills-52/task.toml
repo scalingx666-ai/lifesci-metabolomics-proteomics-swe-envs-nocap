@@ -1,0 +1,66 @@
+version = "1.0"
+
+[task]
+name = "default/jaechang-hits__SciAgent-Skills-52"
+description = "[HL1236] annotation 스킬 수정 (허브와 툴 구분)"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "SciAgent-Skills",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "jaechang-hits/SciAgent-Skills"
+ref = "82c862c094a4a5ec6eeeeee039c8dd34cd8a92be"
+reference = "https://github.com/jaechang-hits/SciAgent-Skills/pull/52"
+source_access = "auto"
+built_at = "2026-11-15T15:23:58.997181+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:88f8fd0359a14efbc1764fb424738312ec5691a4efaf8626ccb73629f6268d8d"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-22T07:29:33Z"
+diff_format = "unified"
+context_files = [
+    "registry.yaml",
+    "skills/genomics-bioinformatics/single-cell/cell-type-annotation/SKILL.md",
+    "skills/genomics-bioinformatics/single-cell/celltypist-cell-annotation/SKILL.md",
+    "skills/genomics-bioinformatics/single-cell/popv-cell-annotation/SKILL.md",
+    "skills/genomics-bioinformatics/single-cell/scanpy-scrna-seq/SKILL.md",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 422
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

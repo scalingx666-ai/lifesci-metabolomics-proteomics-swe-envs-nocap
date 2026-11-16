@@ -1,0 +1,251 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/tools/batchwizard/BatchWizardTab.java b/mzmine-community/src/main/java/io/github/mzmine/modules/tools/batchwizard/BatchWizardTab.java
+index 1437875e29..a5cd747ba3 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/tools/batchwizard/BatchWizardTab.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/tools/batchwizard/BatchWizardTab.java
+@@ -607,32 +607,33 @@ private void saveLocalWizardSequence() {
+    * The final product of the wizard is the batch
+    */
+   public void createBatch() {
+-    var sequenceSteps = updateAllParametersFromUiAndCheckErrors();
+-    if (sequenceSteps == null) {
+-      return;
+-    }
+-    final Optional<WizardStepParameters> workflow = sequenceSteps.get(WORKFLOW);
+-    if (workflow.isEmpty()) {
+-      DialogLoggerUtil.showErrorDialog("Cannot create batch",
+-          "A workflow must be selected to create a batch.");
+-      return;
+-    }
+-
+-    // Apply parameter overrides from customization tab
+-
+-    BatchModeParameters batchModeParameters = (BatchModeParameters) MZmineCore.getConfiguration()
+-        .getModuleParameters(BatchModeModule.class);
+     try {
++      // Control readback and validation can fail before the batch builder is reached.
++      final WizardSequence currentSequence = updateAllParametersFromUiAndCheckErrors();
++      if (currentSequence == null) {
++        return;
++      }
++      final Optional<WizardStepParameters> workflow = currentSequence.get(WORKFLOW);
++      if (workflow.isEmpty()) {
++        DialogLoggerUtil.showErrorDialog("Cannot create batch",
++            "A workflow must be selected to create a batch.");
++        return;
++      }
++
++      // Apply parameter overrides from customization tab
++      final BatchModeParameters batchModeParameters = (BatchModeParameters) MZmineCore.getConfiguration()
++          .getModuleParameters(BatchModeModule.class);
+       final BatchQueue q = ((WorkflowWizardParameterFactory) workflow.get()
+-          .getFactory()).getBatchBuilder(sequenceSteps).createQueue();
++          .getFactory()).getBatchBuilder(currentSequence).createQueue();
+       batchModeParameters.getParameter(BatchModeParameters.batchQueue).setValue(q);
+ 
+       if (batchModeParameters.showSetupDialog(false) == ExitCode.OK) {
+         MZmineCore.runMZmineModule(BatchModeModule.class, batchModeParameters.cloneParameterSet());
+       }
+     } catch (Exception e) {
+-      logger.log(Level.WARNING, "Cannot create batch" + e.getMessage(), e);
+-      DialogLoggerUtil.showErrorDialog("Cannot create batch", e.getMessage());
++      logger.log(Level.WARNING, "Cannot create batch: " + e.getMessage(), e);
++      DialogLoggerUtil.showErrorDialog("Cannot create batch",
++          Objects.requireNonNullElse(e.getMessage(), e.getClass().getSimpleName()));
+     }
+   }
+ 
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/parameters/Parameter.java b/mzmine-community/src/main/java/io/github/mzmine/parameters/Parameter.java
+index cce39ffb01..e76f6cd5b9 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/parameters/Parameter.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/parameters/Parameter.java
+@@ -28,6 +28,7 @@
+ import java.util.Arrays;
+ import java.util.Collection;
+ import java.util.Objects;
++import org.jetbrains.annotations.Nullable;
+ import org.w3c.dom.Element;
+ 
+ /**
+@@ -77,15 +78,15 @@ default boolean isSensitive() {
+    */
+   Parameter<ValueType> cloneParameter();
+ 
+-  default boolean valueEquals(Parameter<?> that) {
++  default boolean valueEquals(final @Nullable Parameter<?> that) {
+     if (that == null) {
+       return false;
+     }
+     if (!(this.getClass() == that.getClass())) {
+       return false;
+     }
+-    if (getValue() == null && that.getValue() == null) {
+-      return true;
++    if (getValue() == null || that.getValue() == null) {
++      return getValue() == null && that.getValue() == null;
+     }
+     if (getValue() instanceof Double) {
+       return Double.compare((Double) this.getValue(), (Double) that.getValue()) == 0;
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/modules/tools/batchwizard/BatchWizardBatchCreationTest.java b/mzmine-community/src/test/java/io/github/mzmine/modules/tools/batchwizard/BatchWizardBatchCreationTest.java
+new file mode 100644
+index 0000000000..eeadca61cf
+--- /dev/null
++++ b/mzmine-community/src/test/java/io/github/mzmine/modules/tools/batchwizard/BatchWizardBatchCreationTest.java
+@@ -0,0 +1,124 @@
++/*
++ * Copyright (c) 2004-2026 The MZmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.tools.batchwizard;
++
++import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
++import static org.junit.jupiter.api.Assertions.assertTrue;
++import static org.mockito.Mockito.doThrow;
++import static org.mockito.Mockito.mock;
++import static org.mockito.Mockito.mockStatic;
++
++import fxinitializer.InitJavaFX;
++import io.github.mzmine.gui.DesktopService;
++import io.github.mzmine.gui.HeadLessDesktop;
++import io.github.mzmine.javafx.dialogs.DialogLoggerUtil;
++import io.github.mzmine.modules.tools.batchwizard.subparameters.WizardStepParameters;
++import io.github.mzmine.parameters.dialogs.ParameterSetupPane;
++import java.lang.reflect.Field;
++import java.util.Map;
++import java.util.concurrent.CountDownLatch;
++import java.util.concurrent.TimeUnit;
++import javafx.application.Platform;
++import org.jetbrains.annotations.NotNull;
++import org.junit.jupiter.api.BeforeAll;
++import org.junit.jupiter.api.Test;
++import org.junit.jupiter.api.condition.DisabledOnOs;
++import org.junit.jupiter.api.condition.OS;
++
++/** Regression test for reporting wizard control failures before the batch editor opens. */
++@DisabledOnOs(OS.LINUX)
++class BatchWizardBatchCreationTest {
++
++  @BeforeAll
++  static void initFx() {
++    InitJavaFX.init();
++    DesktopService.setDesktop(new HeadLessDesktop());
++  }
++
++  @Test
++  void batchCreationReportsControlReadbackFailures() throws Exception {
++    runOnFxAndWait(() -> {
++      final BatchWizardTab wizard = new BatchWizardTab();
++      final ParameterSetupPane failingPane = mock(ParameterSetupPane.class);
++      doThrow(new IllegalArgumentException("Invalid numeric input"))
++          .when(failingPane).updateParameterSetFromComponents();
++      final var panes = parameterPanes(wizard);
++      panes.replaceAll((_, _) -> failingPane);
++
++      try (final var dialogs = mockStatic(DialogLoggerUtil.class)) {
++        assertDoesNotThrow(wizard::createBatch);
++        dialogs.verify(() -> DialogLoggerUtil.showErrorDialog("Cannot create batch",
++            "Invalid numeric input"));
++      }
++    });
++  }
++
++  @SuppressWarnings("unchecked")
++  private static @NotNull Map<WizardStepParameters, ParameterSetupPane> parameterPanes(
++      final @NotNull BatchWizardTab wizard) {
++    try {
++      final Field panesField = BatchWizardTab.class.getDeclaredField("paramPaneMap");
++      panesField.setAccessible(true);
++      return (Map<WizardStepParameters, ParameterSetupPane>) panesField.get(wizard);
++    } catch (ReflectiveOperationException e) {
++      throw new AssertionError(e);
++    }
++  }
++
++  private static void runOnFxAndWait(final @NotNull Runnable action) throws Exception {
++    final CountDownLatch finished = new CountDownLatch(1);
++    final Throwable[] failure = new Throwable[1];
++    submitWhenToolkitReady(() -> {
++      try {
++        action.run();
++      } catch (Throwable t) {
++        failure[0] = t;
++      } finally {
++        finished.countDown();
++      }
++    });
++    assertTrue(finished.await(30, TimeUnit.SECONDS), "JavaFX task did not finish");
++    if (failure[0] != null) {
++      throw new AssertionError(failure[0]);
++    }
++  }
++
++  private static void submitWhenToolkitReady(final @NotNull Runnable action)
++      throws InterruptedException {
++    final long deadline = System.currentTimeMillis() + 30_000;
++    while (true) {
++      try {
++        Platform.runLater(action);
++        return;
++      } catch (IllegalStateException toolkitNotInitialized) {
++        if (System.currentTimeMillis() > deadline) {
++          throw toolkitNotInitialized;
++        }
++        Thread.sleep(50);
++      }
++    }
++  }
++}
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/parameters/StandardParameterTest.java b/mzmine-community/src/test/java/io/github/mzmine/parameters/StandardParameterTest.java
+index a00b19e348..8af95ebf4a 100644
+--- a/mzmine-community/src/test/java/io/github/mzmine/parameters/StandardParameterTest.java
++++ b/mzmine-community/src/test/java/io/github/mzmine/parameters/StandardParameterTest.java
+@@ -25,7 +25,9 @@
+ package io.github.mzmine.parameters;
+ 
+ import static org.junit.jupiter.api.Assertions.assertEquals;
++import static org.junit.jupiter.api.Assertions.assertFalse;
+ import static org.junit.jupiter.api.Assertions.assertNotSame;
++import static org.junit.jupiter.api.Assertions.assertTrue;
+ 
+ import io.github.mzmine.datamodel.IonizationType;
+ import io.github.mzmine.datamodel.PolarityType;
+@@ -123,6 +125,19 @@ static List<ParameterTestCase> defaultCases() {
+     return tests;
+   }
+ 
++  @Test
++  void numericValueComparisonHandlesAnEmptyValueInEitherParameter() {
++    final DoubleParameter filled = new DoubleParameter("number", "", new DecimalFormat("0.0"), 5d);
++    final DoubleParameter empty = filled.cloneParameter();
++    empty.setValue(null);
++
++    assertFalse(filled.valueEquals(empty));
++    assertFalse(empty.valueEquals(filled));
++    assertTrue(empty.valueEquals(empty.cloneParameter()));
++    assertTrue(filled.valueEquals(filled.cloneParameter()));
++    assertFalse(filled.valueEquals(null));
++  }
++
+   @Test
+   void testRawDataFileSelection() {
+     final RawDataFilesSelection byMetadata = new RawDataFilesSelection(

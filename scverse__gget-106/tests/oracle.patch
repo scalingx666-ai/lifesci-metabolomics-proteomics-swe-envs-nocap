@@ -1,0 +1,109 @@
+diff --git a/docs/src/enrichr.md b/docs/src/enrichr.md
+index 13879ba75..a77fe2fa4 100644
+--- a/docs/src/enrichr.md
++++ b/docs/src/enrichr.md
+@@ -28,6 +28,12 @@ Alternatively: use flag `--ensembl_background` to input a list of Ensembl gene I
+ Path to the file the results will be saved in, e.g. path/to/directory/results.csv (or .json). Default: Standard out.   
+ Python: `save=True` will save the output in the current working directory.
+ 
++`-k` `--kegg`
++Path to the png file the marked KEGG pathway images will be saved in, e.g. path/to/directory/pathway.png.
++
++`-r` `--kegg_rank`
++Rank of the KEGG pathway to be plotted.
++
+ `figsize`  
+ Python only. (width, height) of plot in inches. (Default: (10,10))
+ 
+diff --git a/gget/gget_enrichr.py b/gget/gget_enrichr.py
+index 62058e12f..218e1fb20 100644
+--- a/gget/gget_enrichr.py
++++ b/gget/gget_enrichr.py
+@@ -79,6 +79,8 @@ def enrichr(
+     json=False,
+     save=False,
+     verbose=True,
++    kegg=None,
++    kegg_rank=1,
+ ):
+     """
+     Perform an enrichment analysis on a list of genes using Enrichr (https://maayanlab.cloud/Enrichr/).
+@@ -106,6 +108,8 @@ def enrichr(
+     - json        If True, returns results in json format instead of data frame. (Default: False)
+     - save        True/False whether to save the results in the local directory. (Default: False)
+     - verbose     True/False whether to print progress information. Default True.
++    - kegg        output file name for the highlighted KEGG pathway image. Default None.
++    - kegg_rank   candidate pathway rank to be plotted. Default 1.    
+ 
+     Returns a data frame with the Enrichr results.
+     """
+@@ -166,6 +170,12 @@ def enrichr(
+         if verbose:
+             logging.info(f"Performing Enichr analysis using database {database}.")
+ 
++    # Check if KEGG database
++    if kegg is not None:
++        if not database.startswith("KEGG"):
++            logging.error("Please specify KEGG database")
++            return
++
+     # If single gene passed as string, convert to list
+     if type(genes) == str:
+         genes = [genes]
+@@ -456,6 +466,20 @@ def enrichr(
+                 transparent=True,
+             )
+ 
++    if kegg is not None:
++        try:
++            import pykegg
++        except ImportError:
++            logging.error("Please install `pykegg` for plotting")
++            return
++        candidate_rank = df[df["rank"] == kegg_rank].iloc[0, :]
++        kegg_img = pykegg.visualize(
++            candidate_rank["path_name"],
++            candidate_rank["overlapping_genes"],
++            db=database,
++            output=kegg,
++        )
++
+     if json:
+         results_dict = json_package.loads(df.to_json(orient="records"))
+         if save:
+diff --git a/gget/main.py b/gget/main.py
+index e8946b3e9..e86f8e31b 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -828,6 +828,22 @@ def main():
+         required=False,
+         help="DEPRECATED - json is now the default output format (convert to csv using flag [--csv]).",
+     )
++    parser_enrichr.add_argument(
++        "-k",
++        "--kegg",
++        type=str,
++        required=False,
++        help=(
++            "Path to the png file the marked KEGG pathway images will be saved in, e.g. path/to/directory/pathway.png."
++        ),
++    )
++    parser_enrichr.add_argument(
++        "-r",
++        "--kegg_rank",
++        type=int,
++        required=False,
++        help=("Rank of the KEGG pathway to be plotted."),
++    )
+ 
+     ## gget archs4 subparser
+     archs4_desc = "Find the most correlated genes or the tissue expression atlas of a gene using data from the human and mouse RNA-seq database ARCHS4 (https://maayanlab.cloud/archs4/)."
+@@ -1989,6 +2005,8 @@ def main():
+             ensembl_bkg=args.ensembl_bkg,
+             json=args.csv,
+             verbose=args.quiet,
++            kegg=args.kegg,
++            kegg_rank=args.kegg_rank,
+         )
+ 
+         # Check if the function returned something

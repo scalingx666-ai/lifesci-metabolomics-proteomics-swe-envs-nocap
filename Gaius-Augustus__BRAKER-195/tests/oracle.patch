@@ -1,0 +1,156 @@
+diff --git a/README.md b/README.md
+index 147d967..1df3bd2 100644
+--- a/README.md
++++ b/README.md
+@@ -414,6 +414,16 @@ environment variable (`$AUGUSTUS_CONFIG_PATH`), or both directories can be suppl
+ 
+ For all your BASH sessions, add the above lines to a startup script (e.g.`~/.bashrc`).
+ 
++#### Python3
++
++On Ubuntu, Python3 is usually installed by default, `python3` will be in your `$PATH` variable, by default, and BRAKER will automatically locate it. However, you have the option to specify the `python3` binary location in two other ways:
++
++1.  Export an environment variable `$PYTHON3_PATH`, e.g. in your `~/.bashrc` file:
++
++        export PYTHON3_PATH=/path/to/python3/
++
++2.  Specify the command line option `--PYTHON3_PATH=/path/to/python3/` to `braker.pl`.
++
+ #### Bamtools
+ 
+ Download BAMTOOLS (e.g. `git clone https://github.com/pezmaster31/bamtools.git`). Install
+@@ -502,29 +512,19 @@ command line argument (`--SAMTOOLS_PATH=/your_path_to_samtools/`), or by using a
+ 
+ Add the above line to a startup script (e.g. `~/.bashrc`) in order to set the environment variable for all bash sessions.
+ 
+-#### Python3 and Biopython
++#### Biopython
+ 
+-If Python3 and Biopython are installed, BRAKER can generate FASTA-files with coding sequences and protein sequences predicted by AUGUSTUS and generate track data hubs for visualization of a BRAKER run with MakeHub <sup name="a16">[R16](#f16)</sup>. If Python3 (and cdbfasta/cdbyank) is available, BRAKER is able to correct AUGUSTUS genes with in frame stop codons (spliced stop codons).
+-All are an optional steps. The first can be disabled with the command-line flag `--skipGetAnnoFromFasta`, the second can be activated by using the command-line options `--makehub --email=your@mail.de`, the last can be deactivated with `--skip_fixing_broken_genes`; Python3 and Biopython are not required if neither of these optional steps shall be performed.
++If Biopython is installed, BRAKER can generate FASTA-files with coding sequences and protein sequences predicted by AUGUSTUS and generate track data hubs for visualization of a BRAKER run with MakeHub <sup name="a16">[R16](#f16)</sup>.
++These are optional steps. The first can be disabled with the command-line flag `--skipGetAnnoFromFasta`, the second can be activated by using the command-line options `--makehub --email=your@mail.de`, Biopython is not required if neither of these optional steps shall be performed.
+ 
+-On Ubuntu, Python3 is usually installed by default. Install the Python3 package manager with:
++On Ubuntu, install Python3 package manager with:
+ 
+     `sudo apt-get install python3-pip`
+ 
+-Subsequently, install Biopython with:
++Then, install Biopython with:
+ 
+     `sudo pip3 install biopython`
+ 
+-On Ubuntu, python3 will be in your `$PATH` variable, by default, and BRAKER will automatically locate it. However, you have the option to specify the `python3` binary location in two other ways:
+-
+-1.  Export an environment variable `$PYTHON3_PATH`, e.g. in your `~/.bashrc` file:
+-
+-```
+-        export PYTHON3_PATH=/path/to/python3/
+-```
+-
+-2.  Specify the command line option `--PYTHON3_PATH=/path/to/python3/` to `braker.pl`.
+-
+ #### cdbfasta
+ 
+ cdbfasta and cdbyank are required by BRAKER for correcting AUGUSTUS genes with in frame stop codons (spliced stop codons) using the AUGUSTUS script fix_in_frame_stop_codon_genes.py. This can be skipped with `--skip_fixing_broken_genes`.
+@@ -1379,7 +1379,7 @@ Common problems
+ 
+ -   *Does BRAKER depend on Python3?*
+ 
+-    Partially. The options `--make_hub` and `--UTR` will require Python3. The general required for Python3 for generating e.g. the protein sequence output file can be disabled with `--skipGetAnnoFromFasta`. So, if you use BRAKER with `--skipGetAnnoFromFasta` and not with `--make_hub` and `--UTR`, BRAKER does not require Python3. The python scripts employed by BRAKER are not compatible with Python2.
++    It does. The python scripts employed by BRAKER are not compatible with Python2.
+ 
+ -   *Why does BRAKER predict more genes than I expected?*
+ 
+diff --git a/scripts/braker.pl b/scripts/braker.pl
+index c5e63b9..8752e15 100755
+--- a/scripts/braker.pl
++++ b/scripts/braker.pl
+@@ -839,6 +839,7 @@
+ set_AUGUSTUS_CONFIG_PATH();
+ set_AUGUSTUS_BIN_PATH();
+ set_AUGUSTUS_SCRIPTS_PATH();
++set_PYTHON3_PATH();
+ if ( not($trainFromGth) ) {
+     set_GENEMARK_PATH()
+         ; # skip setting GeneMark path if no GeneMark training will be performed
+@@ -863,9 +864,7 @@
+ if ( @prot_seq_files && !$ESmode ){
+     set_ALIGNMENT_TOOL_PATH();
+ }
+-if ( not ($skipGetAnnoFromFasta) || $makehub || not ($skip_fixing_broken_genes)){
+-    set_PYTHON3_PATH();
+-}
++
+ if ( $makehub ) {
+     set_MAKEHUB_PATH();
+ }
+@@ -2893,8 +2892,7 @@ sub check_biopython{
+ }
+ 
+ ####################### set_PYTHON3_PATH #######################################
+-# * set path to python3 (for getAnnoFastaFromJoingenes.py, 
+-#   fix_in_frame_stop_codon_genes.py and make_hub.py)
++# * set path to python3
+ ################################################################################
+ 
+ sub set_PYTHON3_PATH {
+@@ -2977,38 +2975,23 @@ sub set_PYTHON3_PATH {
+ 
+     if ( not( defined($PYTHON3_PATH) ) ) {
+         my $python_err;
+-        $python_err .= "Python3 is currently required for converting\n"
+-                    .  "gene predictions in GTF-format and a genome\n"
+-                    .  "file in FASTA-format to FASTA files with coding\n"
+-                    .  "sequences and protein sequences using the AUGUSTUS\n"
+-                    .  "script getAnnoFastaJoingenes.py with braker.pl,\n"
+-                    .  "and for creating track data hubs for visualizing\n"
+-                    .  "gene predictions with the UCSC Genome Browser, and\n"
+-                    .  " for fixing genes with in frame stop codons.\n"
+-                    .  "You can skip execution of getAnnoFastaJoingenes.py\n"
+-                    .  "with the braker.pl command line flag --skipGetAnnoFromFasta.\n"
+-                    .  "You can skip generation of track data hubs by not providing\n"
+-                    .  "the command line option --makehub."
+-                    .  "You can skip the fixing of genes with stop codons with the\n"
+-                    .  " braker.pl command line flag --skip_fixing_broken_genes.\n"
+-                    .  "If you don't want to skip it, you have 3 different "
+-                    .  "options to provide a path to python3 to braker.pl:\n"
++        $python_err .= "Python3 was not found. You have 3 different options\n"
++                    .  "to provide a path to python3 to braker.pl:\n"
+                     .  "   a) provide command-line argument\n"
+-                    .  "      --PYTHON3_PATH=/your/path\n"
++                    .  "          --PYTHON3_PATH=/your/path\n"
+                     .  "   b) use an existing environment variable\n"
+-                    . "       \$PYTHON3_PATH\n"
++                    .  "          \$PYTHON3_PATH\n"
+                     .  "      for setting the environment variable, run\n"
+-                    .  "           export PYTHON3_PATH=/your/path\n"
+-                    .  "      in your shell. You may append this to your "
+-                    .  ".bashrc or .profile file in\n"
+-                    .  "      order to make the variable available to all your\n"
+-                    .  "      bash sessions.\n"
++                    .  "          export PYTHON3_PATH=/your/path\n"
++                    .  "      in your shell. You may append this to your\n"
++                    .  "      .bashrc or .profile file in order to make the\n"
++                    .  "      variable available to all your bash sessions.\n"
+                     .  "   c) braker.pl can try guessing the location of\n"
+                     .  "      \$PYTHON3_PATH from the location of a python3\n"
+                     .  "      executable that is available in your \$PATH\n"
+                     .  "      variable. If you try to rely on this option, you\n"
+-                    . "       can check by typing\n"
+-                    .  "           which python3\n"
++                    .  "      can check by typing\n"
++                    .  "          which python3\n"
+                     .  "      in your shell, whether there is a python3\n"
+                     .  "      executable in your \$PATH\n";
+         $prtStr = "\# " . (localtime) . " ERROR: in file " . __FILE__
+@@ -6985,7 +6968,7 @@ sub filter_genemark {
+             if ($nice) {
+                 $pythonCmdString .= "nice ";
+             }
+-            $pythonCmdString .= "python3 $string "
++            $pythonCmdString .= "$PYTHON3_PATH/python3 $string "
+                            .  "--goodGenes $genemarkDir/genemark.f.good.gtf "
+                            .  "--badGenes $genemarkDir/genemark.f.bad.gtf "
+                            .  "--N $minTrainGenes "

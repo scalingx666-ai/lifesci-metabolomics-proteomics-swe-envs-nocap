@@ -1,0 +1,69 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3345"
+description = "CompoundRowBinding for max height and area on rows"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "8cc2afd9809f839b1696fb0ced489174933ec492"
+reference = "https://github.com/mzmine/mzmine/pull/3345"
+source_access = "auto"
+built_at = "2026-11-16T08:46:58.550839+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:d7a98a56101b36bc9807f118c54b8faeb8cfc60407826a12205794dd6b31649b"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-06-01T15:57:42Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/AverageRtBinding.java",
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/ComplexCompoundRowBinding.java",
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundIntensitySumBinding.java",
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundList.java",
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundRowBinding.java",
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundRowBindings.java",
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundRowMemberRowsBinding.java",
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/MaxFeatureIntensityRowBinding.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 520
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

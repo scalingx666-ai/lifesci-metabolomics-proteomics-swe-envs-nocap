@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/lightdock__lightdock-27"
+description = "Multiple chain support on filter scripts"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "lightdock",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "lightdock/lightdock"
+ref = "11095d33df23f3f9442c4e7f5207a22322b91ab6"
+reference = "https://github.com/lightdock/lightdock/pull/27"
+source_access = "auto"
+built_at = "2026-11-15T22:44:56.619855+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:5597a88f72deb86263b99b6a7eb4cc087d1c947c17b1f6d093f994b0035eb60a"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2022-02-13T11:12:51Z"
+diff_format = "unified"
+context_files = [
+    "bin/lgd_filter_membrane.py",
+    "bin/lgd_filter_restraints.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 82
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

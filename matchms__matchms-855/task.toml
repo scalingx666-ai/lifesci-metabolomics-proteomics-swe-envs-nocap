@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-855"
+description = "Update README"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "fe95271c074ebc729b11cc0dca0ceee5587efef7"
+reference = "https://github.com/matchms/matchms/pull/855"
+source_access = "auto"
+built_at = "2026-11-16T12:53:13.551049+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:c17ad1e934655c8aee0a87b14f61d9c74f17ed638764e6e37e096d588c9112ed"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-01-26T22:02:35Z"
+diff_format = "unified"
+context_files = [
+    "README.rst",
+    "pyproject.toml",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 10
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

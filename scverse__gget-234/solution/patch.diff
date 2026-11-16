@@ -1,0 +1,246 @@
+diff --git a/docs/src/en/alphafold.md b/docs/src/en/alphafold.md
+index c9d150f69..c161c361a 100644
+--- a/docs/src/en/alphafold.md
++++ b/docs/src/en/alphafold.md
+@@ -33,6 +33,9 @@ For higher accuracy, at the potential cost of longer inference times, set this t
+ `-o` `--out`  
+ Path to folder to save prediction results in (str). Default: "./[date_time]_gget_alphafold_prediction".  
+ 
++`-jhd` `--jackhmmer_savedir`  
++Path to a parent directory in which to store the temporary jackhmmer files (str). By default, `gget alphafold` creates a "tmp" folder in your home directory (`~/tmp/jackhmmer/`), which can take up to ~2 GB of disk space. Use this argument to place these temporary files elsewhere, e.g. on a disk with more free space. Default: None.  
++
+ **Flags**  
+ `-mfm` `--multimer_for_monomer`  
+ Use multimer model for a monomer.  
+diff --git a/docs/src/en/updates.md b/docs/src/en/updates.md
+index f2c52c13b..294156fb0 100644
+--- a/docs/src/en/updates.md
++++ b/docs/src/en/updates.md
+@@ -5,6 +5,7 @@
+ #### *gget* officially became part of [*scverse*](https://scverse.org/) on June 9, 2026. 🥳🥳🥳
+ 
+ **Version ≥ 0.30.8** (XXX XX, 2026):  
++- [`gget alphafold`](alphafold.md): Added a new `jackhmmer_savedir` argument (`-jhd`/`--jackhmmer_savedir` on the command line) that lets you choose where the temporary jackhmmer files are stored. By default, `gget alphafold` still creates a `~/tmp/jackhmmer/` folder in your home directory (which can take up to ~2 GB of disk space); the new argument lets you redirect these files elsewhere, e.g. to a disk with more free space. Resolves [issue 49](https://github.com/scverse/gget/issues/49).
+ - [`gget pdb`](pdb.md): Added support for the PDBx/mmCIF structure format (fixes [issue 178](https://github.com/scverse/gget/issues/178) and [issue 177](https://github.com/scverse/gget/issues/177)).
+   - New `resource="mmcif"` option downloads the structure in PDBx/mmCIF format (`.cif`).
+   - The default `resource="pdb"` now automatically falls back to PDBx/mmCIF when the legacy PDB file is unavailable (e.g. for large structures), since the legacy PDB format is being phased out by RCSB. A warning is logged and saved files use the correct extension (`.cif`).
+diff --git a/gget/gget_alphafold.py b/gget/gget_alphafold.py
+index db0ec7e64..9e578ed3b 100644
+--- a/gget/gget_alphafold.py
++++ b/gget/gget_alphafold.py
+@@ -140,8 +140,34 @@ def jackhmmer_chunk_callback(i: int) -> None:
+     return raw_msa_results
+ 
+ 
+-def clean_up() -> None:
+-    """Function to clean up temporary files after running gget alphafold."""
++def get_jackhmmer_dir(jackhmmer_savedir: str | None = None) -> str:
++    """Return the directory used for jackhmmer's temporary FASTA and working files.
++
++    By default gget creates a "tmp" folder in the user's home directory
++    ("~/tmp/jackhmmer/<UUID>"). These temporary files can take up to ~2 GB of disk space.
++    Passing a custom ``jackhmmer_savedir`` lets the user place this folder elsewhere
++    (e.g. on a disk with more free space), see https://github.com/scverse/gget/issues/49.
++
++    Args:
++      - jackhmmer_savedir    Custom parent directory for the temporary jackhmmer folder (str).
++                             If None (default), "~/tmp" is used.
++
++    Returns the absolute path to the temporary jackhmmer folder.
++    """
++    if jackhmmer_savedir is not None:
++        return os.path.abspath(os.path.join(jackhmmer_savedir, "jackhmmer", UUID))
++    return os.path.expanduser(os.path.join("~", "tmp", "jackhmmer", UUID))
++
++
++def clean_up(jackhmmer_dir: str | None = None) -> None:
++    """Function to clean up temporary files after running gget alphafold.
++
++    Args:
++      - jackhmmer_dir    Path to the temporary jackhmmer folder to clean up (str).
++                         If None (default), the default "~/tmp/jackhmmer/<UUID>" is used.
++    """
++    if jackhmmer_dir is None:
++        jackhmmer_dir = get_jackhmmer_dir()
+     # # Remove fasta files with input sequences
+     # files = glob.glob("target_*.fasta")
+     # for f in files:
+@@ -167,12 +193,13 @@ def clean_up() -> None:
+     #           sys.stderr.write(stderr)
+ 
+     # Delete any fasta files left in temporary jackhmmer folder
+-    for file in glob.glob(os.path.expanduser(f"~/tmp/jackhmmer/{UUID}/*.fasta")):
++    for file in glob.glob(os.path.join(jackhmmer_dir, "*.fasta")):
+         if os.path.exists(file):
+             os.remove(file)
+ 
+     # Delete empty parent folders
+-    os.removedirs(os.path.expanduser(f"~/tmp/jackhmmer/{UUID}"))
++    if os.path.isdir(jackhmmer_dir):
++        os.removedirs(jackhmmer_dir)
+ 
+ 
+ def alphafold(
+@@ -184,6 +211,7 @@ def alphafold(
+     plot: bool = True,
+     show_sidechains: bool = True,
+     verbose: bool = True,
++    jackhmmer_savedir: str | None = None,
+ ) -> None:
+     """Predicts the structure of a protein using a slightly simplified version of AlphaFold v2.3.0 (https://doi.org/10.1038/s41586-021-03819-2).
+ 
+@@ -200,6 +228,10 @@ def alphafold(
+       - plot                    True/False whether to provide a graphical overview of the prediction (default: True).
+       - show_sidechains         True/False whether to show side chains in the plot (default: True).
+       - verbose                 True/False whether to print progress information. Default True.
++      - jackhmmer_savedir       Path to a parent directory in which to store the temporary jackhmmer
++                                files (str). By default, gget creates a "tmp" folder in the home
++                                directory ("~/tmp/jackhmmer/"), which can take up to ~2 GB of disk space.
++                                Use this argument to place these temporary files elsewhere. Default: None.
+ 
+     Saves the predicted aligned error (json) and the prediction (PDB) in the defined 'out' folder.
+ 
+@@ -500,16 +532,19 @@ class ModelType(enum.Enum):
+     TOTAL_JACKHMMER_CHUNKS = sum([cfg["num_streamed_chunks"] for cfg in MSA_DATABASES])
+ 
+     ### Search against existing databases
++    # Resolve the temporary jackhmmer folder (optionally user-defined via jackhmmer_savedir)
++    jackhmmer_dir = get_jackhmmer_dir(jackhmmer_savedir)
++
+     # Get absolute path to output file and create output directory
+     if out is not None:
+         os.makedirs(out, exist_ok=True)
+         abs_out_path = os.path.abspath(out)
+     else:
+         # Use temporary jackhmmer folder which will later be deleted
+-        abs_out_path = os.path.expanduser(f"~/tmp/jackhmmer/{UUID}")
++        abs_out_path = jackhmmer_dir
+ 
+     # Create folder to save temporary jackhmmer database chunks in
+-    os.makedirs(os.path.expanduser(f"~/tmp/jackhmmer/{UUID}"), exist_ok=True)
++    os.makedirs(jackhmmer_dir, exist_ok=True)
+ 
+     features_for_chain = {}
+     raw_msa_results_for_sequence = {}
+@@ -815,4 +850,4 @@ class ModelType(enum.Enum):
+                 )
+ 
+     ## Run clean_up function
+-    clean_up()
++    clean_up(jackhmmer_dir)
+diff --git a/gget/main.py b/gget/main.py
+index 36bdb3da8..73a33a422 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -1329,6 +1329,18 @@ def main() -> None:
+             "Default: ./[date_time]_gget_alphafold_prediction"
+         ),
+     )
++    parser_alphafold.add_argument(
++        "-jhd",
++        "--jackhmmer_savedir",
++        type=str,
++        default=None,
++        required=False,
++        help=(
++            "Path to a parent directory in which to store the temporary jackhmmer files.\n"
++            "By default, gget creates a 'tmp' folder in the home directory ('~/tmp/jackhmmer/'),\n"
++            "which can take up to ~2 GB of disk space. Use this argument to place them elsewhere."
++        ),
++    )
+     parser_alphafold.add_argument(
+         "-q",
+         "--quiet",
+@@ -3680,6 +3692,7 @@ def main() -> None:
+             plot=False,
+             show_sidechains=False,
+             verbose=args.quiet,
++            jackhmmer_savedir=args.jackhmmer_savedir,
+         )
+ 
+     ## pdb return
+diff --git a/tests/test_alphafold.py b/tests/test_alphafold.py
+new file mode 100644
+index 000000000..2c05786ed
+--- /dev/null
++++ b/tests/test_alphafold.py
+@@ -0,0 +1,79 @@
++import os
++import subprocess
++import sys
++import unittest
++from unittest.mock import patch
++
++import gget.gget_alphafold as gget_alphafold
++from gget.gget_alphafold import clean_up, get_jackhmmer_dir
++from gget.gget_setup import UUID
++
++# AlphaFold requires heavy third-party dependencies (alphafold, openmm, jackhmmer, model
++# parameters) that are not available in the CI/test environment, so a full prediction run
++# cannot be exercised here. These tests validate the user-facing jackhmmer save-directory
++# option (https://github.com/scverse/gget/issues/49) at the argument/path-handling level.
++
++
++class TestAlphafoldJackhmmerSavedir(unittest.TestCase):
++    def test_default_dir(self):
++        """Without a custom save directory, the default ~/tmp/jackhmmer/<UUID> is used."""
++        expected = os.path.expanduser(os.path.join("~", "tmp", "jackhmmer", UUID))
++        self.assertEqual(get_jackhmmer_dir(), expected)
++        self.assertEqual(get_jackhmmer_dir(None), expected)
++
++    def test_custom_dir(self):
++        """A custom save directory is honored and returned as an absolute path."""
++        custom = os.path.join("some", "custom", "place")
++        result = get_jackhmmer_dir(custom)
++        expected = os.path.abspath(os.path.join(custom, "jackhmmer", UUID))
++        self.assertEqual(result, expected)
++        self.assertTrue(os.path.isabs(result))
++
++    def test_clean_up_removes_custom_dir(self):
++        """clean_up() deletes leftover FASTA files and the temporary folder it is given."""
++        import tempfile
++
++        with tempfile.TemporaryDirectory() as parent:
++            jackhmmer_dir = get_jackhmmer_dir(parent)
++            os.makedirs(jackhmmer_dir, exist_ok=True)
++            fasta_path = os.path.join(jackhmmer_dir, "target_1.fasta")
++            with open(fasta_path, "w") as f:
++                f.write(">query\nMKV")
++
++            clean_up(jackhmmer_dir)
++
++            self.assertFalse(os.path.exists(fasta_path))
++            self.assertFalse(os.path.isdir(jackhmmer_dir))
++
++    def test_clean_up_missing_dir_is_safe(self):
++        """clean_up() does not raise if the target directory does not exist."""
++        missing = get_jackhmmer_dir(os.path.join("definitely", "not", "there"))
++        # Should be a no-op rather than raising.
++        clean_up(missing)
++
++    def test_clean_up_default_dir_when_none(self):
++        """clean_up(None) resolves the default directory via get_jackhmmer_dir()."""
++        import tempfile
++
++        with tempfile.TemporaryDirectory() as parent:
++            default_dir = os.path.join(parent, "jackhmmer", "default")
++            os.makedirs(default_dir, exist_ok=True)
++            # Patch get_jackhmmer_dir so the None default resolves to a temp folder
++            # (never the real ~/tmp) for the duration of the call.
++            with patch.object(gget_alphafold, "get_jackhmmer_dir", return_value=default_dir) as mock_dir:
++                clean_up()
++                mock_dir.assert_called_once()
++            self.assertFalse(os.path.isdir(default_dir))
++
++    def test_cli_exposes_jackhmmer_savedir_flag(self):
++        """The command-line interface exposes the --jackhmmer_savedir option."""
++        result = subprocess.run(
++            [sys.executable, "-m", "gget", "alphafold", "--help"],
++            capture_output=True,
++            text=True,
++        )
++        self.assertIn("--jackhmmer_savedir", result.stdout)
++
++
++if __name__ == "__main__":
++    unittest.main()

@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-1040"
+description = "Bump pre-commit from 4.6.2 to 4.7.0"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "f9cc919a5c5eb9a8d9dc08b2ca10e61a5d3587d1"
+reference = "https://github.com/matchms/matchms/pull/1040"
+source_access = "auto"
+built_at = "2026-11-16T12:50:20.766097+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:201e90eac9e093b36297de39d484da510a9b2f67f7ea3bb2121903dbff67e28c"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-16T10:26:21Z"
+diff_format = "unified"
+context_files = [
+    "uv.lock",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 22
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

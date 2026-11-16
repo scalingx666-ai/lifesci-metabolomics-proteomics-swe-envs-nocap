@@ -1,0 +1,65 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-819"
+description = "Add SpectralEntropy score"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "ba1d722c57833746a2f068e01f1829eeb15eedad"
+reference = "https://github.com/matchms/matchms/pull/819"
+source_access = "auto"
+built_at = "2026-11-16T12:54:30.415145+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:c75852e77ebe48b4c47e1649d59c71f4ab91b4cc49fe4f680d1d4d8f7a8a7ea3"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-10-06T15:28:11Z"
+diff_format = "unified"
+context_files = [
+    "matchms/similarity/SpectralEntropy.py",
+    "matchms/similarity/__init__.py",
+    "matchms/similarity/spectrum_similarity_functions.py",
+    "tests/similarity/test_spectral_entropy.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 412
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

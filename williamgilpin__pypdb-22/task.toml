@@ -1,0 +1,67 @@
+version = "1.0"
+
+[task]
+name = "default/williamgilpin__pypdb-22"
+description = "[RCSB Search] - Added support for \"terminal\" node queries against the Text search service"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "pypdb",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "williamgilpin/pypdb"
+ref = "22f00af7cb1883211620b3321b4372fe7b9130cb"
+reference = "https://github.com/williamgilpin/pypdb/pull/22"
+source_access = "auto"
+built_at = "2026-11-16T00:16:58.530065+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:428ed90ba81762cfb97318390a7668269caf640988a07e080312ef6867bc4c37"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2020-11-14T22:34:44Z"
+diff_format = "unified"
+context_files = [
+    "pypdb/clients/data/graphql/graphql.py",
+    "pypdb/clients/data/graphql/test_graphql.py",
+    "pypdb/clients/search/EXAMPLES.md",
+    "pypdb/clients/search/operators/text_operators.py",
+    "pypdb/clients/search/search_client.py",
+    "pypdb/clients/search/search_client_test.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 924
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,380 @@
+diff --git a/matchms/exporting/__init__.py b/matchms/exporting/__init__.py
+index 982ad6dcd..78d7f65cb 100644
+--- a/matchms/exporting/__init__.py
++++ b/matchms/exporting/__init__.py
+@@ -5,15 +5,11 @@
+ Individual :meth:`~matchms.Spectrum`, or lists of :meth:`~matchms.Spectrum`
+ can be exported to json, mgf, or msp files.
+ """
++
+ from .save_as_json import save_as_json
+ from .save_as_mgf import save_as_mgf
+ from .save_as_msp import save_as_msp
+ from .save_spectra import save_spectra
+ 
+ 
+-__all__ = [
+-    "save_as_json",
+-    "save_as_mgf",
+-    "save_as_msp",
+-    "save_spectra"
+-]
++__all__ = ["save_as_json", "save_as_mgf", "save_as_msp", "save_spectra"]
+diff --git a/matchms/exporting/metadata_export.py b/matchms/exporting/metadata_export.py
+index 280c485c4..373eecc1c 100644
+--- a/matchms/exporting/metadata_export.py
++++ b/matchms/exporting/metadata_export.py
+@@ -10,7 +10,9 @@
+ logger = logging.getLogger("matchms")
+ 
+ 
+-def _get_metadata_dict(spectrum: Spectrum, include_fields: Optional[List[str]] = None) -> Dict[str, Any]:
++def _get_metadata_dict(
++    spectrum: Spectrum, include_fields: Optional[List[str]] = None
++) -> Dict[str, Any]:
+     """Extract keys from spectrum metadata. Will silently continue if a key is not found.
+ 
+     Args:
+@@ -26,13 +28,15 @@ def _get_metadata_dict(spectrum: Spectrum, include_fields: Optional[List[str]] =
+         logger.warning("'Include_fields' must be 'all' or list of keys.")
+         return None
+ 
+-    return {key: spectrum.metadata[key] for key in spectrum.metadata.keys()
+-            & include_fields}
++    return {
++        key: spectrum.metadata[key] for key in spectrum.metadata.keys() & include_fields
++    }
+ 
+ 
+ @rename_deprecated_params(param_mapping={"spectrums": "spectra"}, version="0.26.5")
+-def export_metadata_as_json(spectra: List[Spectrum], filename: str,
+-                            include_fields: Optional[List[str]] = None):
++def export_metadata_as_json(
++    spectra: List[Spectrum], filename: str, include_fields: Optional[List[str]] = None
++):
+     """Export metadata to json file.
+ 
+     Parameters
+@@ -51,13 +55,16 @@ def export_metadata_as_json(spectra: List[Spectrum], filename: str,
+         if metadata_dict:
+             metadata_dicts.append(metadata_dict)
+ 
+-    with open(filename, 'w', encoding="utf-8") as fout:
++    with open(filename, "w", encoding="utf-8") as fout:
+         json.dump(metadata_dicts, fout)
+ 
+ 
+-def export_metadata_as_csv(spectra: List[Spectrum], filename: str,
+-                           include_fields: Optional[List[str]] = None,
+-                           delimiter: str = ','):
++def export_metadata_as_csv(
++    spectra: List[Spectrum],
++    filename: str,
++    include_fields: Optional[List[str]] = None,
++    delimiter: str = ",",
++):
+     """Export metadata to csv file.
+ 
+     Parameters
+@@ -75,14 +82,16 @@ def export_metadata_as_csv(spectra: List[Spectrum], filename: str,
+     if include_fields is not None:
+         metadata, columns = _subset_metadata(include_fields, metadata, columns)
+ 
+-    with open(filename, 'a+', encoding="utf-8") as csvfile:
++    with open(filename, "a+", encoding="utf-8") as csvfile:
+         writer = csv.writer(csvfile, delimiter=delimiter)
+         writer.writerow(columns)
+         for data in metadata:
+             writer.writerow(data)
+ 
+ 
+-def _subset_metadata(include_fields: List[str], metadata: np.array, columns: Set[str]) -> Tuple[np.array, Set[str]]:
++def _subset_metadata(
++    include_fields: List[str], metadata: np.array, columns: Set[str]
++) -> Tuple[np.array, Set[str]]:
+     """Subset metadata to 'include_fields' and return intersection of columns.
+ 
+     Parameters
+diff --git a/matchms/exporting/save_as_json.py b/matchms/exporting/save_as_json.py
+index d8baf2ba6..5f907b85d 100644
+--- a/matchms/exporting/save_as_json.py
++++ b/matchms/exporting/save_as_json.py
+@@ -1,14 +1,15 @@
+ import json
+ from typing import List
+ from ..Spectrum import Spectrum
+-from ..utils import (filter_empty_spectra, fingerprint_export_warning,
+-                     rename_deprecated_params)
++from ..utils import (
++    filter_empty_spectra,
++    fingerprint_export_warning,
++    rename_deprecated_params,
++)
+ 
+ 
+ @rename_deprecated_params(param_mapping={"spectrums": "spectra"}, version="0.26.5")
+-def save_as_json(spectra: List[Spectrum],
+-                 filename: str,
+-                 export_style: str = "matchms"):
++def save_as_json(spectra: List[Spectrum], filename: str, export_style: str = "matchms"):
+     """Save spectrum(s) as json file.
+ 
+     Example:
+@@ -40,7 +41,7 @@ def save_as_json(spectra: List[Spectrum],
+         Default is "matchms"
+     """
+     if not isinstance(spectra, list):
+-        # Assume that input was single Spectrum
++        # Assume that input was a single Spectrum.
+         spectra = [spectra]
+ 
+     spectra = filter_empty_spectra(spectra)
+@@ -61,4 +62,5 @@ def default(self, o):
+                 spec.pop("fingerprint", None)
+                 return spec
+             return super().default(o)
++
+     return CustomSpectrumJSONEncoder
+diff --git a/matchms/exporting/save_as_mgf.py b/matchms/exporting/save_as_mgf.py
+index ca6eb3274..c2efec296 100644
+--- a/matchms/exporting/save_as_mgf.py
++++ b/matchms/exporting/save_as_mgf.py
+@@ -1,14 +1,22 @@
++import logging
+ from typing import List, Union
+ import pyteomics.mgf as py_mgf
+ from ..Spectrum import Spectrum
+-from ..utils import (filter_empty_spectra, fingerprint_export_warning,
+-                     rename_deprecated_params)
++from ..utils import (
++    filter_empty_spectra,
++    fingerprint_export_warning,
++    rename_deprecated_params,
++)
++
++logger = logging.getLogger("matchms")
+ 
+ 
+ @rename_deprecated_params(param_mapping={"spectrums": "spectra"}, version="0.26.5")
+-def save_as_mgf(spectra: Union[List[Spectrum], Spectrum],
+-                filename: str,
+-                export_style: str = "matchms"):
++def save_as_mgf(
++    spectra: Union[List[Spectrum], Spectrum],
++    filename: str,
++    export_style: str = "matchms",
++):
+     """Save spectrum(s) as mgf file.
+ 
+     Example:
+@@ -40,7 +48,7 @@ def save_as_mgf(spectra: Union[List[Spectrum], Spectrum],
+         Default is "matchms"
+     """
+     if not isinstance(spectra, list):
+-        # Assume that input was single Spectrum
++        # Assume that input was a single Spectrum.
+         spectra = [spectra]
+ 
+     spectra = filter_empty_spectra(spectra)
+@@ -49,11 +57,15 @@ def save_as_mgf(spectra: Union[List[Spectrum], Spectrum],
+     def spectrum_dict_generator(matchms_spectra):
+         """Generates dictionaries in the format expected by py_mgf"""
+         for spectrum in matchms_spectra:
+-            spectrum_dict = {"m/z array": spectrum.peaks.mz,
+-                             "intensity array": spectrum.peaks.intensities,
+-                             "params": spectrum.metadata_dict(export_style)}
+-            if 'fingerprint' in spectrum_dict["params"]:
++            spectrum_dict = {
++                "m/z array": spectrum.peaks.mz,
++                "intensity array": spectrum.peaks.intensities,
++                "params": spectrum.metadata_dict(export_style),
++            }
++            if "fingerprint" in spectrum_dict["params"]:
+                 del spectrum_dict["params"]["fingerprint"]
+             yield spectrum_dict
+ 
+-    py_mgf.write(spectrum_dict_generator(spectra), filename, file_mode="a", encoding="utf-8")
++    py_mgf.write(
++        spectrum_dict_generator(spectra), filename, file_mode="a", encoding="utf-8"
++    )
+diff --git a/matchms/exporting/save_as_msp.py b/matchms/exporting/save_as_msp.py
+index af58b4b5a..7d0ae1f9e 100644
+--- a/matchms/exporting/save_as_msp.py
++++ b/matchms/exporting/save_as_msp.py
+@@ -3,20 +3,24 @@
+ from typing import IO, Dict, List, Union
+ from ..Fragments import Fragments
+ from ..Spectrum import Spectrum
+-from ..utils import (filter_empty_spectra, fingerprint_export_warning,
+-                     rename_deprecated_params)
+-
++from ..utils import (
++    filter_empty_spectra,
++    fingerprint_export_warning,
++    rename_deprecated_params,
++)
+ 
+ logger = logging.getLogger("matchms")
+-
+-
+-_extentions_not_allowed = ["mzml", "mzxml", "json", "mgf"]
++_extensions_not_allowed = ["mzml", "mzxml", "json", "mgf"]
+ 
+ 
+ @rename_deprecated_params(param_mapping={"spectrums": "spectra"}, version="0.26.5")
+-def save_as_msp(spectra: List[Spectrum], filename: str,
+-                write_peak_comments: bool = True,
+-                mode: str = "a", style: str = "matchms"):
++def save_as_msp(
++    spectra: List[Spectrum],
++    filename: str,
++    write_peak_comments: bool = True,
++    mode: str = "a",
++    style: str = "matchms",
++):
+     """Save spectrum(s) as msp file.
+ 
+     Example:
+@@ -52,26 +56,34 @@ def save_as_msp(spectra: List[Spectrum], filename: str,
+         Converts the keys to required Export style. One of ["massbank", "nist", "riken", "gnps"].
+         Default is "matchms"
+     """
+-    file_extension = filename.split(".")[-1]
+-    assert file_extension.lower() not in _extentions_not_allowed, \
+-        f"File extension '.{file_extension}' not allowed."
+-    if not filename.endswith(".msp"):
+-        logger.warning("Spectrum(s) will be stored as msp file with extension .%s",
+-                       filename.split(".")[-1])
+-    spectra = _ensure_list(spectra)
+-    spectra = filter_empty_spectra(spectra)
++    if not isinstance(spectra, list):
++        # Assume that input was a single Spectrum.
++        spectra = [spectra]
+ 
++    spectra = filter_empty_spectra(spectra)
+     fingerprint_export_warning(spectra)
+ 
++    file_extension = filename.split(".")[-1]
++    assert (
++        file_extension.lower() not in _extensions_not_allowed
++    ), f"File extension '.{file_extension}' not allowed."
++    if not filename.endswith(".msp"):
++        logger.warning(
++            "Spectrum(s) will be stored as msp file with extension .%s",
++            filename.split(".")[-1],
++        )
++
+     with open(filename, mode, encoding="utf-8") as outfile:
+         for spectrum in spectra:
+             _write_spectrum(spectrum, outfile, write_peak_comments, style)
+ 
+ 
+-def _write_spectrum(spectrum: Spectrum,
+-                    outfile: IO,
+-                    write_peak_comments: bool,
+-                    export_style: str = "matchms"):
++def _write_spectrum(
++    spectrum: Spectrum,
++    outfile: IO,
++    write_peak_comments: bool,
++    export_style: str = "matchms",
++):
+     _write_metadata(spectrum.metadata_dict(export_style), outfile)
+     if write_peak_comments is True:
+         _write_peaks(spectrum.peaks, spectrum.peak_comments, outfile)
+@@ -100,7 +112,7 @@ def _format_peak_comment(mz: Union[int, float], peak_comments: Dict):
+     peak_comment = peak_comments.get(mz, None)
+     if peak_comment is None:
+         return ""
+-    return f"\t\"{peak_comment}\""
++    return f'\t"{peak_comment}"'
+ 
+ 
+ def _is_num_peaks(key: str) -> bool:
+@@ -113,10 +125,3 @@ def _is_peak_comments(key: str) -> bool:
+ 
+ def _is_fingerprint(key: str) -> bool:
+     return key.lower().startswith("fingerprint")
+-
+-
+-def _ensure_list(spectra) -> List[Spectrum]:
+-    if not isinstance(spectra, list):
+-        # Assume that input was single Spectrum
+-        spectra = [spectra]
+-    return spectra
+diff --git a/matchms/exporting/save_spectra.py b/matchms/exporting/save_spectra.py
+index 67d6e183f..6584d22b5 100644
+--- a/matchms/exporting/save_spectra.py
++++ b/matchms/exporting/save_spectra.py
+@@ -11,45 +11,56 @@
+ 
+ 
+ @rename_deprecated_params(param_mapping={"spectrums": "spectra"}, version="0.26.5")
+-def save_spectra(spectra: List[Spectrum],
+-                 file: str,
+-                 export_style: str = "matchms",
+-                 append: bool = False,
+-                 ) -> None:
++def save_spectra(
++    spectra: List[Spectrum],
++    file: str,
++    export_style: str = "matchms",
++    append: bool = False,
++) -> None:
+     """Saves spectra as the file type specified.
+ 
+-    The following file extensions can be used:
+-    "json", "mgf", "msp"
++    The following file extensions can be used: .json, .mgf, and .msp.
+ 
+     Args:
+     -----
+     spectra:
+         The spectra that are saved.
+     file:
+-        Path to file containing spectra, with file extension ".json", ".mgf", ".msp"
++        Path to file containing spectra, with file extension ".json", ".mgf", ".msp".
+     export_style:
+-        Converts the keys to the required export style. One of ["matchms", "massbank", "nist", "riken", "gnps"].
+-        Default is "matchms"
++        Converts the keys to the required export style.
++        One of ["matchms", "massbank", "nist", "riken", "gnps"]. Default is "matchms".
+     append:
+-        Only supported for ".mgf", and ".msp" filetypes. If True, will try to append to an existing file, instead of creating
+-        a new file. Default is `False`.
++        Only supported for ".mgf", and ".msp" filetypes. If True, will try to append
++        to an existing file, instead of creating a new file. Default is `False`.
+     """
+     if os.path.exists(file) and not append:
+         raise FileExistsError(f"The specified file: {file} already exists.")
+ 
+     ftype = os.path.splitext(file)[1].lower()[1:]
+-    if append and ftype not in ('mgf', 'msp'):
++    if append and ftype not in ("mgf", "msp"):
+         raise ValueError(f"{ftype} isn't supported for when `append` is True")
+ 
++    if not isinstance(spectra, list):
++        spectra = [spectra]
++
++    if len(spectra) == 0:
++        logger.warning("No spectra to save. File will be empty.")
++        open(file, "w").close()
++        return
++
+     if ftype == "json":
+         save_as_json(spectra, file, export_style)
+     elif ftype == "mgf":
+         save_as_mgf(spectra, file, export_style)
+     elif ftype == "msp":
+-        save_as_msp(spectra, file, style=export_style, mode='a')
++        save_as_msp(spectra, file, style=export_style, mode="a")
+     elif ftype == "pickle":
+         if export_style != "matchms":
+-            logger.error("The only available export style for pickle is 'matchms', your export style %s", export_style)
++            logger.error(
++                "The only available export style for pickle is 'matchms', your export style %s",
++                export_style,
++            )
+         save_as_pickled_file(spectra, file)
+     else:
+         raise TypeError(f"File extension of file: {file} is not recognized")

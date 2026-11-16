@@ -1,0 +1,336 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 9cf6db0a4..32be97fd4 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
+ - Avoid using unstable sorting while sorting collected matching peaks [#636](https://github.com/matchms/matchms/pull/636).
+ 
+ ### Fixed
++- Remove empty spectra before exporting to file [#686](https://github.com/matchms/matchms/pull/686).
+ - Name position in mirror plots [#678](https://github.com/matchms/matchms/pull/678).
+ 
+ ## [0.26.4] -2024-06-14
+diff --git a/matchms/exporting/metadata_export.py b/matchms/exporting/metadata_export.py
+index e42e019d6..262aee3bb 100644
+--- a/matchms/exporting/metadata_export.py
++++ b/matchms/exporting/metadata_export.py
+@@ -3,6 +3,7 @@
+ from typing import Any, Dict, List, Optional, Set, Tuple
+ import numpy as np
+ from ..Spectrum import Spectrum
++from ..utils import filter_empty_spectra
+ 
+ 
+ def _get_metadata_dict(spectrum: Spectrum, include_fields: Optional[List[str]] = None) -> Dict[str, Any]:
+@@ -38,8 +39,9 @@ def export_metadata_as_json(spectrums: List[Spectrum], filename: str,
+     identifier:
+         Identifier used for naming each spectrum in the output file.
+     """
++    spectra = filter_empty_spectra(spectrums)
+     metadata_dicts = []
+-    for spec in spectrums:
++    for spec in spectra:
+         metadata_dict = _get_metadata_dict(spec, include_fields)
+         if metadata_dict:
+             metadata_dicts.append(metadata_dict)
+@@ -61,12 +63,13 @@ def export_metadata_as_csv(spectra: List[Spectrum], filename: str,
+     identifier:
+         Identifier used for naming each spectrum in the output file.
+     """
++    spectra = filter_empty_spectra(spectra)
+     metadata, columns = get_metadata_as_array(spectra)
+ 
+     if include_fields is not None:
+         metadata, columns = _subset_metadata(include_fields, metadata, columns)
+ 
+-    with open(filename, 'a', encoding="utf-8") as csvfile:  #TODO: assert if file exists
++    with open(filename, 'a+', encoding="utf-8") as csvfile:
+         writer = csv.writer(csvfile)
+         writer.writerow(columns)
+         for data in metadata:
+@@ -102,6 +105,7 @@ def get_metadata_as_array(spectra: List[Spectrum]) -> Tuple[np.array, List[str]]
+     Returns:
+         Tuple[np.array, List[str]]: Metadata and union of all columns detected in all spectra.
+     """
++    spectra = filter_empty_spectra(spectra)
+     keys = spectra[0].metadata.keys()
+     for s in spectra:
+         keys |= s.metadata.keys()
+diff --git a/matchms/exporting/save_as_json.py b/matchms/exporting/save_as_json.py
+index 8d9ec4483..280366d26 100644
+--- a/matchms/exporting/save_as_json.py
++++ b/matchms/exporting/save_as_json.py
+@@ -1,7 +1,7 @@
+ import json
+ from typing import List
+ from ..Spectrum import Spectrum
+-from ..utils import fingerprint_export_warning
++from ..utils import filter_empty_spectra, fingerprint_export_warning
+ 
+ 
+ def save_as_json(spectrums: List[Spectrum],
+@@ -43,12 +43,13 @@ def save_as_json(spectrums: List[Spectrum],
+         # Assume that input was single Spectrum
+         spectrums = [spectrums]
+ 
+-    fingerprint_export_warning(spectrums)
++    spectra = filter_empty_spectra(spectrums)
++    fingerprint_export_warning(spectra)
+ 
+     # Write to json file
+     encoder_class = create_spectrum_json_encoder(export_style)
+     with open(filename, "w", encoding="utf-8") as fout:
+-        json.dump(spectrums, fout, cls=encoder_class)
++        json.dump(spectra, fout, cls=encoder_class)
+ 
+ 
+ def create_spectrum_json_encoder(export_style):
+diff --git a/matchms/exporting/save_as_mgf.py b/matchms/exporting/save_as_mgf.py
+index 840aa5306..38d9609d7 100644
+--- a/matchms/exporting/save_as_mgf.py
++++ b/matchms/exporting/save_as_mgf.py
+@@ -1,7 +1,7 @@
+ from typing import List, Union
+ import pyteomics.mgf as py_mgf
+ from ..Spectrum import Spectrum
+-from ..utils import fingerprint_export_warning
++from ..utils import filter_empty_spectra, fingerprint_export_warning
+ 
+ 
+ def save_as_mgf(spectrums: Union[List[Spectrum], Spectrum],
+@@ -43,7 +43,8 @@ def save_as_mgf(spectrums: Union[List[Spectrum], Spectrum],
+         # Assume that input was single Spectrum
+         spectrums = [spectrums]
+ 
+-    fingerprint_export_warning(spectrums)
++    spectra = filter_empty_spectra(spectrums)
++    fingerprint_export_warning(spectra)
+ 
+     def spectrum_dict_generator(matchms_spectrums):
+         """Generates dictionaries in the format expected by py_mgf"""
+@@ -55,4 +56,4 @@ def spectrum_dict_generator(matchms_spectrums):
+                 del spectrum_dict["params"]["fingerprint"]
+             yield spectrum_dict
+ 
+-    py_mgf.write(spectrum_dict_generator(spectrums), filename, file_mode="a")
++    py_mgf.write(spectrum_dict_generator(spectra), filename, file_mode="a")
+diff --git a/matchms/exporting/save_as_msp.py b/matchms/exporting/save_as_msp.py
+index 9839a6098..4025c3224 100644
+--- a/matchms/exporting/save_as_msp.py
++++ b/matchms/exporting/save_as_msp.py
+@@ -3,7 +3,7 @@
+ from typing import IO, Dict, List, Union
+ from ..Fragments import Fragments
+ from ..Spectrum import Spectrum
+-from ..utils import fingerprint_export_warning
++from ..utils import filter_empty_spectra, fingerprint_export_warning
+ 
+ 
+ logger = logging.getLogger("matchms")
+@@ -58,12 +58,13 @@ def save_as_msp(spectrums: List[Spectrum], filename: str,
+     if not filename.endswith(".msp"):
+         logger.warning("Spectrum(s) will be stored as msp file with extension .%s",
+                        filename.split(".")[-1])
+-    spectrums = _ensure_list(spectrums)
++    spectra = _ensure_list(spectrums)
++    spectra = filter_empty_spectra(spectra)
+ 
+-    fingerprint_export_warning(spectrums)
++    fingerprint_export_warning(spectra)
+ 
+     with open(filename, mode, encoding="utf-8") as outfile:
+-        for spectrum in spectrums:
++        for spectrum in spectra:
+             _write_spectrum(spectrum, outfile, write_peak_comments, style)
+ 
+ 
+diff --git a/matchms/exporting/save_spectra.py b/matchms/exporting/save_spectra.py
+index 40d07bd30..5e2df6315 100644
+--- a/matchms/exporting/save_spectra.py
++++ b/matchms/exporting/save_spectra.py
+@@ -4,6 +4,7 @@
+ from typing import List
+ from matchms.exporting import save_as_json, save_as_mgf, save_as_msp
+ from matchms.Spectrum import Spectrum
++from matchms.utils import filter_empty_spectra
+ 
+ 
+ logger = logging.getLogger("matchms")
+@@ -29,12 +30,12 @@ def save_spectra(spectrums: List[Spectrum],
+         Converts the keys to the required export style. One of ["matchms", "massbank", "nist", "riken", "gnps"].
+         Default is "matchms"
+     append:
+-        Only supported for ".mgf", and ".msp" filetypes. If True, will try to append to an existing file, instead of creating 
++        Only supported for ".mgf", and ".msp" filetypes. If True, will try to append to an existing file, instead of creating
+         a new file. Default is `False`.
+     """
+     if os.path.exists(file) and not append:
+         raise FileExistsError(f"The specified file: {file} already exists.")
+-    
++
+     ftype = os.path.splitext(file)[1].lower()[1:]
+     if append and ftype not in ('mgf', 'msp'):
+         raise ValueError(f"{ftype} isn't supported for when `append` is True")
+@@ -71,5 +72,7 @@ def save_as_pickled_file(spectrums, filename: str) -> None:
+     if not isinstance(spectrums[0], Spectrum):
+         raise TypeError("Expected list of spectra")
+ 
++    spectrums = filter_empty_spectra(spectrums)
++
+     with open(filename, "wb") as f:
+         pickle.dump(spectrums, f)
+diff --git a/matchms/utils.py b/matchms/utils.py
+index c3b9ffc60..4b7cc228c 100644
+--- a/matchms/utils.py
++++ b/matchms/utils.py
+@@ -73,3 +73,7 @@ def _load_key_conversions(file: str, source: str, target: str) -> dict:
+ def fingerprint_export_warning(spectrums: List[SpectrumType]):
+     if any(x.get("fingerprint") is not None for x in spectrums):
+         logger.warning("fingerprint found but will not be written to file.")
++
++
++def filter_empty_spectra(spectrums: List[SpectrumType]) -> List[SpectrumType]:
++    return [x for x in spectrums if x is not None]
+diff --git a/tests/exporting/test_exporting_metadata.py b/tests/exporting/test_exporting_metadata.py
+index 7f7d732d2..563fb616e 100644
+--- a/tests/exporting/test_exporting_metadata.py
++++ b/tests/exporting/test_exporting_metadata.py
+@@ -1,4 +1,5 @@
+ import filecmp
++import json
+ import os
+ import numpy as np
+ import pytest
+@@ -35,7 +36,7 @@ def test_get_metadata_as_array(spectra):
+ 
+ def test_export_as_csv(tmp_path, spectra):
+     module_root = os.path.join(os.path.dirname(__file__), "..")
+-    expected = os.path.join(module_root, "testdata", "expected_metadata.csv")    
++    expected = os.path.join(module_root, "testdata", "expected_metadata.csv")
+     outpath = tmp_path / "metadata.csv"
+     export_metadata_as_csv(spectra, outpath)
+ 
+@@ -55,7 +56,19 @@ def test_subset_metadata(spectra):
+ def test_export_metadata_as_json(tmp_path, spectra):
+     outpath = tmp_path / "metadata.json"
+     module_root = os.path.join(os.path.dirname(__file__), "..")
+-    expected = os.path.join(module_root, "testdata","expected_metadata.json")    
++    expected = os.path.join(module_root, "testdata", "expected_metadata.json")
+ 
+     export_metadata_as_json(spectra, outpath)
+     filecmp.cmp(outpath, expected)
++
++
++@pytest.mark.parametrize("file_name", ["metadata.csv", "metadata.json"])
++def test_export_metadata_none_spectra(tmp_path, spectra, file_name):
++    outpath = os.path.join(tmp_path, file_name)
++
++    spectra.append(None)
++    export_metadata_as_json(spectra, outpath)
++
++    with open(outpath, "r", encoding="utf-8") as f:
++        actual = json.load(f)
++        assert len(actual) == (len(spectra) - 1)
+diff --git a/tests/exporting/test_save_as_json_load_from_json.py b/tests/exporting/test_save_as_json_load_from_json.py
+index 7392083b3..dec7ccaca 100644
+--- a/tests/exporting/test_save_as_json_load_from_json.py
++++ b/tests/exporting/test_save_as_json_load_from_json.py
+@@ -46,10 +46,11 @@ def test_save_and_load_json_spectrum_list(metadata_harmonization, tmp_path, buil
+                                       metadata_harmonization=metadata_harmonization).build()
+     spectrum2 = builder.with_metadata({"test_field": "test2"},
+                                       metadata_harmonization=metadata_harmonization).build()
++    spectrum3 = None
+ 
+     # Write to test file
+     filename = os.path.join(tmp_path, "test.json")
+-    save_as_json([spectrum1, spectrum2], filename)
++    save_as_json([spectrum1, spectrum2, spectrum3], filename)
+ 
+     # test if file exists
+     assert os.path.isfile(filename)
+@@ -58,6 +59,7 @@ def test_save_and_load_json_spectrum_list(metadata_harmonization, tmp_path, buil
+     spectrum_imports = load_from_json(filename, metadata_harmonization=metadata_harmonization)
+     assert spectrum_imports[0] == spectrum1, "Original and saved+loaded spectrum not identical"
+     assert spectrum_imports[1] == spectrum2, "Original and saved+loaded spectrum not identical"
++    assert len(spectrum_imports) == 2
+ 
+ 
+ @pytest.mark.parametrize("style, expected",
+diff --git a/tests/exporting/test_save_as_mgf.py b/tests/exporting/test_save_as_mgf.py
+index a5b88ebf5..688ae9e31 100644
+--- a/tests/exporting/test_save_as_mgf.py
++++ b/tests/exporting/test_save_as_mgf.py
+@@ -51,11 +51,12 @@ def test_save_as_mgf_spectrum_list():
+                                       metadata_harmonization=False).build()
+     spectrum2 = builder.with_metadata({"test_field": "test2"},
+                                       metadata_harmonization=False).build()
++    spectrum3 = None
+ 
+     # Write to test file
+     with tempfile.TemporaryDirectory() as d:
+         filename = os.path.join(d, "test.mgf")
+-        save_as_mgf([spectrum1, spectrum2], filename)
++        save_as_mgf([spectrum1, spectrum2, spectrum3], filename)
+ 
+         # test if file exists
+         assert os.path.isfile(filename)
+@@ -67,6 +68,9 @@ def test_save_as_mgf_spectrum_list():
+         assert mgf_content[1].split("=")[1] == "test1\n"
+         assert mgf_content[8].split("=")[1] == "test2\n"
+ 
++        end_ion_count_actual = len([x for x in mgf_content if x == "END IONS\n"])
++        assert end_ion_count_actual == 2
++
+ 
+ @pytest.mark.parametrize("style, expected",
+                          [("matchms", ["PRECURSOR_MZ=100.1\n", "PRECURSOR_MZ=200.2\n"]),
+diff --git a/tests/exporting/test_save_as_msp.py b/tests/exporting/test_save_as_msp.py
+index 51cf3221a..d29140597 100644
+--- a/tests/exporting/test_save_as_msp.py
++++ b/tests/exporting/test_save_as_msp.py
+@@ -165,3 +165,15 @@ def test_save_as_msp_from_mgf(test_file, expected_file, filename):
+     save_as_msp(actual, filename, mode="w", write_peak_comments=True)
+     actual = list(load_from_msp(filename))
+     assert expected == actual
++
++def test_filter_none_spectra(filename, data):
++    """ Test for removal of None valued Spectra
++    """
++
++    spectra = data
++    spectra.append(None)
++
++    save_as_msp(spectra, filename)
++    reloaded_spectra = list(load_from_msp(filename))
++
++    assert len(reloaded_spectra) == (len(spectra) - 1)
+diff --git a/tests/exporting/test_save_spectra.py b/tests/exporting/test_save_spectra.py
+index c1943495b..953076e16 100644
+--- a/tests/exporting/test_save_spectra.py
++++ b/tests/exporting/test_save_spectra.py
+@@ -41,3 +41,25 @@ def test_spectra(file_name):
+         spectrum.set("num_peaks", None)
+         reloaded_spectrum.set("num_peaks", None)
+         assert spectrum == reloaded_spectrum
++
++
++@pytest.mark.parametrize("file_name", ["spectra.pickle"])
++def test_save_as_pickled_file_none_spectra(file_name):
++    """ Tests only pickled file saving with filtered None valued Spectrums
++
++    Params:
++    -------
++    spectra: Spectra objects to store
++
++    Returns:
++    --------
++    reloaded_spectra: Spectra loaded from saved msp file.
++    """
++    spectrum_list = load_test_spectra_file()
++    spectrum_list.append(None)
++
++    with tempfile.TemporaryDirectory() as temp_dir:
++        filename = os.path.join(temp_dir, file_name)
++        save_spectra(spectrum_list, filename)
++        reloaded_spectra = list(load_spectra(filename))
++    assert len(reloaded_spectra) == (len(spectrum_list) - 1)

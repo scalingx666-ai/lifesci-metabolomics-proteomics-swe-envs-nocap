@@ -1,0 +1,15 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/fx/MetadataHeaderColumn.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/fx/MetadataHeaderColumn.java
+index 40242036c1..742d47c0c6 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/fx/MetadataHeaderColumn.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/features/types/fx/MetadataHeaderColumn.java
+@@ -81,8 +81,8 @@ public MetadataHeaderColumn(@NotNull DataType<?> dataType,
+     final ButtonBase toggle = FxIconUtil.newIconButton(FxIcons.TOGGLE_SWITCH,
+         FxIconUtil.LIST_ICON_SIZE, () -> normActive.set(!normActive.get()));
+     final Label title = FxLabels.newLabel(normActive.and(normVisible).map(
+-        normalized -> (normalized ? "Normalized " + rawAbundanceMeasure.toString().toLowerCase()
+-            : rawAbundanceMeasure.toString())));
++        normalized -> (normalized ? "Normalized " + dataType.getHeaderString().toLowerCase()
++            : dataType.getHeaderString())));
+ 
+     toggle.visibleProperty().bind(normVisible);
+     toggle.managedProperty().bind(normVisible);

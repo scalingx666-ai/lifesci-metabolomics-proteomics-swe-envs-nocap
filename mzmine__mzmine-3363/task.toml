@@ -1,0 +1,73 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3363"
+description = "Rows filter, by ID, by Compound ID, copy CompoundList"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "5d4db2758fa176a703fd795e4af9c487a466cb74"
+reference = "https://github.com/mzmine/mzmine/pull/3363"
+source_access = "auto"
+built_at = "2026-11-16T08:46:33.609005+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:9b6679fc3b3c8f4cbd10e885a088cba8ba1f1728096d07da19f5f9ef936244f8"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-07-07T11:33:44Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/datamodel/features/compoundlist/CompoundRowUtils.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_rowsfilter/RowsFilterParameters.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_rowsfilter/RowsFilterTask.java",
+    "mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/IndexRangesComponent.java",
+    "mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/IndexRangesParameter.java",
+    "mzmine-community/src/main/java/io/github/mzmine/util/FeatureListUtils.java",
+    "mzmine-community/src/test/java/datamodel/CompoundListCopyTest.java",
+    "mzmine-community/src/test/resources/rawdatafiles/integration_tests/gc_tof_ms/expected_results.csv",
+    "mzmine-community/src/test/resources/rawdatafiles/integration_tests/lc_tims/expected_results.csv",
+    "mzmine-community/src/test/resources/rawdatafiles/integration_tests/workshop_dataset/expected_results_full.csv",
+    "utils/src/main/java/io/github/mzmine/util/collections/IndexRangesList.java",
+    "utils/src/test/java/io/github/mzmine/util/collections/IndexRangesListTest.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 1060
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,37 @@
+diff --git a/.env.example b/.env.example
+index 17b1dbd47..04f68bd85 100644
+--- a/.env.example
++++ b/.env.example
+@@ -5,6 +5,14 @@
+ # run everything locally through Ollama, this can be left blank.
+ OPENROUTER_API_KEY=
+ 
++# Optional: override the OpenRouter base URL. Because the provider is just an
++# OpenAI-compatible endpoint, you can point it at any compatible gateway and
++# keep using OPENROUTER_API_KEY for that gateway's key. For example, Requesty
++# (https://requesty.ai) — caching, failover, and cost controls, same
++# "vendor/model" ids:
++#   OPENROUTER_BASE_URL=https://router.requesty.ai/v1
++# OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
++
+ 
+ ## Model defaults (optional)
+ 
+diff --git a/server/src/agent/models.ts b/server/src/agent/models.ts
+index 43c3e3e9d..03cbd006a 100644
+--- a/server/src/agent/models.ts
++++ b/server/src/agent/models.ts
+@@ -22,7 +22,12 @@ import {
+   REPO_ROOT,
+ } from "../config.ts";
+ 
+-const OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1";
++// OpenRouter's base URL. Overridable via OPENROUTER_BASE_URL so the
++// OpenAI-compatible provider can point at any compatible gateway — e.g.
++// Requesty (https://router.requesty.ai/v1), which uses the same
++// "vendor/model" ids and Bearer auth as OpenRouter.
++const OPENROUTER_BASE_URL =
++  process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
+ const CATALOGUE_PATH = path.join(REPO_ROOT, "web", "src", "data", "models.json");
+ 
+ interface CatalogueEntry {

@@ -1,0 +1,67 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-1005"
+description = "Maintainer/rework pr 960"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "58282319cfccb8d70c64965d0d553441e14e0207"
+reference = "https://github.com/matchms/matchms/pull/1005"
+source_access = "auto"
+built_at = "2026-11-16T12:51:13.201723+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:1293094c494b7167287cea9da774f10700c994902b5400c2e28e2fab12b911bb"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-05T10:45:50Z"
+diff_format = "unified"
+context_files = [
+    "CHANGELOG.md",
+    "matchms/filtering/__init__.py",
+    "matchms/filtering/filter_utils/metadata_conversions.py",
+    "matchms/filtering/metadata_processing/harmonize_missing_entries.py",
+    "matchms/filtering/spectra_processor.py",
+    "tests/filtering/test_spectra_processor.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 403
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

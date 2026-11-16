@@ -1,0 +1,76 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-1002"
+description = "Feature/add parquet"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "a2fbc0148c1e59bfc5fe8a6d18d2401beaf0b840"
+reference = "https://github.com/matchms/matchms/pull/1002"
+source_access = "auto"
+built_at = "2026-11-16T12:51:18.162350+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:ec62060946d639d9f77b6076db3c9d3ecde69d16129e9b16a348af3df206b868"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-04T19:26:43Z"
+diff_format = "unified"
+context_files = [
+    "matchms/_parquet.py",
+    "matchms/exporting/__init__.py",
+    "matchms/exporting/save_as_parquet.py",
+    "matchms/exporting/save_spectra.py",
+    "matchms/importing/__init__.py",
+    "matchms/importing/load_from_parquet.py",
+    "matchms/importing/load_spectra.py",
+    "matchms/metadata_collection.py",
+    "matchms/spectra_collection.py",
+    "pyproject.toml",
+    "tests/exporting/test_save_as_parquet.py",
+    "tests/filtering/test_correct_charge.py",
+    "tests/importing/test_load_from_parquet.py",
+    "tests/testdata/pesticides.parquet",
+    "uv.lock",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 1097
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

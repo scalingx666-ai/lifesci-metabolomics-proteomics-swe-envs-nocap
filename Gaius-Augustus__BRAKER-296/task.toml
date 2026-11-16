@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/Gaius-Augustus__BRAKER-296"
+description = "Fix codon tables"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "BRAKER",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "Gaius-Augustus/BRAKER"
+ref = "e215cb12d4503cc2f0a6f6551e84cdec9aa286f7"
+reference = "https://github.com/Gaius-Augustus/BRAKER/pull/296"
+source_access = "auto"
+built_at = "2026-11-15T22:37:59.470477+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:13aa8cdf66862653c14e3e6fbd33478044552d884800ca4ea6703c9574f513b7"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2020-11-19T08:13:41Z"
+diff_format = "unified"
+context_files = [
+    ".github/workflows/linux.yml",
+    "cpanfile",
+    "scripts/helpMod.pm",
+    "t/01.helper.t",
+    "t/02.clean-abort.t",
+    "t/data/sequence.gb",
+    "t/lib/Test/BRAKER.pm",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 615
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

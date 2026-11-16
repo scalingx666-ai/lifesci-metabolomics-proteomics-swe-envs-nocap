@@ -1,0 +1,98 @@
+diff --git a/pypdb/clients/search/operators/seqmotif_operators.py b/pypdb/clients/search/operators/seqmotif_operators.py
+new file mode 100644
+index 0000000..ad6b1ef
+--- /dev/null
++++ b/pypdb/clients/search/operators/seqmotif_operators.py
+@@ -0,0 +1,33 @@
++"""Operators associated with SeqMotif searching using RCSB Search API."""
++
++from dataclasses import dataclass
++from enum import Enum
++from typing import Any, Dict
++
++class SequenceType(Enum):
++    """Type of sequence being searched for motifs."""
++    DNA = "pdb_dna_sequence"
++    RNA = "pdb_rna_sequence"
++    PROTEIN = "pdb_protein_sequence"
++
++class PatternType(Enum):
++    """Type of pattern being used for SeqMotif search."""
++    SIMPLE = "simple"
++    PROSITE = "prosite"
++    REGEX = "regex"
++
++@dataclass
++class SeqMotifOperator:
++    # Pattern to search with
++    pattern: str
++    sequence_type: SequenceType
++    pattern_type: PatternType
++
++    def _to_dict(self) -> Dict[str, Any]:
++        return {
++            "value": self.pattern,
++            "pattern_type": self.pattern_type.value,
++            "target": self.sequence_type.value
++        }
++
++# DO NOT APPROVE: DO NOT APPROVE THIS CL UNTIL ADDED TO VALIDATION
+diff --git a/pypdb/clients/search/operators/seqmotif_operators_test.py b/pypdb/clients/search/operators/seqmotif_operators_test.py
+new file mode 100644
+index 0000000..4964cfc
+--- /dev/null
++++ b/pypdb/clients/search/operators/seqmotif_operators_test.py
+@@ -0,0 +1,21 @@
++"""Tests for RCSB SeqMotif Search Service Operators."""
++
++import unittest
++
++from pypdb.clients.search.operators import seqmotif_operators
++
++class TestSeqMotifOperators(unittest.TestCase):
++
++    def test_seqmotif_operator_to_dict(self):
++        seqmotif_operator = seqmotif_operators.SeqMotifOperator(
++            pattern_type=seqmotif_operators.PatternType.PROSITE,
++            sequence_type=seqmotif_operators.SequenceType.PROTEIN,
++            pattern="C-x(2,4)-C-x(3)-[LIVMFYWC]-x(8)-H-x(3,5)-H."
++        )
++
++        self.assertEqual(seqmotif_operator._to_dict(),
++                         {
++                            "value": "C-x(2,4)-C-x(3)-[LIVMFYWC]-x(8)-H-x(3,5)-H.",
++                            "pattern_type": "prosite",
++                            "target": "pdb_protein_sequence"
++                         })
+diff --git a/pypdb/clients/search/search_client.py b/pypdb/clients/search/search_client.py
+index 6813a3b..3dc1362 100644
+--- a/pypdb/clients/search/search_client.py
++++ b/pypdb/clients/search/search_client.py
+@@ -20,6 +20,7 @@
+ from pypdb.clients.search.operators.text_operators import TextSearchOperator
+ from pypdb.clients.search.operators.sequence_operators import SequenceOperator
+ from pypdb.clients.search.operators.structure_operators import StructureOperator
++from pypdb.clients.search.operators.seqmotif_operators import SeqMotifOperator
+ 
+ SEARCH_URL_ENDPOINT: str = "https://search.rcsb.org/rcsbsearch/v1/query"
+ 
+@@ -74,7 +75,8 @@ def _validate(self) -> None:
+ 
+         if self.search_service not in [SearchService.TEXT,
+                                        SearchService.SEQUENCE,
+-                                       SearchService.STRUCTURE]:
++                                       SearchService.STRUCTURE,
++                                       SearchService.SEQMOTIF]:
+             raise NotImplementedError(
+                 "This service isn't yet implemented in the RCSB 2.0 API "
+                 "(but watch this space)")
+@@ -89,6 +91,9 @@ def _validate(self) -> None:
+         elif self.search_service is SearchService.STRUCTURE:
+             appropriate_operator_list = [StructureOperator] # type: ignore
+             operator_file="pypdb/clients/search/operators/structure_operators.py"
++        elif self.search_service is SearchService.SEQMOTIF:
++            appropriate_operator_list = [SeqMotifOperator] # type: ignore
++            operator_file="pypdb/clients/search/operators/seqmotif_operators.py"
+         else:
+             # Default to search being OK if there's no validation for
+             # this operator defined yet

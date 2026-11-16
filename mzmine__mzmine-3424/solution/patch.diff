@@ -1,0 +1,844 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/datamodel/statistics/FeaturesDataTable.java b/mzmine-community/src/main/java/io/github/mzmine/datamodel/statistics/FeaturesDataTable.java
+index 4f805aa5957..c8b80528a3e 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/datamodel/statistics/FeaturesDataTable.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/datamodel/statistics/FeaturesDataTable.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -107,7 +107,7 @@ public FeaturesDataTable(@NotNull List<RawDataFile> dataFiles,
+       }
+     }
+ 
+-    // index data if needed
++    // index data if needed. reused maps already carry NO_INDEX as they only come from this class
+     this.featureRowIndexMap = featureRowIndexMap != null ? featureRowIndexMap
+         : CollectionUtils.indexMapUnordered(
+             Arrays.stream(dataRows).map(FeatureListRowAbundances::row).toList());
+@@ -123,12 +123,31 @@ public FeaturesDataTable copyWithNewRows(FeatureListRowAbundances[] newRows) {
+     return new FeaturesDataTable(dataFiles, newRows, null, dataFileIndexMap, processingHistory);
+   }
+ 
++  /**
++   * @throws IllegalArgumentException if the row is not part of this data table. Silently returning
++   *                                  an index would read another row's abundances.
++   */
+   public int getFeatureIndex(FeatureListRow row) {
+-    return featureRowIndexMap.getInt(row);
++    final int index = featureRowIndexMap.getInt(row);
++    if (index == -1) {
++      throw new IllegalArgumentException(
++          "Feature list row %s is not in this data table (%d rows).".formatted(
++              row == null ? "null" : String.valueOf(row.getID()), dataRows.length));
++    }
++    return index;
+   }
+ 
++  /**
++   * @throws IllegalArgumentException if the sample is not part of this data table
++   */
+   public int getSampleIndex(RawDataFile dataFile) {
+-    return dataFileIndexMap.getInt(dataFile);
++    final int index = dataFileIndexMap.getInt(dataFile);
++    if (index == -1) {
++      throw new IllegalArgumentException(
++          "Raw data file %s is not in this data table (%d samples).".formatted(
++              dataFile == null ? "null" : dataFile.getName(), dataFiles.size()));
++    }
++    return index;
+   }
+ 
+   public void setValue(FeatureListRow row, RawDataFile dataFile, double value) {
+@@ -199,19 +218,19 @@ public FeaturesDataTable copy() {
+    * @return a subset of all rows but only selected raw data files
+    */
+   public FeaturesDataTable subsetBySamples(List<RawDataFile> group) {
+-    // find index of raw data files
++    // find index of raw data files. check before mapping, otherwise a missing file would only
++    // trigger a NullPointerException while unboxing
+     final Map<RawDataFile, Integer> fileIndexMap = CollectionUtils.indexMapOrdered(dataFiles);
+-
+-    final int[] groupIndexes = group.stream().mapToInt(fileIndexMap::get).toArray();
+-    if (groupIndexes.length != group.size()) {
+-      for (RawDataFile raw : group) {
+-        if (!fileIndexMap.containsKey(raw)) {
+-          throw new IllegalArgumentException(
+-              "Raw data file " + raw.getName() + " is not in the data table.");
+-        }
++    for (RawDataFile raw : group) {
++      if (!fileIndexMap.containsKey(raw)) {
++        throw new IllegalArgumentException(
++            "Raw data file " + (raw == null ? "null" : raw.getName())
++            + " is not in the data table.");
+       }
+     }
+ 
++    final int[] groupIndexes = group.stream().mapToInt(fileIndexMap::get).toArray();
++
+     final FeatureListRowAbundances[] subData = Arrays.stream(dataRows)
+         .map(row -> row.subsetByIndexes(groupIndexes)).toArray(FeatureListRowAbundances[]::new);
+ 
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/significance/UnivariateRowSignificanceTest.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/significance/UnivariateRowSignificanceTest.java
+index 2dca8dfd17d..fcac5d967f0 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/significance/UnivariateRowSignificanceTest.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/significance/UnivariateRowSignificanceTest.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -29,7 +29,6 @@
+ import io.github.mzmine.datamodel.features.FeatureListRow;
+ import io.github.mzmine.datamodel.statistics.FeaturesDataTable;
+ import io.github.mzmine.modules.dataanalysis.significance.ttest.UnivariateRowSignificanceTestResult;
+-import io.github.mzmine.modules.visualization.projectmetadata.table.MetadataTable;
+ import io.github.mzmine.modules.visualization.projectmetadata.table.columns.MetadataColumn;
+ import io.github.mzmine.parameters.parametertypes.statistics.UnivariateRowSignificanceTestConfig;
+ import io.github.mzmine.project.ProjectService;
+@@ -51,13 +50,19 @@ public final class UnivariateRowSignificanceTest<T> implements RowSignificanceTe
+ 
+   public UnivariateRowSignificanceTest(@NotNull FeaturesDataTable dataTable,
+       @NotNull SignificanceTests test, MetadataColumn<T> column, T groupA, T groupB) {
+-    List<RawDataFile> groupedFilesA = ProjectService.getMetadata().getMatchingFiles(column, groupA);
+-    List<RawDataFile> groupedFilesB = ProjectService.getMetadata().getMatchingFiles(column, groupB);
+-
++    // limit to actual raw data files to not select files not in feature table
++    final List<RawDataFile> actualRaws = dataTable.getRawDataFiles();
++
++    // this might throw MetadataValueDoesNotExistException
++    List<RawDataFile> groupedFilesA = ProjectService.getMetadata()
++        .getMatchingFiles(actualRaws, column, groupA);
++    List<RawDataFile> groupedFilesB = ProjectService.getMetadata()
++        .getMatchingFiles(actualRaws, column, groupB);
+     if (groupedFilesA.size() < 2 || groupedFilesB.size() < 2) {
+       throw new IllegalArgumentException("""
+-          Not enough matching files for group, at least two samples required but column %s had %s n=%d and %s n=%d samples.""".formatted(
+-          column.getTitle(), groupA, groupedFilesA.size(), groupB, groupedFilesB.size()));
++          Not enough samples for group, at least two samples required per group. Column %s had %s n=%d and %s n=%d samples in the selected feature list (of %d samples).""".formatted(
++          column.getTitle(), groupA, groupedFilesA.size(), groupB, groupedFilesB.size(),
++          dataTable.getNumberOfSamples()));
+     }
+ 
+     // split table into the two groups
+@@ -111,7 +116,8 @@ public RowSignificanceTestResult test(FeatureListRow row) {
+     } catch (Exception e) {
+       // this should not happen after imputing missing values and providing a p value for every input
+       throw new IllegalStateException(
+-          "Reached ANOVA error which should not happen after missing value imputation");
++          "Error while computing significance test for row " + row.getID() + ": " + e.getMessage(),
++          e);
+     }
+   }
+ 
+@@ -132,15 +138,12 @@ public T groupB() {
+   }
+ 
+   public List<RawDataFile> getGroupAFiles() {
+-    final MetadataTable metadata = ProjectService.getMetadata();
+-    return metadata.getMatchingFiles(column(), groupA());
++    return groupAData.getRawDataFiles();
+   }
+ 
+   public List<RawDataFile> getGroupBFiles() {
+-    final MetadataTable metadata = ProjectService.getMetadata();
+-    return metadata.getMatchingFiles(column(), groupB());
++    return groupBData.getRawDataFiles();
+   }
+-
+   @Override
+   public boolean equals(Object obj) {
+     if (obj == this) {
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/significance/anova/AnovaTest.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/significance/anova/AnovaTest.java
+index 27e0dd2ea57..f8c4f5cb85e 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/significance/anova/AnovaTest.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/significance/anova/AnovaTest.java
+@@ -51,15 +51,23 @@ public AnovaTest(FeaturesDataTable dataTable, MetadataColumn<?> groupingColumn)
+     this.groupingColumn = groupingColumn;
+ 
+     final MetadataTable metadata = ProjectService.getMetadata();
+-    final Map<?, List<RawDataFile>> fileGrouping = metadata.groupFilesByColumn(groupingColumn);
++    // limit to actual raw data files to not select files not in feature table
++    final Map<?, List<RawDataFile>> fileGrouping = metadata.groupFilesByColumn(
++        dataTable.getRawDataFiles(), groupingColumn);
++
+     // can check conditions here that all groups have at least two values because we impute missing values
+     for (var group : fileGrouping.entrySet()) {
+       if (group.getValue().size() < 2) {
+         throw new IllegalArgumentException(
+-            "Group %s has less than two samples which is a requirement for ANOVA.".formatted(
++            "Group %s has less than two samples in the selected feature list which is a requirement for ANOVA.".formatted(
+                 group.getKey()));
+       }
+     }
++    if (fileGrouping.size() < 2) {
++      throw new IllegalArgumentException(
++          "Column %s defines only %d group(s) in the selected feature list. ANOVA requires at least two groups.".formatted(
++              groupingColumn.getTitle(), fileGrouping.size()));
++    }
+     groupedFiles = fileGrouping.values().stream().toList();
+   }
+ 
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/volcanoplot/VolcanoPlotController.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/volcanoplot/VolcanoPlotController.java
+index dc308493b48..fad09e54cf0 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/volcanoplot/VolcanoPlotController.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/volcanoplot/VolcanoPlotController.java
+@@ -113,6 +113,11 @@ private void prepareDataTable() {
+   }
+ 
+   private void computeDataset() {
++    // the old plot does not match the new configuration anymore - clear it right away so that stale
++    // data is never shown while the new task is pending
++    model.setDatasets(List.of());
++    model.setUserWarning(null);
++
+     // wait and update
+     onTaskThreadDelayed(new VolcanoPlotUpdateTask(model));
+   }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/volcanoplot/VolcanoPlotModel.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/volcanoplot/VolcanoPlotModel.java
+index 11236fb9d03..9616973ae23 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/volcanoplot/VolcanoPlotModel.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/volcanoplot/VolcanoPlotModel.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -39,6 +39,8 @@
+ import javafx.beans.property.ObjectProperty;
+ import javafx.beans.property.SimpleDoubleProperty;
+ import javafx.beans.property.SimpleObjectProperty;
++import javafx.beans.property.SimpleStringProperty;
++import javafx.beans.property.StringProperty;
+ import org.jetbrains.annotations.Nullable;
+ 
+ public class VolcanoPlotModel {
+@@ -64,6 +66,28 @@ public class VolcanoPlotModel {
+   private final ObjectProperty<@Nullable CompoundRowSelection> compoundRowSelection = new SimpleObjectProperty<>(
+       null);
+ 
++  /**
++   * Explains why the plot is empty or incomplete and is shown instead of / on top of the plot. Empty
++   * string if there is nothing to report.
++   */
++  private final StringProperty userWarning = new SimpleStringProperty("");
++
++  public String getUserWarning() {
++    return userWarning.get();
++  }
++
++  public StringProperty userWarningProperty() {
++    return userWarning;
++  }
++
++  /**
++   * @param userWarning null or empty to clear the warning
++   */
++  public void setUserWarning(@Nullable String userWarning) {
++    // never null, so bindings like isNotEmpty stay simple
++    this.userWarning.set(userWarning == null ? "" : userWarning);
++  }
++
+   public List<FeatureList> getFlists() {
+     return flists.get();
+   }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/volcanoplot/VolcanoPlotUpdateTask.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/volcanoplot/VolcanoPlotUpdateTask.java
+index c3429fae17e..5e76fe4eaf4 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/volcanoplot/VolcanoPlotUpdateTask.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/volcanoplot/VolcanoPlotUpdateTask.java
+@@ -35,11 +35,13 @@
+ import io.github.mzmine.gui.chartbasics.simplechart.datasets.DatasetAndRenderer;
+ import io.github.mzmine.gui.chartbasics.simplechart.datasets.RunOption;
+ import io.github.mzmine.gui.chartbasics.simplechart.renderers.ColoredXYShapeRenderer;
++import io.github.mzmine.javafx.concurrent.threading.FxThread;
+ import io.github.mzmine.javafx.mvci.FxUpdateTask;
+ import io.github.mzmine.main.ConfigService;
+ import io.github.mzmine.modules.dataanalysis.significance.RowSignificanceTest;
+ import io.github.mzmine.modules.dataanalysis.significance.RowSignificanceTestResult;
+ import io.github.mzmine.modules.dataanalysis.significance.UnivariateRowSignificanceTest;
++import io.github.mzmine.modules.visualization.projectmetadata.MetadataValueDoesNotExistException;
+ import io.github.mzmine.parameters.parametertypes.statistics.UnivariateRowSignificanceTestConfig;
+ import io.github.mzmine.taskcontrol.progress.TotalFinishedItemsProgress;
+ import io.github.mzmine.util.DataTypeUtils;
+@@ -50,6 +52,8 @@
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Map.Entry;
++import java.util.logging.Level;
++import java.util.logging.Logger;
+ import org.jetbrains.annotations.Nullable;
+ 
+ /**
+@@ -58,33 +62,44 @@
+  */
+ class VolcanoPlotUpdateTask extends FxUpdateTask<VolcanoPlotModel> {
+ 
+-  private final FeaturesDataTable dataTable;
+-  private final RowSignificanceTest test;
++  private static final Logger logger = Logger.getLogger(VolcanoPlotUpdateTask.class.getName());
++
++  private final @Nullable FeaturesDataTable dataTable;
++  private final @Nullable UnivariateRowSignificanceTestConfig testConfig;
+   private final double pValue;
+   private final TotalFinishedItemsProgress progress = new TotalFinishedItemsProgress();
+   private @Nullable List<DatasetAndRenderer> temporaryDatasets;
+-
++  /**
++   * Set if the plot cannot be computed or is incomplete. Reported to the user in
++   * {@link #updateGuiModel()}
++   */
++  private @Nullable String userWarning;
+ 
+   VolcanoPlotUpdateTask(VolcanoPlotModel model) {
+     super("volcanoplot_update", model);
+ 
++    // only capture the inputs here. this constructor runs on the FX thread, so neither the
++    // significance test (which copies the whole data table per group) nor its validation may happen
++    // here. Exceptions would escape into the JavaFX listener dispatch and kill all further updates.
+     dataTable = model.getFeatureDataTable();
+-    final UnivariateRowSignificanceTestConfig testConfig = model.getTest();
+-    if (testConfig != null && dataTable != null) {
+-      test = testConfig.toValidConfig(dataTable);
+-    } else {
+-      test = null;
+-    }
+-
++    testConfig = model.getTest();
+     pValue = model.getpValue();
+-    // decision: iterate the prepared data table rather than the source feature list so the
+-    // CompoundRowSelection filtering applied in VolcanoPlotController.prepareDataTable is respected
+     progress.setTotal(dataTable != null ? dataTable.getNumberOfFeatures() : 0);
+   }
+ 
+   @Override
+   public boolean checkPreConditions() {
+-    return dataTable != null && test != null;
++    return dataTable != null && testConfig != null;
++  }
++
++  @Override
++  public void onFailedPreCondition() {
++    // clear the plot and explain why, otherwise an empty chart is indistinguishable from a failure
++    FxThread.runLater(() -> {
++      model.setDatasets(List.of());
++      model.setUserWarning(
++          "Select a feature list, a metadata column, and two groups to compute a volcano plot.");
++    });
+   }
+ 
+   @Override
+@@ -92,8 +107,23 @@ protected void process() {
+     if (!checkPreConditions()) {
+       return;
+     }
+-    List<RowSignificanceTestResult> rowSignificanceTestResults = new ArrayList<>();
+-    for (final FeatureListRow row : dataTable.getFeatureListRows()) {
++
++    // creating the test resolves the metadata groups and splits the data table - may fail
++    final RowSignificanceTest test = createTest();
++    if (test == null) {
++      return;
++    }
++    if (!(test instanceof UnivariateRowSignificanceTest<?> ttest)) {
++      userWarning = "The volcano plot requires a univariate significance test.";
++      return;
++    }
++
++    // decision: iterate the prepared data table rather than the source feature list so the
++    // CompoundRowSelection filtering applied in VolcanoPlotController.prepareDataTable is respected.
++    // The test operates on subsets of this table, so only these rows resolve to an abundance index.
++    final List<FeatureListRow> rows = dataTable.getFeatureListRows();
++    List<RowSignificanceTestResult> rowSignificanceTestResults = new ArrayList<>(rows.size());
++    for (final FeatureListRow row : rows) {
+       if (isCanceled()) {
+         return;
+       }
+@@ -108,13 +138,13 @@ protected void process() {
+         rowSignificanceTestResults, RowSignificanceTestResult::row, true,
+         CompoundAnnotationUtils.annotationTypePriority.toArray(DataType[]::new));
+ 
+-    if (!(test instanceof UnivariateRowSignificanceTest<?> ttest)) {
+-      return;
+-    }
+-
+     final SimpleColorPalette colors = ConfigService.getConfiguration().getDefaultColorPalette()
+         .clone(true);
+     temporaryDatasets = new ArrayList<>();
++    // rows without a computable p value (e.g. constant abundances in both groups) have no
++    // -log10(p) to plot. Count them instead of dropping them silently.
++    // this is expected if the row actually has no features in all samples in both groups
++    int missingPValues = 0;
+ 
+     for (Entry<DataType<?>, List<RowSignificanceTestResult>> entry : dataTypeMap.entrySet()) {
+ 
+@@ -125,6 +155,7 @@ protected void process() {
+           .filter(result -> result.pValue() < pValue).toList();
+       final List<RowSignificanceTestResult> insignificantRows = testResults.stream()
+           .filter(result -> result.pValue() >= pValue).toList();
++      missingPValues += testResults.size() - significantRows.size() - insignificantRows.size();
+ 
+       final Color color = colors.getNextColorAWT();
+       if (!significantRows.isEmpty()) {
+@@ -145,14 +176,52 @@ protected void process() {
+                 new ColoredXYShapeRenderer(true, ColoredXYShapeRenderer.defaultShape, true)));
+       }
+     }
++
++    // expected if no features in row in group data files -> no data for row
++    if (missingPValues > 0) {
++      final String msg = """
++          %d of %d features have no p-value and are not shown. This usually means the abundances are constant within both groups, for example if there were no detections in the groups and all values are imputed.""".formatted(
++          missingPValues, rows.size());
++      logger.fine(msg);
++    }
++  }
++
++  /**
++   * Creates the significance test and translates any failure into a message for the user.
++   *
++   * @return the test or null if it cannot be created, then {@link #userWarning} explains why
++   */
++  private @Nullable RowSignificanceTest createTest() {
++    try {
++      final RowSignificanceTest test = testConfig.toValidConfig(dataTable);
++      if (test == null) {
++        // toValidConfig only logs the actual reason
++        userWarning = """
++            Cannot compute volcano plot. Metadata column "%s" with groups "%s" and "%s" is not a valid selection. See the log for details.""".formatted(
++            testConfig.column(), testConfig.groupA(), testConfig.groupB());
++      }
++      return test;
++    } catch (MetadataValueDoesNotExistException e) {
++      userWarning = "Metadata value does not exist for feature list raw data files.";
++    } catch (IllegalArgumentException e) {
++      userWarning = e.getMessage();
++    } catch (Exception e) {
++      logger.log(Level.WARNING, "Volcano plot update error: " + e.getMessage(), e);
++      userWarning = "Cannot compute volcano plot: " + e.getMessage();
++    }
++    logger.finer(userWarning);
++    return null;
+   }
+ 
+   @Override
+   protected void updateGuiModel() {
+     if (temporaryDatasets == null && !isFinished()) {
++      // cancelled before any result was produced - keep the current plot
+       return;
+     }
+-    model.setDatasets(temporaryDatasets);
++    // process may have aborted with a reason, then temporaryDatasets is null and the plot is cleared
++    model.setDatasets(temporaryDatasets != null ? temporaryDatasets : List.of());
++    model.setUserWarning(userWarning);
+   }
+ 
+   @Override
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/volcanoplot/VolcanoPlotViewBuilder.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/volcanoplot/VolcanoPlotViewBuilder.java
+index 27b7be6b01b..3c57b44c8d3 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/volcanoplot/VolcanoPlotViewBuilder.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataanalysis/volcanoplot/VolcanoPlotViewBuilder.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -47,6 +47,7 @@
+ import io.github.mzmine.modules.dataanalysis.utils.imputation.ImputationFunctions;
+ import io.github.mzmine.parameters.parametertypes.DoubleComponent;
+ import io.github.mzmine.parameters.parametertypes.statistics.TTestConfigurationComponent;
++import io.github.mzmine.util.StringUtils;
+ import java.awt.Stroke;
+ import java.awt.geom.Point2D;
+ import java.text.DecimalFormat;
+@@ -69,6 +70,7 @@
+ import org.apache.commons.math.util.MathUtils;
+ import org.jetbrains.annotations.NotNull;
+ import org.jfree.chart.plot.ValueMarker;
++import org.jfree.chart.plot.XYPlot;
+ import org.jfree.chart.ui.Layer;
+ import org.jfree.data.xy.XYDataset;
+ 
+@@ -96,7 +98,7 @@ public Region build() {
+ 
+     // add the chart after the building the controls pane, bc the region wrapper automatically puts the
+     // chart into it's center. to avoid the chart not showing up, set it to the plot pane afterward
+-    mainPane.setCenter(chart);
++    mainPane.setCenter(createChartPane());
+     mainPane.setBottom(accordion);
+ 
+     chart.setDefaultRenderer(new ColoredXYShapeRenderer());
+@@ -134,6 +136,18 @@ public Region build() {
+     return mainPane;
+   }
+ 
++  /**
++   * The chart with a warning that explains why the plot is empty. Without it, a failed computation
++   * is indistinguishable from a chart that was simply not computed yet. The warning is the plot's
++   * no-data message, so it is drawn centered in the plot area whenever there is nothing to plot.
++   */
++  private @NotNull Region createChartPane() {
++    final XYPlot plot = chart.getXYPlot();
++    model.userWarningProperty()
++        .subscribe(warning -> plot.setNoDataMessage(StringUtils.isBlank(warning) ? null : warning));
++    return chart;
++  }
++
+   private @NotNull Accordion createControlsAccordion() {
+     final RegionSelectionWrapper<SimpleXYChart<?>> regionWrapper = new RegionSelectionWrapper<>(
+         chart, onExtractRegionsPressed);
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_rowsfilter/FoldChangeSignificanceRowFilter.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_rowsfilter/FoldChangeSignificanceRowFilter.java
+index 2a50aee22cb..8e773c096e1 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_rowsfilter/FoldChangeSignificanceRowFilter.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_rowsfilter/FoldChangeSignificanceRowFilter.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -109,11 +109,16 @@ public FoldChangeSignificanceRowFilter(FeaturesDataTable dataTable,
+     this.test = test;
+ 
+     if (applySignificancePFilter) {
+-      rowTest = new UnivariateRowSignificanceTestConfig(test, grouping().columnName(),
+-          grouping.groupA(), grouping.groupB()).toValidConfig(groupAData, groupBData);
+-      if (rowTest == null) {
++      try {
++        rowTest = new UnivariateRowSignificanceTestConfig(test, grouping().columnName(),
++            grouping.groupA(), grouping.groupB()).toValidConfig(groupAData, groupBData);
++        if (rowTest == null) {
++          throw new IllegalArgumentException(
++              "Invalid group selection for univariate test: " + grouping);
++        }
++      } catch (IllegalArgumentException e) {
+         throw new IllegalArgumentException(
+-            "Invalid group selection for univariate test: " + grouping);
++            "Invalid group selection for univariate test: " + grouping, e);
+       }
+     } else {
+       rowTest = null;
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/projectmetadata/table/MetadataTable.java b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/projectmetadata/table/MetadataTable.java
+index deeddd9ffa9..cb56c746788 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/projectmetadata/table/MetadataTable.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/visualization/projectmetadata/table/MetadataTable.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -427,19 +427,39 @@ public static double convertValueToDouble(@Nullable Object value, double stringD
+ 
+ 
+   /**
++   * Matches against all raw data files currently in the project, whereas
++   * {@link #getMatchingFiles(Collection, MetadataColumn, Object)} is limited to a given subset of
++   * files.
++   *
++   * @param column The column
++   * @param value  The column value to match to.
++   * @return A list of files associated to the column value or null, if the column value does not
++   * exist.
++   */
++  public <T> List<RawDataFile> getMatchingProjectFiles(@NotNull MetadataColumn<T> column,
++      @NotNull T value)
++      throws MetadataColumnDoesNotExistException, MetadataValueDoesNotExistException {
++    final List<RawDataFile> allFiles = ProjectService.getProject().getCurrentRawDataFiles();
++    return getMatchingFiles(allFiles, column, value);
++  }
++
++  /**
++   * @param raws   The list of files to search in
+    * @param column The column
+    * @param value  The column value to match to.
+    * @return A list of files associated to the column value or null, if the column value does not
+    * exist.
+    */
+-  public <T> List<RawDataFile> getMatchingFiles(@NotNull MetadataColumn<T> column, @NotNull T value)
++  public <T> List<RawDataFile> getMatchingFiles(@NotNull Collection<RawDataFile> raws,
++      @NotNull MetadataColumn<T> column, @NotNull T value)
+       throws MetadataColumnDoesNotExistException, MetadataValueDoesNotExistException {
+-    final Map<T, List<RawDataFile>> valueFilesMap = groupFilesByColumn(column);
++    final Map<T, List<RawDataFile>> valueFilesMap = groupFilesByColumn(raws, column);
+     final List<RawDataFile> files = valueFilesMap.get(value);
+     if (files == null) {
+       throw new MetadataValueDoesNotExistException(column, value.toString());
+     }
+-    return groupFilesByColumn(column).get(value);
++    // must be the files of the raws subset, not of the whole project
++    return files;
+   }
+ 
+   /**
+@@ -483,7 +503,7 @@ public List<RawDataFile> getFilesOfSampleType(final SampleType sampleType) {
+     if (sampleTypeColumn == null) {
+       return List.of();
+     }
+-    return getMatchingFiles(sampleTypeColumn, sampleType.toString());
++    return getMatchingProjectFiles(sampleTypeColumn, sampleType.toString());
+   }
+ 
+   public StringMetadataColumn createDataFileColumn() {
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/statistics/UnivariateRowSignificanceTestConfig.java b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/statistics/UnivariateRowSignificanceTestConfig.java
+index a1081f4656e..a623cbe2064 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/statistics/UnivariateRowSignificanceTestConfig.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/statistics/UnivariateRowSignificanceTestConfig.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -28,6 +28,7 @@
+ import io.github.mzmine.datamodel.statistics.FeaturesDataTable;
+ import io.github.mzmine.modules.dataanalysis.significance.SignificanceTests;
+ import io.github.mzmine.modules.dataanalysis.significance.UnivariateRowSignificanceTest;
++import io.github.mzmine.modules.visualization.projectmetadata.MetadataValueDoesNotExistException;
+ import io.github.mzmine.modules.visualization.projectmetadata.table.MetadataTable;
+ import io.github.mzmine.modules.visualization.projectmetadata.table.columns.MetadataColumn;
+ import io.github.mzmine.project.ProjectService;
+@@ -45,6 +46,8 @@ public record UnivariateRowSignificanceTestConfig(@NotNull SignificanceTests sam
+       UnivariateRowSignificanceTestConfig.class.getName());
+ 
+   /**
++   * Might throw {@link MetadataValueDoesNotExistException}
++   *
+    * @return A {@link UnivariateRowSignificanceTest} or null. The configuration is only returned if
+    * the column exists and the respective values exist in that column.
+    */
+@@ -54,6 +57,8 @@ public record UnivariateRowSignificanceTestConfig(@NotNull SignificanceTests sam
+   }
+ 
+   /**
++   * Might throw {@link MetadataValueDoesNotExistException}
++   *
+    * @param fullOrTableA the full data table with all samples or already split into table A
+    * @param dataTableB   might be null if only a full feature table is provided
+    */
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/modules/dataanalysis/significance/UnivariateRowSignificanceTestTest.java b/mzmine-community/src/test/java/io/github/mzmine/modules/dataanalysis/significance/UnivariateRowSignificanceTestTest.java
+new file mode 100644
+index 00000000000..d2fd7e5e37e
+--- /dev/null
++++ b/mzmine-community/src/test/java/io/github/mzmine/modules/dataanalysis/significance/UnivariateRowSignificanceTestTest.java
+@@ -0,0 +1,174 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.modules.dataanalysis.significance;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++import static org.junit.jupiter.api.Assertions.assertNotNull;
++import static org.junit.jupiter.api.Assertions.assertThrows;
++import static org.junit.jupiter.api.Assertions.assertTrue;
++
++import io.github.mzmine.datamodel.AbundanceMeasure;
++import io.github.mzmine.datamodel.RawDataFile;
++import io.github.mzmine.datamodel.features.ModularFeatureList;
++import io.github.mzmine.datamodel.statistics.FeaturesDataTable;
++import io.github.mzmine.modules.dataanalysis.utils.StatisticUtils;
++import io.github.mzmine.modules.dataanalysis.utils.imputation.ImputationFunctions;
++import io.github.mzmine.modules.visualization.projectmetadata.table.MetadataTable;
++import io.github.mzmine.modules.visualization.projectmetadata.table.columns.StringMetadataColumn;
++import io.github.mzmine.parameters.parametertypes.statistics.AbundanceDataTablePreparationConfig;
++import io.github.mzmine.project.ProjectService;
++import io.github.mzmine.project.impl.MZmineProjectImpl;
++import io.github.mzmine.project.impl.RawDataFileImpl;
++import io.github.mzmine.util.FeatureListTestUtils;
++import java.time.Duration;
++import java.time.LocalDateTime;
++import java.util.List;
++import org.junit.jupiter.api.BeforeEach;
++import org.junit.jupiter.api.Test;
++
++/**
++ * The metadata groups all files of the project, but a data table only holds the samples of the
++ * selected feature list. These tests cover the mismatch, which used to surface as a
++ * {@link NullPointerException} instead of a usable plot.
++ */
++class UnivariateRowSignificanceTestTest {
++
++  private static final String COLUMN = "group";
++  private static final int NUM_ROWS = 5;
++
++  private StringMetadataColumn groupColumn;
++  private List<RawDataFileImpl> allFiles;
++
++  @BeforeEach
++  void setUp() {
++    ProjectService.getProjectManager().setCurrentProject(new MZmineProjectImpl());
++
++    // 6 files in the project metadata: 3 in group A, 3 in group B
++    allFiles = FeatureListTestUtils.createRawFiles(6, "sample", LocalDateTime.of(2026, 1, 1, 0, 0),
++        Duration.ofMinutes(1));
++
++    final MetadataTable metadata = ProjectService.getMetadata();
++    groupColumn = new StringMetadataColumn(COLUMN);
++    metadata.addColumn(groupColumn);
++    for (int i = 0; i < allFiles.size(); i++) {
++      metadata.setValue(groupColumn, allFiles.get(i), i < 3 ? "A" : "B");
++    }
++  }
++
++  /**
++   * @param fileIndices the project files that the feature list contains
++   */
++  private FeaturesDataTable createDataTable(List<Integer> fileIndices) {
++    final List<RawDataFile> files = fileIndices.stream().map(i -> (RawDataFile) allFiles.get(i))
++        .toList();
++    final ModularFeatureList flist = FeatureListTestUtils.createFeatureList("flist", files,
++        NUM_ROWS, 100f);
++    return StatisticUtils.extractAbundancesPrepareData(flist,
++        new AbundanceDataTablePreparationConfig(AbundanceMeasure.Height, ImputationFunctions.None));
++  }
++
++  @Test
++  void testGroupsAreLimitedToTheSamplesOfTheDataTable() {
++    // feature list only contains 2 of 3 samples of each group
++    final FeaturesDataTable table = createDataTable(List.of(0, 1, 3, 4));
++
++    final UnivariateRowSignificanceTest<String> test = new UnivariateRowSignificanceTest<>(table,
++        SignificanceTests.WELCHS_T_TEST, groupColumn, "A", "B");
++
++    // in data table order, the metadata grouping itself has no stable order
++    assertEquals(List.of(allFiles.get(0), allFiles.get(1)),
++        test.getGroupAData().getRawDataFiles());
++    assertEquals(List.of(allFiles.get(3), allFiles.get(4)),
++        test.getGroupBData().getRawDataFiles());
++    assertEquals(2, test.getGroupAData().getNumberOfSamples());
++    assertEquals(2, test.getGroupBData().getNumberOfSamples());
++    assertEquals(NUM_ROWS, test.getGroupAData().getNumberOfFeatures());
++
++    // and a test result is produced for each row of the table
++    for (final var row : table.getFeatureListRows()) {
++      assertNotNull(test.test(row));
++    }
++  }
++
++  @Test
++  void testGetMatchingFilesIsLimitedToTheGivenFiles() {
++    final List<RawDataFile> subset = List.of(allFiles.get(0), allFiles.get(1), allFiles.get(3));
++
++    assertEquals(List.of(allFiles.get(0), allFiles.get(1)),
++        ProjectService.getMetadata().getMatchingFiles(subset, groupColumn, "A"));
++    assertEquals(List.of(allFiles.get(3)),
++        ProjectService.getMetadata().getMatchingFiles(subset, groupColumn, "B"));
++    // and all known files are still matched when they are all passed in
++    assertEquals(3, ProjectService.getMetadata()
++        .getMatchingFiles(List.<RawDataFile>copyOf(allFiles), groupColumn, "A").size());
++  }
++
++  @Test
++  void testTooFewSamplesOfAGroupInTheFeatureListReportsBothCounts() {
++    // group B only has a single sample in the feature list
++    final FeaturesDataTable table = createDataTable(List.of(0, 1, 2, 3));
++
++    final IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
++        () -> new UnivariateRowSignificanceTest<>(table, SignificanceTests.WELCHS_T_TEST,
++            groupColumn, "A", "B"));
++    // message needs to name the feature list as the reason, not just the metadata
++    assertTrue(ex.getMessage().contains("feature list"), ex.getMessage());
++  }
++
++  @Test
++  void testSubsetBySamplesReportsTheMissingFileInsteadOfNpe() {
++    final FeaturesDataTable table = createDataTable(List.of(0, 1, 3, 4));
++    final RawDataFile notInTable = allFiles.get(2);
++
++    final IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
++        () -> table.subsetBySamples(List.of(allFiles.get(0), notInTable)));
++    assertTrue(ex.getMessage().contains(notInTable.getName()), ex.getMessage());
++  }
++
++  @Test
++  void testUnknownRowThrowsInsteadOfResolvingToTheFirstRow() {
++    final FeaturesDataTable table = createDataTable(List.of(0, 1, 3, 4));
++    // a row of a different feature list is not part of the table
++    final FeaturesDataTable otherTable = createDataTable(List.of(0, 1, 3, 4));
++    final var foreignRow = otherTable.getFeatureListRows().getFirst();
++
++    assertThrows(IllegalArgumentException.class, () -> table.getFeatureIndex(foreignRow));
++    assertThrows(IllegalArgumentException.class, () -> table.getSampleIndex(allFiles.get(2)));
++  }
++
++  @Test
++  void testConstantAbundancesInBothGroupsHaveNoPValue() {
++    // this is what global limit of detection imputation produces for sparse rows: all values equal,
++    // so the t-test has no variance to work with and returns NaN. Those rows used to disappear from
++    // the volcano plot without any notice.
++    final FeaturesDataTable table = createDataTable(List.of(0, 1, 3, 4));
++    final UnivariateRowSignificanceTest<String> test = new UnivariateRowSignificanceTest<>(table,
++        SignificanceTests.WELCHS_T_TEST, groupColumn, "A", "B");
++
++    final RowSignificanceTestResult result = test.test(table.getFeatureListRows().getFirst());
++    assertNotNull(result);
++    assertTrue(Double.isNaN(result.pValue()), "expected NaN but was " + result.pValue());
++  }
++}
+diff --git a/utils/src/main/java/io/github/mzmine/util/collections/CollectionUtils.java b/utils/src/main/java/io/github/mzmine/util/collections/CollectionUtils.java
+index 2f1dc50cf12..33034690a0f 100644
+--- a/utils/src/main/java/io/github/mzmine/util/collections/CollectionUtils.java
++++ b/utils/src/main/java/io/github/mzmine/util/collections/CollectionUtils.java
+@@ -63,10 +63,30 @@ public class CollectionUtils {
+    * @param list any collection
+    * @param <T>  the object to be mapped
+    * @return Map object to index in collection. Uses map that is space optimized but does not retain
+-   * order of the input sequence
++   * order of the input sequence. Keys without mapping return -1 as index value.
+    */
+   public static <T> Object2IntMap<T> indexMapUnordered(Collection<T> list) {
++    return indexMapUnordered(list, -1);
++  }
++
++  /**
++   * Map of the object to its index to avoid indexOf. This method will take any collection as input
++   * and this makes only sense if the collection has an order.
++   * <p>
++   * The resulting map does not conserve order of its entries compared to the input sequence. The
++   * map is optimized for memory.
++   *
++   * @param list               any collection
++   * @param defaultReturnValue returned for keys that are not in the collection. Use something
++   *                           outside of the valid index range, e.g., -1, so that unknown keys do
++   *                           not silently map to index 0
++   * @param <T>                the object to be mapped
++   * @return Map object to index in collection. Uses map that is space optimized but does not retain
++   * order of the input sequence
++   */
++  public static <T> Object2IntMap<T> indexMapUnordered(Collection<T> list, int defaultReturnValue) {
+     Object2IntMap<T> map = new Object2IntOpenHashMap<>(list.size());
++    map.defaultReturnValue(defaultReturnValue);
+     int i = 0;
+     for (final T value : list) {
+       map.put(value, i);

@@ -1,0 +1,341 @@
+diff --git a/matchms/similarity/metadata_match.py b/matchms/similarity/metadata_match.py
+index b26207fc3..ee9a4e776 100644
+--- a/matchms/similarity/metadata_match.py
++++ b/matchms/similarity/metadata_match.py
+@@ -32,7 +32,7 @@ class MetadataMatch(BaseSimilarityWithSparse):
+ 
+     For numerical differences, the tolerance can be interpreted as:
+ 
+-    - absolute difference in Dalton / raw units (``tolerance_type="Dalton"``)
++    - absolute difference in raw units (``tolerance_type="absolute"``)
+     - relative difference in ppm (``tolerance_type="ppm"``)
+ 
+     Example to calculate scores between 2 pairs of spectra and inspect the score matrix
+@@ -67,7 +67,10 @@ class MetadataMatch(BaseSimilarityWithSparse):
+         spectra_1 = [spectrum_1, spectrum_2]
+         spectra_2 = [spectrum_3, spectrum_4]
+ 
+-        similarity = MetadataMatch(field="instrument_type")
++        similarity = MetadataMatch(
++            field="instrument_type",
++            matching_type="equal_match",
++            )
+         scores = similarity.matrix(spectra_1, spectra_2)
+ 
+         score_array = scores.to_array()
+@@ -97,9 +100,9 @@ class MetadataMatch(BaseSimilarityWithSparse):
+     def __init__(
+         self,
+         field: str,
+-        matching_type: str = "equal_match",
+-        tolerance: float = 0.1,
+-        tolerance_type: str = "Dalton",
++        matching_type: str = "difference",
++        tolerance: float | None = None,
++        tolerance_type: str = "absolute",
+     ):
+         """
+         Parameters
+@@ -116,17 +119,23 @@ def __init__(
+             Specify tolerance below which two values are counted as match.
+             This only applies to numerical values.
+         tolerance_type
+-            Choose between fixed tolerance in Dalton / raw units (``"Dalton"``)
++            Choose between fixed tolerance in absolute units (``"absolute"``)
+             or a relative difference in ppm (``"ppm"``).
+             This only applies when ``matching_type="difference"``.
+         """
+         self.field = field
+         self.tolerance = tolerance
+ 
+-        assert matching_type in ["equal_match", "difference"], "Expected type from ['equal_match', 'difference']"
++        if matching_type not in ["equal_match", "difference"]:
++            raise ValueError("Expected type from ['equal_match', 'difference']")
++        if matching_type == "equal_match" and tolerance is not None:
++            logger.warning("Tolerance is set but will be ignored because 'equal_match' does not use tolerance.")
++        if matching_type == "difference" and tolerance is None:
++            raise ValueError("Tolerance must be specified when using 'difference' matching.")
+         self.matching_type = matching_type
+ 
+-        assert tolerance_type in ["Dalton", "ppm"], "Expected type from ['Dalton', 'ppm']"
++        if tolerance_type not in ["absolute", "ppm"]:
++            raise ValueError("Expected type from ['absolute', 'ppm']")
+         self.tolerance_type = tolerance_type
+ 
+     def pair(self, spectrum_1: SpectrumType, spectrum_2: SpectrumType):
+@@ -150,7 +159,7 @@ def pair(self, spectrum_1: SpectrumType, spectrum_2: SpectrumType):
+             return np.asarray(score, dtype=self.score_datatype)
+ 
+         if isinstance(entry_1, (int, float)) and isinstance(entry_2, (int, float)):
+-            if self.tolerance_type == "Dalton":
++            if self.tolerance_type == "absolute":
+                 score = abs(entry_1 - entry_2) <= self.tolerance
+             else:
+                 mean_value = (entry_1 + entry_2) / 2
+@@ -298,18 +307,11 @@ def _find_matching_indices(
+     ):
+         """Find matching indices for optimized matrix / sparse_matrix computation."""
+         if self.matching_type == "equal_match":
+-            if self.tolerance != 0:
+-                logger.warning("Tolerance is set but will be ignored because 'equal_match' does not use tolerance.")
+-            if self.tolerance_type != "Dalton":
+-                logger.warning(
+-                    "tolerance_type is set but will be ignored because 'equal_match' does not use tolerance."
+-                )
+-
+             rows, cols = self._find_matches_hashmap(entries_1, entries_2)
+             scores = np.ones(len(rows), dtype=self.score_datatype)
+             return rows, cols, scores
+ 
+-        if self.tolerance_type == "Dalton":
++        if self.tolerance_type == "absolute":
+             if is_symmetric:
+                 return number_matching_symmetric(entries_1, self.tolerance)
+             return number_matching(entries_1, entries_2, self.tolerance)
+diff --git a/matchms/similarity/parent_mass_match.py b/matchms/similarity/parent_mass_match.py
+index 16f8719e2..4eb0e9384 100644
+--- a/matchms/similarity/parent_mass_match.py
++++ b/matchms/similarity/parent_mass_match.py
+@@ -15,5 +15,5 @@ def __init__(self, tolerance: float = 0.1):
+             field="parent_mass",
+             matching_type="difference",
+             tolerance=tolerance,
+-            tolerance_type="Dalton",
++            tolerance_type="absolute",
+         )
+diff --git a/matchms/similarity/precursor_mz_match.py b/matchms/similarity/precursor_mz_match.py
+index e7a35b9a9..0f665084b 100644
+--- a/matchms/similarity/precursor_mz_match.py
++++ b/matchms/similarity/precursor_mz_match.py
+@@ -5,18 +5,18 @@ class PrecursorMzMatch(MetadataMatch):
+     """Return True if spectra match in precursor m/z, and False otherwise.
+ 
+     The match within tolerance can be calculated based on an absolute m/z
+-    difference (``tolerance_type="Dalton"``) or based on a relative
++    difference (``tolerance_type="absolute"``) or based on a relative
+     difference in ppm (``tolerance_type="ppm"``).
+     """
+ 
+-    def __init__(self, tolerance: float = 0.1, tolerance_type: str = "Dalton"):
++    def __init__(self, tolerance: float = 0.1, tolerance_type: str = "absolute"):
+         """
+         Parameters
+         ----------
+         tolerance
+             Specify tolerance below which two precursor m/z values are counted as match.
+         tolerance_type
+-            Choose between fixed tolerance in Dalton (``"Dalton"``) or a relative
++            Choose between fixed absolute tolerance (``"absolute"``) or a relative
+             difference in ppm (``"ppm"``).
+         """
+         super().__init__(
+diff --git a/tests/similarity/test_metadata_match.py b/tests/similarity/test_metadata_match.py
+index fbd98e773..335114c6d 100644
+--- a/tests/similarity/test_metadata_match.py
++++ b/tests/similarity/test_metadata_match.py
+@@ -34,7 +34,7 @@ def spectra():
+ 
+ def test_metadata_match_strings_pair(spectra):
+     """Test pairwise metadata matching for string entries."""
+-    similarity = MetadataMatch(field="instrument_type")
++    similarity = MetadataMatch(field="instrument_type", matching_type="equal_match")
+ 
+     assert similarity.pair(spectra[0], spectra[1]) == np.array(False, dtype=bool)
+     assert similarity.pair(spectra[0], spectra[3]) == np.array(False, dtype=bool)
+@@ -46,7 +46,7 @@ def test_metadata_match_strings_matrix(spectra):
+     spectra_1 = spectra[:2]
+     spectra_2 = spectra[2:]
+ 
+-    similarity = MetadataMatch(field="instrument_type")
++    similarity = MetadataMatch(field="instrument_type", matching_type="equal_match")
+     scores = similarity.matrix(spectra_1, spectra_2)
+ 
+     expected = np.array([[True, False], [False, False]], dtype=bool)
+@@ -63,7 +63,7 @@ def test_metadata_match_strings_sparse_matrix(spectra):
+     spectra_1 = spectra[:2]
+     spectra_2 = spectra[2:]
+ 
+-    similarity = MetadataMatch(field="instrument_type")
++    similarity = MetadataMatch(field="instrument_type", matching_type="equal_match")
+     scores = similarity.sparse_matrix(spectra_1, spectra_2)
+ 
+     expected = np.array([[True, False], [False, False]], dtype=bool)
+@@ -77,7 +77,7 @@ def test_metadata_match_strings_sparse_matrix(spectra):
+ 
+ def test_metadata_match_strings_self_comparison_is_symmetric(spectra):
+     """Implicit self-comparison should equal explicit self-comparison."""
+-    similarity = MetadataMatch(field="instrument_type")
++    similarity = MetadataMatch(field="instrument_type", matching_type="equal_match")
+ 
+     scores_self = similarity.matrix(spectra)
+     scores_explicit = similarity.matrix(spectra, spectra)
+@@ -87,7 +87,7 @@ def test_metadata_match_strings_self_comparison_is_symmetric(spectra):
+ 
+ def test_metadata_match_strings_wrong_method_pair_logs_warning(spectra, caplog):
+     """Difference matching on strings should return False and log a warning."""
+-    similarity = MetadataMatch(field="instrument_type", matching_type="difference")
++    similarity = MetadataMatch(field="instrument_type", matching_type="difference", tolerance=1.0)
+ 
+     score = similarity.pair(spectra[0], spectra[2])
+ 
+@@ -95,12 +95,18 @@ def test_metadata_match_strings_wrong_method_pair_logs_warning(spectra, caplog):
+     assert "not compatible with 'difference' method" in caplog.text
+ 
+ 
++def test_metadata_match_matching_type_differnce_but_no_tolerance(spectra):
++    """Difference matching on strings should return False and log a warning."""
++    with pytest.raises(ValueError, match="Tolerance must be specified when using 'difference' matching."):
++        _ = MetadataMatch(field="instrument_type", matching_type="difference")
++
++
+ def test_metadata_match_strings_wrong_method_matrix_logs_warning(spectra, caplog):
+     """Difference matching on strings should yield all False in matrix output."""
+     spectra_1 = spectra[:2]
+     spectra_2 = spectra[2:]
+ 
+-    similarity = MetadataMatch(field="instrument_type", matching_type="difference")
++    similarity = MetadataMatch(field="instrument_type", matching_type="difference", tolerance=1.0)
+     scores = similarity.matrix(spectra_1, spectra_2)
+ 
+     expected = np.array([[False, False], [False, False]], dtype=bool)
+@@ -200,7 +206,7 @@ def test_metadata_match_equal_match_ignores_tolerance_and_logs_warning(spectra,
+     assert "Tolerance is set but will be ignored" in caplog.text
+ 
+ 
+-def test_metadata_match_equal_match_ignores_tolerance_type_and_logs_warning(spectra, caplog):
++def test_metadata_match_missing_metadata_entry_logs_warning(spectra, caplog):
+     """equal_match should ignore tolerance_type and log a warning."""
+     spectra_1 = spectra[:2]
+     spectra_2 = spectra[2:]
+@@ -215,12 +221,12 @@ def test_metadata_match_equal_match_ignores_tolerance_type_and_logs_warning(spec
+     expected = np.array([[True, False], [False, False]], dtype=bool)
+ 
+     np.testing.assert_array_equal(scores.to_array(), expected)
+-    assert "tolerance_type is set but will be ignored" in caplog.text
++    assert "No instrument_type entry found for spectrum" in caplog.text
+ 
+ 
+ def test_metadata_match_missing_entries_return_false_in_pair(spectra):
+     """Missing metadata entries should return False in pairwise comparison."""
+-    similarity = MetadataMatch(field="instrument_type")
++    similarity = MetadataMatch(field="instrument_type", matching_type="equal_match")
+ 
+     score = similarity.pair(spectra[0], spectra[3])
+     assert score == np.array(False, dtype=bool)
+@@ -231,7 +237,7 @@ def test_metadata_match_missing_entries_log_warning_in_matrix(spectra, caplog):
+     spectra_1 = spectra[:2]
+     spectra_2 = spectra[2:]
+ 
+-    similarity = MetadataMatch(field="instrument_type")
++    similarity = MetadataMatch(field="instrument_type", matching_type="equal_match")
+     scores = similarity.matrix(spectra_1, spectra_2)
+ 
+     expected = np.array([[True, False], [False, False]], dtype=bool)
+@@ -245,7 +251,7 @@ def test_metadata_match_sparse_matrix_with_score_filter(spectra):
+     spectra_1 = spectra[:2]
+     spectra_2 = spectra[2:]
+ 
+-    similarity = MetadataMatch(field="instrument_type")
++    similarity = MetadataMatch(field="instrument_type", matching_type="equal_match")
+     scores = similarity.sparse_matrix(
+         spectra_1,
+         spectra_2,
+@@ -267,7 +273,7 @@ def test_metadata_match_sparse_matrix_with_score_filter(spectra):
+ 
+ def test_metadata_match_sparse_matrix_explicit_indices_fallback(spectra):
+     """Explicit idx_row/idx_col should use the generic sparse fallback path."""
+-    similarity = MetadataMatch(field="instrument_type")
++    similarity = MetadataMatch(field="instrument_type", matching_type="equal_match")
+ 
+     idx_row = np.array([0, 0, 1])
+     idx_col = np.array([0, 1, 1])
+@@ -289,7 +295,7 @@ def test_metadata_match_sparse_matrix_explicit_indices_fallback(spectra):
+ 
+ def test_metadata_match_sparse_matrix_requires_matching_idx_shapes(spectra):
+     """Explicit sparse indices must have identical shape."""
+-    similarity = MetadataMatch(field="instrument_type")
++    similarity = MetadataMatch(field="instrument_type", matching_type="equal_match")
+ 
+     with pytest.raises(ValueError, match="idx_row and idx_col must have the same shape"):
+         similarity.sparse_matrix(
+@@ -303,7 +309,7 @@ def test_metadata_match_sparse_matrix_requires_matching_idx_shapes(spectra):
+ 
+ def test_metadata_match_unknown_score_field_raises(spectra):
+     """Only the score field is supported."""
+-    similarity = MetadataMatch(field="instrument_type")
++    similarity = MetadataMatch(field="instrument_type", matching_type="equal_match")
+ 
+     with pytest.raises(ValueError, match="Unknown score field"):
+         similarity.matrix(spectra[:2], spectra[2:], score_fields=("missing",))
+@@ -311,7 +317,7 @@ def test_metadata_match_unknown_score_field_raises(spectra):
+ 
+ def test_metadata_match_non_score_field_selection_not_supported(spectra):
+     """MetadataMatch only supports the score field."""
+-    similarity = MetadataMatch(field="instrument_type")
++    similarity = MetadataMatch(field="instrument_type", matching_type="equal_match")
+ 
+     with pytest.raises(ValueError, match="Unknown score field"):
+         similarity.matrix(spectra[:2], spectra[2:], score_fields=("matches",))
+diff --git a/tests/similarity/test_precursormz_match.py b/tests/similarity/test_precursormz_match.py
+index e5b0115d5..d62409568 100644
+--- a/tests/similarity/test_precursormz_match.py
++++ b/tests/similarity/test_precursormz_match.py
+@@ -10,8 +10,8 @@
+ F = False
+ 
+ @pytest.mark.parametrize("precursor_mz, tolerance, tolerance_type, expected", [
+-    [[100.0, 101.0], 0.1, "Dalton", F],
+-    [[100.0, 101.0], 2.0, "Dalton", T],
++    [[100.0, 101.0], 0.1, "absolute", F],
++    [[100.0, 101.0], 2.0, "absolute", T],
+     [[600.0, 600.001], 2.0, "ppm", T]
+ ])
+ def test_precursormz_match_parameterized(precursor_mz, tolerance, tolerance_type, expected):
+@@ -34,8 +34,8 @@ def test_precursormz_match_missing_precursormz():
+ 
+ 
+ @pytest.mark.parametrize("precursor_mz, tolerance, tolerance_type, expected", [
+-    [[100.0, 101.0, 99.0, 98.0], 0.1, "Dalton", [[F, F], [F, F]]],
+-    [[100.0, 101.0, 99.0, 98.0], 2.0, "Dalton", [[T, T], [T, F]]],
++    [[100.0, 101.0, 99.0, 98.0], 0.1, "absolute", [[F, F], [F, F]]],
++    [[100.0, 101.0, 99.0, 98.0], 2.0, "absolute", [[T, T], [T, F]]],
+     [[100.0, 101.0, 99.99, 98.0], 101.0, "ppm", [[T, F], [F, F]]]
+ ])
+ def test_precursormz_match_array_parameterized(precursor_mz, tolerance, tolerance_type, expected):
+@@ -51,7 +51,7 @@ def test_precursormz_match_array_parameterized(precursor_mz, tolerance, toleranc
+         (
+             [100.0, 101.0, 99.95, 98.0],
+             0.1,
+-            "Dalton",
++            "absolute",
+             [
+                 [T, F, T, F],
+                 [F, T, F, F],
+diff --git a/tests/test_scoring_method_consistency.py b/tests/test_scoring_method_consistency.py
+index 1c37da613..c3d275cbb 100644
+--- a/tests/test_scoring_method_consistency.py
++++ b/tests/test_scoring_method_consistency.py
+@@ -7,6 +7,7 @@
+ Some scoring methods are omitted because they would require additional processing
+ or dependencies (for example fingerprint similarity).
+ """
++
+ import os
+ import numpy as np
+ import pytest
+@@ -29,13 +30,14 @@
+     "modifiedcosinehungarian": [mssimilarity.ModifiedCosineHungarian, {}],
+     "modifiedcosinelinear": [mssimilarity.ModifiedCosineLinear, {}],
+     "precursormzmatch": [mssimilarity.PrecursorMzMatch, {}],
+-    "metadatamatch": [mssimilarity.MetadataMatch, {"field": "spectrum_status"}],
++    "metadatamatch": [mssimilarity.MetadataMatch, {"field": "spectrum_status", "matching_type": "equal_match"}],
+ }
+ 
+ 
+ @pytest.fixture
+ def spectra():
+     """Import spectra and apply basic filters."""
++
+     def processing(s):
+         s = msfilter.default_filters(s)
+         s = msfilter.add_parent_mass(s)

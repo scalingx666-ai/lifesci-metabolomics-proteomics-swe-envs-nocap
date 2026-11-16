@@ -1,0 +1,406 @@
+diff --git a/.github/workflows/dependabot.yml b/.github/workflows/dependabot.yml
+index 6483b1dd7..4792a2c90 100644
+--- a/.github/workflows/dependabot.yml
++++ b/.github/workflows/dependabot.yml
+@@ -4,3 +4,5 @@ updates:
+     directory: "/"
+     schedule:
+       interval: "weekly"
++    exclude-paths:
++      - "dev-requirements.txt"
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 87d13257c..d1bfa2f8b 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -13,7 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
+ 
+ ### Changed
+ - `CosineBlink` now computes and returns scores as `np.float64` (`DEFAULT_DTYPE`) by default, consistent with the other similarity scores. The new `dtype` parameter can be set to `np.float32` to reduce memory usage [#880](https://github.com/matchms/matchms/issues/880).
++- New `export_style="sirius"` for `save_as_mgf` (and `save_spectra`, `metadata_dict`) that writes the metadata keys SIRIUS reads (`PEPMASS`, `CHARGE`, `MSLEVEL`, `RTINSECONDS`, `FEATURE_ID`, `ION`, `NAME`, ...), so mgf files exported from matchms can be imported into SIRIUS again [#987](https://github.com/matchms/matchms/issues/987).
++
+ ### Fixed
++- `load_from_msp` reads records with `Num Peaks: 0` as spectra without peaks. Before, such a record was dropped and its metadata was merged into the next spectrum, which also broke the `save_as_msp` round trip.
+ - `correct_charge` takes the charge from a known adduct (e.g. `[M-2H]2-` gives -2) before guessing +1/-1 from the ionmode when no charge is given.
+ 
+ ## [0.31.0] - 2025-10-06
+diff --git a/matchms/data/export_key_conversions.csv b/matchms/data/export_key_conversions.csv
+index 1027d7c12..2db9a2c62 100644
+--- a/matchms/data/export_key_conversions.csv
++++ b/matchms/data/export_key_conversions.csv
+@@ -1,6 +1,6 @@
+-matchms,massbank,nist,riken,gnps,golm
++matchms,massbank,nist,riken,gnps,golm,sirius
+ spectrum_id,ACCESSION,DB#,,SPECTRUMID,spectrum_id,
+-title,RECORD TITLE,,,TITLE,title,
++title,RECORD TITLE,,,TITLE,title,TITLE
+ record_date,DATE,,,,record_date,
+ authors,AUTHORS,,,,authors,
+ license,LICENSE,,,,license,
+@@ -8,31 +8,31 @@ copyright,COPYRIGHT,,,,copyright,
+ publication,PUBLICATION,,,,publication,
+ comment,COMMENT,Comments,Comment,,comment,
+ file_name,COMMENT:FILENAME,,,FILENAME,file_name,
+-scans,COMMENT:SCANS,,,SCANS,scans,
++scans,COMMENT:SCANS,,,SCANS,scans,SCANS
+ principal_investigator,COMMENT:PI,,,PI,principal_investigator,
+ data_collector,COMMENT:DATACOLLECTOR,,,DATACOLLECTOR,data_collector,
+ submit_user,COMMENT:SUBMITUSER,,,SUBMITUSER,submit_user,
+ analysis_id,COMMENT:ANALYSIS_ID,,,,analysis_id,
+ analysis_name,COMMENT:ANALYSIS_NAME,,,,analysis_name,
+ confidence,COMMENT:CONFIDENCE,,,LIBRARYQUALITY,confidence,
+-compound_name,CH$NAME,Name,NAME,NAME,NAME,
++compound_name,CH$NAME,Name,NAME,NAME,NAME,NAME
+ compound_class,CH$COMPOUND_CLASS,Compound_type,Ontology,,compound_class,
+-formula,CH$FORMULA,Formula,FORMULA,,formula,
++formula,CH$FORMULA,Formula,FORMULA,,formula,FORMULA
+ parent_mass,CH$EXACT_MASS,ExactMass,,,parent_mass,
+ nominal_mass,CH$NOMINAL_MASS,MW,,,nominal_mass,
+ salt,COMMENT:SALT,Salt,,,salt,
+ salt_mix_cas,COMMENT:SALT_MIX_CAS,Salt_mix_cas,,,salt_mix_cas,
+ peptide_sequence,COMMENT:PEPTIDE_SEQUENCE,Peptide_sequence,,SEQ,peptide_sequence,
+ peptide_modifications,COMMENT:PEPTIDE_MODIFICATIONS,Peptide_mods,,,peptide_modifications,
+-smiles,CH$SMILES,,SMILES,SMILES,smiles,
+-inchi,CH$IUPAC,,INCHI,INCHI,Synon: METB InChI,
++smiles,CH$SMILES,,SMILES,SMILES,smiles,SMILES
++inchi,CH$IUPAC,,INCHI,INCHI,Synon: METB InChI,INCHI
+ inchi_aux,COMMENT:INCHIAUX,,,INCHIAUX,inchi_aux,
+ structure,COMMENT:STRUCTURE,,,,structure,
+ cas,CH$LINK:CAS,Related_cas#,,,Synon: METB CAS,
+ chebi,CH$LINK:CHEBI,,,,chebi,
+ chempdb,CH$LINK:CHEMPDB,,,,chempdb,
+ chemspider,CH$LINK:CHEMSPIDER,,,,chemspider,
+-inchikey,CH$LINK:INCHIKEY,InChIKey,INCHIKEY,INCHIKEY,Synon: METB InChIKey,
++inchikey,CH$LINK:INCHIKEY,InChIKey,INCHIKEY,INCHIKEY,Synon: METB InChIKey,INCHIKEY
+ kegg,CH$LINK:KEGG,,,,Synon: METB KEGG,
+ knapsack,CH$LINK:KNAPSACK,,,,knapsack,
+ lipidbank,CH$LINK:LIPIDBANK,,,,lipidbank,
+@@ -47,10 +47,10 @@ organism_lineage,SP$LINEAGE,,,,organism_lineage,
+ sample_link,SP$LINK,,,,sample_link,
+ sample,SP$SAMPLE,,,,sample,
+ instrument,AC$INSTRUMENT,Instrument,,INSTRUMENT,instrument,
+-instrument_type,AC$INSTRUMENT_TYPE,Instrument_type,INSTRUMENTTYPE,SOURCE_INSTRUMENT,instrument_type,
+-ms_level,AC$MASS_SPECTROMETRY:MS_TYPE,Spectrum_type,,MSLEVEL,ms_level,
++instrument_type,AC$INSTRUMENT_TYPE,Instrument_type,INSTRUMENTTYPE,SOURCE_INSTRUMENT,instrument_type,SOURCE_INSTRUMENT
++ms_level,AC$MASS_SPECTROMETRY:MS_TYPE,Spectrum_type,,MSLEVEL,ms_level,MSLEVEL
+ ionmode,AC$MASS_SPECTROMETRY:ION_MODE,Ion_mode,IONMODE,IONMODE,ionmode,
+-charge,AC$MASS_SPECTROMETRY:CHARGE,Charge,,CHARGE,charge,
++charge,AC$MASS_SPECTROMETRY:CHARGE,Charge,,CHARGE,charge,CHARGE
+ collision_energy,AC$MASS_SPECTROMETRY:COLLISION_ENERGY,Collision_energy,COLLISIONENERGY,,collision_energy,
+ collision_gas,AC$MASS_SPECTROMETRY:COLLSION_GAS,Collision_gas,,,collision_gas,
+ collection_date,AC$MASS_SPECTROMETRY:DATE,,,,collection_date,
+@@ -83,7 +83,7 @@ column_name,AC$CHROMATOGRAPHY:COLUMN_NAME,,,,column_name,
+ column_temperature,AC$CHROMATOGRAPHY:COLUMN_TEMPERATURE,,,,column_temperature,
+ gradient,AC$CHROMATOGRAPHY:FLOW_GRADIENT,,,,gradient,
+ flow_rate,AC$CHROMATOGRAPHY:FLOW_RATE,,,,flow_rate,
+-retention_time,AC$CHROMATOGRAPHY:RETENTION_TIME,,RETENTIONTIME,,retention_time,
++retention_time,AC$CHROMATOGRAPHY:RETENTION_TIME,,RETENTIONTIME,,retention_time,RTINSECONDS
+ retention_index,AC$CHROMATOGRAPHY:RETENTION_INDEX,Retention_index,RETENTIONINDEX,,Synon: RI,
+ solvent,AC$CHROMATOGRPAHY:SOLVENT,,,,solvent,
+ column_pressure,AC$CHROMATOGRPAHY:COLUMN_PRESSURE,Pressure,,,column_pressure,
+@@ -97,8 +97,8 @@ derivative_formula,MS$FOCUSED_ION:DERIVATIVE_FORM,,,,derivative_formula,
+ derivative_mass,MS$FOCUSED_ION:DERIVATIVE_MASS,,,,derivative_mass,
+ derivative_type,MS$FOCUSED_ION:DERIVATIVE_TYPE,,,,derivative_type,
+ ion_type,MS$FOCUSED_ION:ION_TYPE,,,,ion_type,
+-precursor_mz,MS$FOCUSED_ION:PRECURSOR_M/Z,PrecursorMZ,PRECURSORMZ,PEPMASS,precursor_mz,
+-adduct,MS$FOCUSED_ION:PRECURSOR_TYPE,Precursor_type,PRECURSORTYPE,,adduct,
++precursor_mz,MS$FOCUSED_ION:PRECURSOR_M/Z,PrecursorMZ,PRECURSORMZ,PEPMASS,precursor_mz,PEPMASS
++adduct,MS$FOCUSED_ION:PRECURSOR_TYPE,Precursor_type,PRECURSORTYPE,,adduct,ION
+ isolation_window_target_mz,MS$FOCUSED_ION:ISOLATION_WIDTH,,,,isolation_window_target_mz,
+ peak_width,MS$FOCUSED_ION:PEAK_WIDTH,,,,peak_width,
+ isolation_window_lower_offset,MS$FOCUSED_ION:ISOLATION_WINDOW_LOWER_OFFSET,,,,isolation_window_lower_offset,
+@@ -111,4 +111,5 @@ software_system_id,MS$DATA_PROCESSING:SOFTWARE_SYSTEM_ID,,,,software_system_id,
+ splash,PK$SPLASH,,,,splash,
+ peakAnnotations,PK$ANNOTATION,,,,peakAnnotations,
+ num_peaks,PK$NUM_PEAK,Num Peaks,Num Peaks,,num_peaks,
++feature_id,,,,,,FEATURE_ID
+ synonyms,,,,,Synon: METB N,
+diff --git a/matchms/exporting/save_as_json.py b/matchms/exporting/save_as_json.py
+index 70724b61f..017ef5b58 100644
+--- a/matchms/exporting/save_as_json.py
++++ b/matchms/exporting/save_as_json.py
+@@ -35,7 +35,8 @@ def save_as_json(
+     filename:
+         Provide filename to save spectrum(s).
+     export_style:
+-        Converts the keys to the required export style. One of ["matchms", "massbank", "nist", "riken", "gnps"].
++        Converts the keys to the required export style.
++        One of ["matchms", "massbank", "nist", "riken", "gnps", "sirius"].
+         Default is "matchms"
+     """
+     if not isinstance(spectra, list):
+diff --git a/matchms/exporting/save_as_mgf.py b/matchms/exporting/save_as_mgf.py
+index f67854ef0..8cad03dd7 100644
+--- a/matchms/exporting/save_as_mgf.py
++++ b/matchms/exporting/save_as_mgf.py
+@@ -40,8 +40,12 @@ def save_as_mgf(
+     filename:
+         Provide filename to save spectrum(s).
+     export_style:
+-        Converts the keys to the required export style. One of ["matchms", "massbank", "nist", "riken", "gnps"].
+-        Default is "matchms"
++        Converts the keys to the required export style.
++        One of ["matchms", "massbank", "nist", "riken", "gnps", "sirius"].
++        Default is "matchms".
++        Use "sirius" to write a file that SIRIUS can import: it writes the keys SIRIUS reads
++        (PEPMASS, CHARGE, MSLEVEL, RTINSECONDS, FEATURE_ID, ION, NAME, SCANS, SMILES, INCHI, FORMULA, ...)
++        and leaves out the others. Note that "retention_time" is written as RTINSECONDS without any unit conversion.
+     file_mode: str
+         This is an optional parameter which defines the mode the file will be opened in.
+         Default is "a" (append). The other option is "w" (write). If set worngly it will default to "a".
+diff --git a/matchms/exporting/save_as_msp.py b/matchms/exporting/save_as_msp.py
+index 8e4526833..4f8ed32e2 100644
+--- a/matchms/exporting/save_as_msp.py
++++ b/matchms/exporting/save_as_msp.py
+@@ -58,7 +58,7 @@ def save_as_msp(
+     file_mode:
+         Mode on how to write to file. One of ["w", "a"] (write/append). Default is append.
+     style:
+-        Converts the keys to required Export style. One of ["massbank", "nist", "riken", "gnps"].
++        Converts the keys to required Export style. One of ["massbank", "nist", "riken", "gnps", "sirius"].
+         Default is "matchms"
+     peak_sep:
+         Separator to use for writing the msp file.
+diff --git a/matchms/exporting/save_spectra.py b/matchms/exporting/save_spectra.py
+index 7b3aabc32..254c1d64d 100644
+--- a/matchms/exporting/save_spectra.py
++++ b/matchms/exporting/save_spectra.py
+@@ -37,7 +37,7 @@ def save_spectra(
+         Path to file containing spectra, with file extension ".json", ".mgf", ".msp".
+     export_style:
+         Converts the keys to the required export style.
+-        One of ["matchms", "massbank", "nist", "riken", "gnps"]. Default is "matchms".
++        One of ["matchms", "massbank", "nist", "riken", "gnps", "sirius"]. Default is "matchms".
+     append:
+         Only supported for ".mgf", and ".msp" filetypes. If True, will try to append
+         to an existing file, instead of creating a new file. Default is `False`.
+diff --git a/matchms/importing/load_from_msp.py b/matchms/importing/load_from_msp.py
+index 677fce9e2..ccdf4ad8a 100644
+--- a/matchms/importing/load_from_msp.py
++++ b/matchms/importing/load_from_msp.py
+@@ -59,6 +59,14 @@ def parse_msp_file(filename: str) -> Generator[dict, None, None]:
+ 
+             if contains_metadata(rline):
+                 parse_metadata(rline, params)
++                if peakscount == 0 and params.get("num peaks") is not None and int(params["num peaks"]) == 0:
++                    # A record without peaks ends at its Num Peaks line. Without this its
++                    # metadata would be merged into the next record.
++                    yield _record_to_dict(params, masses, intensities, peak_comments)
++                    params = {}
++                    masses = []
++                    intensities = []
++                    peak_comments = {}
+                 continue
+ 
+             mz, ints, comment = _parse_line_with_peaks(rline)
+@@ -74,17 +82,7 @@ def parse_msp_file(filename: str) -> Generator[dict, None, None]:
+             # Obtaining the masses and intensities
+             if int(params["num peaks"]) == peakscount:
+                 peakscount = 0
+-                # Handles edge cases with GOLM files where the nominal mass is written with a comma instead of a dot
+-                nominal_mass = params.get("mw")
+-                if nominal_mass and isinstance(nominal_mass, str):
+-                    params["mw"] = nominal_mass.replace(",", ".")
+-
+-                yield {
+-                    "params": (params),
+-                    "m/z array": masses,
+-                    "intensity array": intensities,
+-                    "peak comments": peak_comments,
+-                }
++                yield _record_to_dict(params, masses, intensities, peak_comments)
+ 
+                 params = {}
+                 masses = []
+@@ -92,6 +90,20 @@ def parse_msp_file(filename: str) -> Generator[dict, None, None]:
+                 peak_comments = {}
+ 
+ 
++def _record_to_dict(params: dict, masses, intensities, peak_comments: dict) -> dict:
++    # Handles edge cases with GOLM files where the nominal mass is written with a comma instead of a dot
++    nominal_mass = params.get("mw")
++    if nominal_mass and isinstance(nominal_mass, str):
++        params["mw"] = nominal_mass.replace(",", ".")
++
++    return {
++        "params": (params),
++        "m/z array": np.asarray(masses, dtype=float),
++        "intensity array": np.asarray(intensities, dtype=float),
++        "peak comments": peak_comments,
++    }
++
++
+ def _parse_line_with_peaks(rline: str) -> tuple[list[float], list[float], str]:
+     """Parse a line containing peaks consisting of mz and intensity values with optional comments.
+ 
+@@ -99,7 +111,7 @@ def _parse_line_with_peaks(rline: str) -> tuple[list[float], list[float], str]:
+         rline (str): Line with peaks read from the MSP.
+ 
+     Returns:
+-        Tuple[List[float], List[float], str]: mz, intensity and peak comments obtained from the line.
++        tuple[list[float], list[float], str]: mz, intensity and peak comments obtained from the line.
+     """
+     comment, rline = get_peak_comment(rline)
+     mz, intensities = get_peak_values(rline)
+diff --git a/matchms/spectrum.py b/matchms/spectrum.py
+index c2f3dd8da..3e96092a8 100644
+--- a/matchms/spectrum.py
++++ b/matchms/spectrum.py
+@@ -192,7 +192,8 @@ def to_dict(self, export_style: str = "matchms") -> dict:
+         Parameters
+         ----------
+         export_style:
+-            Converts the keys to the required export style. One of ["matchms", "massbank", "nist", "riken", "gnps"].
++            Converts the keys to the required export style.
++            One of ["matchms", "massbank", "nist", "riken", "gnps", "sirius"].
+             Default is "matchms"
+         """
+         peaks_list = np.vstack((self.peaks.mz, self.peaks.intensities)).T.tolist()
+@@ -208,7 +209,8 @@ def metadata_dict(self, export_style: str = "matchms") -> dict:
+         Parameters
+         ----------
+         export_style:
+-            Converts the keys to the required export style. One of ["matchms", "massbank", "nist", "riken", "gnps"].
++            Converts the keys to the required export style.
++            One of ["matchms", "massbank", "nist", "riken", "gnps", "sirius"].
+             Default is "matchms"
+         """
+         return self._metadata.to_dict(export_style)
+diff --git a/tests/exporting/test_save_as_mgf.py b/tests/exporting/test_save_as_mgf.py
+index d62371de6..af907bd11 100644
+--- a/tests/exporting/test_save_as_mgf.py
++++ b/tests/exporting/test_save_as_mgf.py
+@@ -79,6 +79,7 @@ def test_save_as_mgf_spectrum_list():
+                          [("matchms", ["PRECURSOR_MZ=100.1\n", "PRECURSOR_MZ=200.2\n"]),
+                           ("nist", ["PRECURSORMZ=100.1\n", "PRECURSORMZ=200.2\n"]),
+                           ("gnps", ["PEPMASS=100.1\n", "PEPMASS=200.2\n"]),
++                          ("sirius", ["PEPMASS=100.1\n", "PEPMASS=200.2\n"]),
+                           ])
+ def test_save_as_mgf_export_style(style, expected):
+     """Test saving spectrum list to .mgf file using differnt export styles.
+@@ -103,6 +104,53 @@ def test_save_as_mgf_export_style(style, expected):
+         assert mgf_content[7] == expected[1]
+ 
+ 
++def test_save_as_mgf_sirius_style(tmpdir):
++    """The "sirius" style writes the keys SIRIUS reads (see issue #987): PEPMASS instead of
++    PRECURSOR_MZ, MSLEVEL instead of MS_LEVEL, RTINSECONDS instead of RETENTION_TIME, etc.
++    The written file must also still be readable by matchms.
++    """
++    mz = np.array([100.1, 200.02, 300.003], dtype="float")
++    intensities = np.array([0.01, 0.02, 1.0], dtype="float")
++    metadata = {"precursor_mz": 183.057,
++                "charge": -1,
++                "ms_level": "2",
++                "retention_time": 61.2,
++                "ionmode": "negative",
++                "adduct": "[M-H]-",
++                "compound_name": "Fuberidazole",
++                "feature_id": "12",
++                "smiles": "C1=CC=C2C(=C1)NC(=N2)C3=CC=CO3"}
++    spectrum = SpectrumBuilder().with_mz(mz).with_intensities(intensities) \
++        .with_metadata(metadata, metadata_harmonization=True).build()
++
++    filename = os.path.join(tmpdir, "sirius.mgf")
++    save_as_mgf(spectrum, filename, export_style="sirius")
++
++    with open(filename, encoding="utf-8") as f:
++        mgf_lines = [line.strip() for line in f]
++    for expected_line in ["PEPMASS=183.057",
++                          "CHARGE=-1",
++                          "MSLEVEL=2",
++                          "RTINSECONDS=61.2",
++                          "ION=[M-H]-",
++                          "NAME=Fuberidazole",
++                          "FEATURE_ID=12",
++                          "SMILES=C1=CC=C2C(=C1)NC(=N2)C3=CC=CO3"]:
++        assert expected_line in mgf_lines
++    # matchms-only keys must not leak into the file, and IONMODE is left out on purpose
++    # (SIRIUS takes the polarity from CHARGE and fails on IONMODE values like "n/a").
++    matchms_keys = ("PRECURSOR_MZ=", "MS_LEVEL=", "RETENTION_TIME=", "IONMODE=", "ADDUCT=", "COMPOUND_NAME=")
++    assert not any(line.startswith(matchms_keys) for line in mgf_lines)
++
++    spectrum_import = list(load_from_mgf(filename))[0]
++    assert spectrum_import.get("precursor_mz") == 183.057
++    assert spectrum_import.get("charge") == -1
++    assert spectrum_import.get("ms_level") == "2"
++    assert spectrum_import.get("retention_time") == 61.2
++    assert spectrum_import.get("compound_name") == "Fuberidazole"
++    assert spectrum_import.get("feature_id") == "12"
++
++
+ @pytest.mark.parametrize(
+     "charge, ionmode, parent_mass, expected_parent_mass",
+     [
+diff --git a/tests/importing/test_load_from_msp.py b/tests/importing/test_load_from_msp.py
+index 1294b3191..986ca8206 100644
+--- a/tests/importing/test_load_from_msp.py
++++ b/tests/importing/test_load_from_msp.py
+@@ -2,6 +2,7 @@
+ import numpy as np
+ import pytest
+ from matchms import Spectrum
++from matchms.exporting import save_as_msp
+ from matchms.importing.load_from_msp import get_peak_values, load_from_msp, parse_metadata
+ from tests.builder_spectrum import SpectrumBuilder
+ 
+@@ -294,4 +295,38 @@ def test_parse_metadata(input_line, expected_output):
+ ])
+ def test_get_peak_values(line, expected):
+     actual = get_peak_values(line)
+-    assert actual == expected
+\ No newline at end of file
++    assert actual == expected
++
++def test_load_msp_record_without_peaks(tmp_path):
++    msp = tmp_path / "zero_peaks.msp"
++    msp.write_text(
++        "NAME: A\nPRECURSORMZ: 300.1\nFORMULA: C6H6\nSMILES: c1ccccc1\nNum Peaks: 0\n\n"
++        "NAME: B\nPRECURSORMZ: 400.2\nNum Peaks: 2\n50 1\n60 2\n"
++    )
++    spectra = list(load_from_msp(str(msp)))
++
++    assert [s.get("compound_name") for s in spectra] == ["A", "B"]
++    assert len(spectra[0].peaks.mz) == 0
++    assert spectra[0].get("formula") == "C6H6"
++    assert spectra[1].get("formula") is None
++    assert spectra[1].get("smiles") is None
++    np.testing.assert_array_equal(spectra[1].peaks.mz, [50.0, 60.0])
++
++
++def test_save_and_load_msp_spectrum_without_peaks(tmp_path):
++    empty = Spectrum(
++        mz=np.array([], dtype=float),
++        intensities=np.array([], dtype=float),
++        metadata={"compound_name": "A", "precursor_mz": 300.1, "smiles": "c1ccccc1"},
++    )
++    other = Spectrum(
++        mz=np.array([50.0, 60.0]),
++        intensities=np.array([1.0, 2.0]),
++        metadata={"compound_name": "B", "precursor_mz": 400.2},
++    )
++    filename = str(tmp_path / "roundtrip.msp")
++    save_as_msp([empty, other], filename)
++    spectra = list(load_from_msp(filename))
++
++    assert [s.get("compound_name") for s in spectra] == ["A", "B"]
++    assert spectra[1].get("smiles") is None
+diff --git a/tests/test_key_conversion.py b/tests/test_key_conversion.py
+index ad996d6d5..e896c3a70 100644
+--- a/tests/test_key_conversion.py
++++ b/tests/test_key_conversion.py
+@@ -8,7 +8,14 @@
+     [{"precursormz": 101.01}, {"PEPMASS": 101.01}, "gnps"],
+     [{"charge": "2+"}, {"AC$MASS_SPECTROMETRY:CHARGE": "2+"}, "massbank"],
+     [{"charge": -1}, {"Charge": -1}, "nist"],
+-    [{"ionmode": "Negative"}, {"IONMODE": "Negative"}, "riken"]])
++    [{"ionmode": "Negative"}, {"IONMODE": "Negative"}, "riken"],
++    [{"precursor_mz": 101.01, "retention_time": 12.5, "ms_level": "2"},
++     {"PEPMASS": 101.01, "RTINSECONDS": 12.5, "MSLEVEL": "2"}, "sirius"],
++    [{"adduct": "[M+H]+", "feature_id": "7", "compound_name": "Dummy"},
++     {"ION": "[M+H]+", "FEATURE_ID": "7", "NAME": "Dummy"}, "sirius"],
++    # SIRIUS reads the polarity from CHARGE and chokes on IONMODE values such as "n/a",
++    # so ionmode is deliberately not exported in the sirius style.
++    [{"charge": -1, "ionmode": "negative"}, {"CHARGE": -1}, "sirius"]])
+ def test_key_conversion(input_dict, expected, export_style):
+     spectrum = SpectrumBuilder().with_metadata(input_dict).build()
+     actual = spectrum.metadata_dict(export_style)

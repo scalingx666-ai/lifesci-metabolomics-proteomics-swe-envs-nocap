@@ -1,0 +1,67 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3585"
+description = "Multi temp directory always check write access"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "952933f0490feeeb327e4c22f5fa58c3e3e917a7"
+reference = "https://github.com/mzmine/mzmine/pull/3585"
+source_access = "auto"
+built_at = "2026-11-16T08:42:58.013335+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:4ce3bf49c3c99011c1ba53729be03573cb4570f0630dfebc64b74d7e833dda41"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-26T09:48:39Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/gui/preferences/MZminePreferences.java",
+    "mzmine-community/src/main/java/io/github/mzmine/main/ArgsToConfigUtils.java",
+    "mzmine-community/src/test/java/io/github/mzmine/main/ArgsToConfigUtilsTest.java",
+    "utils/src/main/java/io/github/mzmine/util/files/FileAndPathUtil.java",
+    "utils/src/main/java/io/github/mzmine/util/files/TempDirectoryManager.java",
+    "utils/src/test/java/io/github/mzmine/util/files/TempDirectoryManagerTest.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 575
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

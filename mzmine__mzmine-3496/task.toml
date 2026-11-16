@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3496"
+description = "Compact object headers, string deduplication"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "0801807942127f836aa595cff12d6ae5d7eae730"
+reference = "https://github.com/mzmine/mzmine/pull/3496"
+source_access = "auto"
+built_at = "2026-11-16T08:44:25.782319+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:7a107a4b5e20a7278bf0333c758ed55c99607105d02e1fc6f460a12a6b273542"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-09-16T14:47:33Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/build.gradle",
+    "mzmine-community/src/test/java/import_data/speed/BatchSpeedTestMain.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 25
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,39 @@
+diff --git a/docs/src/cellxgene.md b/docs/src/cellxgene.md
+index 433fc2817..94c21bfc0 100644
+--- a/docs/src/cellxgene.md
++++ b/docs/src/cellxgene.md
+@@ -16,7 +16,7 @@ Choice of 'homo_sapiens' or 'mus_musculus'. Default: 'homo_sapiens'.
+  See https://cellxgene.cziscience.com/gene-expression for examples of available genes.  
+ 
+  `-cv` `--census_version`  
+- Str defining version of Census, e.g. "2023-05-08", or "latest" or "stable". Default: "stable".  
++ Str defining version of Census, e.g. "2023-05-15", or "latest" or "stable". Default: "stable".  
+ 
+ `-cn` `--column_names`  
+ List of metadata columns to return (stored in AnnData.obs).  
+diff --git a/gget/gget_cellxgene.py b/gget/gget_cellxgene.py
+index b8f5d77aa..8182def9f 100644
+--- a/gget/gget_cellxgene.py
++++ b/gget/gget_cellxgene.py
+@@ -80,7 +80,7 @@ def cellxgene(
+                          Default: ["dataset_id", "assay", "suspension_type", "sex", "tissue_general", "tissue", "cell_type"]
+                          For more options see: https://api.cellxgene.cziscience.com/curation/ui/#/ -> Schemas -> dataset
+         - meta_only      True/False (default: False). If True, returns only metadata dataframe (corresponds to AnnData.obs).
+-        - census_version Str defining version of Census, e.g. "2023-05-08" or "latest" or "stable". Default: "stable".
++        - census_version Str defining version of Census, e.g. "2023-05-15" or "latest" or "stable". Default: "stable".
+         - verbose        True/False whether to print progress information. Default True.
+         - out            If provided, saves the generated AnnData h5ad (or csv when meta_only=True) file with the specified path. Default: None.
+ 
+diff --git a/gget/main.py b/gget/main.py
+index e65886d08..8e2c72d20 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -1190,7 +1190,7 @@ def main():
+         default="stable",
+         type=str,
+         required=False,
+-        help="Census version, e.g. '2023-05-08' or 'latest' or 'stable'.",
++        help="Census version, e.g. '2023-05-15' or 'latest' or 'stable'.",
+     )
+     parser_cellxgene.add_argument(
+         "-s",

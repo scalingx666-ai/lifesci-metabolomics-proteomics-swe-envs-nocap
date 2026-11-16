@@ -1,0 +1,1411 @@
+diff --git a/matchms/similarity/cosine.py b/matchms/similarity/cosine.py
+index 908af238b..c8a5f6c8f 100644
+--- a/matchms/similarity/cosine.py
++++ b/matchms/similarity/cosine.py
+@@ -11,6 +11,7 @@
+     DEFAULT_NOISE_CUTOFF,
+     DEFAULT_OFFSET_TO_PRECURSOR,
+ )
++from .flash_index import FlashIndex
+ from .flash_similarity import CosineFlash
+ 
+ 
+@@ -25,14 +26,10 @@ class Cosine(BaseSimilarity):
+     mass spectra. Two peaks are considered a potential match if their m/z ratios
+     lie within the given ``tolerance``.
+ 
+-    Matchms provides various implementations of the Cosine score which
+-    are combined here in what we believe to be the typical best choice for most users.
+-
+-    By default, the parameter ``use_hungarian`` is set to False, which means that
+-    the greedy algorithm is used to find the best matches. This is typically faster
+-    than the Hungarian algorithm, and for most applications the results are very similar.
+-    If you need the exact optimal solution, you can set ``use_hungarian`` to True,
+-    which will use the Hungarian algorithm to find the best matches.
++    ``pair`` uses the greedy or Hungarian pair implementation. ``matrix`` uses
++    the SpectraCollection-native Flash implementation for the default greedy path.
++    For repeated searches against a fixed large library, build a persistent
++    :class:`FlashIndex` once with :meth:`build_index` and use :meth:`search`.
+     """
+ 
+     is_commutative = True
+@@ -40,14 +37,14 @@ class Cosine(BaseSimilarity):
+     score_fields = ("score", "matches")
+ 
+     def __init__(
+-            self,
+-            tolerance: float = DEFAULT_MZ_TOLERANCE,
+-            intensity_power: float = DEFAULT_INTENSITY_POWER,
+-            use_hungarian: bool = False,
+-            noise_cutoff: float = DEFAULT_NOISE_CUTOFF,
+-            remove_precursor: bool = True,
+-            offset_to_precursor: float = DEFAULT_OFFSET_TO_PRECURSOR,
+-            ):
++        self,
++        tolerance: float = DEFAULT_MZ_TOLERANCE,
++        intensity_power: float = DEFAULT_INTENSITY_POWER,
++        use_hungarian: bool = False,
++        noise_cutoff: float = DEFAULT_NOISE_CUTOFF,
++        remove_precursor: bool = True,
++        offset_to_precursor: float = DEFAULT_OFFSET_TO_PRECURSOR,
++    ):
+         """Initialize cosine score class.
+ 
+         Parameters
+@@ -76,9 +73,39 @@ def __init__(
+         self.remove_precursor = remove_precursor
+         self.offset_to_precursor = offset_to_precursor
+ 
+-    def pair(self, spectrum_1: SpectrumType, spectrum_2: SpectrumType) -> tuple[float, int]:
+-        """Calculate approximate modified cosine score between two spectra."""
++    def _flash_similarity(self) -> CosineFlash:
++        if self.use_hungarian:
++            raise ValueError(
++                "Persistent Flash indices/search are unavailable when "
++                "use_hungarian=True."
++            )
++        return CosineFlash(
++            matching_mode="fragment",
++            tolerance=self.tolerance,
++            intensity_power=self.intensity_power,
++            noise_cutoff=self.noise_cutoff,
++            remove_precursor=self.remove_precursor,
++            offset_to_precursor=self.offset_to_precursor,
++        )
+ 
++    def build_index(self, spectra) -> FlashIndex:
++        """Build a reusable library index.
++
++        When ``spectra`` is already a ``SpectraCollection``, index construction is
++        fully collection-native and operates directly on its CSR fragment backend.
++        """
++        return self._flash_similarity().build_index(spectra)
++
++    def save_index(self, index: FlashIndex, filename) -> None:
++        """Save a compatible persistent Flash index."""
++        self._flash_similarity().save_index(index, filename)
++
++    def load_index(self, filename) -> FlashIndex:
++        """Load and validate a persistent Flash index."""
++        return self._flash_similarity().load_index(filename)
++
++    def pair(self, spectrum_1: SpectrumType, spectrum_2: SpectrumType) -> tuple[float, int]:
++        """Calculate cosine score between two spectra."""
+         if self.use_hungarian:
+             cosine = CosineHungarian(
+                 tolerance=self.tolerance,
+@@ -97,17 +124,18 @@ def pair(self, spectrum_1: SpectrumType, spectrum_2: SpectrumType) -> tuple[floa
+             )
+         return cosine.pair(spectrum_1, spectrum_2)
+ 
+-
+     def matrix(
+-            self,
+-            spectra_1: Sequence[SpectrumType],
+-            spectra_2: Sequence[SpectrumType] | None = None,
+-            score_fields: Sequence[str] | None = None,
+-            progress_bar: bool = True,
+-            n_jobs: int = -1,
+-        ):
+-        """
+-        Calculate matrix of Cosine scores.
++        self,
++        spectra_1: Sequence[SpectrumType],
++        spectra_2: Sequence[SpectrumType] | None = None,
++        score_fields: Sequence[str] | None = None,
++        progress_bar: bool = True,
++        n_jobs: int = -1,
++    ):
++        """Calculate a dense matrix of Cosine scores.
++
++        Persistent indices are intentionally not part of this API. Use
++        :meth:`search` for repeated queries against a pre-built library index.
+ 
+         Parameters
+         ----------
+@@ -144,18 +172,53 @@ def matrix(
+                 progress_bar=progress_bar,
+             )
+ 
+-        cosine = CosineFlash(
+-            matching_mode="fragment",
+-            tolerance=self.tolerance,
+-            intensity_power=self.intensity_power,
+-            noise_cutoff=self.noise_cutoff,
+-            remove_precursor=self.remove_precursor,
+-            offset_to_precursor=self.offset_to_precursor,
+-        )
+-        return cosine.matrix(
++        return self._flash_similarity().matrix(
+             spectra_1=spectra_1,
+             spectra_2=spectra_2,
+             score_fields=score_fields,
+             progress_bar=progress_bar,
+             n_jobs=n_jobs,
+         )
++
++    def search(
++        self,
++        query_spectra,
++        library_index: FlashIndex,
++        *,
++        score_fields: Sequence[str] | None = None,
++        progress_bar: bool = True,
++        n_jobs: int = -1,
++    ):
++        """Calculate Cosine scores against a pre-built Flash library index.
++
++        This has the same scoring semantics and dense ``Scores`` output as
++        ``matrix(query_spectra, library_spectra)`` on the Flash path. The only
++        difference is that library preprocessing and index construction have
++        already been performed.
++
++        Parameters
++        ----------
++        query_spectra
++            Query collection of input spectra.
++        library_index
++            Pre-built library index to search against.
++        score_fields
++            Requested score fields. Only ``("score",)`` is supported.
++        progress_bar
++            When True, show a progress bar.
++        n_jobs
++            Number of parallel jobs to run.
++            Default is -1, which means that all available CPUs minus one will be used.
++        query_batch_size
++            Number of query rows handled per worker task. This reduces scheduling
++            and inter-process overhead while retaining row-level Flash scoring.
++            A default of 10 is deliberately conservative for very large libraries;
++            values around 10-50 are good candidates for benchmarking.
++        """
++        return self._flash_similarity().search(
++            query_spectra=query_spectra,
++            library_index=library_index,
++            score_fields=score_fields,
++            progress_bar=progress_bar,
++            n_jobs=n_jobs,
++        )
+diff --git a/matchms/similarity/entropy.py b/matchms/similarity/entropy.py
+index 587df53de..715bc68cc 100644
+--- a/matchms/similarity/entropy.py
++++ b/matchms/similarity/entropy.py
+@@ -8,6 +8,7 @@
+     DEFAULT_OFFSET_TO_PRECURSOR,
+ )
+ from .entropy_greedy import EntropyGreedy
++from .flash_index import FlashIndex
+ from .flash_similarity import FlashEntropy
+ 
+ 
+@@ -32,6 +33,10 @@ class Entropy(BaseSimilarity):
+     Entropy search strategy was introduced by Li & Fiehn, Nature Methods 20,
+     1475-1478 (2023), doi:10.1038/s41592-023-02012-9.
+ 
++    ``pair`` uses :class:`EntropyGreedy`, ``matrix`` uses the
++    SpectraCollection-native :class:`FlashEntropy`, and :meth:`search` performs
++    sparse repeated search against a persistent :class:`FlashIndex`.
++
+     Three matching modes are supported:
+ 
+     - ``"fragment"``:
+@@ -112,7 +117,7 @@ def _pair_similarity(self) -> EntropyGreedy:
+             dtype=self.dtype,
+         )
+ 
+-    def _matrix_similarity(self) -> FlashEntropy:
++    def _flash_similarity(self) -> FlashEntropy:
+         return FlashEntropy(
+             matching_mode=self.matching_mode,
+             tolerance=self.tolerance,
+@@ -125,6 +130,18 @@ def _matrix_similarity(self) -> FlashEntropy:
+             dtype=self.dtype,
+         )
+ 
++    def build_index(self, spectra) -> FlashIndex:
++        """Build a reusable library index directly from a SpectraCollection."""
++        return self._flash_similarity().build_index(spectra)
++
++    def save_index(self, index: FlashIndex, filename) -> None:
++        """Save a compatible persistent Flash index."""
++        self._flash_similarity().save_index(index, filename)
++
++    def load_index(self, filename) -> FlashIndex:
++        """Load and validate a persistent Flash index."""
++        return self._flash_similarity().load_index(filename)
++
+     def pair(self, spectrum_1: SpectrumType, spectrum_2: SpectrumType) -> np.ndarray:
+         """Calculate entropy similarity for one spectrum pair."""
+         return self._pair_similarity().pair(spectrum_1, spectrum_2)
+@@ -137,11 +154,38 @@ def matrix(
+         progress_bar: bool = True,
+         n_jobs: int = -1,
+     ):
+-        """Calculate a dense matrix of entropy similarity scores."""
+-        return self._matrix_similarity().matrix(
++        """Calculate a dense matrix of entropy similarity scores.
++
++        Persistent indices are intentionally not part of this API. Use
++        :meth:`search` for repeated queries against a pre-built library index.
++        """
++        return self._flash_similarity().matrix(
+             spectra_1=spectra_1,
+             spectra_2=spectra_2,
+             score_fields=score_fields,
+             progress_bar=progress_bar,
+             n_jobs=n_jobs,
+         )
++
++    def search(
++        self,
++        query_spectra,
++        library_index: FlashIndex,
++        *,
++        score_fields: Sequence[str] | None = None,
++        progress_bar: bool = True,
++        n_jobs: int = -1,
++    ):
++        """Calculate entropy scores against a pre-built Flash library index.
++
++        This has the same scoring semantics and dense ``Scores`` output as
++        ``matrix(query_spectra, library_spectra)``. The only difference is that
++        library preprocessing and index construction have already been performed.
++        """
++        return self._flash_similarity().search(
++            query_spectra=query_spectra,
++            library_index=library_index,
++            score_fields=score_fields,
++            progress_bar=progress_bar,
++            n_jobs=n_jobs,
++        )
+diff --git a/matchms/similarity/flash_index.py b/matchms/similarity/flash_index.py
+new file mode 100644
+index 000000000..7e53d14f0
+--- /dev/null
++++ b/matchms/similarity/flash_index.py
+@@ -0,0 +1,296 @@
++"""Persistent indices for SpectraCollection-native Flash similarity search."""
++
++from __future__ import annotations
++import json
++import os
++from dataclasses import dataclass, field
++from pathlib import Path
++from typing import Any, Self
++import numpy as np
++
++
++_FLASH_INDEX_FORMAT = "matchms.flash_index"
++_FLASH_INDEX_VERSION = 2
++
++
++@dataclass
++class FlashIndex:
++    """Reusable library index for SpectraCollection-native Flash search.
++
++    This is the persistent/public counterpart of the internal ``_LibraryIndex``
++    produced by :func:`matchms.similarity.flash_utils._build_library_index_from_prepared`.
++    It intentionally exposes the same array attributes so the existing Flash row
++    workers can use a ``FlashIndex`` directly without conversion.
++
++    ``config`` stores only parameters that affect preprocessing/index construction.
++    Search-time parameters such as fragment tolerance, precursor tolerance,
++    score threshold, and top-k are deliberately excluded so one saved index can be
++    reused for many searches.
++    """
++
++    n_specs: int
++    dtype: np.dtype
++    peaks_mz: np.ndarray
++    peaks_int: np.ndarray
++    peaks_spec_idx: np.ndarray
++    spec_offsets: np.ndarray
++    spec_mz: np.ndarray
++    spec_int: np.ndarray
++    precursor_mz: np.ndarray
++    spec_l2: np.ndarray | None = None
++    nl_mz: np.ndarray | None = None
++    nl_int: np.ndarray | None = None
++    nl_spec_idx: np.ndarray | None = None
++    nl_product_idx: np.ndarray | None = None
++    config: dict[str, Any] = field(default_factory=dict)
++    metadata: dict[str, Any] = field(default_factory=dict)
++
++    def __post_init__(self) -> None:
++        self.n_specs = int(self.n_specs)
++        self.dtype = np.dtype(self.dtype)
++        self.config = dict(self.config or {})
++        self.metadata = dict(self.metadata or {})
++        self._validate_arrays()
++
++    @classmethod
++    def from_library(
++        cls,
++        library,
++        *,
++        config: dict[str, Any],
++        metadata: dict[str, Any] | None = None,
++    ) -> Self:
++        """Wrap an internal SpectraCollection-native ``_LibraryIndex``.
++
++        No peak arrays are copied. The expensive preprocessing and global sorting
++        have already happened in ``_prepare_collection`` and
++        ``_build_library_index_from_prepared``.
++        """
++        return cls(
++            n_specs=library.n_specs,
++            dtype=library.dtype,
++            peaks_mz=library.peaks_mz,
++            peaks_int=library.peaks_int,
++            peaks_spec_idx=library.peaks_spec_idx,
++            spec_offsets=library.spec_offsets,
++            spec_mz=library.spec_mz,
++            spec_int=library.spec_int,
++            precursor_mz=library.precursor_mz,
++            spec_l2=getattr(library, "spec_l2", None),
++            nl_mz=getattr(library, "nl_mz", None),
++            nl_int=getattr(library, "nl_int", None),
++            nl_spec_idx=getattr(library, "nl_spec_idx", None),
++            nl_product_idx=getattr(library, "nl_product_idx", None),
++            config=config,
++            metadata=metadata or {},
++        )
++
++    @property
++    def has_neutral_loss_index(self) -> bool:
++        """Return whether neutral-loss search arrays are available."""
++        return self.nl_mz is not None
++
++    @property
++    def has_l2_norms(self) -> bool:
++        """Return whether per-spectrum L2 norms are available."""
++        return self.spec_l2 is not None
++
++    def save(self, filename: str | Path) -> None:
++        """Save the index as a versioned, non-pickle ``.npz`` file.
++
++        ``np.savez`` is intentionally used instead of compressed NPZ. For very
++        large Flash indices this prioritizes write/load speed over disk space.
++        The write uses a temporary file followed by ``os.replace``.
++        """
++        path = Path(filename)
++        path.parent.mkdir(parents=True, exist_ok=True)
++
++        meta = {
++            "format": _FLASH_INDEX_FORMAT,
++            "version": _FLASH_INDEX_VERSION,
++            "n_specs": self.n_specs,
++            "dtype": self.dtype.str,
++            "config": self.config,
++            "metadata": self.metadata,
++            "optional_arrays": {
++                "spec_l2": self.spec_l2 is not None,
++                "nl_mz": self.nl_mz is not None,
++                "nl_int": self.nl_int is not None,
++                "nl_spec_idx": self.nl_spec_idx is not None,
++                "nl_product_idx": self.nl_product_idx is not None,
++            },
++        }
++
++        arrays = {
++            "__metadata__": np.asarray(json.dumps(meta)),
++            "peaks_mz": self.peaks_mz,
++            "peaks_int": self.peaks_int,
++            "peaks_spec_idx": self.peaks_spec_idx,
++            "spec_offsets": self.spec_offsets,
++            "spec_mz": self.spec_mz,
++            "spec_int": self.spec_int,
++            "precursor_mz": self.precursor_mz,
++        }
++        for name in (
++            "spec_l2",
++            "nl_mz",
++            "nl_int",
++            "nl_spec_idx",
++            "nl_product_idx",
++        ):
++            value = getattr(self, name)
++            if value is not None:
++                arrays[name] = value
++
++        tmp = path.with_name(path.name + ".tmp")
++        try:
++            with tmp.open("wb") as handle:
++                np.savez(handle, **arrays)
++            os.replace(tmp, path)
++        finally:
++            if tmp.exists():
++                tmp.unlink()
++
++    @classmethod
++    def load(cls, filename: str | Path) -> Self:
++        """Load a :class:`FlashIndex` written by :meth:`save`."""
++        path = Path(filename)
++        with np.load(path, allow_pickle=False) as archive:
++            meta = json.loads(str(archive["__metadata__"].item()))
++
++            if meta.get("format") != _FLASH_INDEX_FORMAT:
++                raise ValueError(
++                    f"Not a matchms Flash index: {meta.get('format')!r}."
++                )
++            version = meta.get("version")
++            if version != _FLASH_INDEX_VERSION:
++                raise ValueError(
++                    f"Unsupported Flash index version {version!r}; "
++                    f"expected {_FLASH_INDEX_VERSION}."
++                )
++
++            optional = meta.get("optional_arrays", {})
++
++            def get_optional(name: str):
++                if not optional.get(name, False):
++                    return None
++                if name not in archive:
++                    raise ValueError(
++                        f"Flash index metadata declares array {name!r}, "
++                        "but the array is missing from the file."
++                    )
++                return np.asarray(archive[name])
++
++            return cls(
++                n_specs=meta["n_specs"],
++                dtype=np.dtype(meta["dtype"]),
++                peaks_mz=np.asarray(archive["peaks_mz"]),
++                peaks_int=np.asarray(archive["peaks_int"]),
++                peaks_spec_idx=np.asarray(archive["peaks_spec_idx"]),
++                spec_offsets=np.asarray(archive["spec_offsets"]),
++                spec_mz=np.asarray(archive["spec_mz"]),
++                spec_int=np.asarray(archive["spec_int"]),
++                precursor_mz=np.asarray(archive["precursor_mz"]),
++                spec_l2=get_optional("spec_l2"),
++                nl_mz=get_optional("nl_mz"),
++                nl_int=get_optional("nl_int"),
++                nl_spec_idx=get_optional("nl_spec_idx"),
++                nl_product_idx=get_optional("nl_product_idx"),
++                config=meta.get("config", {}),
++                metadata=meta.get("metadata", {}),
++            )
++
++    def _validate_arrays(self) -> None:
++        """Validate structural invariants expected by the Flash workers."""
++        required = {
++            "peaks_mz": self.peaks_mz,
++            "peaks_int": self.peaks_int,
++            "peaks_spec_idx": self.peaks_spec_idx,
++            "spec_offsets": self.spec_offsets,
++            "spec_mz": self.spec_mz,
++            "spec_int": self.spec_int,
++            "precursor_mz": self.precursor_mz,
++        }
++        for name, value in required.items():
++            if not isinstance(value, np.ndarray):
++                raise TypeError(f"FlashIndex.{name} must be a NumPy array.")
++
++        if self.n_specs < 0:
++            raise ValueError("FlashIndex.n_specs must be >= 0.")
++        if self.spec_offsets.ndim != 1 or self.spec_offsets.size != self.n_specs + 1:
++            raise ValueError("spec_offsets must have length n_specs + 1.")
++        if self.spec_offsets.size and int(self.spec_offsets[0]) != 0:
++            raise ValueError("spec_offsets must start at 0.")
++        if np.any(np.diff(self.spec_offsets) < 0):
++            raise ValueError("spec_offsets must be monotonically non-decreasing.")
++        if self.spec_mz.ndim != 1 or self.spec_int.ndim != 1:
++            raise ValueError("spec_mz and spec_int must be 1D arrays.")
++        if self.spec_mz.size != self.spec_int.size:
++            raise ValueError("spec_mz and spec_int must have identical lengths.")
++        if self.spec_offsets.size and int(self.spec_offsets[-1]) != self.spec_mz.size:
++            raise ValueError("spec_offsets[-1] must equal the number of spectrum-major peaks.")
++        if self.precursor_mz.ndim != 1 or self.precursor_mz.size != self.n_specs:
++            raise ValueError("precursor_mz must have length n_specs.")
++
++        n_global = self.peaks_mz.size
++        if self.peaks_int.size != n_global or self.peaks_spec_idx.size != n_global:
++            raise ValueError(
++                "peaks_mz, peaks_int, and peaks_spec_idx must have identical lengths."
++            )
++        if n_global != self.spec_mz.size:
++            raise ValueError(
++                "Global product view and spectrum-major product view must contain "
++                "the same number of peaks."
++            )
++        if n_global > 1 and np.any(self.peaks_mz[:-1] > self.peaks_mz[1:]):
++            raise ValueError("peaks_mz must be globally sorted in ascending order.")
++        if self.peaks_spec_idx.size:
++            min_idx = int(self.peaks_spec_idx.min())
++            max_idx = int(self.peaks_spec_idx.max())
++            if min_idx < 0 or max_idx >= self.n_specs:
++                raise ValueError("peaks_spec_idx contains out-of-range spectrum ids.")
++
++        if self.spec_l2 is not None:
++            if self.spec_l2.ndim != 1 or self.spec_l2.size != self.n_specs:
++                raise ValueError("spec_l2 must have length n_specs.")
++
++        neutral_arrays = (
++            self.nl_mz,
++            self.nl_int,
++            self.nl_spec_idx,
++            self.nl_product_idx,
++        )
++        have_any_nl = any(value is not None for value in neutral_arrays)
++        have_all_nl = all(value is not None for value in neutral_arrays)
++        if have_any_nl and not have_all_nl:
++            raise ValueError(
++                "Neutral-loss index arrays must either all be present or all be None."
++            )
++        if have_all_nl:
++            n_nl = self.nl_mz.size
++            if not (
++                self.nl_int.size == n_nl
++                and self.nl_spec_idx.size == n_nl
++                and self.nl_product_idx.size == n_nl
++            ):
++                raise ValueError("Neutral-loss index arrays must have identical lengths.")
++            if n_nl > 1 and np.any(self.nl_mz[:-1] > self.nl_mz[1:]):
++                raise ValueError("nl_mz must be globally sorted in ascending order.")
++            if self.nl_spec_idx.size:
++                min_idx = int(self.nl_spec_idx.min())
++                max_idx = int(self.nl_spec_idx.max())
++                if min_idx < 0 or max_idx >= self.n_specs:
++                    raise ValueError("nl_spec_idx contains out-of-range spectrum ids.")
++            if self.nl_product_idx.size:
++                min_pos = int(self.nl_product_idx.min())
++                max_pos = int(self.nl_product_idx.max())
++                if min_pos < 0 or max_pos >= n_global:
++                    raise ValueError("nl_product_idx contains out-of-range product positions.")
++
++    def __repr__(self) -> str:
++        return (
++            f"FlashIndex(n_specs={self.n_specs}, dtype={self.dtype}, "
++            f"n_peaks={self.peaks_mz.size}, "
++            f"neutral_loss={self.has_neutral_loss_index}, "
++            f"l2_norms={self.has_l2_norms})"
++        )
+diff --git a/matchms/similarity/flash_similarity.py b/matchms/similarity/flash_similarity.py
+index d6ecaa007..196af920d 100644
+--- a/matchms/similarity/flash_similarity.py
++++ b/matchms/similarity/flash_similarity.py
+@@ -19,6 +19,7 @@
+     DEFAULT_NOISE_CUTOFF,
+     DEFAULT_OFFSET_TO_PRECURSOR,
+ )
++from .flash_index import FlashIndex
+ from .flash_utils import (
+     _build_library_index_from_prepared,
+     _prepare_collection,
+@@ -83,6 +84,119 @@ def _worker(self):
+     def _descriptor_name(self) -> str:
+         raise NotImplementedError
+ 
++    @staticmethod
++    def _as_spectra_collection(spectra):
++        """Return input as a SpectraCollection without reconstructing existing collections."""
++        from matchms.spectra_collection import SpectraCollection
++
++        if isinstance(spectra, SpectraCollection):
++            return spectra
++        return SpectraCollection(spectra)
++
++    def _index_config(self) -> dict:
++        """Return parameters that materially affect Flash index construction."""
++        return {
++            "weighing_type": self._weighing_type,
++            "compute_l2_norm": bool(self._compute_l2),
++            "compute_neutral_loss": self.matching_mode in ("neutral_loss", "hybrid"),
++            "intensity_power": float(self.intensity_power),
++            "remove_precursor": bool(self.remove_precursor),
++            "offset_to_precursor": float(self.offset_to_precursor),
++            "noise_cutoff": (
++                None if self.noise_cutoff is None else float(self.noise_cutoff)
++            ),
++            "normalize_to_half": bool(self.normalize_to_half),
++            "merge_within": float(self.merge_within),
++            "dtype": self.dtype.str,
++        }
++
++    @staticmethod
++    def _index_metadata(collection) -> dict:
++        """Return descriptive source metadata that is not used for compatibility checks."""
++        fragments = collection.fragments
++        return {
++            "n_spectra": len(collection),
++            "mz_precision": (
++                None
++                if getattr(collection, "mz_precision", None) is None
++                else float(collection.mz_precision)
++            ),
++            "mz_rounding": getattr(fragments, "mz_rounding", None),
++            "fragment_backend": fragments.__class__.__name__,
++        }
++
++    def _validate_index(self, index: FlashIndex) -> None:
++        """Validate that a persistent index is compatible with this similarity."""
++        if not isinstance(index, FlashIndex):
++            raise TypeError(
++                "library_index must be a FlashIndex. "
++                f"Got {type(index).__name__}."
++            )
++
++        expected = self._index_config()
++        actual = index.config or {}
++
++        # Neutral-loss-capable indices are supersets and can also serve fragment-only
++        # searches. A fragment-only index cannot serve neutral-loss/hybrid searches.
++        if (
++            expected["compute_neutral_loss"]
++            and not actual.get("compute_neutral_loss", False)
++        ):
++            raise ValueError(
++                "The FlashIndex does not contain neutral-loss search arrays, but "
++                f"matching_mode={self.matching_mode!r} requires them."
++            )
++
++        for key, expected_value in expected.items():
++            if key == "compute_neutral_loss":
++                continue
++            actual_value = actual.get(key, None)
++            if actual_value != expected_value:
++                raise ValueError(
++                    "FlashIndex is incompatible with this similarity configuration: "
++                    f"{key}={actual_value!r} in index, expected {expected_value!r}."
++                )
++
++        if self._compute_l2 and index.spec_l2 is None:
++            raise ValueError("Cosine FlashIndex is missing per-spectrum L2 norms.")
++        if (
++            self.matching_mode in ("neutral_loss", "hybrid")
++            and not index.has_neutral_loss_index
++        ):
++            raise ValueError(
++                "FlashIndex is missing neutral-loss arrays required by the selected "
++                "matching mode."
++            )
++
++    def build_index(self, spectra) -> FlashIndex:
++        """Build a reusable Flash index directly from a SpectraCollection.
++
++        Existing ``SpectraCollection`` inputs stay collection-native throughout:
++        preprocessing operates once on the CSR fragment backend and the resulting
++        ``_PreparedSpectra`` is passed directly to
++        ``_build_library_index_from_prepared``. No ``Spectrum`` objects are
++        reconstructed for library construction.
++        """
++        collection = self._as_spectra_collection(spectra)
++        prepared = self._prepare_collection(collection)
++        library = self._build_library(prepared)
++        return FlashIndex.from_library(
++            library,
++            config=self._index_config(),
++            metadata=self._index_metadata(collection),
++        )
++
++    def save_index(self, index: FlashIndex, filename) -> None:
++        """Validate and save a reusable Flash index."""
++        self._validate_index(index)
++        index.save(filename)
++
++    def load_index(self, filename) -> FlashIndex:
++        """Load a persistent Flash index and validate it for this similarity."""
++        index = FlashIndex.load(filename)
++        self._validate_index(index)
++        return index
++
+     def _prepare_collection(self, collection) -> _PreparedSpectra:
+         """Prepare one complete SpectraCollection for Flash scoring."""
+         return _prepare_collection(
+@@ -190,6 +304,7 @@ def _run_row_workers(
+         progress_bar: bool,
+         n_jobs: int,
+         descriptor: str,
++        operation: str = "matrix",
+     ):
+         """Run row workers using integer row ids instead of pickled peak arrays."""
+         _set_globals(refs, lib, cfg)
+@@ -201,7 +316,7 @@ def _run_row_workers(
+             for row_idx in tqdm(
+                 row_indices,
+                 total=refs.n_specs,
+-                desc=descriptor + " (matrix)",
++                desc=descriptor + f" ({operation})",
+                 disable=not progress_bar,
+             ):
+                 results.append(worker(row_idx))
+@@ -209,13 +324,13 @@ def _run_row_workers(
+ 
+         if platform.system() == "Windows":
+             print(
+-                f"{self.__class__.__name__}.matrix: n_jobs != 1 is not yet "
++                f"{self.__class__.__name__}.{operation}: n_jobs != 1 is not yet "
+                 "implemented on Windows; falling back to n_jobs=1."
+             )
+             for row_idx in tqdm(
+                 row_indices,
+                 total=refs.n_specs,
+-                desc=descriptor + " (matrix)",
++                desc=descriptor + f" ({operation})",
+                 disable=not progress_bar,
+             ):
+                 results.append(worker(row_idx))
+@@ -231,13 +346,13 @@ def _run_row_workers(
+ 
+         if not use_fork:
+             print(
+-                f"{self.__class__.__name__}.matrix: parallel execution requires "
++                f"{self.__class__.__name__}.{operation}: parallel execution requires "
+                 "'fork'; falling back to n_jobs=1."
+             )
+             for row_idx in tqdm(
+                 row_indices,
+                 total=refs.n_specs,
+-                desc=descriptor + " (matrix)",
++                desc=descriptor + f" ({operation})",
+                 disable=not progress_bar,
+             ):
+                 results.append(worker(row_idx))
+@@ -248,13 +363,110 @@ def _run_row_workers(
+             for result in tqdm(
+                 pool.imap(worker, row_indices, chunksize=8),
+                 total=refs.n_specs,
+-                desc=descriptor + f" (parallel x{n_jobs})",
++                desc=descriptor + f" ({operation} parallel x{n_jobs})",
+                 disable=not progress_bar,
+             ):
+                 results.append(result)
+ 
+         return results
+ 
++    def search(
++        self,
++        query_spectra,
++        library_index: FlashIndex,
++        *,
++        score_fields: Sequence[str] | None = None,
++        progress_bar: bool = True,
++        n_jobs: int = -1,
++    ) -> Scores:
++        """Calculate scores against a pre-built Flash library index.
++
++        This is the indexed equivalent of ``matrix(query_spectra, library_spectra)``.
++        Query spectra are preprocessed collection-wise and scored with the same row
++        workers used by :meth:`matrix`; the only skipped work is preprocessing and
++        constructing the library-side Flash index.
++
++        No score thresholding, precursor filtering beyond the similarity object's
++        own configuration, top-k selection, or sparse reduction is performed. The
++        returned ``Scores`` therefore has shape
++        ``(len(query_spectra), library_index.n_specs)`` and contains the same score
++        fields as the corresponding dense ``matrix`` calculation.
++
++        Parameters
++        ----------
++        query_spectra
++            Query spectra or a SpectraCollection.
++        library_index
++            Reusable FlashIndex built with a compatible similarity configuration.
++        score_fields
++            Score fields to return, with the same semantics as :meth:`matrix`.
++        progress_bar
++            When True, show a progress bar.
++        n_jobs
++            Number of parallel jobs. ``-1`` uses all available CPUs minus one.
++
++        Returns
++        -------
++        Scores
++            Dense score matrix for queries versus indexed library spectra.
++        """
++        self._validate_index(library_index)
++        selected_fields = self._resolve_score_fields(score_fields)
++
++        collection = self._as_spectra_collection(query_spectra)
++        refs = self._prepare_collection(collection)
++
++        results = self._run_row_workers(
++            refs=refs,
++            lib=library_index,
++            cfg=self._make_worker_cfg(),
++            progress_bar=progress_bar,
++            n_jobs=n_jobs,
++            descriptor=self._descriptor_name,
++            operation="search",
++        )
++
++        if self._weighing_type == "entropy":
++            if selected_fields != ("score",):
++                raise NotImplementedError(
++                    "FlashEntropy.search() supports only score_fields=('score',)."
++                )
++
++            out_score = np.zeros(
++                (refs.n_specs, library_index.n_specs),
++                dtype=self.dtype,
++            )
++            for row_idx, row_score in results:
++                out_score[row_idx, :] = row_score
++
++            return Scores(
++                {
++                    "score": out_score.astype(
++                        self.score_datatype,
++                        copy=False,
++                    )
++                }
++            )
++
++        out_score = np.zeros(
++            (refs.n_specs, library_index.n_specs),
++            dtype=self.dtype,
++        )
++        out_matches = np.zeros(
++            (refs.n_specs, library_index.n_specs),
++            dtype=np.int32,
++        )
++        for row_idx, row_score, row_matches in results:
++            out_score[row_idx, :] = row_score
++            out_matches[row_idx, :] = row_matches
++
++        result = {}
++        if "score" in selected_fields:
++            result["score"] = out_score.astype(self.dtype, copy=False)
++        if "matches" in selected_fields:
++            result["matches"] = out_matches
++        return Scores(result)
++
+ 
+ class FlashEntropy(_BaseFlashSimilarity):
+     """
+@@ -1566,3 +1778,5 @@ def _row_task_cosine(row_idx):
+         out_matches[~allow] = 0
+ 
+     return row_idx, out_score, out_matches
++
++
+diff --git a/matchms/similarity/flash_utils.py b/matchms/similarity/flash_utils.py
+index d98fd92c5..d7a684109 100644
+--- a/matchms/similarity/flash_utils.py
++++ b/matchms/similarity/flash_utils.py
+@@ -236,29 +236,41 @@ def _merge_packed_rows_numba(
+     return out_mz[:write], out_int[:write], out_offsets
+ 
+ 
+-def _compute_l2_by_row(
++@njit(cache=True, nogil=True)
++def _compute_l2_by_row_numba(
+     intensities: np.ndarray,
+     offsets: np.ndarray,
+-    dtype: np.dtype,
+ ) -> np.ndarray:
+-    """Return one L2 norm per packed spectrum."""
++    """Return one float64 L2 norm per packed spectrum without Python row loops."""
+     n_specs = offsets.shape[0] - 1
+-    out = np.zeros(n_specs, dtype=dtype)
++    out = np.zeros(n_specs, dtype=np.float64)
+ 
+-    for i in range(n_specs):
+-        start = offsets[i]
+-        end = offsets[i + 1]
++    for row in range(n_specs):
++        start = int(offsets[row])
++        end = int(offsets[row + 1])
++        total = 0.0
++        for k in range(start, end):
++            value = float(intensities[k])
++            total += value * value
++        out[row] = np.sqrt(total)
+ 
+-        row = intensities[start:end]
++    return out
+ 
+-        out[i] = np.sqrt(
+-            np.sum(
+-                row * row,
+-                dtype=np.float64,
+-            )
+-        )
+ 
+-    return out
++def _compute_l2_by_row(
++    intensities: np.ndarray,
++    offsets: np.ndarray,
++    dtype: np.dtype,
++) -> np.ndarray:
++    """Return one L2 norm per packed spectrum.
++
++    The row loop is compiled with Numba to avoid Python-level loops over millions
++    of spectra becoming a noticeable part of large Cosine index construction.
++    """
++    return _compute_l2_by_row_numba(
++        intensities,
++        offsets,
++    ).astype(dtype, copy=False)
+ 
+ 
+ def _prepare_collection(
+@@ -472,11 +484,13 @@ def _build_library_index_from_prepared(
+     idx.peaks_int = prepared.spec_int[order]
+     idx.peaks_spec_idx = spec_flat[order]
+ 
+-    # Map spectrum-major peak positions to positions in the globally sorted arrays.
+-    product_pos = np.empty(n_peaks, dtype=np.int64)
+-    product_pos[order] = np.arange(n_peaks, dtype=np.int64)
+-
+     if compute_neutral_loss:
++        # Map spectrum-major peak positions to positions in the globally sorted
++        # product arrays. This mapping can be very large, so allocate it only
++        # when neutral-loss/hybrid indexing actually needs it.
++        product_pos = np.empty(n_peaks, dtype=np.int64)
++        product_pos[order] = np.arange(n_peaks, dtype=np.int64)
++
+         pmz_per_peak = prepared.precursor_mz[spec_flat]
+         have_pmz = np.isfinite(pmz_per_peak)
+         src_idx = np.nonzero(have_pmz)[0]
+diff --git a/tests/similarity/test_cosine.py b/tests/similarity/test_cosine.py
+index c34c27d9d..328116cf5 100644
+--- a/tests/similarity/test_cosine.py
++++ b/tests/similarity/test_cosine.py
+@@ -183,3 +183,64 @@ def test_cosine_symmetric_matrix_has_expected_fields_and_shape(use_hungarian, us
+     assert matches_arr.shape == (3, 3)
+     assert np.allclose(score_arr, score_arr.T, atol=1e-12)
+     assert np.array_equal(matches_arr, matches_arr.T)
++
++
++def test_cosine_search_matches_matrix():
++    spectrum_1, spectrum_2, spectrum_3 = _make_test_spectra()
++
++    queries = [spectrum_1, spectrum_2, spectrum_3]
++    library = [spectrum_2, spectrum_3]
++
++    similarity = Cosine(
++        tolerance=0.1,
++        use_hungarian=False,
++        noise_cutoff=0.0,
++    )
++
++    expected = similarity.matrix(
++        queries,
++        library,
++        progress_bar=False,
++        n_jobs=1,
++    )
++
++    index = similarity.build_index(SpectraCollection(library))
++    actual = similarity.search(
++        SpectraCollection(queries),
++        index,
++        progress_bar=False,
++        n_jobs=1,
++    )
++
++    assert actual.score_fields == ("score", "matches")
++    assert actual.shape == expected.shape == (3, 2)
++
++    assert np.allclose(
++        actual["score"].to_array(),
++        expected["score"].to_array(),
++        atol=1e-12,
++        rtol=1e-12,
++    )
++    assert np.array_equal(
++        actual["matches"].to_array(),
++        expected["matches"].to_array(),
++    )
++
++
++def test_cosine_search_supports_score_field_selection():
++    spectrum_1, spectrum_2, spectrum_3 = _make_test_spectra()
++    library = SpectraCollection([spectrum_2, spectrum_3])
++
++    similarity = Cosine(tolerance=0.1, use_hungarian=False)
++    index = similarity.build_index(library)
++
++    scores = similarity.search(
++        [spectrum_1],
++        index,
++        score_fields=("score",),
++        progress_bar=False,
++        n_jobs=1,
++    )
++
++    assert scores.score_fields == ("score",)
++    assert scores.shape == (1, 2)
+diff --git a/tests/similarity/test_entropy.py b/tests/similarity/test_entropy.py
+index 08173ca07..f374643cf 100644
+--- a/tests/similarity/test_entropy.py
++++ b/tests/similarity/test_entropy.py
+@@ -1,5 +1,6 @@
+ import numpy as np
+ import pytest
++from matchms import SpectraCollection
+ from matchms.scores import Scores
+ from matchms.similarity import Entropy, EntropyGreedy
+ from matchms.similarity.flash_similarity import FlashEntropy
+@@ -779,4 +780,69 @@ def test_entropy_greedy_matching_modes_without_precursor():
+ 
+     assert fragment == pytest.approx(1.0)
+     assert neutral_loss == 0.0
+-    assert hybrid == pytest.approx(fragment)
+\ No newline at end of file
++    assert hybrid == pytest.approx(fragment)
++
++
++@pytest.mark.parametrize("matching_mode", ["fragment", "neutral_loss", "hybrid"])
++def test_entropy_search_matches_matrix(matching_mode):
++    queries = [
++        build_spectrum(
++            [100.0, 200.0],
++            [1.0, 0.5],
++            precursor_mz=500.0,
++        ),
++        build_spectrum(
++            [110.0, 300.0],
++            [0.3, 1.0],
++            precursor_mz=600.0,
++        ),
++        build_spectrum(
++            [150.0, 250.0],
++            [0.8, 0.4],
++            precursor_mz=550.0,
++        ),
++    ]
++    library = [
++        build_spectrum(
++            [100.005, 210.0],
++            [1.0, 0.5],
++            precursor_mz=510.0,
++        ),
++        build_spectrum(
++            [110.005, 300.0],
++            [1.0, 0.3],
++            precursor_mz=600.0,
++        ),
++    ]
++
++    similarity = Entropy(
++        matching_mode=matching_mode,
++        tolerance=0.01,
++        remove_precursor=False,
++        noise_cutoff=0.0,
++        dtype=np.float64,
++    )
++
++    expected = similarity.matrix(
++        queries,
++        library,
++        progress_bar=False,
++        n_jobs=1,
++    )
++
++    index = similarity.build_index(SpectraCollection(library))
++    actual = similarity.search(
++        SpectraCollection(queries),
++        index,
++        progress_bar=False,
++        n_jobs=1,
++    )
++
++    assert actual.score_fields == ("score",)
++    assert actual.shape == expected.shape == (3, 2)
++    assert np.allclose(
++        actual.to_array(),
++        expected.to_array(),
++        atol=1e-12,
++        rtol=1e-12,
++    )
+\ No newline at end of file
+diff --git a/tests/similarity/test_flash_index.py b/tests/similarity/test_flash_index.py
+new file mode 100644
+index 000000000..9236f0630
+--- /dev/null
++++ b/tests/similarity/test_flash_index.py
+@@ -0,0 +1,292 @@
++"""Tests for the persistent SpectraCollection-native FlashIndex."""
++
++import json
++from types import SimpleNamespace
++import numpy as np
++import pytest
++from matchms.similarity.flash_index import FlashIndex
++
++
++def _make_index(*, with_l2=True, with_neutral_loss=False):
++    """Return a small but structurally realistic FlashIndex."""
++    # Spectrum-major representation:
++    # spectrum 0 -> (100, 0.2), (150, 0.8)
++    # spectrum 1 -> (110, 0.3), (200, 0.7)
++    spec_offsets = np.array([0, 2, 4], dtype=np.int64)
++    spec_mz = np.array([100.0, 150.0, 110.0, 200.0], dtype=np.float64)
++    spec_int = np.array([0.2, 0.8, 0.3, 0.7], dtype=np.float64)
++
++    # Same peaks, globally sorted by product m/z.
++    order = np.argsort(spec_mz)
++    spec_idx = np.array([0, 0, 1, 1], dtype=np.int32)
++    peaks_mz = spec_mz[order]
++    peaks_int = spec_int[order]
++    peaks_spec_idx = spec_idx[order]
++
++    kwargs = {}
++    if with_l2:
++        kwargs["spec_l2"] = np.array(
++            [np.hypot(0.2, 0.8), np.hypot(0.3, 0.7)],
++            dtype=np.float64,
++        )
++
++    if with_neutral_loss:
++        precursor_mz = np.array([250.0, 300.0], dtype=np.float64)
++        neutral_loss = precursor_mz[spec_idx] - spec_mz
++        nl_order = np.argsort(neutral_loss)
++
++        # Map spectrum-major peak positions to the globally sorted product view.
++        product_pos = np.empty(spec_mz.size, dtype=np.int64)
++        product_pos[order] = np.arange(spec_mz.size, dtype=np.int64)
++
++        kwargs.update(
++            nl_mz=neutral_loss[nl_order],
++            nl_int=spec_int[nl_order],
++            nl_spec_idx=spec_idx[nl_order],
++            nl_product_idx=product_pos[nl_order],
++        )
++    else:
++        precursor_mz = np.array([250.0, np.nan], dtype=np.float64)
++
++    return FlashIndex(
++        n_specs=2,
++        dtype=np.float64,
++        peaks_mz=peaks_mz,
++        peaks_int=peaks_int,
++        peaks_spec_idx=peaks_spec_idx,
++        spec_offsets=spec_offsets,
++        spec_mz=spec_mz,
++        spec_int=spec_int,
++        precursor_mz=precursor_mz,
++        config={
++            "weighing_type": "cosine",
++            "noise_cutoff": 0.01,
++            "remove_precursor": True,
++        },
++        metadata={
++            "mz_precision": 1e-6,
++            "fragment_backend": "CSRFragmentCollection",
++        },
++        **kwargs,
++    )
++
++
++def _write_npz_with_metadata(path, metadata, **arrays):
++    payload = {"__metadata__": np.asarray(json.dumps(metadata)), **arrays}
++    with path.open("wb") as handle:
++        np.savez(handle, **payload)
++
++
++def test_flash_index_properties_and_repr():
++    index = _make_index(with_l2=True, with_neutral_loss=True)
++
++    assert index.has_l2_norms is True
++    assert index.has_neutral_loss_index is True
++    assert "n_specs=2" in repr(index)
++    assert "n_peaks=4" in repr(index)
++    assert "neutral_loss=True" in repr(index)
++    assert "l2_norms=True" in repr(index)
++
++
++def test_from_library_wraps_arrays_without_copying():
++    source = _make_index(with_l2=True, with_neutral_loss=True)
++    library = SimpleNamespace(
++        n_specs=source.n_specs,
++        dtype=source.dtype,
++        peaks_mz=source.peaks_mz,
++        peaks_int=source.peaks_int,
++        peaks_spec_idx=source.peaks_spec_idx,
++        spec_offsets=source.spec_offsets,
++        spec_mz=source.spec_mz,
++        spec_int=source.spec_int,
++        precursor_mz=source.precursor_mz,
++        spec_l2=source.spec_l2,
++        nl_mz=source.nl_mz,
++        nl_int=source.nl_int,
++        nl_spec_idx=source.nl_spec_idx,
++        nl_product_idx=source.nl_product_idx,
++    )
++
++    config = {"weighing_type": "cosine"}
++    metadata = {"mz_precision": 1e-6}
++    index = FlashIndex.from_library(library, config=config, metadata=metadata)
++
++    assert index.peaks_mz is library.peaks_mz
++    assert index.spec_mz is library.spec_mz
++    assert index.spec_l2 is library.spec_l2
++    assert index.nl_mz is library.nl_mz
++    assert index.config == config
++    assert index.metadata == metadata
++
++    # The dictionaries themselves should not be shared with the caller.
++    config["new"] = "value"
++    metadata["new"] = "value"
++    assert "new" not in index.config
++    assert "new" not in index.metadata
++
++
++@pytest.mark.parametrize(
++    "with_l2, with_neutral_loss",
++    [
++        (False, False),
++        (True, False),
++        (False, True),
++        (True, True),
++    ],
++)
++def test_save_load_roundtrip(tmp_path, with_l2, with_neutral_loss):
++    index = _make_index(
++        with_l2=with_l2,
++        with_neutral_loss=with_neutral_loss,
++    )
++    filename = tmp_path / "library.flash.npz"
++
++    index.save(filename)
++    loaded = FlashIndex.load(filename)
++
++    assert loaded.n_specs == index.n_specs
++    assert loaded.dtype == index.dtype
++    assert loaded.config == index.config
++    assert loaded.metadata == index.metadata
++    assert loaded.has_l2_norms is with_l2
++    assert loaded.has_neutral_loss_index is with_neutral_loss
++
++    required_arrays = (
++        "peaks_mz",
++        "peaks_int",
++        "peaks_spec_idx",
++        "spec_offsets",
++        "spec_mz",
++        "spec_int",
++        "precursor_mz",
++    )
++    for name in required_arrays:
++        np.testing.assert_array_equal(getattr(loaded, name), getattr(index, name))
++
++    optional_arrays = (
++        "spec_l2",
++        "nl_mz",
++        "nl_int",
++        "nl_spec_idx",
++        "nl_product_idx",
++    )
++    for name in optional_arrays:
++        expected = getattr(index, name)
++        actual = getattr(loaded, name)
++        if expected is None:
++            assert actual is None
++        else:
++            np.testing.assert_array_equal(actual, expected)
++
++    assert not (tmp_path / "library.flash.npz.tmp").exists()
++
++
++def test_save_creates_parent_directories(tmp_path):
++    index = _make_index()
++    filename = tmp_path / "nested" / "index" / "library.npz"
++
++    index.save(filename)
++
++    assert filename.is_file()
++
++
++@pytest.mark.parametrize(
++    "field,replacement,match",
++    [
++        ("spec_offsets", np.array([0, 4], dtype=np.int64), r"n_specs \+ 1"),
++        ("spec_offsets", np.array([1, 2, 4], dtype=np.int64), "start at 0"),
++        ("spec_offsets", np.array([0, 3, 2], dtype=np.int64), "monotonically"),
++        ("spec_int", np.array([0.2, 0.8, 0.3]), "identical lengths"),
++        ("precursor_mz", np.array([250.0]), "length n_specs"),
++        ("peaks_mz", np.array([100.0, 200.0, 110.0, 150.0]), "globally sorted"),
++        ("peaks_spec_idx", np.array([0, 1, 0, 2]), "out-of-range"),
++        ("spec_l2", np.array([1.0]), "length n_specs"),
++    ],
++)
++def test_structural_validation_rejects_invalid_arrays(field, replacement, match):
++    index = _make_index(with_l2=True)
++    values = index.__dict__.copy()
++    values[field] = replacement
++
++    with pytest.raises(ValueError, match=match):
++        FlashIndex(**values)
++
++
++def test_required_arrays_must_be_numpy_arrays():
++    index = _make_index()
++    values = index.__dict__.copy()
++    values["spec_mz"] = [100.0, 150.0, 110.0, 200.0]
++
++    with pytest.raises(TypeError, match="spec_mz must be a NumPy array"):
++        FlashIndex(**values)
++
++
++def test_neutral_loss_arrays_must_be_all_present_or_all_missing():
++    index = _make_index(with_neutral_loss=True)
++    values = index.__dict__.copy()
++    values["nl_int"] = None
++
++    with pytest.raises(ValueError, match="either all be present or all be None"):
++        FlashIndex(**values)
++
++
++def test_neutral_loss_product_positions_are_validated():
++    index = _make_index(with_neutral_loss=True)
++    values = index.__dict__.copy()
++    values["nl_product_idx"] = index.nl_product_idx.copy()
++    values["nl_product_idx"][0] = index.peaks_mz.size
++
++    with pytest.raises(ValueError, match="out-of-range product positions"):
++        FlashIndex(**values)
++
++
++def test_load_rejects_wrong_format(tmp_path):
++    index = _make_index()
++    filename = tmp_path / "wrong_format.npz"
++    index.save(filename)
++
++    with np.load(filename, allow_pickle=False) as archive:
++        metadata = json.loads(str(archive["__metadata__"].item()))
++        arrays = {name: np.asarray(archive[name]) for name in archive.files if name != "__metadata__"}
++
++    metadata["format"] = "something.else"
++    _write_npz_with_metadata(filename, metadata, **arrays)
++
++    with pytest.raises(ValueError, match="Not a matchms Flash index"):
++        FlashIndex.load(filename)
++
++
++def test_load_rejects_unsupported_version(tmp_path):
++    index = _make_index()
++    filename = tmp_path / "wrong_version.npz"
++    index.save(filename)
++
++    with np.load(filename, allow_pickle=False) as archive:
++        metadata = json.loads(str(archive["__metadata__"].item()))
++        arrays = {name: np.asarray(archive[name]) for name in archive.files if name != "__metadata__"}
++
++    metadata["version"] += 1
++    _write_npz_with_metadata(filename, metadata, **arrays)
++
++    with pytest.raises(ValueError, match="Unsupported Flash index version"):
++        FlashIndex.load(filename)
++
++
++def test_load_rejects_missing_declared_optional_array(tmp_path):
++    index = _make_index(with_l2=True)
++    filename = tmp_path / "missing_optional.npz"
++    index.save(filename)
++
++    with np.load(filename, allow_pickle=False) as archive:
++        metadata = json.loads(str(archive["__metadata__"].item()))
++        arrays = {
++            name: np.asarray(archive[name])
++            for name in archive.files
++            if name not in {"__metadata__", "spec_l2"}
++        }
++
++    assert metadata["optional_arrays"]["spec_l2"] is True
++    _write_npz_with_metadata(filename, metadata, **arrays)
++
++    with pytest.raises(ValueError, match="declares array 'spec_l2'"):
++        FlashIndex.load(filename)

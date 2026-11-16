@@ -1,0 +1,661 @@
+diff --git a/gget/__init__.py b/gget/__init__.py
+index 8e6b1d2a6..26778280a 100644
+--- a/gget/__init__.py
++++ b/gget/__init__.py
+@@ -8,6 +8,16 @@
+ from .gget_enrichr import enrichr
+ from .gget_archs4 import archs4
+ 
++import logging
++
++logging.basicConfig(
++    format="%(asctime)s %(levelname)s %(message)s",
++    level=logging.INFO,
++    datefmt="%c",
++)
++# Mute numexpr threads info
++logging.getLogger("numexpr").setLevel(logging.WARNING)
++
+ __version__ = "0.1.2"
+ __author__ = "Laura Luebbert"
+ __email__ = "lauraluebbert@caltech.edu"
+diff --git a/gget/compile.py b/gget/compile.py
+index 93cedfb77..2647ef663 100644
+--- a/gget/compile.py
++++ b/gget/compile.py
+@@ -10,6 +10,8 @@
+     level=logging.INFO,
+     datefmt="%c",
+ )
++# Mute numexpr threads info
++logging.getLogger("numexpr").setLevel(logging.WARNING)
+ 
+ # Constants
+ from .constants import MUSCLE_GITHUB_LINK
+diff --git a/gget/gget_archs4.py b/gget/gget_archs4.py
+index 1c07b951a..ca75903d2 100644
+--- a/gget/gget_archs4.py
++++ b/gget/gget_archs4.py
+@@ -10,6 +10,8 @@
+     level=logging.INFO,
+     datefmt="%c",
+ )
++# Mute numexpr threads info
++logging.getLogger("numexpr").setLevel(logging.WARNING)
+ 
+ # Constants
+ from .constants import GENECORR_URL, EXPRESSION_URL
+diff --git a/gget/gget_blast.py b/gget/gget_blast.py
+index 15d905b44..c6dddcfd8 100644
+--- a/gget/gget_blast.py
++++ b/gget/gget_blast.py
+@@ -10,6 +10,9 @@
+     level=logging.INFO,
+     datefmt="%c",
+ )
++# Mute numexpr threads info
++logging.getLogger("numexpr").setLevel(logging.WARNING)
++
+ # Using urllib instead of requests here because requests does not
+ # support long queries (queries very long here due to input sequence)
+ from urllib.request import urlopen, Request
+diff --git a/gget/gget_blat.py b/gget/gget_blat.py
+index 89cf26fad..785aa5143 100644
+--- a/gget/gget_blat.py
++++ b/gget/gget_blat.py
+@@ -6,6 +6,9 @@
+     level=logging.INFO,
+     datefmt="%c",
+ )
++# Mute numexpr threads info
++logging.getLogger("numexpr").setLevel(logging.WARNING)
++
+ import json as json_package
+ from json.decoder import JSONDecodeError
+ import pandas as pd
+diff --git a/gget/gget_enrichr.py b/gget/gget_enrichr.py
+index fbc42a594..546bb2ba2 100644
+--- a/gget/gget_enrichr.py
++++ b/gget/gget_enrichr.py
+@@ -10,6 +10,9 @@
+     level=logging.INFO,
+     datefmt="%c",
+ )
++# Mute numexpr threads info
++logging.getLogger("numexpr").setLevel(logging.WARNING)
++
+ # Plotting packages
+ import matplotlib.pyplot as plt
+ from matplotlib.ticker import MaxNLocator
+diff --git a/gget/gget_info.py b/gget/gget_info.py
+index a2a1d85c9..944ec526b 100644
+--- a/gget/gget_info.py
++++ b/gget/gget_info.py
+@@ -13,6 +13,9 @@
+     level=logging.INFO,
+     datefmt="%c",
+ )
++# Mute numexpr threads info
++logging.getLogger("numexpr").setLevel(logging.WARNING)
++
+ # Custom functions
+ from .utils import rest_query, get_uniprot_info, wrap_cols_func
+ 
+@@ -68,6 +71,9 @@ def info(ens_ids, expand=False, wrap_text=False, json=False, verbose=True, save=
+     # Initiate dictionary to save results for all IDs in
+     master_dict = {}
+ 
++    # Create second clean list of Ensembl IDs which will not include IDs that were not found
++    ens_ids_clean_2 = ens_ids_clean.copy()
++
+     # Query REST APIs from https://rest.ensembl.org/
+     for ensembl_ID in ens_ids_clean:
+         # Create dict to save query results
+@@ -109,10 +115,14 @@ def info(ens_ids, expand=False, wrap_text=False, json=False, verbose=True, save=
+ 
+             # Log error if this also did not work
+             except RuntimeError:
+-                logging.error(
+-                    f"Ensembl ID '{ensembl_ID}' not found. "
++                logging.warning(
++                    f"ID '{ensembl_ID}' not found. "
+                     "Please double-check spelling/arguments and try again."
+                 )
++
++                # Remove IDs that were not found from ID list
++                ens_ids_clean_2.remove(ensembl_ID)
++
+                 continue
+ 
+         # Add results to master dict
+@@ -135,47 +145,40 @@ def info(ens_ids, expand=False, wrap_text=False, json=False, verbose=True, save=
+         }
+     )
+ 
+-    # UniProt version 2022_02 requires the ID to be passed including the version number for homo sapiens
+-    # https://www.uniprot.org/news/2022/05/25/release
+-    # Collect all IDs with their latest version number
+-    uniprot_ens_ids = []
+-    for id_ in ens_ids_clean:
+-        uniprot_ens_ids.append(master_dict[id_]["ensembl_id"])
+-
+     ## For genes and transcripts, get gene names and descriptions from UniProt
+     df_temp = pd.DataFrame()
+-    for ens_id, uniprot_ens_id, id_type in zip(
+-        ens_ids_clean, uniprot_ens_ids, df.loc["object_type"].values
+-    ):
++    for ens_id, id_type in zip(ens_ids_clean_2, df.loc["object_type"].values):
+         if id_type == "Gene" or id_type == "Transcript":
+ 
+             # Check if this is a wrombase ID:
+             if ens_id.startswith("WB"):
++                df_uniprot = get_uniprot_info(
++                    UNIPROT_REST_API, ens_id, id_type="WB_Gene", verbose=verbose
++                )
++            elif ens_id.startswith("T"):
++                df_uniprot = get_uniprot_info(
++                    UNIPROT_REST_API,
++                    ".".join(
++                        ens_id.split(".")[:-1]
++                    ),  # Remove the version number from WormBase TRS IDs for submission to UniProt
++                    id_type="WB_Transcript",
++                    verbose=verbose,
++                )
++
++            # Check if this is a flybase ID:
++            elif ens_id.startswith("FB"):
+                 if id_type == "Gene":
+                     df_uniprot = get_uniprot_info(
+-                        UNIPROT_REST_API, ens_id, id_type="WB_Gene", verbose=verbose
++                        UNIPROT_REST_API, ens_id, id_type="FB_Gene", verbose=verbose
+                     )
+-
+                 else:
+                     df_uniprot = get_uniprot_info(
+                         UNIPROT_REST_API,
+                         ens_id,
+-                        id_type="WB_Transcript",
++                        id_type="FB_Transcript",
+                         verbose=verbose,
+                     )
+ 
+-            # Check if this is a flybase ID:
+-            elif ens_id.startswith("FB"):
+-                df_uniprot = get_uniprot_info(
+-                    UNIPROT_REST_API, ens_id, id_type="Flybase", verbose=verbose
+-                )
+-
+-            # Check if this ID requires a version number
+-            elif master_dict[ens_id]["species"] == "homo_sapiens":
+-                df_uniprot = get_uniprot_info(
+-                    UNIPROT_REST_API, uniprot_ens_id, id_type=id_type, verbose=verbose
+-                )
+-
+             else:
+                 df_uniprot = get_uniprot_info(
+                     UNIPROT_REST_API, ens_id, id_type=id_type, verbose=verbose
+@@ -185,18 +188,16 @@ def info(ens_ids, expand=False, wrap_text=False, json=False, verbose=True, save=
+                 # If two different UniProt IDs for a single query ID are returned, they should be merged into one column
+                 # So len(df_uniprot) should always be 1
+                 if len(df_uniprot) > 1:
++                    # If the above somehow failed, we will only return the first result.
+                     df_uniprot = df_uniprot.iloc[[0]]
+-                    # This should not be necessary
+                     if verbose is True:
+                         logging.warning(
+-                            f"More than one UniProt match was found for Ensembl ID {ens_id}. Only the first match and its associated information will be returned."
++                            f"More than one UniProt match was found for ID {ens_id}. Only the first match and its associated information will be returned."
+                         )
+ 
+             else:
+                 if verbose is True:
+-                    logging.warning(
+-                        f"No UniProt entry was found for Ensembl ID {ens_id}."
+-                    )
++                    logging.warning(f"No UniProt entry was found for ID {ens_id}.")
+ 
+             ## Get NCBI gene ID and description (for genes only)
+             url = NCBI_URL + f"/gene/?term={ens_id}"
+diff --git a/gget/gget_muscle.py b/gget/gget_muscle.py
+index 7862d6eca..153cf2ef9 100644
+--- a/gget/gget_muscle.py
++++ b/gget/gget_muscle.py
+@@ -12,6 +12,8 @@
+     level=logging.INFO,
+     datefmt="%c",
+ )
++# Mute numexpr threads info
++logging.getLogger("numexpr").setLevel(logging.WARNING)
+ 
+ # Custom functions
+ from .compile import compile_muscle, MUSCLE_PATH, PACKAGE_PATH
+diff --git a/gget/gget_ref.py b/gget/gget_ref.py
+index af955d05c..e989186bc 100644
+--- a/gget/gget_ref.py
++++ b/gget/gget_ref.py
+@@ -11,6 +11,9 @@
+     level=logging.INFO,
+     datefmt="%c",
+ )
++# Mute numexpr threads info
++logging.getLogger("numexpr").setLevel(logging.WARNING)
++
+ # Custom functions
+ from .utils import ref_species_options, find_latest_ens_rel
+ 
+diff --git a/gget/gget_search.py b/gget/gget_search.py
+index 363e6fcfe..784f20480 100644
+--- a/gget/gget_search.py
++++ b/gget/gget_search.py
+@@ -10,6 +10,8 @@
+     level=logging.INFO,
+     datefmt="%c",
+ )
++# Mute numexpr threads info
++logging.getLogger("numexpr").setLevel(logging.WARNING)
+ 
+ import warnings
+ 
+diff --git a/gget/gget_seq.py b/gget/gget_seq.py
+index c6c023e08..d3dd27547 100644
+--- a/gget/gget_seq.py
++++ b/gget/gget_seq.py
+@@ -6,6 +6,9 @@
+     level=logging.INFO,
+     datefmt="%c",
+ )
++# Mute numexpr threads info
++logging.getLogger("numexpr").setLevel(logging.WARNING)
++
+ import numpy as np
+ 
+ # Custom functions
+@@ -24,17 +27,17 @@ def seq(
+ ):
+     """
+     Fetch nucleotide or amino acid sequence (FASTA) of a gene
+-    (and all its isoforms) or transcript by Ensembl ID.
++    (and all its isoforms) or transcript by Ensembl, WormBase or FlyBase ID.
+ 
+     Args:
+     - ens_ids   One or more Ensembl IDs (passed as string or list of strings).
+-                Also supports WormBase and Flybase IDs.
++                Also supports WormBase and FlyBase IDs.
+     - seqtype   'gene' (default) or 'transcript'.
+                 Defines whether nucleotide or amino acid sequences are returned.
+                 Nucleotide sequences are fetched from the Ensembl REST API server.
+                 Amino acid sequences are fetched from the UniProt REST API server.
+     - isoforms  If True, returns the sequences of all known transcripts (default: False).
+-                (Only for gene IDs in combination with seqtype='transcript'.)
++                (Only for gene Ensembl IDs.)
+     - save      If True: Save output FASTA to current directory.
+ 
+     Returns a list (or FASTA file if 'save=True') containing the requested sequences.
+@@ -114,7 +117,7 @@ def seq(
+ 
+                 except RuntimeError:
+                     logging.error(
+-                        f"Ensembl ID {ensembl_ID} not found. "
++                        f"ID {ensembl_ID} not found. "
+                         "Please double-check spelling/arguments and try again."
+                     )
+ 
+@@ -126,7 +129,7 @@ def seq(
+                 # Check that Ensembl ID was found
+                 if isinstance(info_df, type(None)):
+                     logging.error(
+-                        f"Ensembl ID {ensembl_ID} not found. "
++                        f"ID {ensembl_ID} not found. "
+                         "Please double-check spelling/arguments and try again."
+                     )
+                     continue
+@@ -161,7 +164,7 @@ def seq(
+ 
+                         except RuntimeError:
+                             logging.error(
+-                                f"Ensembl ID {transcipt_id} not found. "
++                                f"ID {transcipt_id} not found. "
+                                 "Please double-check spelling/arguments and try again."
+                             )
+ 
+@@ -191,7 +194,7 @@ def seq(
+ 
+                     except RuntimeError:
+                         logging.error(
+-                            f"Ensembl ID {ensembl_ID} not found. "
++                            f"ID {ensembl_ID} not found. "
+                             "Please double-check spelling/arguments and try again."
+                         )
+ 
+@@ -226,7 +229,7 @@ def seq(
+                 # Check that Ensembl ID was found
+                 if isinstance(info_df, type(None)):
+                     logging.error(
+-                        f"Ensembl ID {ensembl_ID} not found. "
++                        f"ID {ensembl_ID} not found. "
+                         "Please double-check spelling/arguments and try again."
+                     )
+                     continue
+@@ -238,20 +241,22 @@ def seq(
+                     # Get ID of canonical transcript
+                     can_trans = info_df.loc[ensembl_ID]["canonical_transcript"]
+ 
+-                    # UniProt version 2022_02 requires version number for human Ensembl IDs
+-                    if info_df.loc[ensembl_ID]["species"] == "homo_sapiens":
+-                        temp_trans_id = can_trans
++                    if ensembl_ID.startswith("ENS"):
++                        temp_trans_id = can_trans.split(".")[0]
++                        # Remove Ensembl ID version from transcript IDs and append to transcript IDs list
++                        trans_ids.append(temp_trans_id)
++
++                    elif ensembl_ID.startswith("WB"):
++                        # Remove added "." at the end of transcript IDs
++                        temp_trans_id1 = ".".join(can_trans.split(".")[:-1])
++                        # For WormBase transcript IDs, also remove the version number for submission to UniProt API
++                        temp_trans_id = ".".join(temp_trans_id1.split(".")[:-1])
+                         trans_ids.append(temp_trans_id)
+ 
+                     else:
+-                        if ensembl_ID.startswith("ENS"):
+-                            temp_trans_id = can_trans.split(".")[0]
+-                            # Remove Ensembl ID version from transcript IDs and append to transcript IDs list
+-                            trans_ids.append(temp_trans_id)
+-                        else:
+-                            # Remove added "." at the end of other transcript IDs
+-                            temp_trans_id = ".".join(can_trans.split(".")[:-1])
+-                            trans_ids.append(temp_trans_id)
++                        # Remove added "." at the end of other transcript IDs
++                        temp_trans_id = ".".join(can_trans.split(".")[:-1])
++                        trans_ids.append(temp_trans_id)
+ 
+                     logging.info(
+                         f"Requesting amino acid sequence of the canonical transcript {temp_trans_id} of gene {ensembl_ID} from UniProt."
+@@ -259,10 +264,9 @@ def seq(
+ 
+                 # If the ID is a transcript, append the ID directly
+                 elif ens_ID_type == "Transcript":
+-                    # UniProt version 2022_02 requires version number for human Ensembl IDs
+-                    if info_df.loc[ensembl_ID]["species"] == "homo_sapiens":
+-                        trans_ids.append(info_df.loc[ensembl_ID]["ensembl_id"])
+-
++                    # For WormBase transcript IDs, remove the version number for submission to UniProt API
++                    if ensembl_ID.startswith("T"):
++                        trans_ids.append(".".join(ensembl_ID.split(".")[:-1]))
+                     else:
+                         trans_ids.append(ensembl_ID)
+ 
+@@ -276,7 +280,7 @@ def seq(
+                     )
+ 
+             # Check if this is a Wrombase ID:
+-            if ensembl_ID.startswith("WB"):
++            if ensembl_ID.startswith("WB") or ensembl_ID.startswith("T"):
+                 id_type = "wormbase"
+             # Check if this is a flybase ID:
+             elif ensembl_ID.startswith("FB"):
+@@ -298,7 +302,7 @@ def seq(
+                 # Check that Ensembl ID was found
+                 if isinstance(info_df, type(None)):
+                     logging.error(
+-                        f"Ensembl ID {ensembl_ID} not found. "
++                        f"ID {ensembl_ID} not found. "
+                         "Please double-check spelling/arguments and try again."
+                     )
+                     continue
+@@ -309,32 +313,25 @@ def seq(
+                 if ens_ID_type == "Gene":
+                     # Get the IDs of all transcripts from the gget info results
+                     for transcipt_id in info_df.loc[ensembl_ID]["all_transcripts"]:
+-                        if info_df.loc[ensembl_ID]["species"] == "homo_sapiens":
+-                            # UniProt 2022_02 requires version number for human genes
+-                            trans_ids.append(
+-                                info(transcipt_id, verbose=False)["ensembl_id"].values[
+-                                    0
+-                                ]
+-                            )
++                        if ensembl_ID.startswith("ENS"):
++                            # Append transcript ID (without Ensembl version number) to list of transcripts to fetch
++                            trans_ids.append(transcipt_id.split(".")[0])
+ 
+                         else:
+-                            if ensembl_ID.startswith("ENS"):
+-                                # Append transcript ID (without Ensembl version number) to list of transcripts to fetch
+-                                trans_ids.append(transcipt_id.split(".")[0])
+-
+-                            else:
+-                                # Remove added "." at the end of other transcript IDs
+-                                temp_trans_id = ".".join(transcipt_id.split(".")[:-1])
+-                                trans_ids.append(temp_trans_id)
++                            # Remove added "." at the end of other transcript IDs
++                            # Note: No need to remove the version number for WormBase IDs here, because "all_transcripts" are returned without version numbers
++                            temp_trans_id = ".".join(transcipt_id.split(".")[:-1])
++                            trans_ids.append(temp_trans_id)
+ 
+                     logging.info(
+                         f"Requesting amino acid sequences of all transcripts of gene {ensembl_ID} from UniProt."
+                     )
+ 
+                 elif ens_ID_type == "Transcript":
+-                    # Append transcript ID to list of transcripts to fetch
+-                    if info_df.loc[ensembl_ID]["species"] == "homo_sapiens":
+-                        trans_ids.append(info_df.loc[ensembl_ID]["ensembl_id"])
++                    # For WormBase transcript IDs, remove the version number for submission to UniProt API
++                    if ensembl_ID.startswith("T"):
++                        trans_ids.append(".".join(ensembl_ID.split(".")[:-1]))
++
+                     else:
+                         trans_ids.append(ensembl_ID)
+ 
+@@ -348,8 +345,8 @@ def seq(
+                         f"{ensembl_ID} not recognized as either a gene or transcript ID. It will not be included in the UniProt query."
+                     )
+ 
+-            # Check if this is a Wrombase ID:
+-            if ensembl_ID.startswith("WB"):
++            # Check if this is a Wormbase ID:
++            if ensembl_ID.startswith("WB") or ensembl_ID.startswith("T"):
+                 id_type = "wormbase"
+             # Check if this is a flybase ID:
+             elif ensembl_ID.startswith("FB"):
+@@ -369,9 +366,7 @@ def seq(
+ 
+         # Check if no results were found
+         if len(df_uniprot) < 1:
+-            logging.error(
+-                "No UniProt amino acid sequences were found for these Ensembl ID(s)."
+-            )
++            logging.error("No UniProt amino acid sequences were found for these ID(s).")
+ 
+         else:
+             # Build UniProt results FASTA file
+diff --git a/gget/main.py b/gget/main.py
+index 9d285c6b4..6bc4383eb 100644
+--- a/gget/main.py
++++ b/gget/main.py
+@@ -8,6 +8,9 @@
+     level=logging.INFO,
+     datefmt="%c",
+ )
++# Mute numexpr threads info
++logging.getLogger("numexpr").setLevel(logging.WARNING)
++
+ import os
+ import json
+ 
+@@ -263,7 +266,7 @@ def main():
+     )
+ 
+     ## gget seq subparser
+-    seq_desc = "Fetch nucleotide or amino acid sequence (FASTA) of a gene (and all isoforms) or transcript by Ensembl ID. "
++    seq_desc = "Fetch nucleotide or amino acid sequence (FASTA) of a gene (and all isoforms) or transcript by Ensembl, WormBase or FlyBase ID. "
+     parser_seq = parent_subparsers.add_parser(
+         "seq", parents=[parent], description=seq_desc, help=seq_desc, add_help=True
+     )
+@@ -274,7 +277,7 @@ def main():
+         type=str,
+         nargs="+",
+         required=True,
+-        help="One or more Ensembl IDs (also supports WormBase and FlyBase IDs).",
++        help="One or more Ensembl, WormBase or FlyBase IDs.",
+     )
+     parser_seq.add_argument(
+         "-st",
+@@ -294,7 +297,7 @@ def main():
+         default=False,
+         action="store_true",
+         required=False,
+-        help="Returns sequences of all known transcripts (default: False). (Only for gene IDs in combination with '--seqtype transcript'.)",
++        help="Returns sequences of all known transcripts (default: False). (Only for gene Ensembl IDs.)",
+     )
+     parser_seq.add_argument(
+         "-o",
+diff --git a/gget/utils.py b/gget/utils.py
+index 746d69092..b81b4a4af 100644
+--- a/gget/utils.py
++++ b/gget/utils.py
+@@ -14,6 +14,8 @@
+     level=logging.INFO,
+     datefmt="%c",
+ )
++# Mute numexpr threads info
++logging.getLogger("numexpr").setLevel(logging.WARNING)
+ 
+ from .constants import ENSEMBL_FTP_URL
+ 
+@@ -153,7 +155,7 @@ def get_uniprot_seqs(server, ensembl_ids, id_type="ensembl"):
+     if id_type == "ensembl":
+         ens_id_type = "ENSEMBL_TRS_ID"
+     elif id_type == "flybase":
+-        ens_id_type = "FLYBASE_ID"
++        ens_id_type = "FLYBASE_TRS_ID"
+     elif id_type == "wormbase":
+         ens_id_type = "WORMBASE_TRS_ID"
+     else:
+@@ -246,8 +248,10 @@ def get_uniprot_info(server, ensembl_id, id_type, verbose=True):
+         ens_id_type = "ENSEMBL_ID"
+     elif id_type == "Transcript":
+         ens_id_type = "ENSEMBL_TRS_ID"
+-    elif id_type == "Flybase":
++    elif id_type == "FB_Gene":
+         ens_id_type = "FLYBASE_ID"
++    elif id_type == "FB_Transcript":
++        ens_id_type = "FLYBASE_TRS_ID"
+     elif id_type == "WB_Gene":
+         ens_id_type = "WORMBASE_ID"
+     elif id_type == "WB_Transcript":
+@@ -255,7 +259,7 @@ def get_uniprot_info(server, ensembl_id, id_type, verbose=True):
+ 
+     else:
+         logging.warning(
+-            f"Ensembl_ID '{ensembl_id}' was not recognized as either gene nor transcript. Gene name synonyms and description will not be fetched from UniProt."
++            f"Ensembl_ID '{ensembl_id}' was not recognized as either gene or transcript. UniProt ID, synonyms, and description will not be fetched from UniProt."
+         )
+         return
+ 
+diff --git a/tests/test_gget_info.py b/tests/test_gget_info.py
+index 01a1c4a30..586ab9a9b 100644
+--- a/tests/test_gget_info.py
++++ b/tests/test_gget_info.py
+@@ -33,6 +33,31 @@ def test_info_WB_gene(self):
+         ]
+         self.assertListEqual(result_to_test, expected_result)
+ 
++    def test_info_WB_transcript(self):
++        df = info("T14E8.4.1")
++        # Drop NaN columns, since np.nan != np.nan
++        result_to_test = df.dropna(axis=1).values.tolist()
++        expected_result = [
++            [
++                "T14E8.4.1",
++                "Q5WRS0",
++                "caenorhabditis_elegans",
++                "WBcel235",
++                "aaim-1",
++                ["T14E8.4", "aaim-1"],
++                "WBGene00043981",
++                "Protein aaim-1 (Antibacterial and aids invasion by microsporidia 1 protein)",
++                "FUNCTION: Plays a role in promoting resistance to bacterial pathogens such as P.aeruginosa by inhibiting bacterial intestinal colonization. {ECO:0000269|PubMed:34994689}.; FUNCTION: (Microbial infection) Promotes infection by microsporidian pathogens such as N.parisii in the early larval stages of development (PubMed:34994689). Involved in ensuring the proper orientation and location of the spore proteins of N.parisii during intestinal cell invasion (PubMed:34994689). {ECO:0000269|PubMed:34994689}.",
++                "Transcript",
++                "protein_coding",
++                "X",
++                -1,
++                6559466,
++                6562428,
++            ]
++        ]
++        self.assertListEqual(result_to_test, expected_result)
++
+     def test_info_FB_gene(self):
+         df = info("FBgn0003656")
+         # Drop NaN columns, since np.nan != np.nan
+diff --git a/tests/test_gget_seq.py b/tests/test_gget_seq.py
+index f26eb45bf..140e7420e 100644
+--- a/tests/test_gget_seq.py
++++ b/tests/test_gget_seq.py
+@@ -12,11 +12,38 @@ def test_gene(self):
+ 
+         self.assertEqual(result_to_test, expected_result)
+ 
++    def test_transcript_gene_WB(self):
++        result_to_test = seq("WBGene00043981", seqtype="transcript")
++        expected_result = [
++            ">T14E8.4 uniprot_id: Q5WRS0 ensembl_id: T14E8.4 gene_name(s): aaim-1 T14E8.4 organism: Caenorhabditis elegans sequence_length: 515",
++            "MRLLFFFSILYTASLCCQLKDFLPCVMQLSAQKVDFNMNPIEVIFNITTEAKLMHTCRTYSRILPCFDQKMVQCGKPSEKTQLERGKRLHSYLCAPFSLQRQKIFLRRSKCIQDVLAEPQSSVCNRNDTVFADKLQSCREMCTRPDCVSKIELSEVSTCTYINIGKKCTAEAAQFFAQMQQVLTNKEYPMQCQYDLRKKPESELKKGLPIESLVAQTTSSTTYVTVHPPALPSVIDGVVTRTSLPIMRRTDPNSKFKPRPTTSQSNGPVIKTVIVDERGAPMNQPTSTQKPKVVHKFLPNPYTTKNPNTLKNDIIRTTRTIIPVVDKHTYVPWNYKVDAVQVSTLTSALAPVKPTETVISSPPVAFNFKLPAEQTSTQPFRVEINWHDDEVKQEPTKAPGVFVSPWYLKTPSHIPPEIEFATPTPLISSPLEAVSPILSQLKSNSLNFTELGNQANNYFSAALSAFAETKKEMAHNDPWRTIIDAVAPTIHKFSPDVIPRIREEINRIQPHQQKN",
++        ]
++
++        self.assertEqual(result_to_test, expected_result)
++
++    def test_transcript_transcript_WB(self):
++        result_to_test = seq("T14E8.4.1", seqtype="transcript")
++        expected_result = [
++            ">T14E8.4 uniprot_id: Q5WRS0 ensembl_id: T14E8.4 gene_name(s): aaim-1 T14E8.4 organism: Caenorhabditis elegans sequence_length: 515",
++            "MRLLFFFSILYTASLCCQLKDFLPCVMQLSAQKVDFNMNPIEVIFNITTEAKLMHTCRTYSRILPCFDQKMVQCGKPSEKTQLERGKRLHSYLCAPFSLQRQKIFLRRSKCIQDVLAEPQSSVCNRNDTVFADKLQSCREMCTRPDCVSKIELSEVSTCTYINIGKKCTAEAAQFFAQMQQVLTNKEYPMQCQYDLRKKPESELKKGLPIESLVAQTTSSTTYVTVHPPALPSVIDGVVTRTSLPIMRRTDPNSKFKPRPTTSQSNGPVIKTVIVDERGAPMNQPTSTQKPKVVHKFLPNPYTTKNPNTLKNDIIRTTRTIIPVVDKHTYVPWNYKVDAVQVSTLTSALAPVKPTETVISSPPVAFNFKLPAEQTSTQPFRVEINWHDDEVKQEPTKAPGVFVSPWYLKTPSHIPPEIEFATPTPLISSPLEAVSPILSQLKSNSLNFTELGNQANNYFSAALSAFAETKKEMAHNDPWRTIIDAVAPTIHKFSPDVIPRIREEINRIQPHQQKN",
++        ]
++
++        self.assertEqual(result_to_test, expected_result)
++
++    def test_transcript_gene_WB_iso(self):
++        result_to_test = seq("WBGene00043981", seqtype="transcript", isoforms=True)
++        expected_result = [
++            ">T14E8.4 uniprot_id: Q5WRS0 ensembl_id: T14E8.4 gene_name(s): aaim-1 T14E8.4 organism: Caenorhabditis elegans sequence_length: 515",
++            "MRLLFFFSILYTASLCCQLKDFLPCVMQLSAQKVDFNMNPIEVIFNITTEAKLMHTCRTYSRILPCFDQKMVQCGKPSEKTQLERGKRLHSYLCAPFSLQRQKIFLRRSKCIQDVLAEPQSSVCNRNDTVFADKLQSCREMCTRPDCVSKIELSEVSTCTYINIGKKCTAEAAQFFAQMQQVLTNKEYPMQCQYDLRKKPESELKKGLPIESLVAQTTSSTTYVTVHPPALPSVIDGVVTRTSLPIMRRTDPNSKFKPRPTTSQSNGPVIKTVIVDERGAPMNQPTSTQKPKVVHKFLPNPYTTKNPNTLKNDIIRTTRTIIPVVDKHTYVPWNYKVDAVQVSTLTSALAPVKPTETVISSPPVAFNFKLPAEQTSTQPFRVEINWHDDEVKQEPTKAPGVFVSPWYLKTPSHIPPEIEFATPTPLISSPLEAVSPILSQLKSNSLNFTELGNQANNYFSAALSAFAETKKEMAHNDPWRTIIDAVAPTIHKFSPDVIPRIREEINRIQPHQQKN",
++        ]
++
++        self.assertEqual(result_to_test, expected_result)
++
+     def test_transcript_gene(self):
+         result_to_test = seq("ENSG00000241794", seqtype="transcript")
+         # This should return the amino acid sequence of the canonical transcript of ENSG00000241794 which is ENST00000392653
+         expected_result = [
+-            ">ENST00000392653.3 uniprot_id: P35326 ensembl_id: ENST00000392653.3 gene_name(s): SPRR2A organism: Homo sapiens (Human) sequence_length: 72",
++            ">ENST00000392653 uniprot_id: P35326 ensembl_id: ENST00000392653 gene_name(s): SPRR2A organism: Homo sapiens (Human) sequence_length: 72",
+             "MSYQQQQCKQPCQPPPVCPTPKCPEPCPPPKCPEPCPPPKCPQPCPPQQCQQKYPPVTPSPPCQSKYPPKSK",
+         ]
+ 
+@@ -25,7 +52,7 @@ def test_transcript_gene(self):
+     def test_transcript(self):
+         result_to_test = seq("ENST00000392653", seqtype="transcript")
+         expected_result = [
+-            ">ENST00000392653.3 uniprot_id: P35326 ensembl_id: ENST00000392653.3 gene_name(s): SPRR2A organism: Homo sapiens (Human) sequence_length: 72",
++            ">ENST00000392653 uniprot_id: P35326 ensembl_id: ENST00000392653 gene_name(s): SPRR2A organism: Homo sapiens (Human) sequence_length: 72",
+             "MSYQQQQCKQPCQPPPVCPTPKCPEPCPPPKCPEPCPPPKCPQPCPPQQCQQKYPPVTPSPPCQSKYPPKSK",
+         ]
+ 
+@@ -55,7 +82,7 @@ def test_transcript_gene_iso(self):
+         result_to_test = seq("ENSG00000241794", isoforms=True, seqtype="transcript")
+         # Since ENSG00000241794 only has one transcript, the expected results is the AA sequence of ENST00000392653
+         expected_result = [
+-            ">ENST00000392653.3 uniprot_id: P35326 ensembl_id: ENST00000392653.3 gene_name(s): SPRR2A organism: Homo sapiens (Human) sequence_length: 72",
++            ">ENST00000392653 uniprot_id: P35326 ensembl_id: ENST00000392653 gene_name(s): SPRR2A organism: Homo sapiens (Human) sequence_length: 72",
+             "MSYQQQQCKQPCQPPPVCPTPKCPEPCPPPKCPEPCPPPKCPQPCPPQQCQQKYPPVTPSPPCQSKYPPKSK",
+         ]
+ 
+@@ -65,7 +92,7 @@ def test_transcript_transcript_iso(self):
+         result_to_test = seq("ENST00000392653.2", isoforms=True, seqtype="transcript")
+         # The isoform should not change the output for transcripts
+         expected_result = [
+-            ">ENST00000392653.3 uniprot_id: P35326 ensembl_id: ENST00000392653.3 gene_name(s): SPRR2A organism: Homo sapiens (Human) sequence_length: 72",
++            ">ENST00000392653 uniprot_id: P35326 ensembl_id: ENST00000392653 gene_name(s): SPRR2A organism: Homo sapiens (Human) sequence_length: 72",
+             "MSYQQQQCKQPCQPPPVCPTPKCPEPCPPPKCPEPCPPPKCPQPCPPQQCQQKYPPVTPSPPCQSKYPPKSK",
+         ]
+ 

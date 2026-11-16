@@ -1,0 +1,72 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3507"
+description = "batch-order updates"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "b929b9a17aa8c76c1e23118e2e0e0b923d57c791"
+reference = "https://github.com/mzmine/mzmine/pull/3507"
+source_access = "auto"
+built_at = "2026-11-16T08:44:18.833578+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:32d53aeec27a6e8a160ab35ad3c2482b7b0ed91a4e94cebd61c51a24e9710f5b"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-09-17T14:04:40Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/order/MassDetectionCondition.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/batchmode/order/Ms2ScanPairingCondition.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_adapchromatogrambuilder/ModularADAPChromatogramBuilderModule.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_masscalibration/MassCalibrationModule.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_mobilityscanmerger/MobilityScanMergerModule.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_shoulderpeaksfilter/ShoulderPeaksFilterModule.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_localcsvsearch/LocalCSVDatabaseSearchModule.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_spectral_library_analog_search/AnalogSpectralLibrarySearchModule.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_spectral_library_match/SpectralLibrarySearchModule.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/io/export_msn_tree/MSnTreeExportModule.java",
+    "mzmine-community/src/test/java/io/github/mzmine/modules/batchmode/order/MassDetectionConditionTest.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 142
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

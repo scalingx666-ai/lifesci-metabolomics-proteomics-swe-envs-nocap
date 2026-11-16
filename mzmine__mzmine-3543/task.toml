@@ -1,0 +1,66 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3543"
+description = "remove jmol dependency"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "76cf2a6e592ba29095675381c8c436aa345411e7"
+reference = "https://github.com/mzmine/mzmine/pull/3543"
+source_access = "auto"
+built_at = "2026-11-16T08:43:18.725313+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:97e3e0296b0da6480e36e1893183756cde9202b14c86f4d8ef5b9c49d543e731"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-09-24T09:30:58Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/build.gradle",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/molstructure/MolStructureViewer.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/visualization/molstructure/Structure3DComponent.java",
+    "mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/rangeortolerancetable/DoubleRangesOrToleranceComponent.java",
+    "mzmine-community/src/main/java/io/github/mzmine/parameters/parametertypes/rangeortolerancetable/RangesOrToleranceComponent.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 215
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

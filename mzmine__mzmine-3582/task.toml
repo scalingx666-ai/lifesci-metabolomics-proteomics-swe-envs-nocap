@@ -1,0 +1,67 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3582"
+description = "Filter NIST search by scan polarity"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "afc54609547ab03ac85a24e5832e60746b9e0eba"
+reference = "https://github.com/mzmine/mzmine/pull/3582"
+source_access = "auto"
+built_at = "2026-11-16T08:42:59.424660+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:bd58395d40fe3a43f3595e83648b8772e8cd2bb291e4370140a452a70f90ba24"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-26T13:04:06Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/MsPepSearchCommand.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/MsPepSearchQueryWriter.java",
+    "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/NistPepSearchTask.java",
+    "mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/MsPepSearchCommandTest.java",
+    "mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/MsPepSearchQueryWriterTest.java",
+    "mzmine-community/src/test/java/io/github/mzmine/modules/dataprocessing/id_nist_mspepsearch/NistPepSearchTaskTest.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 544
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

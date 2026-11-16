@@ -1,0 +1,65 @@
+version = "1.0"
+
+[task]
+name = "default/jaechang-hits__SciAgent-Skills-33"
+description = "refactor: regroup literature databases under scientific-writing"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "SciAgent-Skills",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "jaechang-hits/SciAgent-Skills"
+ref = "2c26efbcce945c118b07cb52f6b30d101ac302e1"
+reference = "https://github.com/jaechang-hits/SciAgent-Skills/pull/33"
+source_access = "auto"
+built_at = "2026-11-15T15:24:29.979535+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:2a5d9d21a99063e8665190cdbcb4766761e3793c761c066b411e5cb961037e2c"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-05-28T07:29:08Z"
+diff_format = "unified"
+context_files = [
+    "registry.yaml",
+    "skills/scientific-writing/pubmed-database/SKILL.md",
+    "skills/scientific-writing/pubmed-database/references/common_queries.md",
+    "skills/scientific-writing/pubmed-database/references/search_syntax.md",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 7
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,95 @@
+diff --git a/.gitignore b/.gitignore
+index c845fa5f052..aba421c5352 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -26,9 +26,6 @@ not-bio
+ /src/test/java/import_data/speed/local/tims32subs/
+ 
+ # AI Agent ignores
+-codex.md
+-AGENTS.md
+-claude.md
+ .claude/worktrees/
+ .claude/settings.local.json
+ 
+@@ -44,6 +41,4 @@ mlreader.txt
+ .vscode/
+ 
+ dev-run.sh
+-.sdkmanrc
+-
+-CLAUDE.md
+\ No newline at end of file
++.sdkmanrc
+\ No newline at end of file
+diff --git a/claude_codex_template.md b/AGENTS.md
+similarity index 57%
+rename from claude_codex_template.md
+rename to AGENTS.md
+index 694f6bc4848..6f48b270230 100644
+--- a/claude_codex_template.md
++++ b/AGENTS.md
+@@ -9,13 +9,13 @@
+ 
+ - When creating new methods or updating methods, add @Nullable and @NotNull annotations to method
+   parameters and return values. Use the JetBrains annotations.
++- Don't apply Objects.requireNonNull checks or similar to annotated variables.
+ - If variables do not change, make them final.
+ - use exhaustive switches when pattern matching sealed interfaces or enums.
+ - Use java.util.Logger for logging
+ - Prefer separate files over nested classes
+ - Never add the license yourself, the IDE will do that automatically on commit.
+-- Set a single observable list/collection to JavaFX UI components and update it via setAll instead
+-  of setting new lists so we can bind and add listeners and they don't get discarded.
++- Add javadoc, use @param and @return
+ - Never use static imports for static method accesses. Only import the class and qualify the call
+   with the class name.
+ 
+@@ -30,6 +30,23 @@
+ - Set a single observable list/collection to JavaFX UI components and update it via setAll instead
+   of setting new lists so we can bind and add listeners and they don't get discarded.
+ 
++# Scope of changes
++
++Keep branches and PRs focused so they are easy to review and changes to mzmine internals stay
++maintainable.
++
++- A feature branch adds a single feature. Do not bundle related or unrelated changes, refactorings
++  or fixes into it. Suggest them as separate branches instead.
++- Branches that change mzmine internals contain only those changes and nothing else. Internals
++  include:
++  - batch processing and data import, e.g., `BatchTask`, `AllSpectralDataImportModule`,
++    `BatchWizardTab`, WizardBatchBuilder classes
++  - core data models, e.g., `ModularDataModel`, `MetadataTable`, `MZmineProject`
++  - any new way of saving data other than adding a new `DataType`, e.g., new fields in project
++    save/load, new files in the project archive
++- If a change grows beyond its original scope, or a feature branch starts to change internals, stop
++  and tell the user. Suggest moving the extra changes to a new branch.
++
+ # Verification
+ 
+ - Always ask the user for input from the user if uncertainties arise during implementation
+\ No newline at end of file
+diff --git a/README.md b/README.md
+index 9fdc1b76717..3e86f4d2b32 100644
+--- a/README.md
++++ b/README.md
+@@ -101,7 +101,7 @@ https://github.com/mzmine/mzmine/issues
+ Guides and more information is in the mzmine documentation:
+ https://mzmine.github.io/mzmine_documentation/contribute_intellij.html
+ 
+-### AI coding help
++## AI coding help
+ 
+-Use the [claude_codex_template.md](claude_codex_template.md) for your agent. When submitting PRs
++This repo supplies agents.md and claude.md files. When submitting PRs
+ with AI code, review the changes yourself (human review) before submitting a PR.
+\ No newline at end of file
+diff --git a/claude.md b/claude.md
+new file mode 100644
+index 00000000000..2b28033bce8
+--- /dev/null
++++ b/claude.md
+@@ -0,0 +1 @@
++@AGENTS.MD
+\ No newline at end of file

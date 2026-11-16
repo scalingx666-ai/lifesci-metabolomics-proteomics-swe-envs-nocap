@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-674"
+description = "Add require correct ms level 2"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "6e5bcc725aef3fc59dbf31b798b89f2318a6b643"
+reference = "https://github.com/matchms/matchms/pull/674"
+source_access = "auto"
+built_at = "2026-11-16T12:56:55.265688+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e505c555337c10ce85b00896154a5d897bb713a00c065be63f6c0ed001d31d09"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2024-06-03T10:03:03Z"
+diff_format = "unified"
+context_files = [
+    "CHANGELOG.md",
+    "matchms/data/known_key_conversions.csv",
+    "matchms/filtering/__init__.py",
+    "matchms/filtering/default_pipelines.py",
+    "matchms/filtering/filter_order.py",
+    "matchms/filtering/metadata_processing/require_correct_ms_level.py",
+    "tests/filtering/test_require_correct_ms_level.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 458
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

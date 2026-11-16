@@ -1,0 +1,182 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_recursiveimsbuilder/RecursiveIMSBuilderTask.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_recursiveimsbuilder/RecursiveIMSBuilderTask.java
+index 3d031d1508a..fa1423711dd 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_recursiveimsbuilder/RecursiveIMSBuilderTask.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_recursiveimsbuilder/RecursiveIMSBuilderTask.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -320,7 +320,8 @@ private boolean checkConsecutiveRemoveNoise(TempIMTrace trace, List<Frame> eligi
+   }
+ 
+   private void addZerosForFrames(Collection<TempIMTrace> traces, List<Frame> eligibleFrames) {
+-    traces.parallelStream().forEach(trace -> {
++    // parallelstream with map instead of forEach to block the calling thread until finished
++    final int ignored = traces.parallelStream().mapToInt(trace -> {
+       int mostFrequentIndex = // most frequent mobility scan index, corrected by the first scans index.
+           findMostFrequentMobilityScanNumber(trace.getMobilograms()) - eligibleFrames.get(0)
+               .getMobilityScans().get(0).getMobilityScanNumber();
+@@ -372,7 +373,8 @@ private void addZerosForFrames(Collection<TempIMTrace> traces, List<Frame> eligi
+                     Math.min(mostFrequentIndex, firstZeroFrame.getNumberOfMobilityScans())))));
+       }
+       stepProcessed.getAndIncrement();
+-    });
++      return 1;
++    }).sum();
+   }
+ 
+   private TreeSet<BuildingIonMobilitySeries> buildFrameMobilograms(MobilityScanDataAccess access) {
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_interestingfeaturefinder/AnnotateIsomersTask.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_interestingfeaturefinder/AnnotateIsomersTask.java
+index 0b8eea63b74..71459d6b6d9 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_interestingfeaturefinder/AnnotateIsomersTask.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/filter_interestingfeaturefinder/AnnotateIsomersTask.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -116,9 +116,9 @@ public void run() {
+         .sorted(Comparator.comparingDouble(FeatureListRow::getAverageMZ)).toList();
+     flist.addRowType(new PossibleIsomerType());
+ 
+-    rowsByMz.parallelStream().forEach(row -> {
++    final int ignored = rowsByMz.parallelStream().mapToInt(row -> {
+       if (isCanceled()) {
+-        return;
++        return 0;
+       }
+ 
+       processed.getAndIncrement();
+@@ -126,7 +126,7 @@ public void run() {
+       Integer maxRowDp = IonMobilityUtils.getMaxNumTraceDatapoints(row);
+       if (row.getMaxDataPointIntensity() < minIntensity || maxRowDp == null
+           || maxRowDp < minTraceDatapoints) {
+-        return;
++        return 0;
+       }
+ 
+       var possibleRows = FeatureListUtils.getCandidatesWithinRanges(
+@@ -142,7 +142,7 @@ public void run() {
+ 
+       possibleRows.remove(row);
+       if (possibleRows.isEmpty()) {
+-        return;
++        return 0;
+       }
+ 
+       final float refMobility = row.getAverageMobility();
+@@ -164,12 +164,12 @@ public void run() {
+       }
+ 
+       if (possibleRows.isEmpty()) {
+-        return;
++        return 0;
+       }
+ 
+       refineByQuality(possibleRows);
+       if (possibleRows.isEmpty()) {
+-        return;
++        return 0;
+       }
+ 
+       // TODO method needs rework
+@@ -179,7 +179,7 @@ public void run() {
+ //      }
+ 
+       if (possibleRows.isEmpty()) {
+-        return;
++        return 0;
+       }
+ 
+       // sort by ID
+@@ -193,7 +193,8 @@ public void run() {
+ //      if (!possibleRows.containsAll(isomerRows)) {
+ //        logger.info("Candidates do not include all rows");
+ //      }
+-    });
++      return 1;
++    }).sum();
+ 
+     flist.getAppliedMethods().add(
+         new SimpleFeatureListAppliedMethod(AnnotateIsomersModule.class, parameters,
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/group_spectral_networking/structure_tanimoto/StructureTanimotoNetworkingTask.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/group_spectral_networking/structure_tanimoto/StructureTanimotoNetworkingTask.java
+index 1e398af7df8..858d0bec8d1 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/group_spectral_networking/structure_tanimoto/StructureTanimotoNetworkingTask.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/group_spectral_networking/structure_tanimoto/StructureTanimotoNetworkingTask.java
+@@ -101,16 +101,19 @@ protected void process() {
+     totalItems = allRows.size();
+     finishedItems.set(0);
+     final Map<FeatureListRow, List<StructureFingerprint>> fingerprintCache = new ConcurrentHashMap<>();
+-    allRows.parallelStream().forEach(row -> {
++
++    // parallelstream with map instead of forEach to block the calling thread until finished
++    final int ignored = allRows.parallelStream().mapToInt(row -> {
+       if (isCanceled()) {
+-        return;
++        return 0;
+       }
+       final List<StructureFingerprint> fingerprints = computeRowFingerprints(row);
+       if (!fingerprints.isEmpty()) {
+         fingerprintCache.put(row, fingerprints);
+       }
+       incrementFinishedItems();
+-    });
++      return 1;
++    }).sum();
+ 
+     if (isCanceled()) {
+       return;
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_ion_identity_networking/addionannotations/AddIonNetworkingTask.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_ion_identity_networking/addionannotations/AddIonNetworkingTask.java
+index 725a73bc218..896e9c0bc68 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_ion_identity_networking/addionannotations/AddIonNetworkingTask.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_ion_identity_networking/addionannotations/AddIonNetworkingTask.java
+@@ -136,12 +136,15 @@ private void annotateGroups(SearchableIonLibrary library) {
+     AtomicInteger compared = new AtomicInteger(0);
+     AtomicInteger annotPairs = new AtomicInteger(0);
+     // for all groups
+-    groups.parallelStream().forEach(g -> {
++    // parallelstream with map instead of forEach to block the calling thread until finished
++    final int ignored = groups.parallelStream().mapToInt(g -> {
+       if (!this.isCanceled()) {
+         annotateGroup(library, g, compared, annotPairs);
+         stageProgress.addAndGet(1d / groups.size());
++        return 1;
+       }
+-    });
++      return 0;
++    }).sum();
+     LOG.info("Corr: A total of " + compared.get() + " row2row adduct comparisons with "
+         + annotPairs.get() + " annotation pairs");
+ 
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_spectral_library_analog_search/AnalogSpectralLibrarySearchCosineTask.java b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_spectral_library_analog_search/AnalogSpectralLibrarySearchCosineTask.java
+index bd7d0527f5b..25d22341277 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_spectral_library_analog_search/AnalogSpectralLibrarySearchCosineTask.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/id_spectral_library_analog_search/AnalogSpectralLibrarySearchCosineTask.java
+@@ -194,16 +194,19 @@ protected void process() {
+ 
+   private void processCosine(final ModularFeatureList flist,
+       final List<SpectralLibraryEntry> sortedEntries, final SpectralNetworkingOptions algorithm) {
+-    flist.getRows().parallelStream().forEach(row -> {
++
++    // parallelstream with map instead of forEach to block the calling thread until finished
++    final int ignored = flist.getRows().parallelStream().mapToInt(row -> {
+       if (isCanceled()) {
+-        return;
++        return 0;
+       }
+       try {
+         processCosineRow(row, sortedEntries, algorithm);
+       } finally {
+         finishedItems.incrementAndGet();
+       }
+-    });
++      return 1;
++    }).sum();
+   }
+ 
+   private void processCosineRow(final FeatureListRow row,

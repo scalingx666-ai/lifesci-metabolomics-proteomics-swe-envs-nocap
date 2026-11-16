@@ -1,0 +1,64 @@
+version = "1.0"
+
+[task]
+name = "default/mzmine__mzmine-3615"
+description = "fix overlap in SimpleDoubleRangeMap"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mzmine",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "mzmine/mzmine"
+ref = "d01c532151328a27a2a2b10f3c1d99a96c02b59b"
+reference = "https://github.com/mzmine/mzmine/pull/3615"
+source_access = "auto"
+built_at = "2026-11-16T08:42:33.561521+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:6192bd5212924da7caf37c75db0b650cc49db089ca1bf5e1f4fdb43c35fbd928"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-11T10:34:19Z"
+diff_format = "unified"
+context_files = [
+    "mzmine-community/src/main/java/io/github/mzmine/util/SimpleDoubleRangeMap.java",
+    "mzmine-community/src/main/java/io/github/mzmine/util/scans/SpectraMerging.java",
+    "mzmine-community/src/test/java/io/github/mzmine/util/SimpleDoubleRangeMapTest.java",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 261
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

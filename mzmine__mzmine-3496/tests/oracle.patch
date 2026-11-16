@@ -1,0 +1,61 @@
+diff --git a/mzmine-community/build.gradle b/mzmine-community/build.gradle
+index cb8527d008f..b571443b51b 100644
+--- a/mzmine-community/build.gradle
++++ b/mzmine-community/build.gradle
+@@ -323,6 +323,16 @@ application {
+             // required for getting log file
+             '--add-opens=java.logging/java.util.logging=ALL-UNNAMED',
+ 
++            "-XX:+UseG1GC", // pin GC
++            // give heap back to the OS while mzmine sits idle, after 10 minutes without GC
++            "-XX:G1PeriodicGCInterval=600000",
++            // JDK default pinned: concurrent cycle instead of a full GC, a full GC would freeze the UI on the
++            "-XX:+G1PeriodicGCInvokesConcurrent",
++            // spectral libraries, annotations, scan definitions, file names - duplicate strings
++            // let G1 deduplicate their char arrays
++            "-XX:+UseStringDeduplication",
++            "-XX:+UseCompactObjectHeaders",
++
+             // logging
+             "-Djava.util.logging.config.class=io.github.mzmine.main.MZmineLoggingConfiguration"
+     ]
+@@ -373,7 +383,7 @@ runtime {
+             "jdk.unsupported",
+             "jdk.unsupported.desktop"
+     ]
+-    if(OperatingSystem.current().isWindows()) {
++    if (OperatingSystem.current().isWindows()) {
+         // only required on windows to access the trust store for root certificates
+         modules.add("jdk.crypto.mscapi")
+     }
+@@ -451,6 +461,17 @@ runtime {
+                    "-XX:InitialRAMPercentage=5",
+                    "-XX:MinRAMPercentage=75",
+                    "-XX:MaxRAMPercentage=80",
++
++                   "-XX:+UseG1GC", // pin GC
++                   // give heap back to the OS while mzmine sits idle, after 10 minutes without GC
++                   "-XX:G1PeriodicGCInterval=600000",
++                   // JDK default pinned: concurrent cycle instead of a full GC, a full GC would freeze the UI on the
++                   "-XX:+G1PeriodicGCInvokesConcurrent",
++                   // spectral libraries, annotations, scan definitions, file names - duplicate strings
++                   // let G1 deduplicate their char arrays
++                   "-XX:+UseStringDeduplication",
++                   "-XX:+UseCompactObjectHeaders",
++
+                    "-enableassertions",
+                    "-Djava.util.logging.config.class=io.github.mzmine.main.MZmineLoggingConfiguration",
+                    "-Djava.net.useSystemProxies=true",
+diff --git a/mzmine-community/src/test/java/import_data/speed/BatchSpeedTestMain.java b/mzmine-community/src/test/java/import_data/speed/BatchSpeedTestMain.java
+index c16ea472d1a..486d5dfa6b2 100644
+--- a/mzmine-community/src/test/java/import_data/speed/BatchSpeedTestMain.java
++++ b/mzmine-community/src/test/java/import_data/speed/BatchSpeedTestMain.java
+@@ -112,6 +112,8 @@ public static void main(String[] args) {
+ //    String batchFile = property("batch", "D:\\Data\\batch\\test_small_microbes.mzbatch");
+     String batchFile = property("batch",
+         "D:\\OneDrive - mzio GmbH\\mzio\\Example data\\speedtest_benchmark\\Orbitrap_QE_environmental_DOM_sea_water\\0_dom_250_mzmine4-10-25-factor_speed.mzbatch");
++//    String batchFile = property("batch",
++//        "D:\\OneDrive - mzio GmbH\\Example data - Documents\\speedtest_benchmark\\2026summerschool_drugs\\speedtest_drugs_summerschool26.mzbatch");
+ //    List<String> samples = List.of("rawdatafiles/DOM_a.mzML",
+ //        "rawdatafiles/DOM_a_invalid_chars.mzML", "rawdatafiles/DOM_a_invalid_header.mzML",
+ //        "rawdatafiles/DOM_b.mzXML", "rawdatafiles/DOM_b_invalid_header.mzXML");

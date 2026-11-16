@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/matchms__matchms-1042"
+description = "Bump setuptools from 84.0.0 to 84.1.0"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "matchms",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "matchms/matchms"
+ref = "965a42d364f008c4875378b7bda95c24ce664f8a"
+reference = "https://github.com/matchms/matchms/pull/1042"
+source_access = "auto"
+built_at = "2026-11-16T12:50:15.613719+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:0b89d50bbb926161511284daaec36c5c5a9a29963ba77fcf690192a00df08062"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-16T11:40:45Z"
+diff_format = "unified"
+context_files = [
+    "uv.lock",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 6
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

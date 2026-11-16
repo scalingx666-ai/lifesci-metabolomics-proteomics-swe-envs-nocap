@@ -1,0 +1,2998 @@
+diff --git a/registry.yaml b/registry.yaml
+index 1c1949f..f40e605 100644
+--- a/registry.yaml
++++ b/registry.yaml
+@@ -1459,3 +1459,75 @@ entries:
+     description: "Comprehensive decision guide for analyzing omics data (transcriptomics, proteomics) using a three-tiered approach: validated pipelines first, standard workflows second, custom analysis last. Covers QC, normalization, imputation, statistical test selection, and visualization."
+     date_added: "2026-03-31"
+ 
++  - name: "nature-figure-guide"
++    type: skill
++    sub_type: guide
++    category: "scientific-writing"
++    path: "skills/scientific-writing/nature-figure-guide/SKILL.md"
++    description: "Figure and image preparation guide for Nature journal. Covers resolution (300+ DPI), file formats (AI, EPS, TIFF), RGB color mode, Helvetica/Arial fonts, lowercase panel labels, and image integrity requirements."
++    date_added: "2026-04-01"
++
++  - name: "cell-figure-guide"
++    type: skill
++    sub_type: guide
++    category: "scientific-writing"
++    path: "skills/scientific-writing/cell-figure-guide/SKILL.md"
++    description: "Figure and image preparation guide for Cell (Cell Press) journal. Covers resolution (300-1000 DPI by type), file formats (TIFF, PDF), RGB color mode, Avenir/Arial fonts, uppercase panel labels, and strict image manipulation policies."
++    date_added: "2026-04-01"
++
++  - name: "science-figure-guide"
++    type: skill
++    sub_type: guide
++    category: "scientific-writing"
++    path: "skills/scientific-writing/science-figure-guide/SKILL.md"
++    description: "Figure and image preparation guide for Science (AAAS) journal. Covers resolution (150-300+ DPI), file formats (PDF, EPS, TIFF), RGB color mode, Myriad/Helvetica fonts, and strict image manipulation policies including gamma adjustment disclosure."
++    date_added: "2026-04-01"
++
++  - name: "pnas-figure-guide"
++    type: skill
++    sub_type: guide
++    category: "scientific-writing"
++    path: "skills/scientific-writing/pnas-figure-guide/SKILL.md"
++    description: "Figure and image preparation guide for PNAS. Covers resolution (300-1000 PPI by type), file formats (TIFF, EPS, PDF), strict RGB-only color mode, Arial/Helvetica fonts, italicized uppercase panel labels, and automated image screening."
++    date_added: "2026-04-01"
++
++  - name: "cancer-research-figure-guide"
++    type: skill
++    sub_type: guide
++    category: "scientific-writing"
++    path: "skills/scientific-writing/cancer-research-figure-guide/SKILL.md"
++    description: "Figure and image preparation guide for Cancer Research (AACR). Covers resolution (300-1200 DPI), file formats (EPS, TIFF, AI), hierarchical panel labeling (Ai, Aii, Bi), figure/table limits, and legend requirements including replicate counts."
++    date_added: "2026-04-01"
++
++  - name: "lancet-figure-guide"
++    type: skill
++    sub_type: guide
++    category: "scientific-writing"
++    path: "skills/scientific-writing/lancet-figure-guide/SKILL.md"
++    description: "Figure and image preparation guide for The Lancet. Covers resolution (300+ DPI at 120% size), file formats (PowerPoint, Word, SVG preferred), column widths (75/154 mm), Times New Roman font, and Lancet in-house redraw policy."
++    date_added: "2026-04-01"
++
++  - name: "nejm-figure-guide"
++    type: skill
++    sub_type: guide
++    category: "scientific-writing"
++    path: "skills/scientific-writing/nejm-figure-guide/SKILL.md"
++    description: "Figure and image preparation guide for the New England Journal of Medicine (NEJM). Covers resolution (300-1200 DPI), editable vector formats (AI, EPS, SVG), in-house medical illustration policy, and strict image integrity requirements."
++    date_added: "2026-04-01"
++
++  - name: "elife-figure-guide"
++    type: skill
++    sub_type: guide
++    category: "scientific-writing"
++    path: "skills/scientific-writing/elife-figure-guide/SKILL.md"
++    description: "Figure and image preparation guide for eLife. Covers file formats (TIFF, EPS, PDF), striking image requirements (1800x900 px), figure supplement naming conventions, and routine image screening policy where selective enhancement is treated as misconduct."
++    date_added: "2026-04-01"
++
++  - name: "general-figure-guide"
++    type: skill
++    sub_type: guide
++    category: "scientific-writing"
++    path: "skills/scientific-writing/general-figure-guide/SKILL.md"
++    description: "General scientific figure quality checklist for generated plots. Covers visual inspection for overlapping labels, clipped text, missing axes/legends, empty plot areas, overcrowded data, and resolution/format best practices across journals."
++    date_added: "2026-04-01"
++
+diff --git a/skills/scientific-writing/cancer-research-figure-guide/SKILL.md b/skills/scientific-writing/cancer-research-figure-guide/SKILL.md
+new file mode 100644
+index 0000000..2c2ff86
+--- /dev/null
++++ b/skills/scientific-writing/cancer-research-figure-guide/SKILL.md
+@@ -0,0 +1,304 @@
++---
++name: cancer-research-figure-guide
++description: "Figure and image preparation guide for Cancer Research (AACR). Covers resolution (300-1200 DPI), file formats (EPS, TIFF, AI), hierarchical panel labeling (Ai, Aii, Bi), figure/table limits, and legend requirements including replicate counts."
++license: CC-BY-4.0
++compatibility: Python 3.10+, Pillow, Matplotlib
++metadata:
++  authors: HITS
++  version: "1.0"
++---
++
++# Cancer Research (AACR) Figure Preparation Guide
++
++## Overview
++
++This guide provides the complete specifications for preparing figures for submission to **Cancer Research** and other AACR (American Association for Cancer Research) journals. Cancer Research has a distinctive **hierarchical panel labeling system** (Ai, Aii, Bi, Bii) and strict limits on the total number of display items.
++
++**Official reference**: https://aacrjournals.org/pages/article-style-and-format
++
++---
++
++## Resolution Requirements
++
++| Image Type | Minimum Resolution |
++|---|---|
++| Line art | **1,200 DPI** |
++| Halftone / color images | **300 DPI** |
++| Combination artwork | **600-900 DPI** |
++
++```python
++from PIL import Image
++
++def check_cancer_res_resolution(image_path, image_type='halftone'):
++    """Check if image meets Cancer Research resolution requirements.
++
++    Args:
++        image_type: 'lineart' (1200), 'halftone' (300), or 'combination' (600)
++    """
++    min_dpi = {'lineart': 1200, 'halftone': 300, 'combination': 600}
++    required = min_dpi.get(image_type, 300)
++
++    img = Image.open(image_path)
++    dpi = img.info.get('dpi', (72, 72))
++
++    print(f"Type: {image_type} | Required: {required} DPI | Actual: {dpi[0]} DPI")
++    passed = dpi[0] >= required
++    print("PASS" if passed else f"FAIL: Need {required} DPI minimum")
++
++    return passed
++```
++
++---
++
++## File Format
++
++| Format | Accepted |
++|---|---|
++| **EPS** | Yes |
++| **TIFF** | Yes |
++| **AI** (Adobe Illustrator) | Yes |
++| **PSD** (Photoshop) | Yes |
++| **PNG** | Yes |
++| **PS** (PostScript) | Yes |
++
++---
++
++## Figure Size and Dimensions
++
++### Display Item Limits
++
++| Article Type | Maximum Display Items |
++|---|---|
++| Research Articles | **7** figures + tables combined |
++| Letters | **2** display items total |
++
++- Each figure must fit on a **single printed page**
++- Figures should be presented in sequential order adjacent to legends
++
++---
++
++## Color Mode
++
++- No strict CMYK/RGB mandate in published guidelines
++- **RGB recommended** for online display
++- Follow general best practices for color accessibility
++
++---
++
++## Font Requirements
++
++| Element | Font | Size |
++|---|---|---|
++| Manuscript body text | Arial, Helvetica, or Times New Roman | 12 pt |
++| Figure text | Same fonts | 8-12 pt range |
++
++---
++
++## Labeling Conventions
++
++### Hierarchical Panel Label System (AACR-Specific)
++
++Cancer Research uses a unique **three-level hierarchical labeling** system:
++
++1. **Level 1**: Capital letters — **A, B, C, D**
++2. **Level 2**: Roman numerals — **i, ii, iii, iv**
++3. **Level 3**: Lowercase letters — **a, b, c, d**
++
++**Preferred format**: `Ai, Aii, Bi, Bii` (NOT `Aa, Ab, Ba, Bb`)
++
++### Labeling Rules
++- **No boxes** around panel labels
++- **No periods** after panel labels
++- Multiple panels should each be labeled and described in the legend
++
++### Legend Requirements
++- Figure legends must include the **number of technical AND biological replicates**
++- This is a mandatory requirement for Cancer Research
++
++```python
++def generate_cancer_res_labels(n_main_panels, sub_panels_per_main=None):
++    """Generate Cancer Research hierarchical panel labels.
++
++    Args:
++        n_main_panels: Number of main panels (A, B, C, ...)
++        sub_panels_per_main: List of sub-panel counts per main panel,
++                             or None for no sub-panels
++
++    Returns:
++        List of label strings
++
++    Example:
++        generate_cancer_res_labels(3, [2, 3, 1])
++        # Returns: ['Ai', 'Aii', 'Bi', 'Bii', 'Biii', 'C']
++    """
++    import string
++
++    labels = []
++    roman = ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii']
++
++    for i in range(n_main_panels):
++        main_label = string.ascii_uppercase[i]
++
++        if sub_panels_per_main and sub_panels_per_main[i] > 1:
++            for j in range(sub_panels_per_main[i]):
++                labels.append(f"{main_label}{roman[j]}")
++        else:
++            labels.append(main_label)
++
++    return labels
++```
++
++### Example Usage
++
++```python
++# 3 main panels: A has 2 sub-panels, B has 3, C has 1
++labels = generate_cancer_res_labels(3, [2, 3, 1])
++print(labels)
++# Output: ['Ai', 'Aii', 'Bi', 'Bii', 'Biii', 'C']
++```
++
++---
++
++## Image Integrity and Manipulation Policy
++
++Cancer Research follows general **AACR editorial policies** for image integrity:
++
++- All image adjustments should be applied uniformly to the entire image
++- No selective enhancement of specific features
++- Original unprocessed data should be available upon request
++- Processing details should be described in Methods
++
++---
++
++## Python Quick Start: Full Validation
++
++```python
++from PIL import Image
++import os
++
++def validate_cancer_res_figure(image_path, image_type='halftone'):
++    """Full validation of a figure against Cancer Research requirements."""
++    img = Image.open(image_path)
++    issues = []
++
++    # 1. Resolution check
++    min_dpi = {'lineart': 1200, 'halftone': 300, 'combination': 600}
++    required = min_dpi.get(image_type, 300)
++    dpi = img.info.get('dpi', (72, 72))
++    if dpi[0] < required:
++        issues.append(f"Resolution {dpi[0]} DPI below {required} DPI for {image_type}")
++
++    # 2. Color mode check
++    if img.mode not in ('RGB', 'RGBA'):
++        issues.append(f"Color mode is {img.mode}; RGB recommended")
++
++    # 3. Format check
++    fmt = img.format
++    accepted = ['TIFF', 'EPS', 'PNG', 'JPEG', 'PDF']
++    if fmt and fmt.upper() not in accepted:
++        issues.append(f"Format '{fmt}' not in standard list")
++
++    # Report
++    print(f"=== Cancer Research Figure Validation ===")
++    print(f"Dimensions: {img.size[0]} x {img.size[1]} px")
++    print(f"DPI: {dpi[0]} x {dpi[1]}")
++    print(f"Color mode: {img.mode}")
++    print(f"Format: {fmt}")
++
++    if issues:
++        print(f"\nISSUES FOUND ({len(issues)}):")
++        for issue in issues:
++            print(f"  - {issue}")
++    else:
++        print("\nAll checks PASSED")
++
++    print("\nREMINDER: Cancer Research limits Research Articles to 7 figures+tables total")
++    print("REMINDER: Legends must include number of technical AND biological replicates")
++
++    return len(issues) == 0
++```
++
++---
++
++## Key Concepts
++
++### Hierarchical Panel Labeling
++
++Cancer Research uses a unique three-level labeling system: Level 1 uses capital letters (A, B, C), Level 2 uses Roman numerals (i, ii, iii), and Level 3 uses lowercase letters (a, b, c). The preferred format is Ai, Aii, Bi, Bii — not Aa, Ab, Ba, Bb. No boxes or periods surround panel labels.
++
++### Display Item Limits
++
++Cancer Research strictly limits the total number of display items (figures + tables combined). Research Articles are limited to 7 display items; Letters are limited to 2. Planning figure composition to maximize information density within these limits is essential.
++
++### Replicate Reporting in Legends
++
++A distinctive Cancer Research requirement is that figure legends must include the number of both technical and biological replicates for each experiment shown. This transparency standard supports reproducibility and is checked during editorial review.
++
++## Decision Framework
++
++```
++What type of image are you preparing?
++├── Line art (diagram, schematic) → 1,200 DPI
++├── Halftone (photo, micrograph) → 300 DPI
++├── Combination (mixed text + image) → 600-900 DPI
++└── Multi-panel figure
++    ├── Simple panels (A, B, C) → Standard uppercase labels
++    └── Sub-panels needed → Hierarchical: Ai, Aii, Bi, Bii
++```
++
++| Scenario | Format | Resolution | Labeling |
++|---|---|---|---|
++| Western blot with quantification | TIFF + EPS | 300 DPI (blot) + 1,200 DPI (graph) | Ai (blot), Aii (quantification) |
++| Tumor growth curves | EPS or AI | Vector or 1,200 DPI | A, B, C (simple panels) |
++| Immunohistochemistry panel | TIFF | 300 DPI | Ai, Aii, Bi, Bii (conditions x magnifications) |
++| Flow cytometry dot plots | TIFF or PDF | 300 DPI | Hierarchical by condition |
++| Kaplan-Meier survival curves | EPS or PDF | Vector | Simple A, B labeling |
++
++## Best Practices
++
++1. **Plan display items early**: With a 7-item limit for Research Articles, plan which results become figures vs. tables vs. supplementary material before drafting
++2. **Use hierarchical labels for complex panels**: When a main panel has sub-components (e.g., image + quantification), use the Ai/Aii system rather than separate figure letters
++3. **Include replicate counts in every legend**: State both technical and biological replicate numbers for each panel. This is a mandatory requirement, not optional
++4. **Avoid boxes and periods on labels**: Cancer Research specifically prohibits decorative elements around panel labels. Use clean, unboxed capital letters
++5. **Size figures to fit a single page**: Each figure must fit on one printed page. If content exceeds this, consider splitting into two figures or moving data to supplements
++6. **Present figures in sequential order**: Figures should appear adjacent to their legends in the order they are cited in the text
++
++## Common Pitfalls
++
++1. **Exceeding the display item limit**: Submitting more than 7 figures + tables for a Research Article triggers immediate revision request
++   - *How to avoid*: Count all display items before submission; consolidate related panels using hierarchical labeling
++2. **Using incorrect hierarchical label format**: Writing Aa/Ab instead of Ai/Aii is a common mistake
++   - *How to avoid*: Use Roman numerals (i, ii, iii) for Level 2, not lowercase letters
++3. **Omitting replicate information from legends**: Missing replicate counts delay review and may require revision
++   - *How to avoid*: Add a template line to every legend: "Data represent N=X biological replicates with Y technical replicates each"
++4. **Adding boxes or periods to panel labels**: Decorative elements around labels violate Cancer Research formatting rules
++   - *How to avoid*: Use plain capital letters without any surrounding decoration
++5. **Using 300 DPI for line art**: Line art requires 1,200 DPI — the highest tier. Graphs at 300 DPI will appear jagged in print
++   - *How to avoid*: Export vector graphics as EPS/AI, or rasterize at 1,200 DPI minimum
++
++## Pre-Submission Checklist
++
++Before submitting figures to Cancer Research, verify:
++
++- [ ] Line art at 1,200+ DPI
++- [ ] Halftone/color images at 300+ DPI
++- [ ] Combination images at 600-900 DPI
++- [ ] File format is EPS, TIFF, AI, PSD, or PNG
++- [ ] Research Article: maximum 7 figures + tables combined
++- [ ] Letters: maximum 2 display items
++- [ ] Each figure fits on a single printed page
++- [ ] Panel labels use hierarchical format (Ai, Aii, Bi, Bii)
++- [ ] No boxes around panel labels
++- [ ] No periods after panel labels
++- [ ] Font is Arial, Helvetica, or Times New Roman
++- [ ] Legend includes number of **technical and biological replicates**
++- [ ] Image adjustments applied uniformly
++- [ ] Original data available upon request
++
++---
++
++## References
++
++- AACR Article Style and Format: https://aacrjournals.org/pages/article-style-and-format
++- AACR Editorial Policies: https://aacrjournals.org/pages/editorial-policies
++- Cancer Research Author Guidelines: https://aacrjournals.org/cancerresearch/pages/prep
+diff --git a/skills/scientific-writing/cell-figure-guide/SKILL.md b/skills/scientific-writing/cell-figure-guide/SKILL.md
+new file mode 100644
+index 0000000..3e93c99
+--- /dev/null
++++ b/skills/scientific-writing/cell-figure-guide/SKILL.md
+@@ -0,0 +1,396 @@
++---
++name: cell-figure-guide
++description: "Figure and image preparation guide for Cell (Cell Press) journal. Covers resolution (300-1000 DPI by type), file formats (TIFF, PDF), RGB color mode, Avenir/Arial fonts, uppercase panel labels, and strict image manipulation policies."
++license: CC-BY-4.0
++compatibility: Python 3.10+, Pillow, Matplotlib
++metadata:
++  authors: HITS
++  version: "1.0"
++---
++
++# Cell Figure Preparation Guide
++
++## Overview
++
++This guide provides the complete specifications for preparing figures for submission to **Cell** and other Cell Press journals (e.g., Cell Stem Cell, Cell Reports, Molecular Cell). Cell Press has strict figure requirements and a rigorous image integrity policy.
++
++**Official reference**: https://www.cell.com/information-for-authors/figure-guidelines
++
++---
++
++## Resolution Requirements
++
++| Image Type | Minimum Resolution | Notes |
++|---|---|---|
++| Color / Grayscale photographs | **300 DPI** | At desired print size |
++| Black-and-white images | **500 DPI** | At desired print size |
++| Line art (graphs, diagrams) | **1,000 DPI** | At desired print size |
++
++**IMPORTANT**: All resolution measurements are at the **desired print size**, not at full-page size.
++
++### Verify Resolution
++
++```python
++from PIL import Image
++
++def check_cell_resolution(image_path, image_type='color'):
++    """Check if image meets Cell journal resolution requirements.
++
++    Args:
++        image_path: Path to the image file
++        image_type: 'color' (300 DPI), 'bw' (500 DPI), or 'lineart' (1000 DPI)
++    """
++    min_dpi = {'color': 300, 'bw': 500, 'lineart': 1000}
++    required = min_dpi.get(image_type, 300)
++
++    img = Image.open(image_path)
++    dpi = img.info.get('dpi', (72, 72))
++
++    print(f"Image type: {image_type}")
++    print(f"Required DPI: {required}")
++    print(f"Actual DPI: {dpi[0]} x {dpi[1]}")
++
++    if dpi[0] >= required:
++        print("PASS: Resolution meets Cell requirements")
++    else:
++        print(f"FAIL: Need at least {required} DPI, got {dpi[0]}")
++
++    return dpi[0] >= required
++```
++
++---
++
++## File Format
++
++### Preferred Formats
++
++| Format | Best For | Notes |
++|---|---|---|
++| **TIFF** | Bitmap, grayscale, color images | Use LZW compression to reduce size |
++| **PDF** | Any figure type | Universally accepted |
++| **EPS** | Vector images (graphs, diagrams) | Preserves scalability |
++
++### Also Accepted
++- JPEG, CDX files
++
++### File Size
++- Individual files: **20 MB maximum**
++
++### Submission Notes
++- Initial submission: Figures can be embedded in manuscript or uploaded separately
++- Final production: Separate high-resolution files required
++
++---
++
++## Figure Size and Dimensions
++
++### 2-Column Format Journals (Cell, Molecular Cell, etc.)
++
++| Layout | Width |
++|---|---|
++| 1 column | **85 mm** (3.35 in) |
++| 1.5 columns | **114 mm** (4.49 in) |
++| Full width | **174 mm** (6.85 in) |
++
++### 3-Column Format Journals
++
++| Layout | Width |
++|---|---|
++| 1 column | **55 mm** (2.17 in) |
++| 2 columns | **114 mm** (4.49 in) |
++| Full width | **174 mm** (6.85 in) |
++
++### Other Cell Press Journals (Chem, Joule, Matter, etc.)
++
++| Layout | Width |
++|---|---|
++| 1 column | **112 mm** (4.41 in) |
++| Full width | **172 mm** (6.77 in) |
++
++**All figures** must fit on a single 8.5" x 11" page.
++
++### Python: Set Cell Figure Dimensions
++
++```python
++import matplotlib.pyplot as plt
++
++# Cell Press figure widths in inches
++CELL_WIDTHS = {
++    '2col_single':   85 / 25.4,   # 3.35 in
++    '2col_1.5':      114 / 25.4,  # 4.49 in
++    '2col_full':     174 / 25.4,  # 6.85 in
++    '3col_single':   55 / 25.4,   # 2.17 in
++    '3col_double':   114 / 25.4,  # 4.49 in
++    '3col_full':     174 / 25.4,  # 6.85 in
++}
++
++def create_cell_figure(layout='2col_single', aspect_ratio=0.75):
++    """Create a Matplotlib figure sized for Cell Press journals."""
++    width = CELL_WIDTHS[layout]
++    height = width * aspect_ratio
++
++    fig, ax = plt.subplots(figsize=(width, height))
++    fig.set_dpi(300)
++
++    return fig, ax
++```
++
++---
++
++## Color Mode
++
++- **Submit in RGB** color space
++- Journal converts to CMYK for print production
++- RGB preserves brighter colors for online viewing
++
++```python
++from PIL import Image
++
++def convert_to_rgb_for_cell(image_path, output_path):
++    """Convert image to RGB for Cell Press submission."""
++    img = Image.open(image_path)
++    if img.mode == 'CMYK':
++        img = img.convert('RGB')
++        print("Converted from CMYK to RGB")
++    elif img.mode != 'RGB':
++        img = img.convert('RGB')
++        print(f"Converted from {img.mode} to RGB")
++    img.save(output_path)
++    return output_path
++```
++
++---
++
++## Font Requirements
++
++| Element | Font | Size |
++|---|---|---|
++| Primary font | **Avenir** (preferred), Arial, Helvetica | — |
++| Figure text | — | ~**7 pt** at print size |
++| Panel labels | — | Bold, **capital letters** |
++
++### Critical Rules
++- **All fonts must be embedded** in Adobe Illustrator files
++- Use Avenir as the first choice; Arial or Helvetica as alternatives
++- Consistent font usage across all figure panels
++
++```python
++import matplotlib.pyplot as plt
++
++def set_cell_fonts():
++    """Configure Matplotlib for Cell Press figure fonts."""
++    plt.rcParams.update({
++        'font.family': 'sans-serif',
++        'font.sans-serif': ['Avenir', 'Arial', 'Helvetica'],
++        'font.size': 7,
++        'axes.labelsize': 7,
++        'axes.titlesize': 7,
++        'xtick.labelsize': 6,
++        'ytick.labelsize': 6,
++        'legend.fontsize': 6,
++    })
++```
++
++---
++
++## Labeling Conventions
++
++### Panel Labels
++- **Capital letters**: A, B, C, D, ...
++- Bold weight
++- Position: top-left corner of each panel
++
++### Titles
++- **Do NOT place titles inside figures** — include them in the figure caption instead
++- Remove any labels not essential for understanding the figure; explain in caption
++
++```python
++import matplotlib.pyplot as plt
++import string
++
++def add_cell_panel_labels(fig, axes):
++    """Add Cell-style uppercase bold panel labels."""
++    if not hasattr(axes, '__iter__'):
++        axes = [axes]
++
++    for i, ax in enumerate(axes):
++        label = string.ascii_uppercase[i]
++        ax.text(-0.1, 1.1, label,
++                transform=ax.transAxes,
++                fontsize=8,
++                fontweight='bold',
++                va='top',
++                ha='right',
++                fontfamily='Arial')
++```
++
++---
++
++## Image Integrity and Manipulation Policy
++
++### STRICTLY PROHIBITED
++- **Photoshop clone/heal tool usage** on scientific images
++- Selective enhancement or alteration of any part of an image
++- Splicing images from different experiments without clear indication
++- Touching up gel/blot images to hide or alter data
++
++### PERMITTED (with full disclosure)
++- Brightness, contrast, and color adjustments applied **uniformly to the entire image**
++- Minimal image processing for microscopy (must be described in Methods)
++
++### REQUIRED
++- Single color channel alterations must be explained in **both legend and Methods**
++- Gel images: removed lanes must be **clearly marked** and alterations noted in legend
++- **Original unprocessed data** must be available upon editor/reviewer request
++- All processing steps must be transparently described
++
++---
++
++## Python Quick Start: Full Validation
++
++```python
++from PIL import Image
++import os
++
++def validate_cell_figure(image_path, image_type='color', layout='2col_single'):
++    """Full validation of a figure against Cell Press requirements."""
++    img = Image.open(image_path)
++    issues = []
++
++    # 1. Resolution check
++    min_dpi = {'color': 300, 'bw': 500, 'lineart': 1000}
++    required_dpi = min_dpi.get(image_type, 300)
++    dpi = img.info.get('dpi', (72, 72))
++    if dpi[0] < required_dpi:
++        issues.append(f"Resolution {dpi[0]} DPI below minimum {required_dpi} DPI for {image_type}")
++
++    # 2. Color mode check
++    if img.mode != 'RGB':
++        issues.append(f"Color mode is {img.mode}; Cell requires RGB submission")
++
++    # 3. File size check
++    size_mb = os.path.getsize(image_path) / (1024 * 1024)
++    if size_mb > 20:
++        issues.append(f"File size {size_mb:.1f} MB exceeds 20 MB limit")
++
++    # 4. Dimension check (width in mm)
++    widths_mm = {
++        '2col_single': 85, '2col_1.5': 114, '2col_full': 174,
++        '3col_single': 55, '3col_double': 114, '3col_full': 174,
++    }
++    if layout in widths_mm and dpi[0] > 0:
++        max_width_mm = widths_mm[layout]
++        actual_width_mm = (img.size[0] / dpi[0]) * 25.4
++        print(f"Width at current DPI: {actual_width_mm:.1f} mm (target: {max_width_mm} mm)")
++
++    # Report
++    print(f"=== Cell Figure Validation: {os.path.basename(image_path)} ===")
++    print(f"Dimensions: {img.size[0]} x {img.size[1]} px")
++    print(f"DPI: {dpi[0]} x {dpi[1]}")
++    print(f"Color mode: {img.mode}")
++    print(f"File size: {size_mb:.1f} MB")
++
++    if issues:
++        print(f"\nISSUES FOUND ({len(issues)}):")
++        for issue in issues:
++            print(f"  - {issue}")
++    else:
++        print("\nAll checks PASSED")
++
++    return len(issues) == 0
++```
++
++---
++
++## Key Concepts
++
++### Resolution Tiers by Image Type
++
++Cell Press uses a three-tier resolution system: 300 DPI for color/grayscale photographs, 500 DPI for black-and-white images, and 1,000 DPI for line art. All measurements are at the desired print size, not at arbitrary large dimensions. This tiered approach ensures each image type reproduces at appropriate quality.
++
++### Cell Press Column System
++
++Cell Press journals use different column layouts depending on the journal. Two-column journals (Cell, Molecular Cell) use 85/114/174 mm widths. Three-column journals use 55/114/174 mm. Other journals (Chem, Joule) use 112/172 mm. Sizing figures to the correct column width prevents unwanted rescaling.
++
++### Image Manipulation Policy
++
++Cell Press enforces one of the strictest image integrity policies in biomedical publishing. The use of Photoshop clone/heal tools on scientific images is explicitly prohibited. Any single-channel color alterations must be disclosed in both the figure legend and Methods section.
++
++## Decision Framework
++
++```
++What type of image are you preparing?
++├── Color or grayscale photograph → 300 DPI minimum
++│   ├── Micrograph → TIFF (LZW compression)
++│   └── Clinical image → TIFF or PDF
++├── Black-and-white image → 500 DPI minimum
++│   └── High-contrast micrograph → TIFF
++├── Line art (graph, diagram) → 1,000 DPI minimum
++│   ├── Vector source → Export as PDF or EPS
++│   └── Raster source → Export TIFF at 1,000 DPI
++└── Which journal layout?
++    ├── Cell, Molecular Cell → 2-column (85/114/174 mm)
++    ├── Cell Reports → 3-column (55/114/174 mm)
++    └── Chem, Joule, Matter → Single/full (112/172 mm)
++```
++
++| Scenario | Format | Resolution | Width |
++|---|---|---|---|
++| Fluorescence micrograph | TIFF (LZW) | 300 DPI | Journal-specific column |
++| Western blot | TIFF | 500 DPI | Single column (85 mm) |
++| Bar chart or scatter plot | PDF or EPS | 1,000 DPI (if rasterized) | Varies by data density |
++| Gel electrophoresis | TIFF | 500 DPI | Full width if multi-lane |
++| Pathway diagram | PDF or EPS | Vector | Full width (174 mm) |
++
++## Best Practices
++
++1. **Use LZW compression for TIFF files**: Cell accepts TIFF with LZW compression, which significantly reduces file size without quality loss. This helps stay under the 20 MB limit
++2. **Remove titles from figures**: Cell Press requires that figure titles appear only in captions, not inside the figure itself. Remove any embedded titles before submission
++3. **Use Avenir as primary font**: While Arial and Helvetica are accepted, Avenir is Cell Press's preferred font. Using it signals familiarity with journal conventions
++4. **Embed all fonts in AI files**: Adobe Illustrator files must have fonts fully embedded. Missing fonts cause rendering errors during production
++5. **Disclose all gel image modifications**: Removed lanes must be clearly marked in the figure and described in the legend. Undisclosed modifications are grounds for rejection
++6. **Match resolution to image type**: Do not use 300 DPI for line art (needs 1,000) or 1,000 DPI for photographs (wastes file size). Match the resolution tier to the content type
++7. **Keep original unprocessed data**: Cell Press may request raw data during review or post-publication. Archive all originals alongside processed versions
++
++## Common Pitfalls
++
++1. **Applying 300 DPI to all image types**: Line art requires 1,000 DPI; black-and-white images require 500 DPI. Using 300 DPI for these types produces jagged edges
++   - *How to avoid*: Check the three-tier resolution table and match your image type before export
++2. **Using clone/heal tools on scientific images**: Cell Press explicitly prohibits Photoshop clone and heal tool usage on scientific data
++   - *How to avoid*: Use only uniform brightness/contrast adjustments on the entire image; document all processing in Methods
++3. **Placing titles inside figures**: Cell Press requires all titles in the caption, not embedded in the figure
++   - *How to avoid*: Review each figure panel and remove any text that belongs in the caption
++4. **Exceeding 20 MB file size**: Uncompressed TIFF files frequently exceed the limit
++   - *How to avoid*: Apply LZW compression when saving TIFF files; check file size before upload
++5. **Incorrect column width for journal**: Using 2-column widths for a 3-column journal (or vice versa) causes figures to be rescaled
++   - *How to avoid*: Verify which Cell Press journal you are targeting and use the correct column width table
++6. **Not disclosing single-channel color adjustments**: Altering individual color channels without disclosure violates Cell Press policy
++   - *How to avoid*: Document any single-channel modifications in both the figure legend and Methods section
++
++## Pre-Submission Checklist
++
++Before submitting figures to Cell, verify:
++
++- [ ] Color/grayscale images at 300+ DPI
++- [ ] Black-and-white images at 500+ DPI
++- [ ] Line art at 1,000+ DPI
++- [ ] File format is TIFF (LZW), PDF, or EPS
++- [ ] Each file under 20 MB
++- [ ] Color mode is RGB
++- [ ] Font is Avenir, Arial, or Helvetica at ~7 pt
++- [ ] Panel labels are uppercase bold (A, B, C)
++- [ ] No titles inside figures (use captions)
++- [ ] All fonts embedded in AI files
++- [ ] No clone/heal tool usage on scientific images
++- [ ] All brightness/contrast adjustments applied to entire image
++- [ ] Gel lane removals clearly marked in legend
++- [ ] Processing details described in Methods
++- [ ] Original unprocessed data retained
++
++---
++
++## References
++
++- Cell Press Figure Guidelines: https://www.cell.com/information-for-authors/figure-guidelines
++- Cell Press Digital Image Guidelines: https://www.cell.com/matter/figureguidelines
++- Cell Press Image Integrity Policy: https://www.cell.com/cell/image-integrity
+diff --git a/skills/scientific-writing/elife-figure-guide/SKILL.md b/skills/scientific-writing/elife-figure-guide/SKILL.md
+new file mode 100644
+index 0000000..7f89230
+--- /dev/null
++++ b/skills/scientific-writing/elife-figure-guide/SKILL.md
+@@ -0,0 +1,345 @@
++---
++name: elife-figure-guide
++description: "Figure and image preparation guide for eLife. Covers file formats (TIFF, EPS, PDF), striking image requirements (1800x900 px), figure supplement naming conventions, and routine image screening policy where selective enhancement is treated as misconduct."
++license: CC-BY-4.0
++compatibility: Python 3.10+, Pillow, Matplotlib
++metadata:
++  authors: HITS
++  version: "1.0"
++---
++
++# eLife Figure Preparation Guide
++
++## Overview
++
++This guide provides the complete specifications for preparing figures for submission to **eLife**. eLife is known for its open-access model, **figure supplement system**, **striking image requirements**, and a **strict image screening policy** where selective enhancement of scientific images is treated as research misconduct.
++
++**Official reference**: https://elife-rp.msubmit.net/html/elife-rp_author_instructions.html
++
++---
++
++## Resolution Requirements
++
++| Image Type | Minimum Resolution |
++|---|---|
++| Striking images | **1800 x 900 pixels** minimum |
++| Regular figures | No strict DPI mandate (standard 300 DPI recommended) |
++
++```python
++from PIL import Image
++
++def check_elife_resolution(image_path, is_striking=False):
++    """Check if image meets eLife resolution requirements.
++
++    Args:
++        is_striking: True for striking/graphical abstract images
++    """
++    img = Image.open(image_path)
++    w, h = img.size
++    dpi = img.info.get('dpi', (72, 72))
++
++    print(f"Dimensions: {w} x {h} px")
++    print(f"DPI: {dpi[0]} x {dpi[1]}")
++
++    if is_striking:
++        if w >= 1800 and h >= 900:
++            print("PASS: Meets striking image minimum (1800x900 px)")
++            return True
++        else:
++            print(f"FAIL: Striking image needs 1800x900 px, got {w}x{h}")
++            return False
++    else:
++        if dpi[0] >= 300:
++            print("PASS: Resolution meets standard (300+ DPI)")
++        else:
++            print(f"NOTE: DPI is {dpi[0]}; 300+ DPI recommended")
++        return True
++```
++
++---
++
++## File Format
++
++### Regular Figures
++
++| Format | Accepted |
++|---|---|
++| **TIFF** | Yes |
++| **EPS** | Yes |
++| **PDF** | Yes |
++| **JPEG / JPG** | Yes |
++| **GIF** | Yes |
++| **PS** (PostScript) | Yes |
++| **RTF** | Yes |
++| **Microsoft Excel** | Yes (for data-based figures) |
++| **CorelDraw** | Yes |
++
++### Striking Images
++
++| Format | Recommended |
++|---|---|
++| **PNG** | Yes (preferred) |
++| **TIFF** | Yes |
++| **JPEG** | Yes |
++
++---
++
++## Figure Size and Dimensions
++
++### Striking Images (Graphical Abstract)
++- Minimum: **1800 x 900 pixels**
++- Format: **Landscape orientation**
++- Composed of **1-2 panels maximum**
++- **No labels or text** should be included
++
++### Regular Figures
++- Each figure uploaded as an **individual file**
++- No specific column width requirements published
++
++---
++
++## Color Mode
++
++- No explicit RGB/CMYK mandate in published guidelines
++- Follow standard practice: RGB for digital submission
++
++---
++
++## Font Requirements
++
++### Striking Images
++- **No labels or text** should be included in striking images
++
++### Regular Figures
++- No strict font specifications published
++- Follow standard scientific figure conventions (sans-serif, 6-8 pt)
++
++```python
++import matplotlib.pyplot as plt
++
++def set_elife_fonts():
++    """Configure Matplotlib with standard settings for eLife."""
++    plt.rcParams.update({
++        'font.family': 'sans-serif',
++        'font.sans-serif': ['Helvetica', 'Arial'],
++        'font.size': 7,
++        'axes.labelsize': 7,
++        'axes.titlesize': 8,
++        'xtick.labelsize': 6,
++        'ytick.labelsize': 6,
++        'legend.fontsize': 6,
++    })
++```
++
++---
++
++## Labeling Conventions
++
++### Figure Supplements (eLife-Specific System)
++
++eLife uses a unique **figure supplement** system instead of traditional supplementary figures:
++
++- Format: `Figure 1--Figure Supplement 1`, `Figure 1--Figure Supplement 2`, etc.
++- Each supplement should have a **short title** and an optional legend
++- Supplements are linked to their parent figure in the publication
++
++### Striking Images
++- Must NOT contain any labels or text
++- Limited to 1-2 panels
++
++```python
++def generate_elife_supplement_names(main_figure_num, n_supplements):
++    """Generate eLife figure supplement naming.
++
++    Args:
++        main_figure_num: The main figure number (1, 2, 3, ...)
++        n_supplements: Number of supplements for this figure
++
++    Returns:
++        List of supplement name strings
++    """
++    names = []
++    for i in range(1, n_supplements + 1):
++        names.append(f"Figure {main_figure_num}--Figure Supplement {i}")
++    return names
++
++# Example
++supplements = generate_elife_supplement_names(3, 4)
++for s in supplements:
++    print(s)
++# Output:
++# Figure 3--Figure Supplement 1
++# Figure 3--Figure Supplement 2
++# Figure 3--Figure Supplement 3
++# Figure 3--Figure Supplement 4
++```
++
++---
++
++## Image Integrity and Manipulation Policy
++
++### CRITICAL: eLife Screens Images Routinely
++
++eLife **routinely screens submitted images** for inappropriate digital processing. This is not a random check — it is a systematic process.
++
++### PROHIBITED
++- Enhancing, obscuring, moving, removing, or introducing any specific feature within an image
++- **Selective enhancement constitutes research misconduct**
++  - Example: Adjusting the intensity of a single band in a blot = **misconduct**
++
++### PERMITTED
++- Brightness, contrast, and color balance adjustments applied **equally across the entire image**
++- Adjustments must NOT obscure or eliminate information present in the original
++
++### Consequences
++- Inappropriate image manipulation may result in:
++  - Manuscript rejection
++  - Investigation by the author's institution
++  - Public correction or retraction of published articles
++
++---
++
++## Python Quick Start: Full Validation
++
++```python
++from PIL import Image
++import os
++
++def validate_elife_figure(image_path, is_striking=False):
++    """Full validation of a figure against eLife requirements."""
++    img = Image.open(image_path)
++    issues = []
++    w, h = img.size
++
++    # 1. Striking image checks
++    if is_striking:
++        if w < 1800 or h < 900:
++            issues.append(f"Striking image: {w}x{h} px below 1800x900 minimum")
++        if w < h:
++            issues.append("Striking image should be landscape orientation")
++
++    # 2. Resolution check (standard recommendation)
++    dpi = img.info.get('dpi', (72, 72))
++    if not is_striking and dpi[0] < 300:
++        issues.append(f"Resolution {dpi[0]} DPI; 300+ DPI recommended")
++
++    # 3. Format check
++    fmt = img.format
++    accepted = ['TIFF', 'JPEG', 'PNG', 'EPS', 'PDF', 'GIF']
++    if fmt and fmt.upper() not in accepted:
++        issues.append(f"Format '{fmt}' may not be standard")
++
++    if is_striking:
++        striking_formats = ['PNG', 'TIFF', 'JPEG']
++        if fmt and fmt.upper() not in striking_formats:
++            issues.append(f"Striking image: prefer PNG, TIFF, or JPEG (got {fmt})")
++
++    # Report
++    print(f"=== eLife Figure Validation {'(Striking)' if is_striking else ''} ===")
++    print(f"Dimensions: {w} x {h} px")
++    print(f"DPI: {dpi[0]} x {dpi[1]}")
++    print(f"Color mode: {img.mode}")
++    print(f"Format: {fmt}")
++
++    if issues:
++        print(f"\nISSUES FOUND ({len(issues)}):")
++        for issue in issues:
++            print(f"  - {issue}")
++    else:
++        print("\nAll checks PASSED")
++
++    print("\nWARNING: eLife routinely screens images for manipulation")
++    print("Selective enhancement (e.g., single band intensity) = MISCONDUCT")
++
++    return len(issues) == 0
++```
++
++---
++
++## Key Concepts
++
++### Figure Supplement System
++
++eLife replaces traditional supplementary figures with a linked figure supplement system. Supplements are named "Figure X--Figure Supplement Y" and are directly associated with their parent figure in the publication. Each supplement requires a short title and optional legend. This system improves discoverability compared to buried supplementary files.
++
++### Striking Image Requirements
++
++eLife requires a striking image (graphical abstract) with specific constraints: minimum 1800 x 900 pixels, landscape orientation, 1-2 panels maximum, and no labels or text. This image appears prominently in article listings and social media. It must be a standalone visual that conveys the paper's main finding.
++
++### Routine Image Screening Policy
++
++eLife routinely screens all submitted images for inappropriate digital processing. This is systematic, not random. Selective enhancement of any part of a scientific image (e.g., adjusting intensity of a single band in a blot) is treated as research misconduct and may result in rejection, institutional investigation, or retraction.
++
++## Decision Framework
++
++```
++What type of figure are you preparing?
++├── Striking image (graphical abstract)
++│   ├── Dimensions: 1800 x 900 px minimum, landscape
++│   ├── Format: PNG (preferred), TIFF, or JPEG
++│   └── Content: No text, no labels, 1-2 panels max
++├── Main figure
++│   ├── Standard format: TIFF, EPS, PDF, JPEG
++│   └── Upload as individual file
++└── Figure supplement
++    ├── Naming: "Figure X--Figure Supplement Y"
++    ├── Include short title
++    └── Same format requirements as main figures
++```
++
++| Scenario | Format | Resolution | Notes |
++|---|---|---|---|
++| Striking image | PNG | 1800 x 900 px minimum | No text or labels |
++| Western blot | TIFF | 300+ DPI | Will be screened for manipulation |
++| Graph or chart | EPS or PDF | Vector | Individual file upload |
++| Micrograph | TIFF | 300+ DPI | Uniform adjustments only |
++| Supplementary panel | Same as main | Same as main | Name as "Figure X--Figure Supplement Y" |
++| Data from Excel | Excel (.xlsx) | N/A | Accepted for data-based figures |
++
++## Best Practices
++
++1. **Prepare striking images without any text**: eLife strictly prohibits labels or text in striking images. The image must communicate visually without words
++2. **Use the figure supplement system correctly**: Name supplements using the exact format "Figure X--Figure Supplement Y" with double hyphens. Include a short descriptive title for each
++3. **Apply all adjustments uniformly to entire images**: eLife's screening software detects selective enhancement. Any brightness/contrast change must cover the whole image
++4. **Maintain original unprocessed data**: Given eLife's screening policy, having originals available demonstrates integrity and speeds up any inquiries
++5. **Submit each figure as an individual file**: Do not combine multiple figures into a single file. Each figure gets its own upload
++6. **Use landscape orientation for striking images**: Portrait-oriented striking images do not meet eLife's requirements. Ensure width exceeds height with minimum 1800 x 900 pixels
++7. **Describe all processing in Methods**: Document every image processing step (software used, adjustments applied) to preempt screening concerns
++
++## Common Pitfalls
++
++1. **Adding text or labels to striking images**: Any text in the striking image violates eLife requirements
++   - *How to avoid*: Create a purely visual composition; remove all annotations, labels, and text overlays
++2. **Selectively enhancing parts of scientific images**: Adjusting one region (e.g., a single gel lane) while leaving others unchanged is treated as misconduct
++   - *How to avoid*: Apply all brightness, contrast, and color adjustments to the entire image uniformly
++3. **Using incorrect figure supplement naming**: Missing the double-hyphen format or incorrect numbering breaks the linking system
++   - *How to avoid*: Use the exact format "Figure X--Figure Supplement Y" with double hyphens (--) and sequential numbering
++4. **Submitting striking images below minimum size**: Images under 1800 x 900 pixels are rejected
++   - *How to avoid*: Check pixel dimensions before upload; create striking images at or above the minimum
++5. **Submitting portrait-oriented striking images**: eLife requires landscape orientation for striking images
++   - *How to avoid*: Ensure width (1800+ px) exceeds height (900+ px) in the final composition
++
++## Pre-Submission Checklist
++
++Before submitting figures to eLife, verify:
++
++- [ ] Striking image: minimum 1800 x 900 px, landscape, no text/labels
++- [ ] Striking image format: PNG, TIFF, or JPEG
++- [ ] Regular figures: 300+ DPI recommended
++- [ ] File format: TIFF, EPS, PDF, JPEG, or other accepted format
++- [ ] Each figure uploaded as individual file
++- [ ] Figure supplements named: "Figure X--Figure Supplement Y"
++- [ ] Each supplement has a short title
++- [ ] **No selective enhancement** of any image region
++- [ ] All brightness/contrast adjustments applied to entire image
++- [ ] Adjustments do not obscure or eliminate original information
++- [ ] Original unprocessed data retained
++- [ ] Aware that eLife routinely screens images for manipulation
++
++---
++
++## References
++
++- eLife Author Guide: https://elife-rp.msubmit.net/html/elife-rp_author_instructions.html
++- eLife Image Screening Policy: https://elifesciences.org/inside-elife/77dd2808/taking-a-closer-look-screening-of-images
++- eLife Submission Guidelines: https://reviewer.elifesciences.org/author-guide/full
+diff --git a/skills/scientific-writing/general-figure-guide/SKILL.md b/skills/scientific-writing/general-figure-guide/SKILL.md
+new file mode 100644
+index 0000000..64aa3ff
+--- /dev/null
++++ b/skills/scientific-writing/general-figure-guide/SKILL.md
+@@ -0,0 +1,101 @@
++---
++name: general-figure-guide
++description: "General scientific figure quality checklist for generated plots. Covers visual inspection for overlapping labels, clipped text, missing axes/legends, empty plot areas, overcrowded data, and resolution/format best practices across journals."
++license: CC-BY-4.0
++---
++
++# General Scientific Figure Quality Guide
++
++## Overview
++
++This guide provides a universal quality checklist for evaluating scientific figures, whether generated programmatically (matplotlib, seaborn, R/ggplot2) or assembled manually. It focuses on visual readability issues that are common across all journals and easily missed during automated plot generation.
++
++## Key Concepts
++
++### Visual Readability
++
++A figure must communicate its data without requiring the reader to guess. The most common readability failures are overlapping labels, clipped text that runs outside the figure boundary, missing or unlabeled axes, absent legends, empty plot areas from incorrect data filtering, and overcrowded data points that merge into an unreadable mass.
++
++### Resolution and Output Format
++
++Scientific figures generally require 300+ DPI for raster output (TIFF, PNG, JPEG) and vector formats (PDF, EPS, SVG) for line art and graphs. Vector formats are preferred for plots because they scale without quality loss. Raster formats are appropriate for photographs and micrographs.
++
++### Color Accessibility
++
++Approximately 8% of males have some form of color vision deficiency. Figures that rely solely on red-green color differences exclude these readers. Use colorblind-friendly palettes (blue-orange, or viridis/cividis colormaps), add pattern or shape differentiation, and test figures with a colorblindness simulator before submission.
++
++### Uniform Image Adjustments
++
++All major journals require that brightness, contrast, and color adjustments be applied uniformly to the entire image. Selective enhancement of specific regions (e.g., adjusting one gel lane) is considered data manipulation and grounds for rejection across all journals. Always document processing steps in the Methods section and retain original unprocessed files.
++
++## Decision Framework
++
++```
++Is the figure a generated plot or a photograph?
++├── Generated plot (matplotlib, ggplot2, seaborn)
++│   ├── Export as vector (PDF, SVG, EPS) → preferred
++│   └── Export as raster → 300+ DPI minimum, PNG or TIFF
++├── Photograph or micrograph
++│   └── Export as raster → 300+ DPI, TIFF preferred
++└── Multi-panel composite
++    ├── Assemble panels first, then export as single file
++    └── Use consistent font sizes and label styles across panels
++```
++
++| Issue | How to Detect | Fix |
++|---|---|---|
++| Overlapping labels | Text visually collides on axes or legend | Rotate labels, reduce font size, or increase figure dimensions |
++| Clipped text | Labels or titles cut off at figure edge | Increase margins with `tight_layout()` or `constrained_layout` |
++| Missing axes or legends | No axis labels, units, or legend present | Add `xlabel`, `ylabel`, `legend()` calls |
++| Empty plot area | Blank canvas with axes but no visible data | Check data filtering, column names, and plot function arguments |
++| Overcrowded data | Points merge into solid mass | Reduce marker size, add transparency (alpha), or use density plots |
++
++## Best Practices
++
++1. **Run a visual check after every plot generation**: Inspect the rendered image for overlapping labels, clipped text, missing axes/legends, empty areas, and overcrowded data before proceeding
++2. **Use `tight_layout()` or `constrained_layout=True`**: These prevent text clipping at figure boundaries, the most common layout failure in matplotlib
++3. **Set DPI at figure creation time**: Configure `fig.set_dpi(300)` or `plt.savefig(..., dpi=300)` to ensure publication-quality output from the start
++4. **Export plots as vector formats**: Use PDF, SVG, or EPS for graphs and diagrams. Reserve raster formats (PNG, TIFF) for photographs and micrographs
++5. **Apply consistent font sizes across panels**: All text in a multi-panel figure should use the same font family and comparable sizes (typically 6-8 pt for labels, 8 pt for panel identifiers)
++6. **Add transparency for dense scatter plots**: Use `alpha=0.3`-`0.5` when plotting thousands of points to reveal density structure instead of a solid mass
++7. **Include units on all axes**: Every axis should show the measured parameter and units in parentheses (e.g., "Time (hours)", "Concentration (nM)")
++
++## Common Pitfalls
++
++1. **Not inspecting generated plots before saving**: Automated pipelines often produce figures with layout issues that go unnoticed until review
++   - *How to avoid*: Always render and visually inspect each figure; if reviewing programmatically, check for text bounding-box overlaps
++2. **Clipped axis labels or titles**: Default matplotlib margins often cut off long labels or suptitles
++   - *How to avoid*: Call `fig.tight_layout()` or create figures with `constrained_layout=True`
++3. **Missing legends on multi-series plots**: Plots with multiple lines or groups are unreadable without a legend
++   - *How to avoid*: Always call `ax.legend()` when plotting more than one series; verify legend entries match the data
++4. **Overcrowded scatter plots at large N**: Scatter plots with >10,000 points become solid blobs at default settings
++   - *How to avoid*: Use `alpha` transparency, hexbin plots, or kernel density estimation for large datasets
++5. **Saving at screen resolution (72 DPI)**: Default screen DPI produces figures that are unprintable in journals
++   - *How to avoid*: Always specify `dpi=300` (minimum) in `savefig()` or set it on the figure object at creation
++
++## Protocol Guidelines
++
++1. **Set up figure dimensions and DPI**: Before plotting, configure target width (journal column width), aspect ratio, and DPI (300+ minimum) on the figure object
++2. **Generate the figure** using your plotting library with the pre-configured settings
++3. **Visually inspect** the rendered output for these specific issues:
++   - Overlapping labels or annotations
++   - Clipped text at figure boundaries
++   - Missing axis labels, units, or legends
++   - Empty plot areas (data not rendered)
++   - Overcrowded or indistinguishable data points
++4. **If any issue is found**, regenerate with targeted fixes (adjust layout, font size, margins, alpha, or figure dimensions)
++5. **Export in the correct format**: vector (PDF/EPS/SVG) for plots, raster (TIFF/PNG at 300+ DPI) for photographs
++6. **Verify the saved file**: reopen the exported file to confirm it matches the on-screen rendering
++
++## Further Reading
++
++- [Matplotlib Figure Layout Guide](https://matplotlib.org/stable/users/explain/axes/tight_layout_guide.html) -- tight_layout and constrained_layout usage
++- [Ten Simple Rules for Better Figures (PLOS)](https://doi.org/10.1371/journal.pcbi.1003833) -- general principles for scientific figure design
++- [Points of View: Nature Methods Column](https://www.nature.com/collections/qghhqm/pointsofview) -- visual design principles for scientific data
++
++## Related Skills
++
++- `nature-figure-guide` -- Nature-specific figure requirements
++- `cell-figure-guide` -- Cell Press figure requirements
++- `science-figure-guide` -- Science (AAAS) figure requirements
++- `pnas-figure-guide` -- PNAS figure requirements
+diff --git a/skills/scientific-writing/lancet-figure-guide/SKILL.md b/skills/scientific-writing/lancet-figure-guide/SKILL.md
+new file mode 100644
+index 0000000..a78a321
+--- /dev/null
++++ b/skills/scientific-writing/lancet-figure-guide/SKILL.md
+@@ -0,0 +1,302 @@
++---
++name: lancet-figure-guide
++description: "Figure and image preparation guide for The Lancet. Covers resolution (300+ DPI at 120% size), file formats (PowerPoint, Word, SVG preferred), column widths (75/154 mm), Times New Roman font, and Lancet in-house redraw policy."
++license: CC-BY-4.0
++compatibility: Python 3.10+, Pillow, Matplotlib
++metadata:
++  authors: HITS
++  version: "1.0"
++---
++
++# The Lancet Figure Preparation Guide
++
++## Overview
++
++This guide provides the complete specifications for preparing figures for submission to **The Lancet** and Lancet family journals. A key distinguishing feature of The Lancet is that **most figures are redrawn by in-house illustrators** into Lancet house style. Therefore, editable source formats (PowerPoint, Word, SVG) are strongly preferred over rasterized images.
++
++**Official reference**: https://www.thelancet.com/submission-guidelines
++
++---
++
++## Resolution Requirements
++
++| Requirement | Specification |
++|---|---|
++| All photographic images | **300 DPI minimum** |
++| Submission size | **120%** of intended publication size |
++
++**TIP**: Supply images 20% larger than publication size to ensure quality is maintained after any resizing by the production team.
++
++```python
++from PIL import Image
++
++def check_lancet_resolution(image_path):
++    """Check if image meets Lancet resolution requirements."""
++    img = Image.open(image_path)
++    dpi = img.info.get('dpi', (72, 72))
++
++    print(f"DPI: {dpi[0]} x {dpi[1]}")
++    print(f"Minimum required: 300 DPI")
++    print(f"TIP: Submit at 120% of publication size")
++
++    if dpi[0] >= 300:
++        print("PASS: Resolution meets Lancet requirements")
++    else:
++        print("FAIL: Need at least 300 DPI")
++
++    return dpi[0] >= 300
++```
++
++---
++
++## File Format
++
++### Preferred Formats (Editable)
++
++| Format | Notes |
++|---|---|
++| **PowerPoint (.pptx)** | Most preferred — easy for in-house redraw |
++| **Word (.docx)** | Accepted for simple figures |
++| **SVG** | Scalable vector graphics |
++
++### Also Accepted
++
++| Format | Notes |
++|---|---|
++| TIFF | For photographic images |
++| JPEG | Acceptable quality |
++| EPS | Vector format |
++| PDF | General purpose |
++
++### Why Editable Formats?
++The Lancet's in-house illustration team **redraws most submitted figures** into the Lancet house style. Providing editable source files (especially PowerPoint) makes this process smoother and more accurate.
++
++---
++
++## Figure Size and Dimensions
++
++| Layout | Width |
++|---|---|
++| 1 column | **75 mm** (2.95 in) |
++| 2 columns | **154 mm** (6.06 in) |
++| Minimum width | **107 mm** (4.21 in) |
++
++- All panels must fit on a **single page**
++
++```python
++import matplotlib.pyplot as plt
++
++LANCET_WIDTHS = {
++    'single':  75 / 25.4,    # 2.95 inches
++    'minimum': 107 / 25.4,   # 4.21 inches
++    'double':  154 / 25.4,   # 6.06 inches
++}
++
++def create_lancet_figure(layout='single', aspect_ratio=0.75):
++    """Create a Matplotlib figure sized for The Lancet."""
++    width = LANCET_WIDTHS[layout]
++    height = width * aspect_ratio
++
++    fig, ax = plt.subplots(figsize=(width, height))
++    fig.set_dpi(300)
++    return fig, ax
++```
++
++---
++
++## Color Mode
++
++| Purpose | Color Mode |
++|---|---|
++| Online publication | **RGB** |
++| Print publication | **CMYK** |
++
++- Color and black-and-white photographs both accepted
++
++---
++
++## Font Requirements
++
++| Element | Font | Size | Style |
++|---|---|---|---|
++| Main figure heading | Times New Roman | **10 pt** | **Bold** |
++| Figure legend | Times New Roman | 10 pt | Regular, single-spaced |
++
++### Key Difference from Other Journals
++- The Lancet uses **Times New Roman** (serif font), unlike most other biomedical journals that prefer sans-serif fonts
++
++```python
++import matplotlib.pyplot as plt
++
++def set_lancet_fonts():
++    """Configure Matplotlib for Lancet figure fonts."""
++    plt.rcParams.update({
++        'font.family': 'serif',
++        'font.serif': ['Times New Roman', 'Times'],
++        'font.size': 10,
++        'axes.labelsize': 10,
++        'axes.titlesize': 10,
++        'axes.titleweight': 'bold',
++        'xtick.labelsize': 8,
++        'ytick.labelsize': 8,
++        'legend.fontsize': 8,
++    })
++```
++
++---
++
++## Labeling Conventions
++
++### Rules
++- **No box outlines** around graphs
++- **No titles** inside graphs or artwork — include in caption instead
++- Number figures in order of citation in text
++
++### Best Practices
++- Keep figures as simple and clear as possible
++- The Lancet illustrators will redraw most figures, so focus on conveying data accurately rather than visual polish
++
++---
++
++## Image Integrity and Manipulation Policy
++
++- Follow standard biomedical publishing ethics
++- All image adjustments should be applied uniformly
++- Describe any image processing in Methods
++- Maintain original data for potential review
++
++---
++
++## Python Quick Start: Full Validation
++
++```python
++from PIL import Image
++import os
++
++def validate_lancet_figure(image_path, layout='single'):
++    """Full validation of a figure against Lancet requirements."""
++    img = Image.open(image_path)
++    issues = []
++
++    # 1. Resolution check (300 DPI at 120% size)
++    dpi = img.info.get('dpi', (72, 72))
++    if dpi[0] < 300:
++        issues.append(f"Resolution {dpi[0]} DPI below 300 DPI minimum")
++
++    # 2. Dimension check
++    widths_mm = {'single': 75, 'minimum': 107, 'double': 154}
++    if layout in widths_mm and dpi[0] > 0:
++        actual_w_mm = (img.size[0] / dpi[0]) * 25.4
++        target = widths_mm[layout]
++        # Should be 120% of publication size
++        target_120 = target * 1.2
++        print(f"Width: {actual_w_mm:.1f} mm (target at 120%: {target_120:.1f} mm)")
++
++    # 3. Format recommendation
++    fmt = img.format
++    if fmt and fmt.upper() in ('TIFF', 'JPEG', 'PNG'):
++        print(f"NOTE: Format is {fmt}. Lancet prefers PowerPoint/Word/SVG for redrawing")
++
++    # Report
++    print(f"=== Lancet Figure Validation ===")
++    print(f"Dimensions: {img.size[0]} x {img.size[1]} px")
++    print(f"DPI: {dpi[0]} x {dpi[1]}")
++    print(f"Color mode: {img.mode}")
++
++    if issues:
++        print(f"\nISSUES FOUND ({len(issues)}):")
++        for issue in issues:
++            print(f"  - {issue}")
++    else:
++        print("\nAll checks PASSED")
++
++    return len(issues) == 0
++```
++
++---
++
++## Key Concepts
++
++### In-House Figure Redraw Policy
++
++The Lancet's most distinctive feature is that most submitted figures are redrawn by in-house illustrators into Lancet house style. This means editable source formats (PowerPoint, Word, SVG) are strongly preferred over polished raster images. Authors should focus on data accuracy rather than visual refinement.
++
++### The 120% Size Rule
++
++The Lancet requires photographic images to be submitted at 120% of intended publication size at 300+ DPI. This buffer ensures quality is maintained after any resizing during production. A figure intended for single-column (75 mm) should be supplied at 90 mm width.
++
++### Serif Font Convention
++
++Unlike most biomedical journals that use sans-serif fonts, The Lancet uses Times New Roman as its standard figure font. Headings are 10 pt bold; legend text is 10 pt regular single-spaced. This aligns with Lancet's traditional typographic style.
++
++## Decision Framework
++
++```
++What type of figure are you preparing?
++├── Data visualization (graph, chart)
++│   ├── PowerPoint available → Submit .pptx (preferred for redraw)
++│   └── Only image available → SVG or EPS (vector, editable)
++├── Photograph or clinical image
++│   ├── High quality needed → TIFF at 300+ DPI, 120% size
++│   └── Standard quality → JPEG at 300+ DPI, 120% size
++└── Schematic or diagram
++    ├── Editable source → PowerPoint or Word
++    └── Vector only → SVG or EPS
++```
++
++| Scenario | Format | Resolution | Notes |
++|---|---|---|---|
++| Bar chart from clinical trial | PowerPoint (.pptx) | N/A (vector) | Lancet redraws in house style |
++| Kaplan-Meier curve | PowerPoint or SVG | N/A (vector) | Provide raw data if possible |
++| Histology micrograph | TIFF | 300+ DPI at 120% size | Cannot be redrawn |
++| Flowchart (CONSORT) | PowerPoint or Word | N/A (editable) | Lancet will redraw |
++| Forest plot (meta-analysis) | PowerPoint or SVG | N/A (vector) | Data accuracy is priority |
++
++## Best Practices
++
++1. **Submit editable formats whenever possible**: PowerPoint is most preferred because Lancet illustrators redraw figures. Provide the editable source, not a rasterized export
++2. **Supply images at 120% of publication size**: Calculate target size (75 mm or 154 mm column width), then multiply by 1.2 for the submission dimensions
++3. **Use Times New Roman consistently**: The Lancet's serif font convention differs from most journals. Set Times New Roman as default before creating figures
++4. **Remove box outlines from graphs**: Lancet style does not use borders around graph panels. Remove any automatic axis boxes
++5. **Place titles in captions only**: Do not embed titles inside figures or graphs. All descriptive text goes in the figure caption
++6. **Focus on data accuracy over aesthetics**: Since figures will be redrawn, ensure data values are correct and clearly labeled rather than investing in visual polish
++7. **Number figures in citation order**: Figures must be numbered sequentially in the order they are first cited in the text
++
++## Common Pitfalls
++
++1. **Submitting only rasterized images for data figures**: Lancet illustrators cannot redraw from JPEG/PNG rasters of graphs
++   - *How to avoid*: Always provide the editable source file (PowerPoint, Word, or SVG) alongside any raster export
++2. **Forgetting the 120% size requirement**: Submitting at 100% publication size means the image will be undersized after production resizing
++   - *How to avoid*: Multiply the target column width by 1.2 before setting your canvas size
++3. **Using sans-serif fonts**: Most journals use Arial/Helvetica, but Lancet uses Times New Roman. Sans-serif fonts signal unfamiliarity with Lancet style
++   - *How to avoid*: Set Times New Roman as the default font before creating any Lancet figures
++4. **Including box outlines around graphs**: Lancet style prohibits boxes around graph panels, a common default in plotting software
++   - *How to avoid*: Disable axis box/frame in your plotting settings (e.g., `ax.spines` in matplotlib)
++5. **Over-polishing figure aesthetics**: Since Lancet redraws most figures, spending excessive time on visual refinement is wasted effort
++   - *How to avoid*: Ensure data accuracy and clear labeling; leave visual styling to Lancet's illustration team
++
++## Pre-Submission Checklist
++
++Before submitting figures to The Lancet, verify:
++
++- [ ] Photographic images at 300+ DPI
++- [ ] Images supplied at **120% of publication size**
++- [ ] Preferred format: PowerPoint, Word, or SVG (for in-house redraw)
++- [ ] TIFF/JPEG/EPS acceptable for photographs
++- [ ] 1-column figures: 75 mm wide
++- [ ] 2-column figures: 154 mm wide
++- [ ] All panels fit on a single page
++- [ ] Font is Times New Roman (10 pt bold for headings)
++- [ ] No box outlines around graphs
++- [ ] No titles inside graphs (use captions)
++- [ ] Figures numbered in order of text citation
++- [ ] Data clearly and accurately represented (Lancet will redraw)
++- [ ] Original data retained for review
++
++---
++
++## References
++
++- Lancet Submission Guidelines: https://www.thelancet.com/submission-guidelines
++- Lancet Artwork Guidelines: https://www.thelancet.com/pb/assets/raw/Lancet/test/artwork-guidelines-aug2015.pdf
++- Lancet Information for Authors: https://www.thelancet.com/information-for-authors
+diff --git a/skills/scientific-writing/nature-figure-guide/SKILL.md b/skills/scientific-writing/nature-figure-guide/SKILL.md
+new file mode 100644
+index 0000000..c783dd7
+--- /dev/null
++++ b/skills/scientific-writing/nature-figure-guide/SKILL.md
+@@ -0,0 +1,390 @@
++---
++name: nature-figure-guide
++description: "Figure and image preparation guide for Nature journal. Covers resolution (300+ DPI), file formats (AI, EPS, TIFF), RGB color mode, Helvetica/Arial fonts, lowercase panel labels, and image integrity requirements."
++license: CC-BY-4.0
++compatibility: Python 3.10+, Pillow, Matplotlib
++metadata:
++  authors: HITS
++  version: "1.0"
++---
++
++# Nature Figure Preparation Guide
++
++## Overview
++
++This guide provides the complete specifications for preparing figures for submission to **Nature** and Nature Research journals. Following these guidelines ensures smooth processing and high-quality reproduction of your figures in both print and online formats.
++
++**Official reference**: https://www.nature.com/nature/for-authors/formatting-guide
++
++---
++
++## Resolution Requirements
++
++| Image Type | Minimum Resolution | Notes |
++|---|---|---|
++| All figures | 300 DPI | At maximum print size |
++| Optimal quality | 450 DPI+ | Recommended for best online display |
++| Online submission | 300 PPI max | To keep file sizes manageable |
++
++**CRITICAL**: Do NOT artificially increase resolution (upsampling) in image editing software. This does not improve quality and may introduce artifacts.
++
++### Verify Resolution with Python
++
++```python
++from PIL import Image
++
++def check_nature_resolution(image_path):
++    """Check if image meets Nature's resolution requirements."""
++    img = Image.open(image_path)
++    width_px, height_px = img.size
++    dpi = img.info.get('dpi', (72, 72))
++
++    print(f"Image: {image_path}")
++    print(f"Dimensions: {width_px} x {height_px} px")
++    print(f"DPI: {dpi[0]} x {dpi[1]}")
++
++    if dpi[0] < 300 or dpi[1] < 300:
++        print("WARNING: Resolution below 300 DPI minimum")
++        print(f"  Need at least 300 DPI for Nature submission")
++    elif dpi[0] >= 450:
++        print("PASS: Meets optimal resolution (450+ DPI)")
++    else:
++        print("PASS: Meets minimum resolution (300+ DPI)")
++
++    # Check file size
++    import os
++    size_mb = os.path.getsize(image_path) / (1024 * 1024)
++    print(f"File size: {size_mb:.1f} MB")
++    if size_mb > 10:
++        print("WARNING: File exceeds 10 MB limit")
++
++    return dpi[0] >= 300 and dpi[1] >= 300
++```
++
++---
++
++## File Format
++
++### Preferred Formats by Figure Type
++
++| Figure Type | Preferred Format | Alternative |
++|---|---|---|
++| Line drawings, graphs, schematics | Adobe Illustrator (AI), EPS, PDF | Vector formats preserve editability |
++| Photographs, micrographs | Photoshop (PSD), TIFF | High-quality raster |
++| General purpose | JPEG (300-600 DPI) | Acceptable for most figures |
++| Extended Data figures | JPEG (preferred), TIFF, EPS | |
++
++### Also Accepted
++- CorelDraw (up to version 8)
++- Microsoft Word, Excel, PowerPoint
++
++### File Size
++- **Maximum**: 10 MB per figure file
++- Most files should be well under this limit
++
++### Important Rules
++- Multi-panel figures must be assembled into a **single image file**
++- Individual panels must NOT be uploaded separately
++- Each complete figure must be a separate file upload
++
++---
++
++## Figure Size and Dimensions
++
++Nature does not specify fixed column widths for initial submission, but figures should be:
++
++- Composed as a **single image** for multi-panel figures
++- Sized appropriately for the intended display
++- **Not** uploaded as individual panels
++
++### Python: Set Figure Dimensions
++
++```python
++import matplotlib.pyplot as plt
++
++def create_nature_figure(n_panels=1, fig_type='single_column'):
++    """Create a Matplotlib figure sized for Nature."""
++    if fig_type == 'single_column':
++        fig_width = 3.5  # inches (approx 89 mm)
++    elif fig_type == 'double_column':
++        fig_width = 7.0  # inches (approx 178 mm)
++    else:
++        fig_width = 5.0  # 1.5 column
++
++    fig_height = fig_width * 0.75  # default aspect ratio
++
++    fig, axes = plt.subplots(1, n_panels, figsize=(fig_width, fig_height))
++    fig.set_dpi(450)
++
++    return fig, axes
++```
++
++---
++
++## Color Mode
++
++- **RGB recommended** (wider color gamut; faithful reproduction of fluorescent colors online)
++- CMYK also accepted (converted for print automatically)
++- **Accessibility**: Use colorblind-friendly palettes
++
++### Recommended Colorblind-Safe Palette
++
++```python
++# Nature-friendly colorblind-safe colors
++NATURE_COLORS = {
++    'blue':   '#0072B2',
++    'orange': '#E69F00',
++    'green':  '#009E73',
++    'red':    '#D55E00',
++    'purple': '#CC79A7',
++    'cyan':   '#56B4E9',
++    'yellow': '#F0E442',
++    'black':  '#000000',
++}
++```
++
++---
++
++## Font Requirements
++
++| Element | Font | Size | Style |
++|---|---|---|---|
++| Body text in figures | Helvetica or Arial | 5-7 pt | Regular |
++| Panel labels | Helvetica or Arial | 8 pt | **Bold, lowercase** (a, b, c) |
++| Amino acid sequences | Courier | — | Monospace |
++| Greek characters | Symbol | — | — |
++
++### Critical Rules
++- Use **sans-serif** fonts only (Helvetica or Arial)
++- **Do NOT outline text** — text must remain editable
++- Embed fonts as TrueType 2 or 42 (NOT TrueType 3)
++- Panel labels: **lowercase bold letters** (a, b, c — not A, B, C)
++
++### Python: Apply Nature Font Settings
++
++```python
++import matplotlib.pyplot as plt
++
++def set_nature_fonts():
++    """Configure Matplotlib for Nature figure fonts."""
++    plt.rcParams.update({
++        'font.family': 'sans-serif',
++        'font.sans-serif': ['Helvetica', 'Arial'],
++        'font.size': 7,
++        'axes.labelsize': 7,
++        'axes.titlesize': 7,
++        'xtick.labelsize': 6,
++        'ytick.labelsize': 6,
++        'legend.fontsize': 6,
++        'figure.titlesize': 8,
++    })
++```
++
++---
++
++## Labeling Conventions
++
++### Figure Numbering
++- Sequential: Figure 1, Figure 2, Figure 3, etc.
++- All figures must be cited in the text in order
++
++### Panel Labels
++- **Lowercase bold letters**: a, b, c, d, ...
++- Font size: **8 pt bold**
++- Position: top-left corner of each panel
++
++### Axes and Legends
++- Include **units in parentheses** on all axes
++- Scale bars must be on **separate layers** (not flattened into the image)
++- Figure legends placed on a separate manuscript page after References
++
++### Example Panel Labeling
++
++```python
++import matplotlib.pyplot as plt
++import string
++
++def add_nature_panel_labels(fig, axes):
++    """Add Nature-style lowercase bold panel labels."""
++    if not hasattr(axes, '__iter__'):
++        axes = [axes]
++
++    for i, ax in enumerate(axes):
++        label = string.ascii_lowercase[i]
++        ax.text(-0.1, 1.1, label,
++                transform=ax.transAxes,
++                fontsize=8,
++                fontweight='bold',
++                va='top',
++                ha='right',
++                fontfamily='Arial')
++```
++
++---
++
++## Image Integrity and Manipulation Policy
++
++### Prohibited
++- Flattening scale bars into the image layer
++- Outlining text (must remain editable)
++- Adding gridlines, patterns, or drop shadows
++- Using colored text in graphs
++- Publishing copyrighted images without permission
++
++### Permitted (with transparency)
++- Linear brightness/contrast adjustments applied **uniformly to the entire image**
++- Color balance corrections applied to the **whole image**
++
++### Best Practices
++- Keep scale bars on separate layers for editability
++- Avoid busy backgrounds behind text
++- Remove superfluous decorative elements
++- Obtain permissions for all copyrighted figures
++
++---
++
++## Python Quick Start: Full Validation
++
++```python
++from PIL import Image
++import os
++
++def validate_nature_figure(image_path):
++    """Full validation of a figure against Nature requirements."""
++    img = Image.open(image_path)
++    issues = []
++
++    # 1. Resolution check
++    dpi = img.info.get('dpi', (72, 72))
++    if dpi[0] < 300 or dpi[1] < 300:
++        issues.append(f"Resolution too low: {dpi[0]}x{dpi[1]} DPI (need 300+)")
++
++    # 2. Color mode check
++    if img.mode == 'CMYK':
++        issues.append("Color mode is CMYK; RGB is recommended for Nature")
++    elif img.mode not in ('RGB', 'RGBA'):
++        issues.append(f"Unexpected color mode: {img.mode}; use RGB")
++
++    # 3. File size check
++    size_mb = os.path.getsize(image_path) / (1024 * 1024)
++    if size_mb > 10:
++        issues.append(f"File size {size_mb:.1f} MB exceeds 10 MB limit")
++
++    # 4. Format check
++    fmt = img.format
++    accepted = ['TIFF', 'JPEG', 'PNG', 'EPS', 'PDF']
++    if fmt and fmt.upper() not in accepted:
++        issues.append(f"Format '{fmt}' may not be accepted; prefer TIFF or JPEG")
++
++    # Report
++    print(f"=== Nature Figure Validation: {os.path.basename(image_path)} ===")
++    print(f"Dimensions: {img.size[0]} x {img.size[1]} px")
++    print(f"DPI: {dpi[0]} x {dpi[1]}")
++    print(f"Color mode: {img.mode}")
++    print(f"Format: {fmt}")
++    print(f"File size: {size_mb:.1f} MB")
++
++    if issues:
++        print(f"\nISSUES FOUND ({len(issues)}):")
++        for issue in issues:
++            print(f"  - {issue}")
++    else:
++        print("\nAll checks PASSED")
++
++    return len(issues) == 0
++```
++
++---
++
++## Key Concepts
++
++### Resolution and DPI
++
++DPI (dots per inch) measures print resolution. Nature requires 300+ DPI at maximum print size. Upsampling (artificially increasing resolution in software) does not improve image quality and introduces interpolation artifacts. Always capture or export images at native high resolution.
++
++### Vector vs Raster Formats
++
++Vector formats (AI, EPS, PDF) store images as mathematical paths and scale without quality loss — ideal for graphs, schematics, and line art. Raster formats (TIFF, JPEG, PSD) store pixel grids and degrade when enlarged — appropriate for photographs and micrographs. Nature prefers vector for line drawings and raster for photographic content.
++
++### Image Integrity
++
++Nature enforces strict image integrity policies aligned with the Committee on Publication Ethics (COPE) guidelines. All adjustments must be applied uniformly to the entire image. Selective enhancement of specific regions (e.g., adjusting brightness on one gel lane) is considered data manipulation and grounds for rejection or retraction.
++
++## Decision Framework
++
++```
++What type of figure are you preparing?
++├── Graph, schematic, or diagram → Vector format (AI, EPS, PDF)
++│   ├── Created in Illustrator → Export as AI or EPS
++│   └── Created in Python/R → Export as PDF or EPS
++├── Photograph or micrograph → Raster format (TIFF, PSD, JPEG)
++│   ├── Need highest quality → TIFF at 450+ DPI
++│   └── File size constrained → JPEG at 300+ DPI
++└── Multi-panel composite → Single assembled file
++    ├── Mixed vector + raster → Assemble in Illustrator, export as AI/PDF
++    └── All raster panels → Assemble in Photoshop, export as TIFF
++```
++
++| Scenario | Recommended Format | Resolution | Notes |
++|---|---|---|---|
++| Bar chart or line graph | AI, EPS, PDF | Vector (resolution-independent) | Keep text editable |
++| Fluorescence micrograph | TIFF | 450+ DPI | RGB mode, colorblind-safe palette |
++| Western blot image | TIFF | 300+ DPI | No selective adjustments |
++| Flow chart or pathway | AI, EPS | Vector | Use Helvetica/Arial fonts |
++| Extended Data figure | JPEG | 300+ DPI | Same standards as main figures |
++
++## Best Practices
++
++1. **Export at native resolution**: Always capture or generate images at the target resolution (300+ DPI). Never upsample low-resolution images in Photoshop or similar tools
++2. **Use colorblind-friendly palettes**: Nature strongly recommends accessible color schemes. Avoid red-green combinations; use blue-orange or include pattern/shape differentiation
++3. **Keep text editable in vector files**: Do not outline or rasterize text in AI/EPS files. Nature's production team may need to edit fonts during typesetting
++4. **Assemble multi-panel figures before upload**: Combine all panels (a, b, c, etc.) into a single image file. Individual panel uploads will be rejected
++5. **Maintain separate layers for scale bars**: Scale bars must remain on a separate layer from the image data so they can be repositioned during production
++6. **Apply adjustments uniformly**: Any brightness, contrast, or color correction must be applied to the entire image, not selectively to specific regions
++7. **Retain original unprocessed data**: Editors or reviewers may request raw image files at any stage of review or post-publication
++
++## Common Pitfalls
++
++1. **Upsampling low-resolution images**: Artificially increasing DPI in image software does not add real detail and introduces blurring artifacts
++   - *How to avoid*: Re-export from the original source (microscope, plotting software) at 300+ DPI natively
++2. **Submitting individual panels instead of assembled figures**: Nature requires multi-panel figures as a single composite file
++   - *How to avoid*: Assemble all panels in Illustrator or Photoshop before uploading; use lowercase bold labels (a, b, c)
++3. **Using uppercase panel labels**: Nature uses lowercase bold (a, b, c), unlike many other journals that use uppercase
++   - *How to avoid*: Double-check the journal's labeling convention; Nature specifically requires lowercase
++4. **Outlining text in vector files**: Converting text to outlines makes it uneditable, which Nature prohibits
++   - *How to avoid*: Embed fonts as TrueType 2 or 42 instead of converting to outlines
++5. **Submitting in CMYK color mode**: While accepted, CMYK narrows the color gamut and may misrepresent fluorescence data online
++   - *How to avoid*: Submit in RGB; Nature handles CMYK conversion for print internally
++6. **Exceeding the 10 MB file size limit**: Large TIFF files often exceed this threshold
++   - *How to avoid*: Use LZW compression for TIFF files or convert to high-quality JPEG (300+ DPI)
++
++---
++
++## Pre-Submission Checklist
++
++Before submitting figures to Nature, verify:
++
++- [ ] Resolution is at least 300 DPI (450+ DPI preferred)
++- [ ] File format is AI, EPS, TIFF, PSD, or high-quality JPEG
++- [ ] Each file is under 10 MB
++- [ ] Multi-panel figures assembled as a single image file
++- [ ] Color mode is RGB (not CMYK)
++- [ ] Colorblind-accessible palette used
++- [ ] Fonts are Helvetica or Arial, 5-7 pt body, 8 pt bold panel labels
++- [ ] Panel labels are lowercase bold (a, b, c)
++- [ ] Text is NOT outlined (remains editable)
++- [ ] Fonts embedded as TrueType 2 or 42
++- [ ] Scale bars on separate layers (not flattened)
++- [ ] No gridlines, patterns, or drop shadows
++- [ ] Axes include units in parentheses
++- [ ] All image adjustments applied uniformly to entire image
++- [ ] Original unprocessed data retained for editor/reviewer requests
++- [ ] Copyright permissions obtained for any third-party images
++
++---
++
++## References
++
++- Nature Formatting Guide: https://www.nature.com/nature/for-authors/formatting-guide
++- Nature Final Submission: https://www.nature.com/nature/for-authors/final-submission
++- Nature Research Figure Guide: https://research-figure-guide.nature.com/figures/preparing-figures-our-specifications/
+diff --git a/skills/scientific-writing/nejm-figure-guide/SKILL.md b/skills/scientific-writing/nejm-figure-guide/SKILL.md
+new file mode 100644
+index 0000000..091582f
+--- /dev/null
++++ b/skills/scientific-writing/nejm-figure-guide/SKILL.md
+@@ -0,0 +1,307 @@
++---
++name: nejm-figure-guide
++description: "Figure and image preparation guide for the New England Journal of Medicine (NEJM). Covers resolution (300-1200 DPI), editable vector formats (AI, EPS, SVG), in-house medical illustration policy, and strict image integrity requirements."
++license: CC-BY-4.0
++compatibility: Python 3.10+, Pillow, Matplotlib
++metadata:
++  authors: HITS
++  version: "1.0"
++---
++
++# NEJM Figure Preparation Guide
++
++## Overview
++
++This guide provides the complete specifications for preparing figures for submission to the **New England Journal of Medicine (NEJM)**. A unique feature of NEJM is that **medical illustrations are created by NEJM's in-house illustrators** working directly with authors — authors should NOT submit finished medical illustrations due to copyright considerations.
++
++**Official reference**: https://www.nejm.org/author-center/new-manuscripts
++
++---
++
++## Resolution Requirements
++
++| Image Type | Minimum Resolution | Notes |
++|---|---|---|
++| Black-and-white line art | **1,200 DPI** | Highest requirement |
++| Photographic / halftone images | **300 DPI** | Standard for photographs |
++| Peer review stage | Lower resolution acceptable | High-res required for final publication |
++
++```python
++from PIL import Image
++
++def check_nejm_resolution(image_path, image_type='photo', stage='final'):
++    """Check if image meets NEJM resolution requirements.
++
++    Args:
++        image_type: 'lineart' (1200 DPI) or 'photo' (300 DPI)
++        stage: 'review' (lower OK) or 'final' (strict requirements)
++    """
++    min_dpi = {'lineart': 1200, 'photo': 300}
++    required = min_dpi.get(image_type, 300)
++
++    if stage == 'review':
++        print("NOTE: Lower resolution acceptable for peer review")
++        required = 150  # relaxed for review
++
++    img = Image.open(image_path)
++    dpi = img.info.get('dpi', (72, 72))
++
++    print(f"Stage: {stage} | Type: {image_type}")
++    print(f"Required: {required} DPI | Actual: {dpi[0]} DPI")
++    passed = dpi[0] >= required
++    print("PASS" if passed else "FAIL")
++
++    return passed
++```
++
++---
++
++## File Format
++
++| Figure Type | Preferred Format | Notes |
++|---|---|---|
++| Data visualizations (graphs, plots, diagrams) | **AI, EPS, SVG** | Editable vector files preferred |
++| Photographic images | **TIFF** | High-resolution raster |
++| Medical illustrations | **Do NOT submit** | NEJM illustrators create these |
++
++### Submission Options
++- Figures can be inserted in text files (preferred) or uploaded separately
++
++### Medical Illustration Policy
++**IMPORTANT**: NEJM's in-house medical illustrators will work directly with authors to create medical illustrations. Authors should NOT submit finished illustrations due to copyright considerations. The journal retains copyright on illustrations created by their team.
++
++---
++
++## Figure Size and Dimensions
++
++NEJM does not publish detailed size specifications in their public guidelines. General best practices:
++
++- Size figures appropriately for the intended column layout
++- Ensure all text is legible at final print size
++- Follow standard medical journal conventions
++
++---
++
++## Color Mode
++
++- No explicit RGB/CMYK mandate in published guidelines
++- Follow standard practice: submit in RGB for online; journal handles print conversion
++
++---
++
++## Font Requirements
++
++| Element | Specification |
++|---|---|
++| Preferred style | **Sans-serif** |
++| Historical font | Univers (NEJM house font) |
++| Alternatives | Helvetica, Arial |
++
++- Ensure all text is legible at final reduction size
++
++```python
++import matplotlib.pyplot as plt
++
++def set_nejm_fonts():
++    """Configure Matplotlib for NEJM figure fonts."""
++    plt.rcParams.update({
++        'font.family': 'sans-serif',
++        'font.sans-serif': ['Univers', 'Helvetica', 'Arial'],
++        'font.size': 8,
++        'axes.labelsize': 8,
++        'axes.titlesize': 8,
++        'xtick.labelsize': 7,
++        'ytick.labelsize': 7,
++        'legend.fontsize': 7,
++    })
++```
++
++---
++
++## Labeling Conventions
++
++### Images in Clinical Medicine
++- Title: maximum **8 words**
++- Legend: maximum **150 words**
++
++### Patient Privacy
++- **All patient-identifying information must be removed** from images
++- This includes faces, names, medical record numbers, and any other identifiable information
++
++```python
++def check_clinical_image_text(title, legend):
++    """Validate text limits for NEJM Images in Clinical Medicine."""
++    title_words = len(title.split())
++    legend_words = len(legend.split())
++
++    issues = []
++    if title_words > 8:
++        issues.append(f"Title has {title_words} words (max 8)")
++    if legend_words > 150:
++        issues.append(f"Legend has {legend_words} words (max 150)")
++
++    if issues:
++        for issue in issues:
++            print(f"ISSUE: {issue}")
++    else:
++        print(f"PASS: Title ({title_words} words), Legend ({legend_words} words)")
++
++    return len(issues) == 0
++```
++
++---
++
++## Image Integrity and Manipulation Policy
++
++### PROHIBITED
++- Enhancing, obscuring, moving, removing, or introducing any specific feature within an image
++
++### REQUIRED
++- Brightness, color, and contrast adjustments must be applied **uniformly to the entire image**
++- Adjustments must not misrepresent any features of the original image
++
++### Best Practices
++- Maintain original unprocessed image files
++- Document all processing steps
++- Be prepared to provide raw data upon request
++
++---
++
++## Python Quick Start: Full Validation
++
++```python
++from PIL import Image
++import os
++
++def validate_nejm_figure(image_path, image_type='photo', stage='final'):
++    """Full validation of a figure against NEJM requirements."""
++    img = Image.open(image_path)
++    issues = []
++
++    # 1. Resolution check
++    min_dpi = {'lineart': 1200, 'photo': 300}
++    required = min_dpi.get(image_type, 300)
++    if stage == 'review':
++        required = 150
++    dpi = img.info.get('dpi', (72, 72))
++    if dpi[0] < required:
++        issues.append(f"Resolution {dpi[0]} DPI below {required} DPI for {image_type} ({stage})")
++
++    # 2. Color mode
++    if img.mode not in ('RGB', 'RGBA', 'L'):
++        issues.append(f"Color mode {img.mode} may not be ideal; use RGB or Grayscale")
++
++    # 3. Format check
++    fmt = img.format
++    vector_preferred = image_type != 'photo'
++    if vector_preferred and fmt and fmt.upper() in ('JPEG', 'PNG'):
++        issues.append(f"Data visualizations: prefer vector format (AI, EPS, SVG) over {fmt}")
++
++    # Report
++    print(f"=== NEJM Figure Validation ({stage}) ===")
++    print(f"Dimensions: {img.size[0]} x {img.size[1]} px")
++    print(f"DPI: {dpi[0]} x {dpi[1]}")
++    print(f"Color mode: {img.mode}")
++
++    if issues:
++        print(f"\nISSUES FOUND ({len(issues)}):")
++        for issue in issues:
++            print(f"  - {issue}")
++    else:
++        print("\nAll checks PASSED")
++
++    print("\nREMINDER: Do NOT submit finished medical illustrations (NEJM creates these)")
++    print("REMINDER: Remove ALL patient-identifying information from images")
++
++    return len(issues) == 0
++```
++
++---
++
++## Key Concepts
++
++### In-House Medical Illustration
++
++NEJM's most distinctive policy is that medical illustrations are created by their in-house illustrators working directly with authors. Authors should NOT submit finished medical illustrations. The journal retains copyright on illustrations created by their team. This applies only to medical illustrations — data visualizations and photographs are author-submitted.
++
++### Two-Stage Resolution Requirements
++
++NEJM accepts lower-resolution figures during peer review to reduce submission friction. However, final publication requires full resolution: 1,200 DPI for line art and 300 DPI for photographs. Authors should prepare high-resolution originals from the start to avoid rework.
++
++### Patient Privacy in Clinical Images
++
++NEJM enforces strict patient privacy requirements. All patient-identifying information must be removed from images, including faces, names, medical record numbers, and any other identifiable features. This is non-negotiable and applies to all clinical images regardless of consent status.
++
++## Decision Framework
++
++```
++What type of figure are you preparing?
++├── Medical illustration (anatomy, mechanism)
++│   └── Do NOT submit → NEJM illustrators create these
++├── Data visualization (graph, chart, diagram)
++│   ├── Vector source available → AI, EPS, or SVG (preferred)
++│   └── Raster only → TIFF at 1,200 DPI (line art) or 300 DPI (photo)
++├── Clinical photograph
++│   ├── Patient identifiable? → Remove ALL identifying information
++│   └── Ready for submission → TIFF at 300+ DPI
++└── What stage?
++    ├── Peer review → Lower resolution acceptable
++    └── Final publication → Full resolution required
++```
++
++| Scenario | Format | Resolution | Special Considerations |
++|---|---|---|---|
++| Kaplan-Meier curve | AI, EPS, SVG | Vector | Editable format preferred |
++| Clinical photograph | TIFF | 300+ DPI | Remove patient identifiers |
++| Histology image | TIFF | 300+ DPI | Include scale bar |
++| Flowchart or diagram | AI, EPS, SVG | Vector | Use Univers or Helvetica |
++| Medical illustration | Do NOT submit | N/A | NEJM creates in-house |
++| Images in Clinical Medicine | TIFF/JPEG | 300+ DPI | Title max 8 words, legend max 150 words |
++
++## Best Practices
++
++1. **Submit data visualizations as editable vector files**: NEJM prefers AI, EPS, or SVG for graphs and diagrams. Vector formats allow their production team to make typographic adjustments
++2. **Do not submit finished medical illustrations**: NEJM's in-house illustrators will create these. Submit reference sketches or descriptions instead
++3. **Remove all patient-identifying information**: Strip faces, names, record numbers, and any identifiable features from clinical images before submission
++4. **Prepare high-resolution originals early**: Although peer review accepts lower resolution, having 300+ DPI originals ready prevents delays during final production
++5. **Use Univers or Helvetica fonts**: NEJM's house font is Univers; Helvetica and Arial are acceptable alternatives. Ensure all text is legible at final reduction size
++6. **Respect word limits for Images in Clinical Medicine**: Titles must be 8 words or fewer; legends must be 150 words or fewer
++7. **Maintain original unprocessed files**: NEJM may request raw data at any point during review or after publication
++
++## Common Pitfalls
++
++1. **Submitting finished medical illustrations**: NEJM retains copyright on illustrations they create. Submitting finished artwork creates copyright conflicts
++   - *How to avoid*: Provide reference sketches, descriptions, or rough drafts; NEJM illustrators will create the final version
++2. **Leaving patient-identifying information in images**: Any identifiable features in clinical images can result in rejection and ethical concerns
++   - *How to avoid*: Review all clinical images for faces, names, ID numbers, and other identifiers; blur or crop as needed
++3. **Using raster formats for data visualizations**: JPEG or PNG graphs lose editability and may appear pixelated at print size
++   - *How to avoid*: Export charts and diagrams as AI, EPS, or SVG from your plotting software
++4. **Submitting low-resolution line art**: Line art requires 1,200 DPI — significantly higher than the 300 DPI for photographs
++   - *How to avoid*: Export line art at 1,200 DPI or use vector formats that are resolution-independent
++5. **Exceeding word limits for clinical image submissions**: Images in Clinical Medicine has strict limits (8-word title, 150-word legend)
++   - *How to avoid*: Count words before submission; move detailed descriptions to supplementary text if needed
++
++## Pre-Submission Checklist
++
++Before submitting figures to NEJM, verify:
++
++- [ ] Line art at 1,200+ DPI
++- [ ] Photographs at 300+ DPI (lower OK for peer review only)
++- [ ] Data visualizations in editable vector format (AI, EPS, SVG)
++- [ ] Photographs in TIFF format
++- [ ] Medical illustrations: NOT submitted (NEJM creates these in-house)
++- [ ] Sans-serif font used (Univers, Helvetica, or Arial)
++- [ ] All text legible at final print size
++- [ ] Images in Clinical Medicine: title ≤ 8 words, legend ≤ 150 words
++- [ ] **All patient-identifying information removed**
++- [ ] Adjustments applied uniformly to entire image
++- [ ] No selective enhancement of image features
++- [ ] Original unprocessed data retained
++
++---
++
++## References
++
++- NEJM Author Center: https://www.nejm.org/author-center/new-manuscripts
++- NEJM Technical Guidelines for Figures: https://www.nejm.org/pb-assets/pdfs/Technical-Guidelines-for-Figures.pdf
++- NEJM Editorial Policies: https://www.nejm.org/about-nejm/editorial-policies
+diff --git a/skills/scientific-writing/pnas-figure-guide/SKILL.md b/skills/scientific-writing/pnas-figure-guide/SKILL.md
+new file mode 100644
+index 0000000..fed7a97
+--- /dev/null
++++ b/skills/scientific-writing/pnas-figure-guide/SKILL.md
+@@ -0,0 +1,380 @@
++---
++name: pnas-figure-guide
++description: "Figure and image preparation guide for PNAS. Covers resolution (300-1000 PPI by type), file formats (TIFF, EPS, PDF), strict RGB-only color mode, Arial/Helvetica fonts, italicized uppercase panel labels, and automated image screening."
++license: CC-BY-4.0
++compatibility: Python 3.10+, Pillow, Matplotlib
++metadata:
++  authors: HITS
++  version: "1.0"
++---
++
++# PNAS Figure Preparation Guide
++
++## Overview
++
++This guide provides the complete specifications for preparing figures for submission to **PNAS** (Proceedings of the National Academy of Sciences). PNAS is notable for its **strict RGB-only policy** (CMYK submissions are returned), **italicized uppercase panel labels**, and **automated image screening software**.
++
++**Official reference**: https://www.pnas.org/author-center/submitting-your-manuscript
++
++---
++
++## Resolution Requirements
++
++| Image Type | Minimum Resolution | Notes |
++|---|---|---|
++| Halftones (color/grayscale photos) | **300 PPI** | At publication size |
++| Combination artwork (MS Office) | **600-900 DPI** | Mixed text and images |
++| Line art (bitmap text/thin lines) | **1,000 PPI** | At publication size |
++| LaTeX figures | — | High-quality PDF or EPS |
++
++```python
++from PIL import Image
++
++def check_pnas_resolution(image_path, image_type='halftone'):
++    """Check if image meets PNAS resolution requirements.
++
++    Args:
++        image_type: 'halftone' (300), 'combination' (600), or 'lineart' (1000)
++    """
++    min_ppi = {'halftone': 300, 'combination': 600, 'lineart': 1000}
++    required = min_ppi.get(image_type, 300)
++
++    img = Image.open(image_path)
++    dpi = img.info.get('dpi', (72, 72))
++
++    print(f"Type: {image_type} | Required: {required} PPI | Actual: {dpi[0]} PPI")
++
++    if dpi[0] >= required:
++        print("PASS")
++    else:
++        print(f"FAIL: Need {required} PPI minimum")
++
++    return dpi[0] >= required
++```
++
++---
++
++## File Format
++
++| Format | Accepted |
++|---|---|
++| **TIFF** | Yes (preferred for raster) |
++| **EPS** | Yes (fonts must be embedded) |
++| **PDF** | Yes (fonts must be embedded) |
++| **PPT** | Yes |
++| **3D images** | PRC or U3D with 2D representation (TIFF/EPS/PDF) |
++
++### Submission Stages
++- **Initial submission**: Format-neutral — single PDF containing full manuscript, figures, and SI. High-resolution files not required.
++- **Production phase**: Separate high-resolution figure uploads required.
++
++---
++
++## Figure Size and Dimensions
++
++**IMPORTANT**: Provide images at **final publication size**, not full-page size.
++
++| Layout | Width |
++|---|---|
++| 1 column | **8.7 cm** (3.43 in) |
++| 1.5 columns | **11.4 cm** (4.5 in / 27 picas) |
++| 2 columns | **17.8 cm** (7.0 in / 42.125 picas) |
++| Maximum height | **22.5 cm** (9 in / 54 picas) |
++
++```python
++import matplotlib.pyplot as plt
++
++PNAS_WIDTHS = {
++    'single':  8.7 / 2.54,   # 3.43 inches
++    'middle':  11.4 / 2.54,  # 4.49 inches
++    'double':  17.8 / 2.54,  # 7.01 inches
++}
++PNAS_MAX_HEIGHT = 22.5 / 2.54  # 8.86 inches
++
++def create_pnas_figure(layout='single', aspect_ratio=0.75):
++    """Create a Matplotlib figure sized for PNAS."""
++    width = PNAS_WIDTHS[layout]
++    height = min(width * aspect_ratio, PNAS_MAX_HEIGHT)
++
++    fig, ax = plt.subplots(figsize=(width, height))
++    fig.set_dpi(300)
++    return fig, ax
++```
++
++---
++
++## Color Mode
++
++### CRITICAL: RGB Only
++
++- **Submit in RGB color mode ONLY**
++- **CMYK submissions will be returned for correction**
++- Tag RGB images with originating ICC profile for accurate RGB-to-CMYK conversion
++- PNAS manages print conversion using calibrated profiles
++
++```python
++from PIL import Image
++
++def validate_pnas_color_mode(image_path):
++    """PNAS strictly requires RGB. CMYK will be rejected."""
++    img = Image.open(image_path)
++
++    if img.mode == 'CMYK':
++        print("REJECTED: PNAS does not accept CMYK images")
++        print("Action: Convert to RGB before submission")
++        return False
++    elif img.mode in ('RGB', 'RGBA'):
++        print("PASS: Image is in RGB mode")
++        return True
++    else:
++        print(f"WARNING: Unexpected mode '{img.mode}'; convert to RGB")
++        return False
++
++def convert_to_rgb(image_path, output_path):
++    """Convert any image to RGB for PNAS submission."""
++    img = Image.open(image_path)
++    if img.mode != 'RGB':
++        img = img.convert('RGB')
++        print(f"Converted from {img.mode} to RGB")
++    img.save(output_path)
++```
++
++---
++
++## Font Requirements
++
++| Element | Specification |
++|---|---|
++| Approved fonts | **Arial, Helvetica, Times, Symbol, Mathematical Pi, European Pi** |
++| Font size | **6-8 pt** at final publication size (minimum 2 mm when printed) |
++| Consistency | Same font for all figures in manuscript |
++| Text type | **Vector text** preferred (scales cleanly) |
++| Embedding | **All fonts must be embedded** in EPS and PDF files |
++
++### Panel Labels (PNAS-Specific Convention)
++- **Italicized uppercase letters**: *A*, *B*, *C*, *D*, ...
++- This is a distinctive PNAS convention — different from most other journals
++
++```python
++import matplotlib.pyplot as plt
++
++def set_pnas_fonts():
++    """Configure Matplotlib for PNAS figure fonts."""
++    plt.rcParams.update({
++        'font.family': 'sans-serif',
++        'font.sans-serif': ['Arial', 'Helvetica'],
++        'font.size': 7,
++        'axes.labelsize': 7,
++        'axes.titlesize': 7,
++        'xtick.labelsize': 6,
++        'ytick.labelsize': 6,
++        'legend.fontsize': 6,
++    })
++
++def add_pnas_panel_labels(fig, axes):
++    """Add PNAS-style italicized uppercase panel labels."""
++    import string
++    if not hasattr(axes, '__iter__'):
++        axes = [axes]
++
++    for i, ax in enumerate(axes):
++        label = string.ascii_uppercase[i]
++        ax.text(-0.1, 1.1, label,
++                transform=ax.transAxes,
++                fontsize=8,
++                fontstyle='italic',
++                fontweight='bold',
++                va='top',
++                ha='right',
++                fontfamily='Arial')
++```
++
++---
++
++## Labeling Conventions
++
++- Panel labels: **Italicized uppercase** (*A*, *B*, *C*)
++- All text, numbers, letters, symbols: **6-12 pt (2-6 mm)** after reduction
++- Text sizing must be **consistent within each graphic**
++- Labels should match body text font conventions
++
++---
++
++## Image Integrity and Manipulation Policy
++
++### PROHIBITED
++- Enhancing, obscuring, moving, removing, or introducing any specific feature within an image
++
++### PERMITTED
++- Brightness, contrast, color balance adjustments applied to the **whole image** without obscuring or eliminating original information (including backgrounds)
++
++### REQUIRED
++- When combining images from multiple sources: make **explicit** by arrangement and figure legend text
++- Name processing software in Methods section
++- Indicate all manipulations in figure legends
++- Original data must be available on request (missing data may result in rejection)
++
++### Automated Screening
++**PNAS uses screening software** to detect:
++- Cloning and pasting artifacts
++- Suspicious contrast adjustments that obscure data
++- Inconsistent background pixelation
++- Other signs of inappropriate image manipulation
++
++### Accessibility
++- Beginning with Volume 123, PNAS includes **alt text** for all journal figures to improve digital accessibility
++
++---
++
++## Python Quick Start: Full Validation
++
++```python
++from PIL import Image
++import os
++
++def validate_pnas_figure(image_path, image_type='halftone', layout='single'):
++    """Full validation of a figure against PNAS requirements."""
++    img = Image.open(image_path)
++    issues = []
++
++    # 1. Resolution check
++    min_ppi = {'halftone': 300, 'combination': 600, 'lineart': 1000}
++    required = min_ppi.get(image_type, 300)
++    dpi = img.info.get('dpi', (72, 72))
++    if dpi[0] < required:
++        issues.append(f"Resolution {dpi[0]} PPI below {required} PPI for {image_type}")
++
++    # 2. STRICT RGB check
++    if img.mode == 'CMYK':
++        issues.append("REJECTED: CMYK not accepted. Must convert to RGB")
++    elif img.mode not in ('RGB', 'RGBA'):
++        issues.append(f"Color mode '{img.mode}' not standard; use RGB")
++
++    # 3. Dimension check at publication size
++    widths_cm = {'single': 8.7, 'middle': 11.4, 'double': 17.8}
++    max_height_cm = 22.5
++    if layout in widths_cm and dpi[0] > 0:
++        actual_w_cm = (img.size[0] / dpi[0]) * 2.54
++        actual_h_cm = (img.size[1] / dpi[1]) * 2.54
++        target_w = widths_cm[layout]
++        if actual_h_cm > max_height_cm:
++            issues.append(f"Height {actual_h_cm:.1f} cm exceeds max {max_height_cm} cm")
++        print(f"Print size: {actual_w_cm:.1f} x {actual_h_cm:.1f} cm (target width: {target_w} cm)")
++
++    # 4. Format check
++    fmt = img.format
++    accepted = ['TIFF', 'EPS', 'PDF', 'PNG', 'JPEG']
++    if fmt and fmt.upper() not in accepted:
++        issues.append(f"Format '{fmt}' not in preferred list (TIFF, EPS, PDF)")
++
++    # Report
++    print(f"=== PNAS Figure Validation ===")
++    print(f"Dimensions: {img.size[0]} x {img.size[1]} px")
++    print(f"DPI: {dpi[0]} x {dpi[1]}")
++    print(f"Color mode: {img.mode}")
++
++    if issues:
++        print(f"\nISSUES FOUND ({len(issues)}):")
++        for issue in issues:
++            print(f"  - {issue}")
++    else:
++        print("\nAll checks PASSED")
++
++    return len(issues) == 0
++```
++
++---
++
++## Key Concepts
++
++### Strict RGB-Only Policy
++
++PNAS enforces one of the strictest color mode policies in scientific publishing. CMYK submissions are returned without review. Authors must submit all figures in RGB color mode and tag images with their originating ICC profile to ensure accurate RGB-to-CMYK conversion by the journal's production team.
++
++### Three-Tier Resolution System
++
++PNAS uses PPI (pixels per inch) rather than DPI and defines three tiers: 300 PPI for halftones (photographs), 600-900 DPI for combination artwork (mixed text and images from MS Office), and 1,000 PPI for line art (bitmap text and thin lines). Images must meet these thresholds at final publication size.
++
++### Automated Image Screening
++
++PNAS employs screening software that automatically detects signs of inappropriate image manipulation including cloning/pasting artifacts, suspicious contrast adjustments, and inconsistent background pixelation. This automated screening supplements editorial review and can flag issues that manual inspection might miss.
++
++## Decision Framework
++
++```
++What color mode is your image?
++├── CMYK → REJECTED (convert to RGB before submission)
++├── RGB → Accepted
++│   └── ICC profile tagged? → Recommended for accurate print conversion
++└── Grayscale → Convert to RGB
++
++What type of image?
++├── Halftone (photo/micrograph) → 300 PPI minimum
++├── Combination (MS Office mixed) → 600-900 DPI
++├── Line art (bitmap text/lines) → 1,000 PPI
++└── LaTeX figure → High-quality PDF or EPS
++
++What submission stage?
++├── Initial → Single PDF with all content (format-neutral)
++└── Production → Separate high-resolution figure uploads
++```
++
++| Scenario | Format | Resolution | Color Mode |
++|---|---|---|---|
++| Micrograph | TIFF | 300 PPI | RGB (ICC tagged) |
++| PowerPoint chart | PPT or TIFF | 600-900 DPI | RGB |
++| Schematic diagram | EPS or PDF | Vector or 1,000 PPI | RGB |
++| Gel/blot image | TIFF | 300 PPI | RGB |
++| 3D molecular model | PRC/U3D + TIFF | 300 PPI (2D fallback) | RGB |
++
++## Best Practices
++
++1. **Convert CMYK to RGB before submission**: PNAS returns CMYK files without review. Always verify color mode before upload using image metadata tools
++2. **Tag RGB images with ICC profiles**: Embedding the originating ICC profile ensures accurate color conversion during PNAS's print production pipeline
++3. **Provide images at final publication size**: PNAS requires figures sized to column widths (8.7/11.4/17.8 cm). Do not submit oversized images expecting the journal to resize
++4. **Use italicized uppercase panel labels**: PNAS uses a distinctive convention — *A*, *B*, *C* (italic, uppercase) — that differs from most other journals
++5. **Embed all fonts in EPS and PDF files**: Missing fonts cause rendering failures. Use vector text rather than rasterized text for clean scaling
++6. **Prepare alt text for accessibility**: Since Volume 123, PNAS includes alt text for all figures. Drafting alt text during figure preparation saves revision time
++7. **Name processing software in Methods**: PNAS requires explicit mention of all image processing software used, not just a general description of adjustments
++
++## Common Pitfalls
++
++1. **Submitting figures in CMYK color mode**: PNAS strictly rejects CMYK. This is the most common preventable rejection reason for figures
++   - *How to avoid*: Run the color mode validation script on every figure before submission; convert CMYK to RGB
++2. **Using 300 PPI for line art**: Line art with bitmap text requires 1,000 PPI. At 300 PPI, thin lines and small text appear jagged
++   - *How to avoid*: Classify each figure by type (halftone vs. line art vs. combination) and apply the correct resolution tier
++3. **Submitting figures larger than publication size**: PNAS requires images at final size, not oversized. Oversized figures may be rescaled, degrading quality
++   - *How to avoid*: Set canvas size to the target column width before exporting
++4. **Using non-italic panel labels**: PNAS's italic uppercase convention (*A*, *B*, *C*) is unique. Non-italic labels signal unfamiliarity with the journal
++   - *How to avoid*: Use `fontstyle='italic'` in matplotlib or the italic setting in Illustrator for panel labels
++5. **Omitting multi-source composite indicators**: When combining images from different experiments, PNAS requires explicit visual and textual indication
++   - *How to avoid*: Use clear borders or spacing between composite elements and describe the composition in the figure legend
++
++## Pre-Submission Checklist
++
++Before submitting figures to PNAS, verify:
++
++- [ ] Halftones at 300+ PPI; line art at 1,000+ PPI
++- [ ] File format is TIFF, EPS, or PDF
++- [ ] **Color mode is RGB** (NOT CMYK — will be rejected)
++- [ ] ICC profile tagged for accurate color conversion
++- [ ] Figure width matches column layout (8.7 / 11.4 / 17.8 cm)
++- [ ] Figure height does not exceed 22.5 cm
++- [ ] Images provided at **final publication size**
++- [ ] Font is Arial, Helvetica, or Times at 6-8 pt
++- [ ] All fonts embedded in EPS/PDF
++- [ ] Panel labels are **italicized uppercase** (*A*, *B*, *C*)
++- [ ] Text sizing consistent within each figure
++- [ ] All adjustments applied to entire image uniformly
++- [ ] Multi-source composites explicitly indicated in legend
++- [ ] Processing software named in Methods
++- [ ] Original unprocessed data available for review
++- [ ] Alt text prepared for accessibility
++
++---
++
++## References
++
++- PNAS Submission Guidelines: https://www.pnas.org/author-center/submitting-your-manuscript
++- PNAS Digital Art Guidelines: https://www.pnas.org/pb-assets/authors/digitalart.pdf
++- PNAS Editorial Policies: https://www.pnas.org/author-center/editorial-and-journal-policies
+diff --git a/skills/scientific-writing/science-figure-guide/SKILL.md b/skills/scientific-writing/science-figure-guide/SKILL.md
+new file mode 100644
+index 0000000..0d597fa
+--- /dev/null
++++ b/skills/scientific-writing/science-figure-guide/SKILL.md
+@@ -0,0 +1,339 @@
++---
++name: science-figure-guide
++description: "Figure and image preparation guide for Science (AAAS) journal. Covers resolution (150-300+ DPI), file formats (PDF, EPS, TIFF), RGB color mode, Myriad/Helvetica fonts, and strict image manipulation policies including gamma adjustment disclosure."
++license: CC-BY-4.0
++compatibility: Python 3.10+, Pillow, Matplotlib
++metadata:
++  authors: HITS
++  version: "1.0"
++---
++
++# Science (AAAS) Figure Preparation Guide
++
++## Overview
++
++This guide provides the complete specifications for preparing figures for submission to **Science** journal (published by AAAS). Science has different requirements for initial vs. revised manuscript submissions and requires explicit disclosure of nonlinear image adjustments.
++
++**Official reference**: https://www.science.org/content/page/instructions-preparing-initial-manuscript
++
++---
++
++## Resolution Requirements
++
++### Initial Submission
++
++| Image Type | Resolution |
++|---|---|
++| All figures | **150-300 DPI** |
++
++### Revised Manuscript (Higher Standards)
++
++| Image Type | Minimum Resolution | Notes |
++|---|---|---|
++| Line art | **300 DPI+** | At final print size |
++| Grayscale and color artwork | **300 DPI+** | Higher resolution preferred |
++
++**CRITICAL**: Upsampling (artificially increasing resolution) is **prohibited**. The resolution must be native to the image.
++
++```python
++from PIL import Image
++
++def check_science_resolution(image_path, stage='initial'):
++    """Check image resolution for Science submission.
++
++    Args:
++        image_path: Path to image file
++        stage: 'initial' (150-300 DPI) or 'revised' (300+ DPI)
++    """
++    img = Image.open(image_path)
++    dpi = img.info.get('dpi', (72, 72))
++
++    min_dpi = 150 if stage == 'initial' else 300
++
++    print(f"Stage: {stage} submission")
++    print(f"DPI: {dpi[0]} x {dpi[1]}")
++    print(f"Minimum required: {min_dpi} DPI")
++
++    if dpi[0] >= min_dpi:
++        print("PASS: Resolution meets Science requirements")
++    else:
++        print(f"FAIL: Need at least {min_dpi} DPI")
++
++    return dpi[0] >= min_dpi
++```
++
++---
++
++## File Format
++
++### Revised Manuscript Formats (in order of preference)
++
++| Figure Type | Preferred Formats |
++|---|---|
++| Vector illustrations/diagrams | **PDF, EPS, Adobe Illustrator (AI)** |
++| Raster illustrations/diagrams | **TIFF** (300+ DPI) |
++| Photography/microscopy | TIFF, JPEG, PNG, PSD, EPS, PDF |
++
++### Initial Submission
++- Figures can be embedded directly in `.docx` or PDF manuscript files
++
++---
++
++## Figure Size and Dimensions
++
++| Layout | Width |
++|---|---|
++| 1 column | **3.4 inches** (86 mm / 20.38 picas) |
++| 1.5 columns | **5.0 inches** |
++| 2 columns | **7.0-7.3 inches** |
++| Maximum | **6.5 x 8 inches** (16.5 x 20 cm) |
++
++Figures should be sized to fit 8.5" x 11" or A4 paper.
++
++```python
++import matplotlib.pyplot as plt
++
++SCIENCE_WIDTHS = {
++    'single':  3.4,   # inches
++    'middle':  5.0,
++    'double':  7.3,
++}
++
++def create_science_figure(layout='single', aspect_ratio=0.75):
++    """Create a Matplotlib figure sized for Science journal."""
++    width = SCIENCE_WIDTHS[layout]
++    height = min(width * aspect_ratio, 8.0)  # max height 8 inches
++
++    fig, ax = plt.subplots(figsize=(width, height))
++    fig.set_dpi(300)
++    return fig, ax
++```
++
++---
++
++## Color Mode
++
++- **RGB** is the standard practice
++- Journal handles CMYK conversion for print
++- No explicit color mode mandate, but RGB is recommended
++
++---
++
++## Font Requirements
++
++| Element | Font | Size | Style |
++|---|---|---|---|
++| Preferred font | **Myriad** | — | Sans-serif |
++| Alternative fonts | Helvetica, Arial | — | Sans-serif |
++| Panel labels | — | **8 pt** | **Bold** |
++| Other figure text | — | 5-7 pt | Max 7 pt, min 5 pt |
++
++### Critical Rules
++- **All fonts must be embedded**
++- Use sans-serif fonts whenever possible
++- Simple solid or open symbols reduce well at small sizes
++
++```python
++import matplotlib.pyplot as plt
++
++def set_science_fonts():
++    """Configure Matplotlib for Science journal figure fonts."""
++    plt.rcParams.update({
++        'font.family': 'sans-serif',
++        'font.sans-serif': ['Myriad Pro', 'Helvetica', 'Arial'],
++        'font.size': 7,
++        'axes.labelsize': 7,
++        'axes.titlesize': 7,
++        'xtick.labelsize': 6,
++        'ytick.labelsize': 6,
++        'legend.fontsize': 5,
++    })
++```
++
++---
++
++## Labeling Conventions
++
++### Figure Numbering
++- Cite figures in numerical order in the text
++
++### Titles and Captions
++- Figure titles go at the **beginning of the caption**, NOT inside the figure
++- No single caption should exceed approximately **200 words**
++
++### Axes
++- Label ordinate and abscissa with: **parameter/variable**, **units**, and **scale**
++- Use sans-serif fonts for all labels
++
++```python
++def format_science_axis(ax, xlabel, ylabel, x_unit='', y_unit=''):
++    """Format axes following Science journal conventions."""
++    if x_unit:
++        ax.set_xlabel(f"{xlabel} ({x_unit})", fontsize=7)
++    else:
++        ax.set_xlabel(xlabel, fontsize=7)
++
++    if y_unit:
++        ax.set_ylabel(f"{ylabel} ({y_unit})", fontsize=7)
++    else:
++        ax.set_ylabel(ylabel, fontsize=7)
++
++    ax.tick_params(labelsize=6)
++```
++
++---
++
++## Image Integrity and Manipulation Policy
++
++### PERMITTED
++- **Linear adjustments**: Brightness, contrast, color — applied **uniformly to the entire image**
++
++### REQUIRES DISCLOSURE
++- **Nonlinear adjustments** (e.g., gamma corrections) must be **specified in the figure caption**
++
++### PROHIBITED
++- **Selective enhancement**: Altering one part of an image while leaving other parts unchanged
++- Adjustments that cause changes in data interpretation
++- Manipulations applied to local areas only
++
++### Best Practices
++- Perform all manipulations only on **copies** of unprocessed image data
++- Adjustments must be moderate and not misrepresent the data
++- All changes must be applied to the **whole image**
++
++---
++
++## Python Quick Start: Full Validation
++
++```python
++from PIL import Image
++import os
++
++def validate_science_figure(image_path, stage='initial'):
++    """Full validation of a figure against Science requirements."""
++    img = Image.open(image_path)
++    issues = []
++
++    # 1. Resolution check
++    dpi = img.info.get('dpi', (72, 72))
++    min_dpi = 150 if stage == 'initial' else 300
++    if dpi[0] < min_dpi:
++        issues.append(f"Resolution {dpi[0]} DPI below minimum {min_dpi} DPI for {stage} submission")
++
++    # 2. Color mode check
++    if img.mode not in ('RGB', 'RGBA'):
++        issues.append(f"Color mode is {img.mode}; RGB recommended")
++
++    # 3. Dimension check
++    if dpi[0] > 0:
++        width_in = img.size[0] / dpi[0]
++        height_in = img.size[1] / dpi[1]
++        if width_in > 7.3:
++            issues.append(f"Width {width_in:.1f}\" exceeds maximum 7.3\"")
++        if height_in > 8.0:
++            issues.append(f"Height {height_in:.1f}\" exceeds maximum 8.0\"")
++
++    # Report
++    print(f"=== Science Figure Validation ({stage}) ===")
++    print(f"Dimensions: {img.size[0]} x {img.size[1]} px")
++    print(f"DPI: {dpi[0]} x {dpi[1]}")
++    print(f"Color mode: {img.mode}")
++
++    if issues:
++        print(f"\nISSUES FOUND ({len(issues)}):")
++        for issue in issues:
++            print(f"  - {issue}")
++    else:
++        print("\nAll checks PASSED")
++
++    return len(issues) == 0
++```
++
++---
++
++## Key Concepts
++
++### Two-Stage Submission Process
++
++Science uses different figure requirements for initial vs. revised manuscripts. Initial submissions accept 150-300 DPI figures embedded in the manuscript. Revised manuscripts require separate high-resolution files (300+ DPI) in publication-ready formats. This two-stage approach reduces upfront preparation burden while ensuring final quality.
++
++### Nonlinear Adjustment Disclosure
++
++Science uniquely requires explicit disclosure of nonlinear image adjustments (e.g., gamma corrections) in the figure caption. Linear adjustments (brightness, contrast) applied uniformly need no special disclosure. This distinction is critical — failure to disclose gamma changes can be flagged as data manipulation.
++
++### Figure Sizing Constraints
++
++Science enforces strict maximum dimensions: 6.5 x 8 inches (16.5 x 20 cm). Single-column figures are 3.4 inches wide; double-column figures are 7.0-7.3 inches. All figures must fit on standard letter (8.5 x 11 inch) or A4 paper.
++
++## Decision Framework
++
++```
++What submission stage are you at?
++├── Initial submission
++│   ├── Embed figures in manuscript (.docx or PDF)
++│   └── 150-300 DPI acceptable
++└── Revised manuscript
++    ├── Upload separate high-resolution files
++    ├── Vector figures (graphs, diagrams)
++    │   └── PDF, EPS, or AI format
++    └── Raster figures (photos, micrographs)
++        └── TIFF at 300+ DPI
++```
++
++| Scenario | Format | Resolution | Notes |
++|---|---|---|---|
++| Initial submission graph | Embedded in .docx | 150-300 DPI | Low bar for initial review |
++| Revised manuscript graph | PDF or EPS | Vector | Separate upload required |
++| Photograph (revised) | TIFF | 300+ DPI | Native resolution only |
++| Micrograph with gamma adjustment | TIFF | 300+ DPI | Disclose gamma in caption |
++| Diagram or schematic | AI or EPS | Vector | Embed all fonts |
++
++## Best Practices
++
++1. **Prepare high-resolution files from the start**: Even though initial submissions accept 150 DPI, creating figures at 300+ DPI from the beginning avoids rework during revision
++2. **Disclose all nonlinear adjustments in captions**: Gamma corrections and other nonlinear transforms must be explicitly noted in the figure caption, not just in Methods
++3. **Use Myriad Pro as primary font**: Science's preferred font is Myriad; Helvetica and Arial are acceptable alternatives. Consistent font usage across all figures is expected
++4. **Keep captions under 200 words**: Science enforces a ~200-word limit on individual figure captions. Move detailed methodology to the Methods section
++5. **Place titles in captions, not figures**: Figure titles belong at the beginning of the caption text, not rendered inside the figure itself
++6. **Label axes with parameter, units, and scale**: Science requires all axes to include the measured parameter, units in parentheses, and scale information
++7. **Use simple solid or open symbols**: Science recommends symbols that reproduce well at small sizes. Avoid complex or filled symbols that become indistinguishable when reduced
++
++## Common Pitfalls
++
++1. **Submitting low-resolution figures for revised manuscripts**: The 150 DPI floor only applies to initial submissions. Revised manuscripts require 300+ DPI
++   - *How to avoid*: Re-export all figures at 300+ DPI before submitting the revision
++2. **Failing to disclose gamma adjustments**: Nonlinear corrections not mentioned in the caption can trigger an image integrity investigation
++   - *How to avoid*: Add a sentence to the caption for any figure with gamma or nonlinear adjustments (e.g., "Gamma correction of 0.8 applied uniformly")
++3. **Exceeding figure dimension limits**: Figures wider than 7.3 inches or taller than 8 inches will be rejected
++   - *How to avoid*: Check dimensions before export; use the validation script to verify
++4. **Upsampling images to meet resolution requirements**: Artificially increasing DPI adds no real detail and may introduce artifacts
++   - *How to avoid*: Re-export from the original source at native high resolution
++5. **Using serif fonts in figures**: Science requires sans-serif fonts (Myriad, Helvetica, Arial). Serif fonts like Times New Roman are not acceptable
++   - *How to avoid*: Set sans-serif as the default in your plotting software before generating figures
++
++## Pre-Submission Checklist
++
++Before submitting figures to Science, verify:
++
++- [ ] Initial submission: 150-300 DPI minimum
++- [ ] Revised submission: 300+ DPI minimum (no upsampling)
++- [ ] Vector figures in PDF, EPS, or AI format
++- [ ] Raster figures in TIFF at 300+ DPI
++- [ ] Font is Myriad, Helvetica, or Arial (sans-serif)
++- [ ] Panel labels at 8 pt bold; text between 5-7 pt
++- [ ] All fonts embedded
++- [ ] Figure titles in caption, not inside figure
++- [ ] Captions under 200 words
++- [ ] Axes labeled with parameter, units, and scale
++- [ ] All adjustments applied uniformly to entire image
++- [ ] Gamma/nonlinear adjustments noted in caption
++- [ ] No selective enhancement of image regions
++- [ ] Original unprocessed data preserved
++
++---
++
++## References
++
++- Science Initial Manuscript Instructions: https://www.science.org/content/page/instructions-preparing-initial-manuscript
++- Science Revised Article Instructions: https://www.science.org/content/page/instructions-authors-revised-research-articles
++- Science Editorial Policies: https://www.science.org/content/page/science-journals-editorial-policies

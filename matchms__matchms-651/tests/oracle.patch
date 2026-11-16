@@ -1,0 +1,143 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index b4c882ed1..e46282995 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
+ - repair_parent_mass_is_molar_weight does only repair parent mass and does not change the precursor mz.
+ - Change repair_parent_mass_is_mol_wt to repair_parent_mass_is_molar_mass
+ - Set RDKIT version to rdkit = ">=2023.3.2,<2023.9.5" to fix installation issues. 
++- `SpectrumProcessor` will try to incrementally save when destination files are of type .msp or .mgf
+ - Use StackedSparseArray for MetadataMatch equal_match when array_type is sparse [#642](https://github.com/matchms/matchms/pull/642)
+ 
+ ## [0.24.4] -2024-01-16
+diff --git a/matchms/exporting/save_spectra.py b/matchms/exporting/save_spectra.py
+index 0c7d76c1b..40d07bd30 100644
+--- a/matchms/exporting/save_spectra.py
++++ b/matchms/exporting/save_spectra.py
+@@ -11,7 +11,9 @@
+ 
+ def save_spectra(spectrums: List[Spectrum],
+                  file: str,
+-                 export_style: str = "matchms") -> None:
++                 export_style: str = "matchms",
++                 append: bool = False,
++                 ) -> None:
+     """Saves spectra as the file type specified.
+ 
+     The following file extensions can be used:
+@@ -22,24 +24,27 @@ def save_spectra(spectrums: List[Spectrum],
+     spectrums:
+         The spectra that are saved.
+     file:
+-        Path to file containing spectra, with file extension "json", "mgf", "msp"
+-    ftype:
+-        Optional. Filetype
++        Path to file containing spectra, with file extension ".json", ".mgf", ".msp"
+     export_style:
+         Converts the keys to the required export style. One of ["matchms", "massbank", "nist", "riken", "gnps"].
+         Default is "matchms"
++    append:
++        Only supported for ".mgf", and ".msp" filetypes. If True, will try to append to an existing file, instead of creating 
++        a new file. Default is `False`.
+     """
+-    if os.path.exists(file):
++    if os.path.exists(file) and not append:
+         raise FileExistsError(f"The specified file: {file} already exists.")
+-
++    
+     ftype = os.path.splitext(file)[1].lower()[1:]
++    if append and ftype not in ('mgf', 'msp'):
++        raise ValueError(f"{ftype} isn't supported for when `append` is True")
+ 
+     if ftype == "json":
+         save_as_json(spectrums, file, export_style)
+     elif ftype == "mgf":
+         save_as_mgf(spectrums, file, export_style)
+     elif ftype == "msp":
+-        save_as_msp(spectrums, file, style=export_style)
++        save_as_msp(spectrums, file, style=export_style, mode='a')
+     elif ftype == "pickle":
+         if export_style != "matchms":
+             logger.error("The only available export style for pickle is 'matchms', your export style %s", export_style)
+diff --git a/matchms/filtering/SpectrumProcessor.py b/matchms/filtering/SpectrumProcessor.py
+index 0fba9715d..c7aebf9e1 100644
+--- a/matchms/filtering/SpectrumProcessor.py
++++ b/matchms/filtering/SpectrumProcessor.py
+@@ -178,7 +178,6 @@ def process_spectrums(self, spectrums: list,
+             Displays progress bar if set to True. Default is True.
+         cleaned_spectra_file:
+             Path to where the cleaned spectra should be saved.
+-
+         Returns
+         -------
+         Spectrums
+@@ -189,6 +188,9 @@ def process_spectrums(self, spectrums: list,
+         if cleaned_spectra_file is not None:
+             if os.path.exists(cleaned_spectra_file):
+                 raise FileExistsError("The specified save references file already exists")
++            ftype = os.path.splitext(cleaned_spectra_file)[1].lower()[1:]
++            incremental_save = ftype in ('mgf', 'msp')
++
+         if not self.filters:
+             logger.warning("No filters have been specified, so spectra were not filtered")
+         processing_report = ProcessingReport(self.filters)
+@@ -201,7 +203,10 @@ def process_spectrums(self, spectrums: list,
+             if processed_spectrum is not None:
+                 processed_spectrums.append(processed_spectrum)
+ 
+-        if cleaned_spectra_file is not None:
++            if cleaned_spectra_file is not None and incremental_save:
++                save_spectra(processed_spectrum, cleaned_spectra_file, append=True)
++
++        if cleaned_spectra_file is not None and not incremental_save:
+             save_spectra(processed_spectrums, cleaned_spectra_file)
+ 
+         return processed_spectrums, processing_report
+diff --git a/tests/filtering/test_spectrum_processor.py b/tests/filtering/test_spectrum_processor.py
+index fd1a0fd74..9dd9dd343 100644
+--- a/tests/filtering/test_spectrum_processor.py
++++ b/tests/filtering/test_spectrum_processor.py
+@@ -305,7 +305,6 @@ def nonsense_inchikey(s):
+     spectrums, _ = processor.process_spectrums(spectrums)
+     assert spectrums[0].get("inchikey") == "NONSENSENONSENSE", "Custom filter not executed properly"
+ 
+-
+ def test_save_spectra_spectrum_processor(spectrums, tmp_path):
+     processor = SpectrumProcessor(BASIC_FILTERS)
+     filename = os.path.join(tmp_path, "spectra.msp")
+@@ -320,3 +319,34 @@ def test_save_spectra_spectrum_processor(spectrums, tmp_path):
+     # Check that the processed spectra are stored
+     for spectrum in reloaded_spectra:
+         assert spectrum.get("precursor_mz") is not None
++
++@pytest.mark.parametrize('ftype, should_work', [
++    ['msp',True], 
++    ['mgf',True],
++    ['json',False],
++])
++def test_save_partial_spectra_spectrum_processor(ftype, should_work, spectrums, tmp_path):
++    processor = SpectrumProcessor(BASIC_FILTERS)
++
++    # Deliberately introduce invalid spectrum
++    spectrums[-2] = "Lorem Ipsum"
++
++    filename = os.path.join(tmp_path, f"spectra.{ftype}")
++    
++    with pytest.raises(Exception):
++        _, _ = processor.process_spectrums(spectrums, cleaned_spectra_file=str(filename))
++    
++    if should_work:
++        assert os.path.exists(filename)
++
++        # Reload spectra and compare lengths
++        reloaded_spectra = list(load_spectra(str(filename)))
++        
++        # Make sure we are only missing last two "spectra"
++        assert len(reloaded_spectra) == len(spectrums) - 2
++
++        # Check that the processed spectra are stored
++        for spectrum in reloaded_spectra:
++            assert spectrum.get("precursor_mz") is not None
++    else:
++        assert not os.path.exists(filename)
+\ No newline at end of file

@@ -1,0 +1,458 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/modules/tools/fraggraphdashboard/FragDashboardBuilder.java b/mzmine-community/src/main/java/io/github/mzmine/modules/tools/fraggraphdashboard/FragDashboardBuilder.java
+index cbb7a56c4d2..7f36bd73136 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/modules/tools/fraggraphdashboard/FragDashboardBuilder.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/modules/tools/fraggraphdashboard/FragDashboardBuilder.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -205,6 +205,7 @@ private FlowPane createFormulaSummaryBar() {
+         }
+       }
+     });
++    selectedFormulaField.formulaProperty().bindBidirectional(model.precursorFormulaProperty());
+ 
+     final Label formulaExactMassLabel = newLabel("");
+     formulaExactMassLabel.textProperty().bind(Bindings.createStringBinding(
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/util/components/FormulaTextField.java b/mzmine-community/src/main/java/io/github/mzmine/util/components/FormulaTextField.java
+index 0f0d04778c7..e609a8ae411 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/util/components/FormulaTextField.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/util/components/FormulaTextField.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -31,11 +31,10 @@
+ import io.github.mzmine.util.FormulaStringFlavor;
+ import io.github.mzmine.util.FormulaUtils;
+ import io.github.mzmine.util.StringUtils;
++import java.util.Objects;
+ import javafx.beans.binding.Bindings;
+ import javafx.beans.binding.BooleanBinding;
+ import javafx.beans.property.ObjectProperty;
+-import javafx.beans.property.ReadOnlyObjectProperty;
+-import javafx.beans.property.ReadOnlyObjectWrapper;
+ import javafx.beans.property.ReadOnlyStringProperty;
+ import javafx.beans.property.ReadOnlyStringWrapper;
+ import javafx.beans.property.SimpleObjectProperty;
+@@ -49,17 +48,53 @@
+ import org.openscience.cdk.interfaces.IMolecularFormula;
+ 
+ /**
+- * Text is bound to the formula which is read only.
++ * Bidirectionally links the text field content and a writable {@link #formulaProperty()}. Typing
++ * parses the text into a formula without ever reformatting the text, so the user's input (element
++ * order, brackets, transiently invalid states) is preserved. Setting the formula externally (e.g.
++ * via a binding) updates the text to the formatted formula. Both directions are guarded by a
++ * canonical-string equality check so no update loop can occur.
+  */
+ public class FormulaTextField extends CustomTextField {
+ 
+   private final ObjectProperty<FormulaStringFlavor> stringFlavor = new SimpleObjectProperty<>(
+       FormulaStringFlavor.DEFAULT_CHARGED);
+-  private final ReadOnlyObjectWrapper<IMolecularFormula> formula = new ReadOnlyObjectWrapper<>();
++  private final ObjectProperty<IMolecularFormula> formula = new SimpleObjectProperty<>();
+   private final ReadOnlyStringWrapper parsedFormula = new ReadOnlyStringWrapper();
+   private final StringProperty parsingError = new SimpleStringProperty();
+   private final boolean requireValue;
+ 
++  /**
++   * Create formula field and bind bidirectionally
++   *
++   * @return formula field
++   */
++  public static FormulaTextField newFormulaTextField(final boolean requireValue) {
++    return newFormulaTextField(FormulaStringFlavor.DEFAULT_CHARGED, requireValue);
++  }
++
++  public static FormulaTextField newFormulaTextField(final FormulaStringFlavor flavor,
++      final boolean requireValue) {
++    return newFormulaTextField(flavor, requireValue, null);
++  }
++
++  public static FormulaTextField newFormulaTextField(final FormulaStringFlavor flavor,
++      final boolean requireValue, @Nullable final StringProperty formulaString) {
++    var field = new FormulaTextField(flavor, requireValue);
++    if (formulaString != null) {
++      field.textProperty().bindBidirectional(formulaString);
++    }
++    return field;
++  }
++
++  /**
++   * Create formula field and bind bidirectionally
++   *
++   * @return formula field
++   */
++  public static FormulaTextField newFormulaTextField(@Nullable final StringProperty formulaString) {
++    return newFormulaTextField(FormulaStringFlavor.DEFAULT_CHARGED, false, formulaString);
++  }
++
+   /**
+    * Shows charge and allows empty value
+    */
+@@ -81,16 +116,11 @@ public FormulaTextField(FormulaStringFlavor flavor, final boolean requireValue)
+     setPromptText("Formula like: " + flavor.getInputExample());
+ 
+     textProperty().subscribe(this::parseFormula);
+-    parsedFormula.bind(formula.map(f -> {
+-      if (f == null) {
+-        return null;
+-      }
+-      try {
+-        return FormulaUtils.getFormulaString(f, stringFlavor.get());
+-      } catch (Exception e) {
+-        return null;
+-      }
+-    }));
++    // formula -> text: update text when the formula is set externally (e.g. via a binding) and the
++    // current text does not already represent it. addListener (not subscribe) so this does not fire
++    // during construction while the text listener is still being wired up.
++    formula.addListener((_, _, f) -> updateTextFromFormula(f));
++    parsedFormula.bind(formula.map(this::formulaToString));
+ 
+     final ObservableValue<String> harmonizeTooltip = parsedFormula.map(
+         parsed -> "Harmonize formula format: %s => %s".formatted(getText(), parsed));
+@@ -116,78 +146,102 @@ private void harmonizeFormula() {
+     setText(parsedFormula.get());
+   }
+ 
++  /**
++   * text -> formula: parse the current text and update the formula property, but never reformat the
++   * text. Only updates the formula when the parsed value actually differs (canonical-string
++   * equality) so the formula -> text listener converges instead of looping.
++   */
+   private void parseFormula(@Nullable String text) {
+     final FormulaStringFlavor flavor = stringFlavor.get();
+-    String format = flavor.getInputExample();
++    final String format = flavor.getInputExample();
+ 
+     if (StringUtils.isBlank(text)) {
+-      formula.set(null);
++      // guard: only clear if not already null so we do not fire a redundant change
++      if (formula.get() != null) {
++        formula.set(null);
++      }
+       parsingError.set(
+           requireValue ? "Empty value not allowed. Requires formula format: " + format : null);
+       return;
+     }
+ 
+-    try {
+-      final IMolecularFormula parsed = FormulaUtils.createMajorIsotopeMolFormulaWithCharge(text);
+-      formula.set(parsed);
+-    } catch (Exception e) {
+-      formula.set(null);
++    final IMolecularFormula parsed = parseText(text);
++    if (parsed == null) {
++      // decision: keep the last valid formula and only highlight the error so a transiently invalid
++      // input (e.g. half-typed brackets) does not clear an externally bound formula
++      parsingError.set("Cannot parse formula, required format: " + format);
++      return;
+     }
+-    if (formula.get() == null) {
+-      String error = "Cannot parse formula, required format: " + format;
+-      parsingError.set(error);
+-    } else {
+-      // clear error on success
+-      parsingError.set(null);
++
++    parsingError.set(null);
++    if (!sameFormula(parsed, formula.get())) {
++      formula.set(parsed);
+     }
+   }
+ 
+   /**
+-   * Create formula field and bind bidirectionally
+-   *
+-   * @return formula field
++   * formula -> text: update the text only when it does not already represent {@code f}. Unparseable
++   * text never equals a real formula, so an externally set formula always wins over invalid input.
+    */
+-  public static FormulaTextField newFormulaTextField(final boolean requireValue) {
+-    return newFormulaTextField(FormulaStringFlavor.DEFAULT_CHARGED, requireValue);
++  private void updateTextFromFormula(@Nullable IMolecularFormula f) {
++    if (sameFormula(f, parseText(getText()))) {
++      // text already represents this formula (or both empty) -> preserve the user's exact input
++      return;
++    }
++    setText(formulaToString(f));
++    parsingError.set(
++        f == null && requireValue ? "Empty value not allowed. Requires formula format: "
++                                    + stringFlavor.get().getInputExample() : null);
+   }
+ 
+-  public static FormulaTextField newFormulaTextField(final FormulaStringFlavor flavor,
+-      final boolean requireValue) {
+-    return newFormulaTextField(flavor, requireValue, null);
++  /**
++   * @return the formatted formula, or {@code null} if the formula is {@code null} or cannot be
++   * formatted.
++   */
++  private @Nullable String formulaToString(@Nullable final IMolecularFormula f) {
++    if (f == null) {
++      return null;
++    }
++    try {
++      return FormulaUtils.getFormulaString(f, stringFlavor.get());
++    } catch (Exception e) {
++      return null;
++    }
+   }
+ 
+-  public static FormulaTextField newFormulaTextField(final FormulaStringFlavor flavor,
+-      final boolean requireValue, @Nullable final StringProperty formulaString) {
+-    var field = new FormulaTextField(flavor, requireValue);
+-    if (formulaString != null) {
+-      field.textProperty().bindBidirectional(formulaString);
++  /**
++   * @return the parsed formula, or {@code null} if the text is blank or cannot be parsed.
++   */
++  private @Nullable IMolecularFormula parseText(@Nullable final String text) {
++    if (StringUtils.isBlank(text)) {
++      return null;
++    }
++    try {
++      return FormulaUtils.createMajorIsotopeMolFormulaWithCharge(text);
++    } catch (Exception e) {
++      return null;
+     }
+-    return field;
+   }
+ 
+   /**
+-   * Create formula field and bind bidirectionally
+-   *
+-   * @return formula field
++   * Compares two formulae by their canonical string representation (both {@code null} are equal).
++   * This is the guard that keeps the text <-> formula synchronization from looping.
+    */
+-  public static FormulaTextField newFormulaTextField(@Nullable final StringProperty formulaString) {
+-    return newFormulaTextField(FormulaStringFlavor.DEFAULT_CHARGED, false, formulaString);
++  private boolean sameFormula(@Nullable final IMolecularFormula a,
++      @Nullable final IMolecularFormula b) {
++    return Objects.equals(formulaToString(a), formulaToString(b));
+   }
+ 
+   public @Nullable IMolecularFormula getFormula() {
+     return formulaProperty().get();
+   }
+ 
+-  public ReadOnlyObjectProperty<IMolecularFormula> formulaProperty() {
+-    return formula.getReadOnlyProperty();
++  public ObjectProperty<IMolecularFormula> formulaProperty() {
++    return formula;
+   }
+ 
+-  public void setFormula(@Nullable IMolecularFormula formula) {
+-    if (formula == null) {
+-      setText(null);
+-      return;
+-    }
+-    setText(FormulaUtils.getFormulaString(formula, stringFlavor.get()));
++  public void setFormula(@Nullable final IMolecularFormula formula) {
++    this.formula.set(formula);
+   }
+ 
+   public ObjectProperty<FormulaStringFlavor> stringFlavorProperty() {
+diff --git a/mzmine-community/src/test/java/io/github/mzmine/util/components/FormulaTextFieldTest.java b/mzmine-community/src/test/java/io/github/mzmine/util/components/FormulaTextFieldTest.java
+new file mode 100644
+index 00000000000..00966d8815e
+--- /dev/null
++++ b/mzmine-community/src/test/java/io/github/mzmine/util/components/FormulaTextFieldTest.java
+@@ -0,0 +1,188 @@
++/*
++ * Copyright (c) 2004-2026 The mzmine Development Team
++ *
++ * Permission is hereby granted, free of charge, to any person
++ * obtaining a copy of this software and associated documentation
++ * files (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use,
++ * copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following
++ * conditions:
++ *
++ * The above copyright notice and this permission notice shall be
++ * included in all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
++ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
++ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
++ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
++ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
++ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
++ * OTHER DEALINGS IN THE SOFTWARE.
++ */
++
++package io.github.mzmine.util.components;
++
++import static org.junit.jupiter.api.Assertions.assertEquals;
++import static org.junit.jupiter.api.Assertions.assertNotNull;
++import static org.junit.jupiter.api.Assertions.assertNull;
++
++import fxinitializer.InitJavaFX;
++import io.github.mzmine.util.FormulaStringFlavor;
++import io.github.mzmine.util.FormulaUtils;
++import java.util.concurrent.CountDownLatch;
++import java.util.concurrent.TimeUnit;
++import javafx.application.Platform;
++import javafx.beans.property.ObjectProperty;
++import javafx.beans.property.SimpleObjectProperty;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++import org.junit.jupiter.api.BeforeAll;
++import org.junit.jupiter.api.Test;
++import org.openscience.cdk.interfaces.IMolecularFormula;
++
++/**
++ * Tests the bidirectional text <-> formula synchronization of {@link FormulaTextField}. All
++ * interactions run on the JavaFX application thread because the constructor loads an icon font.
++ */
++class FormulaTextFieldTest {
++
++  private static final FormulaStringFlavor FLAVOR = FormulaStringFlavor.DEFAULT_CHARGED;
++
++  @BeforeAll
++  static void initFx() {
++    InitJavaFX.init();
++  }
++
++  @Test
++  void typingParsesFormulaButDoesNotReformatText() throws Exception {
++    runOnFxAndWait(() -> {
++      final FormulaTextField field = new FormulaTextField(FLAVOR, false);
++      // reordered, non-canonical input
++      field.setText("O6C6H12");
++
++      // text must stay exactly as typed
++      assertEquals("O6C6H12", field.getText());
++      // but the formula must be parsed to the correct composition
++      assertNotNull(field.getFormula());
++      assertEquals(canonical("C6H12O6"), FormulaUtils.getFormulaString(field.getFormula(), FLAVOR));
++    });
++  }
++
++  @Test
++  void settingFormulaExternallyUpdatesText() throws Exception {
++    runOnFxAndWait(() -> {
++      final FormulaTextField field = new FormulaTextField(FLAVOR, false);
++      final IMolecularFormula ethanol = FormulaUtils.createMajorIsotopeMolFormulaWithCharge(
++          "C2H6O");
++
++      field.setFormula(ethanol);
++
++      assertEquals(FormulaUtils.getFormulaString(ethanol, FLAVOR), field.getText());
++      assertEquals(ethanol, field.getFormula());
++    });
++  }
++
++  @Test
++  void invalidTextKeepsLastFormulaAndExternalSetOverwritesIt() throws Exception {
++    runOnFxAndWait(() -> {
++      final FormulaTextField field = new FormulaTextField(FLAVOR, false);
++      field.setText("C6H12O6");
++      assertNotNull(field.getFormula());
++
++      // transiently invalid input (e.g. half-typed brackets) must not clear the last valid formula
++      field.setText("[C6H12");
++      assertEquals("[C6H12", field.getText());
++      assertEquals(canonical("C6H12O6"), FormulaUtils.getFormulaString(field.getFormula(), FLAVOR));
++
++      // an externally set formula wins over the invalid text (guard case)
++      final IMolecularFormula ethanol = FormulaUtils.createMajorIsotopeMolFormulaWithCharge(
++          "C2H6O");
++      field.setFormula(ethanol);
++      assertEquals(FormulaUtils.getFormulaString(ethanol, FLAVOR), field.getText());
++      assertEquals(ethanol, field.getFormula());
++    });
++  }
++
++  @Test
++  void blankTextClearsFormula() throws Exception {
++    runOnFxAndWait(() -> {
++      final FormulaTextField field = new FormulaTextField(FLAVOR, false);
++      field.setText("C2H6O");
++      assertNotNull(field.getFormula());
++
++      field.setText("");
++      assertNull(field.getFormula());
++    });
++  }
++
++  @Test
++  void bidirectionalBindingSyncsBothDirections() throws Exception {
++    runOnFxAndWait(() -> {
++      final FormulaTextField field = new FormulaTextField(FLAVOR, false);
++      final ObjectProperty<IMolecularFormula> external = new SimpleObjectProperty<>();
++      field.formulaProperty().bindBidirectional(external);
++
++      // external -> field text
++      final IMolecularFormula water = FormulaUtils.createMajorIsotopeMolFormulaWithCharge("H2O");
++      external.set(water);
++      assertEquals(FormulaUtils.getFormulaString(water, FLAVOR), field.getText());
++      assertEquals(water, field.getFormula());
++
++      // field text -> external formula
++      field.setText("CO2");
++      assertNotNull(external.get());
++      assertEquals(canonical("CO2"), FormulaUtils.getFormulaString(external.get(), FLAVOR));
++    });
++  }
++
++  private static @Nullable String canonical(@NotNull final String formula) {
++    return FormulaUtils.getFormulaString(
++        FormulaUtils.createMajorIsotopeMolFormulaWithCharge(formula), FLAVOR);
++  }
++
++  /**
++   * Runs the given action on the JavaFX application thread and blocks until it finished, rethrowing
++   * any error (including assertion failures) on the calling thread.
++   */
++  private static void runOnFxAndWait(@NotNull final Runnable action) throws Exception {
++    final CountDownLatch latch = new CountDownLatch(1);
++    final Throwable[] error = new Throwable[1];
++    final Runnable wrapped = () -> {
++      try {
++        action.run();
++      } catch (Throwable t) {
++        error[0] = t;
++      } finally {
++        latch.countDown();
++      }
++    };
++
++    // the toolkit may still be starting up right after InitJavaFX.init(), so retry until runLater
++    // is accepted instead of failing on a premature IllegalStateException
++    final long deadline = System.currentTimeMillis() + 15_000;
++    while (true) {
++      try {
++        Platform.runLater(wrapped);
++        break;
++      } catch (IllegalStateException toolkitNotReady) {
++        if (System.currentTimeMillis() > deadline) {
++          throw toolkitNotReady;
++        }
++        Thread.sleep(50);
++      }
++    }
++
++    if (!latch.await(30, TimeUnit.SECONDS)) {
++      throw new AssertionError("Timed out waiting for JavaFX task to complete");
++    }
++    if (error[0] instanceof AssertionError ae) {
++      throw ae;
++    }
++    if (error[0] != null) {
++      throw new RuntimeException(error[0]);
++    }
++  }
++}

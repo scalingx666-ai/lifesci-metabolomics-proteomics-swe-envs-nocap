@@ -1,0 +1,76 @@
+version = "1.0"
+
+[task]
+name = "default/scverse__gget-145"
+description = "cBioPortal Module"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "gget",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "scverse/gget"
+ref = "1ddb96151f0654fb135c56d6e643b2557c86bb55"
+reference = "https://github.com/scverse/gget/pull/145"
+source_access = "auto"
+built_at = "2026-11-15T21:05:47.995939+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:0c07a6753d6d3ab41853d068aecc7da4428fe75f2f90236da1cc4cdba564e5d0"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2024-07-02T19:58:05Z"
+diff_format = "unified"
+context_files = [
+    "dev-requirements.txt",
+    "docs/assets/gget_cbio_figure_1.png",
+    "docs/assets/gget_cbio_figure_2.png",
+    "docs/assets/gget_cbio_figure_3.png",
+    "docs/src/SUMMARY.md",
+    "docs/src/en/cbio.md",
+    "gget/__init__.py",
+    "gget/constants.py",
+    "gget/gget_cbio.py",
+    "gget/gget_setup.py",
+    "gget/main.py",
+    "tests/fixtures/test_cbio.json",
+    "tests/fixtures/test_cbio_search.json",
+    "tests/from_json.py",
+    "tests/test_cbio.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 1995
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

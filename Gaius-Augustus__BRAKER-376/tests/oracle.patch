@@ -1,0 +1,13 @@
+diff --git a/scripts/filterGenemark.pl b/scripts/filterGenemark.pl
+index e38fe9c..4a0f883 100755
+--- a/scripts/filterGenemark.pl
++++ b/scripts/filterGenemark.pl
+@@ -101,7 +101,7 @@
+ 
+ Example:
+ 
+-filterGenemark.pl [OPTIONS] --genemark=genemark.gtf --introns=introns.gff
++filterGenemark.pl [OPTIONS] --genemark=genemark.gtf --hints=hints.gff
+ 
+ ENDUSAGE
+ 

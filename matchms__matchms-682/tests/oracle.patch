@@ -1,0 +1,29 @@
+diff --git a/.github/workflows/stale.yml b/.github/workflows/stale.yml
+new file mode 100644
+index 000000000..c1a4b6abb
+--- /dev/null
++++ b/.github/workflows/stale.yml
+@@ -0,0 +1,23 @@
++name: Mark stale issues and pull requests
++
++on:
++  schedule:
++  - cron: "0 0 * * *"
++
++jobs:
++  close-issues:
++    runs-on: ubuntu-latest
++    permissions:
++      issues: write
++      pull-requests: write
++    steps:
++      - uses: actions/stale@v9
++        with:
++          days-before-issue-stale: 180
++          days-before-issue-close: 30
++          stale-issue-label: "stale"
++          stale-issue-message: "This issue is stale because it has been open for 180 days with no activity."
++          close-issue-message: "This issue was closed because it has been inactive for 14 days since being marked as stale."
++          days-before-pr-stale: -1
++          days-before-pr-close: -1
++          repo-token: ${{ secrets.GITHUB_TOKEN }}

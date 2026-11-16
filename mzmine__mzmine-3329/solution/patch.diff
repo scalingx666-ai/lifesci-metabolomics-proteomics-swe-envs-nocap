@@ -1,0 +1,579 @@
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/ChartLogics.java b/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/ChartLogics.java
+index 983d977b6f8..2da7a1ec443 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/ChartLogics.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/ChartLogics.java
+@@ -32,8 +32,11 @@
+ import java.awt.Point;
+ import java.awt.geom.Point2D;
+ import java.awt.geom.Rectangle2D;
++import java.util.ArrayList;
+ import java.util.logging.Logger;
+ import javax.swing.JPanel;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
+ import org.jfree.chart.ChartPanel;
+ import org.jfree.chart.ChartRenderingInfo;
+ import org.jfree.chart.JFreeChart;
+@@ -43,9 +46,11 @@
+ import org.jfree.chart.entity.AxisEntity;
+ import org.jfree.chart.entity.ChartEntity;
+ import org.jfree.chart.entity.EntityCollection;
++import org.jfree.chart.entity.XYItemEntity;
+ import org.jfree.chart.plot.CombinedDomainXYPlot;
+ import org.jfree.chart.plot.CombinedRangeXYPlot;
+ import org.jfree.chart.plot.Plot;
++import org.jfree.chart.plot.PlotRenderingInfo;
+ import org.jfree.chart.plot.ValueAxisPlot;
+ import org.jfree.chart.plot.XYPlot;
+ import org.jfree.chart.ui.RectangleEdge;
+@@ -133,10 +138,12 @@ public static Point2D mouseXYToPlotXY(ChartPanel myChart, int mouseX, int mouseY
+       }
+ 
+       if (domainAxis != null) {
+-        cx = domainAxis.java2DToValue(p.getX(), dataArea, domainAxisEdge);
++        cx = domainAxis.java2DToValue(getCoordinateForAxis(p.getX(), p.getY(), domainAxisEdge),
++            dataArea, domainAxisEdge);
+       }
+       if (rangeAxis != null) {
+-        cy = rangeAxis.java2DToValue(p.getY(), dataArea, rangeAxisEdge);
++        cy = rangeAxis.java2DToValue(getCoordinateForAxis(p.getX(), p.getY(), rangeAxisEdge),
++            dataArea, rangeAxisEdge);
+       }
+     } else {
+       throw new Exception("no xyplot found");
+@@ -145,6 +152,11 @@ public static Point2D mouseXYToPlotXY(ChartPanel myChart, int mouseX, int mouseY
+ 
+   }
+ 
++  private static double getCoordinateForAxis(double x, double y, RectangleEdge axisEdge) {
++    // decision: horizontal edges use the x-coordinate, vertical edges use y.
++    return RectangleEdge.isTopOrBottom(axisEdge) ? x : y;
++  }
++
+   /**
+    * Subplot or main plot at point
+    *
+@@ -194,11 +206,57 @@ public static ChartEntity findChartEntity(ChartPanel chart, double mx, double my
+       EntityCollection entities = info.getEntityCollection();
+       if (entities != null) {
+         entity = entities.getEntity(x, y);
++        if (entity instanceof XYItemEntity && !isInAnyDataArea(info, x, y)) {
++          // decision: data items should only be selectable inside plot data bounds.
++          entity = findNonDataEntityAt(entities, x, y);
++        }
+       }
+     }
+     return entity;
+   }
+ 
++  private static boolean isInAnyDataArea(final @NotNull ChartRenderingInfo info, final double x,
++      final double y) {
++    final PlotRenderingInfo plotInfo = info.getPlotInfo();
++    if (plotInfo == null) {
++      return false;
++    }
++
++    final Rectangle2D mainDataArea = plotInfo.getDataArea();
++    if (mainDataArea != null && mainDataArea.contains(x, y)) {
++      return true;
++    }
++
++    for (int i = 0; i < plotInfo.getSubplotCount(); i++) {
++      final PlotRenderingInfo subplotInfo = plotInfo.getSubplotInfo(i);
++      if (subplotInfo == null) {
++        continue;
++      }
++      final Rectangle2D subplotDataArea = subplotInfo.getDataArea();
++      if (subplotDataArea != null && subplotDataArea.contains(x, y)) {
++        return true;
++      }
++    }
++    return false;
++  }
++
++  private static @Nullable ChartEntity findNonDataEntityAt(final @NotNull EntityCollection entities,
++      final double x, final double y) {
++    final var allEntities = new ArrayList<>(entities.getEntities());
++    for (int i = allEntities.size() - 1; i >= 0; i--) {
++      if (!(allEntities.get(i) instanceof ChartEntity candidate)) {
++        continue;
++      }
++      if (candidate instanceof XYItemEntity || candidate.getArea() == null) {
++        continue;
++      }
++      if (candidate.getArea().contains(x, y)) {
++        return candidate;
++      }
++    }
++    return null;
++  }
++
+   /**
+    * Translates screen (pixel) values to plot values
+    *
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/ChartLogicsFX.java b/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/ChartLogicsFX.java
+index d7fb48ab386..f1fe06000a3 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/ChartLogicsFX.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/ChartLogicsFX.java
+@@ -32,6 +32,7 @@
+ import java.util.ArrayList;
+ import java.util.List;
+ import java.util.logging.Logger;
++import org.jetbrains.annotations.NotNull;
+ import org.jetbrains.annotations.Nullable;
+ import org.jfree.chart.ChartRenderingInfo;
+ import org.jfree.chart.JFreeChart;
+@@ -40,6 +41,7 @@
+ import org.jfree.chart.entity.AxisEntity;
+ import org.jfree.chart.entity.ChartEntity;
+ import org.jfree.chart.entity.EntityCollection;
++import org.jfree.chart.entity.XYItemEntity;
+ import org.jfree.chart.fx.ChartCanvas;
+ import org.jfree.chart.fx.ChartViewer;
+ import org.jfree.chart.plot.CategoryPlot;
+@@ -74,7 +76,7 @@ public class ChartLogicsFX {
+    * @return Range as chart coordinates
+    */
+   public static Point2D mouseXYToPlotXY(ChartViewer myChart, int mouseX, int mouseY) {
+-    return mouseXYToPlotXY(myChart, mouseX, mouseY);
++    return mouseXYToPlotXY(myChart, (double) mouseX, (double) mouseY);
+   }
+ 
+   /**
+@@ -101,15 +103,22 @@ public static Point2D mouseXYToPlotXY(ChartViewer myChart, double mouseX, double
+       RenderedValueAxis rangeAxis = RenderedValueAxis.rangeOf(plot);
+ 
+       if (domainAxis != null) {
+-        cx = domainAxis.java2DToValue(mouseX, dataArea);
++        cx = domainAxis.java2DToValue(getCoordinateForAxis(mouseX, mouseY, domainAxis.edge()),
++            dataArea);
+       }
+       if (rangeAxis != null) {
+-        cy = rangeAxis.java2DToValue(mouseY, dataArea);
++        cy = rangeAxis.java2DToValue(getCoordinateForAxis(mouseX, mouseY, rangeAxis.edge()),
++            dataArea);
+       }
+     }
+     return new Point2D.Double(cx, cy);
+   }
+ 
++  private static double getCoordinateForAxis(double x, double y, RectangleEdge axisEdge) {
++    // decision: horizontal edges use the x-coordinate, vertical edges use y.
++    return RectangleEdge.isTopOrBottom(axisEdge) ? x : y;
++  }
++
+   private static XYPlot findPlotAtMouseXY(ChartViewer myChart, double mouseX, double mouseY) {
+     ChartRenderingInfo info = myChart.getRenderingInfo();
+     if (info == null) {
+@@ -160,11 +169,57 @@ public static ChartEntity findChartEntity(ChartCanvas chart, double mx, double m
+       EntityCollection entities = info.getEntityCollection();
+       if (entities != null) {
+         entity = entities.getEntity(x, y);
++        if (entity instanceof XYItemEntity && !isInAnyDataArea(info, x, y)) {
++          // decision: data items should only be selectable inside plot data bounds.
++          entity = findNonDataEntityAt(entities, x, y);
++        }
+       }
+     }
+     return entity;
+   }
+ 
++  private static boolean isInAnyDataArea(final @NotNull ChartRenderingInfo info, final double x,
++      final double y) {
++    final PlotRenderingInfo plotInfo = info.getPlotInfo();
++    if (plotInfo == null) {
++      return false;
++    }
++
++    final Rectangle2D mainDataArea = plotInfo.getDataArea();
++    if (mainDataArea != null && mainDataArea.contains(x, y)) {
++      return true;
++    }
++
++    for (int i = 0; i < plotInfo.getSubplotCount(); i++) {
++      final PlotRenderingInfo subplotInfo = plotInfo.getSubplotInfo(i);
++      if (subplotInfo == null) {
++        continue;
++      }
++      final Rectangle2D subplotDataArea = subplotInfo.getDataArea();
++      if (subplotDataArea != null && subplotDataArea.contains(x, y)) {
++        return true;
++      }
++    }
++    return false;
++  }
++
++  private static @Nullable ChartEntity findNonDataEntityAt(final @NotNull EntityCollection entities,
++      final double x, final double y) {
++    final var allEntities = new ArrayList<>(entities.getEntities());
++    for (int i = allEntities.size() - 1; i >= 0; i--) {
++      if (!(allEntities.get(i) instanceof ChartEntity candidate)) {
++        continue;
++      }
++      if (candidate instanceof XYItemEntity || candidate.getArea() == null) {
++        continue;
++      }
++      if (candidate.getArea().contains(x, y)) {
++        return candidate;
++      }
++    }
++    return null;
++  }
++
+   /**
+    * Subplot or main plot at point
+    *
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gestures/ChartGestureDragDiffHandler.java b/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gestures/ChartGestureDragDiffHandler.java
+index 631ca62a3d7..b92038e3649 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gestures/ChartGestureDragDiffHandler.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gestures/ChartGestureDragDiffHandler.java
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2004-2025 The mzmine Development Team
++ * Copyright (c) 2004-2026 The mzmine Development Team
+  *
+  * Permission is hereby granted, free of charge, to any person
+  * obtaining a copy of this software and associated documentation
+@@ -33,10 +33,15 @@
+ import io.github.mzmine.gui.chartbasics.gui.wrapper.MouseEventWrapper;
+ import java.awt.geom.Point2D;
+ import java.util.function.Consumer;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
+ import org.jfree.chart.JFreeChart;
++import org.jfree.chart.axis.ValueAxis;
+ import org.jfree.chart.entity.AxisEntity;
+ import org.jfree.chart.entity.ChartEntity;
+ import org.jfree.chart.plot.PlotOrientation;
++import org.jfree.chart.plot.XYPlot;
++import org.jfree.chart.ui.RectangleEdge;
+ 
+ /**
+  * The {@link ChartGestureDragDiffHandler} consumes primary mouse events to generate
+@@ -87,9 +92,16 @@ public ChartGestureDragDiffHandler(ChartGesture.Entity entity, GestureButton but
+    * use default orientation or orientation of axis
+    *
+    * @param event
+-   * @return
++   * @return the orientation of the event along the axis if the entity is a {@link AxisEntity},
++   * otherwise the plot orientation.
+    */
+-  public Orientation getOrientation(ChartGestureEvent event) {
++  public @NotNull Orientation getOrientation(final @NotNull ChartGestureEvent event) {
++    final Orientation axisOrientation = getAxisOrientation(event);
++    if (axisOrientation != null) {
++      orient = axisOrientation;
++      return orient;
++    }
++
+     ChartEntity ce = event.getEntity();
+     if (ce instanceof AxisEntity) {
+       JFreeChart chart = event.getChart();
+@@ -111,6 +123,30 @@ public Orientation getOrientation(ChartGestureEvent event) {
+     return orient;
+   }
+ 
++  /**
++   * @return the orientation of the axis, or {@code null} if the axis is not a {@link AxisEntity}
++   */
++  private @Nullable Orientation getAxisOrientation(final @NotNull ChartGestureEvent event) {
++    final ValueAxis axis = event.getAxis();
++    if (axis == null || !(axis.getPlot() instanceof XYPlot plot)) {
++      return null;
++    }
++
++    for (int i = 0; i < plot.getDomainAxisCount(); i++) {
++      if (axis.equals(plot.getDomainAxis(i))) {
++        final RectangleEdge edge = plot.getDomainAxisEdge(i);
++        return RectangleEdge.isTopOrBottom(edge) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
++      }
++    }
++    for (int i = 0; i < plot.getRangeAxisCount(); i++) {
++      if (axis.equals(plot.getRangeAxis(i))) {
++        final RectangleEdge edge = plot.getRangeAxisEdge(i);
++        return RectangleEdge.isTopOrBottom(edge) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
++      }
++    }
++    return null;
++  }
++
+   /**
+    * Handle PRESSED, DRAGGED, RELEASED events to generate drag diff events
+    *
+@@ -146,24 +182,16 @@ public void accept(ChartGestureEvent event) {
+         } else if (event.checkEvent(Event.DRAGGED)) {
+           if (last != null) {
+             // get data space coordinates
+-            Point2D released = chartPanel.mouseXYToPlotXY(e.getX(), e.getY());
++            final Point2D released = chartPanel.mouseXYToPlotXY(e.getX(), e.getY());
+             if (released != null) {
+-              double offset = 0;
+-              double start = 0;
+-              // scroll x
+-              if (getOrientation(event).equals(Orientation.HORIZONTAL)) {
+-                offset = -(released.getX() - last.getX());
+-                start = first.getX();
+-              }
+-              // scroll y
+-              else {
+-                offset = -(released.getY() - last.getY());
+-                start = first.getY();
+-              }
++              final Orientation dragOrientation = getOrientation(event);
++              final double offset = -(getAxisCoordinate(event, released, dragOrientation)
++                  - getAxisCoordinate(event, last, dragOrientation));
++              final double start = getAxisCoordinate(startEvent, first, dragOrientation);
+ 
+               // new dragdiff event
+               ChartGestureDragDiffEvent dragEvent = new ChartGestureDragDiffEvent(startEvent,
+-                  lastEvent, event, start, offset, orient);
++                  lastEvent, event, start, offset, dragOrientation);
+               // scroll / zoom / do anything with this new event
+               // choose handler by key filter
+               for (int i = 0; i < dragDiffHandler.length; i++) {
+@@ -181,4 +209,23 @@ public void accept(ChartGestureEvent event) {
+       }
+     };
+   }
++
++  /**
++   *
++   * @param axisOrientation the axis orientation like horizontal or vertical when
++   *                        {@link PlotOrientation} changes.
++   * @return the coordinate of the point along the axis orientation
++   */
++  private double getAxisCoordinate(final @NotNull ChartGestureEvent event,
++      final @NotNull Point2D point, final @NotNull Orientation axisOrientation) {
++    final Entity entity = event.getGesture().getEntity();
++    if (Entity.DOMAIN_AXIS.equals(entity)) {
++      return point.getX();
++    }
++    if (Entity.RANGE_AXIS.equals(entity)) {
++      return point.getY();
++    }
++    // assumption: for generic axis gestures use the rendered axis direction as fallback.
++    return axisOrientation.equals(Orientation.HORIZONTAL) ? point.getX() : point.getY();
++  }
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gestures/ChartGestureEvent.java b/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gestures/ChartGestureEvent.java
+index 491e49035cd..c2a593ababf 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gestures/ChartGestureEvent.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gestures/ChartGestureEvent.java
+@@ -25,9 +25,19 @@
+ 
+ package io.github.mzmine.gui.chartbasics.gestures;
+ 
++import io.github.mzmine.gui.chartbasics.ChartLogics;
++import io.github.mzmine.gui.chartbasics.gestures.ChartGesture.Entity;
++import io.github.mzmine.gui.chartbasics.gestures.ChartGesture.Event;
++import io.github.mzmine.gui.chartbasics.gestures.ChartGesture.Key;
++import io.github.mzmine.gui.chartbasics.gui.swing.ChartGestureMouseAdapter;
++import io.github.mzmine.gui.chartbasics.gui.wrapper.ChartViewWrapper;
++import io.github.mzmine.gui.chartbasics.gui.wrapper.MouseEventWrapper;
+ import java.awt.event.MouseEvent;
+ import java.awt.geom.Point2D;
+ import java.util.ArrayList;
++import javafx.scene.input.ScrollEvent;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
+ import org.jfree.chart.ChartPanel;
+ import org.jfree.chart.JFreeChart;
+ import org.jfree.chart.axis.ValueAxis;
+@@ -35,15 +45,8 @@
+ import org.jfree.chart.entity.ChartEntity;
+ import org.jfree.chart.fx.ChartViewer;
+ import org.jfree.chart.plot.PlotOrientation;
+-
+-import io.github.mzmine.gui.chartbasics.ChartLogics;
+-import io.github.mzmine.gui.chartbasics.gestures.ChartGesture.Entity;
+-import io.github.mzmine.gui.chartbasics.gestures.ChartGesture.Event;
+-import io.github.mzmine.gui.chartbasics.gestures.ChartGesture.Key;
+-import io.github.mzmine.gui.chartbasics.gui.swing.ChartGestureMouseAdapter;
+-import io.github.mzmine.gui.chartbasics.gui.wrapper.ChartViewWrapper;
+-import io.github.mzmine.gui.chartbasics.gui.wrapper.MouseEventWrapper;
+-import javafx.scene.input.ScrollEvent;
++import org.jfree.chart.plot.XYPlot;
++import org.jfree.chart.ui.RectangleEdge;
+ 
+ /**
+  * {@link ChartGesture}s are part of {@link ChartGestureEvent} which are generated and processed by
+@@ -227,9 +230,15 @@ public int getSubplotIndex() {
+    * @param axis
+    * @return
+    */
+-  public Boolean isVerticalAxis(ValueAxis axis) {
++  public @Nullable Boolean isVerticalAxis(final @Nullable ValueAxis axis) {
+     if (axis == null)
+       return null;
++
++    final Boolean axisOrientation = isLeftOrRightEdge(axis);
++    if (axisOrientation != null) {
++      return axisOrientation;
++    }
++
+     JFreeChart chart = getChart();
+     PlotOrientation orient = PlotOrientation.HORIZONTAL;
+     if (chart.getXYPlot() != null)
+@@ -241,7 +250,6 @@ else if (chart.getCategoryPlot() != null)
+       return null;
+ 
+     Entity entity = this.getGesture().getEntity();
+-    double start = 0;
+     // horizontal
+     if ((entity.equals(Entity.DOMAIN_AXIS) && orient.equals(PlotOrientation.VERTICAL))
+         || (entity.equals(Entity.RANGE_AXIS) && orient.equals(PlotOrientation.HORIZONTAL))) {
+@@ -255,4 +263,24 @@ else if ((entity.equals(Entity.RANGE_AXIS) && orient.equals(PlotOrientation.VERT
+     // error
+     return null;
+   }
++
++  private @Nullable Boolean isLeftOrRightEdge(final @NotNull ValueAxis axis) {
++    if (!(axis.getPlot() instanceof XYPlot plot)) {
++      return null;
++    }
++
++    for (int i = 0; i < plot.getDomainAxisCount(); i++) {
++      if (axis.equals(plot.getDomainAxis(i))) {
++        final RectangleEdge edge = plot.getDomainAxisEdge(i);
++        return RectangleEdge.isLeftOrRight(edge);
++      }
++    }
++    for (int i = 0; i < plot.getRangeAxisCount(); i++) {
++      if (axis.equals(plot.getRangeAxis(i))) {
++        final RectangleEdge edge = plot.getRangeAxisEdge(i);
++        return RectangleEdge.isLeftOrRight(edge);
++      }
++    }
++    return null;
++  }
+ }
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gestures/ChartGestureHandler.java b/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gestures/ChartGestureHandler.java
+index baebe626d81..b40719d3190 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gestures/ChartGestureHandler.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gestures/ChartGestureHandler.java
+@@ -163,7 +163,8 @@ public static ChartGestureHandler createDragDiffHandler(DragHandler[] handler, K
+       for (int i = 0; i < consumer.length; i++) {
+         consumer[i] = createDragDiffConsumer(handler[i], param);
+       }
+-      return new ChartGestureDragDiffHandler(entity, button, key, consumer);
++      final Orientation defaultOrientation = orient == null ? Orientation.HORIZONTAL : orient;
++      return new ChartGestureDragDiffHandler(entity, button, key, consumer, defaultOrientation);
+     } catch (Exception e) {
+       e.printStackTrace();
+       return null;
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gui/javafx/ChartGestureMouseAdapterFX.java b/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gui/javafx/ChartGestureMouseAdapterFX.java
+index 88499997efe..779ca95156a 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gui/javafx/ChartGestureMouseAdapterFX.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gui/javafx/ChartGestureMouseAdapterFX.java
+@@ -25,6 +25,7 @@
+ 
+ package io.github.mzmine.gui.chartbasics.gui.javafx;
+ 
++import io.github.mzmine.gui.chartbasics.ChartLogicsFX;
+ import io.github.mzmine.gui.chartbasics.gestures.ChartGesture;
+ import io.github.mzmine.gui.chartbasics.gestures.ChartGesture.Entity;
+ import io.github.mzmine.gui.chartbasics.gestures.ChartGesture.Event;
+@@ -45,9 +46,7 @@
+ import javafx.geometry.Insets;
+ import javafx.scene.input.MouseEvent;
+ import javafx.scene.input.ScrollEvent;
+-import org.jfree.chart.ChartRenderingInfo;
+ import org.jfree.chart.entity.ChartEntity;
+-import org.jfree.chart.entity.EntityCollection;
+ import org.jfree.chart.fx.ChartCanvas;
+ import org.jfree.chart.fx.ChartViewer;
+ import org.jfree.chart.fx.interaction.MouseHandlerFX;
+@@ -210,17 +209,15 @@ private ChartEntity findChartEntity(MouseEventWrapper e) {
+ 
+     if (lastEntity != null && x == lastEntityX && y == lastEntityY) {
+       return lastEntity;
+-    } else {
+-      ChartRenderingInfo info = chartViewer.getCanvas().getRenderingInfo();
+-      ChartEntity entity = null;
+-      if (info != null) {
+-        EntityCollection entities = info.getEntityCollection();
+-        if (entities != null) {
+-          entity = entities.getEntity(x, y);
+-        }
+-      }
+-      return entity;
+     }
++    final double adjustedX = e.getX() - insets.getLeft();
++    final double adjustedY = e.getY() - insets.getTop();
++    final ChartEntity entity = ChartLogicsFX.findChartEntity(chartViewer.getCanvas(), adjustedX,
++        adjustedY);
++    lastEntity = entity;
++    lastEntityX = x;
++    lastEntityY = y;
++    return entity;
+   }
+ 
+   /**
+diff --git a/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gui/swing/ChartGestureMouseAdapter.java b/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gui/swing/ChartGestureMouseAdapter.java
+index 2ecc1c1e14b..857b4bd8453 100644
+--- a/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gui/swing/ChartGestureMouseAdapter.java
++++ b/mzmine-community/src/main/java/io/github/mzmine/gui/chartbasics/gui/swing/ChartGestureMouseAdapter.java
+@@ -25,6 +25,18 @@
+ 
+ package io.github.mzmine.gui.chartbasics.gui.swing;
+ 
++import io.github.mzmine.gui.chartbasics.ChartLogics;
++import io.github.mzmine.gui.chartbasics.gestures.ChartGesture;
++import io.github.mzmine.gui.chartbasics.gestures.ChartGesture.Entity;
++import io.github.mzmine.gui.chartbasics.gestures.ChartGesture.Event;
++import io.github.mzmine.gui.chartbasics.gestures.ChartGesture.GestureButton;
++import io.github.mzmine.gui.chartbasics.gestures.ChartGesture.Key;
++import io.github.mzmine.gui.chartbasics.gestures.ChartGestureDragDiffHandler.Orientation;
++import io.github.mzmine.gui.chartbasics.gestures.ChartGestureEvent;
++import io.github.mzmine.gui.chartbasics.gestures.ChartGestureHandler;
++import io.github.mzmine.gui.chartbasics.gestures.ChartGestureHandler.DragHandler;
++import io.github.mzmine.gui.chartbasics.gestures.ChartGestureHandler.Handler;
++import io.github.mzmine.gui.chartbasics.gui.wrapper.GestureMouseAdapter;
+ import java.awt.Insets;
+ import java.awt.event.MouseAdapter;
+ import java.awt.event.MouseEvent;
+@@ -34,21 +46,7 @@
+ import java.util.List;
+ import java.util.logging.Logger;
+ import org.jfree.chart.ChartPanel;
+-import org.jfree.chart.ChartRenderingInfo;
+ import org.jfree.chart.entity.ChartEntity;
+-import org.jfree.chart.entity.EntityCollection;
+-
+-import io.github.mzmine.gui.chartbasics.gestures.ChartGesture;
+-import io.github.mzmine.gui.chartbasics.gestures.ChartGestureEvent;
+-import io.github.mzmine.gui.chartbasics.gestures.ChartGestureHandler;
+-import io.github.mzmine.gui.chartbasics.gestures.ChartGesture.GestureButton;
+-import io.github.mzmine.gui.chartbasics.gestures.ChartGesture.Entity;
+-import io.github.mzmine.gui.chartbasics.gestures.ChartGesture.Event;
+-import io.github.mzmine.gui.chartbasics.gestures.ChartGesture.Key;
+-import io.github.mzmine.gui.chartbasics.gestures.ChartGestureDragDiffHandler.Orientation;
+-import io.github.mzmine.gui.chartbasics.gestures.ChartGestureHandler.DragHandler;
+-import io.github.mzmine.gui.chartbasics.gestures.ChartGestureHandler.Handler;
+-import io.github.mzmine.gui.chartbasics.gui.wrapper.GestureMouseAdapter;
+ 
+ /**
+  * Handles all MouseEvents (like a MouseAdapter) and transforms them into {@link ChartGestureEvent}s
+@@ -175,17 +173,11 @@ private ChartEntity findChartEntity(ChartPanel chartPanel, MouseEvent e) {
+ 
+     if (lastEntity != null && x == lastEntityX && y == lastEntityY)
+       return lastEntity;
+-    else {
+-      ChartRenderingInfo info = chartPanel.getChartRenderingInfo();
+-      ChartEntity entity = null;
+-      if (info != null) {
+-        EntityCollection entities = info.getEntityCollection();
+-        if (entities != null) {
+-          entity = entities.getEntity(x, y);
+-        }
+-      }
+-      return entity;
+-    }
++    final ChartEntity entity = ChartLogics.findChartEntity(chartPanel, e.getX(), e.getY());
++    lastEntity = entity;
++    lastEntityX = x;
++    lastEntityY = y;
++    return entity;
+   }
+ 
+   @Override

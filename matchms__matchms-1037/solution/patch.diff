@@ -1,0 +1,1942 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 80daee5b3..290bff8fe 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -10,12 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
+ ## Changed
+ - add test runs without numba JIT [#1034](https://github.com/matchms/matchms/pull/1034)
+ - smaller code quality changes based on SonarQube analysis [#1034](https://github.com/matchms/matchms/pull/1034)
++- code quality changes [#1035](https://github.com/matchms/matchms/pull/1035)
++- expand test coverage [#1035](https://github.com/matchms/matchms/pull/1035)
+ 
+ ### Fixed
+ - Include all extra dependencies into main coverage test run [#1034](https://github.com/matchms/matchms/pull/1034)
+ - Agent skill: the score-mask example now compares one score field (`scores["score"] > 0.5`), since `Cosine` and `ModifiedCosine` return two fields and reject `scores > 0.5`, and the sparse-mode CLI example uses `CosineGreedy`, since `Cosine` has no `sparse_matrix()` [#959](https://github.com/matchms/matchms/issues/959).
++- Use copy for to_numpy() method which with newer pandas versiony can otherwise become read-only [#1035](https://github.com/matchms/matchms/pull/1035)
+ 
+-## [1.0.0.dev] - 2026-11-10
++## [1.0.0.dev1] - 2026-11-10
+ This development release prepares matchms 1.0 with major changes to collections, similarity scoring, filtering, I/O, and the public API. **Upgrading from 0.x requires attention to the breaking changes below.**
+ 
+ ### Added
+@@ -886,7 +889,8 @@ Contains three plot types: `plot_spectrum()` or `spectrum.plot()`, `plot_spectra
+ - This is the initial version of Spec2Vec from https://github.com/iomega/Spec2Vec
+ - (later splitted into matchms + spec2vec)
+ 
+-[Unreleased]: https://github.com/matchms/matchms/compare/0.34.0...HEAD
++[Unreleased]: https://github.com/matchms/matchms/compare/1.0.0.dev1...HEAD
++[1.0.0.dev1]: https://github.com/matchms/matchms/compare/0.34.0...1.0.0.dev1
+ [0.34.0]: https://github.com/matchms/matchms/compare/0.33.1...0.34.0
+ [0.33.1]: https://github.com/matchms/matchms/compare/0.33.0...0.33.1
+ [0.33.0]: https://github.com/matchms/matchms/compare/0.32.0...0.33.0
+diff --git a/matchms/similarity/cosine_blink.py b/matchms/similarity/cosine_blink.py
+index 3a57a1d03..2773275ff 100644
+--- a/matchms/similarity/cosine_blink.py
++++ b/matchms/similarity/cosine_blink.py
+@@ -19,13 +19,13 @@ def _windowed_sum_numba(
+     source_bins: np.ndarray,
+     source_vals: np.ndarray,
+     query_positions: np.ndarray,
+-    R: int,
++    bin_radius: int,
+ ) -> np.ndarray:
+     """
+     Two-pointer windowed sum for sorted integer arrays.
+ 
+     For each position `pos` in `query_positions`, compute:
+-        sum(source_vals[j]) where source_bins[j] ∈ [pos - R, pos + R]
++        sum(source_vals[j]) where source_bins[j] ∈ [pos - bin_radius, pos + bin_radius]
+ 
+     Parameters
+     ----------
+@@ -35,7 +35,7 @@ def _windowed_sum_numba(
+         1D array of values aligned to `source_bins`.
+     query_positions : np.ndarray
+         1D array of integer bin positions at which to evaluate the windowed sum.
+-    R : int
++    bin_radius : int
+         Window radius in bins (inclusive on both sides).
+ 
+     Returns
+@@ -44,19 +44,19 @@ def _windowed_sum_numba(
+         1D array of windowed sums, same length/order as `query_positions`.
+     """
+     n_bins = source_bins.size
+-    m = query_positions.size
+-    out = np.zeros(m, dtype=source_vals.dtype)
+-    if n_bins == 0 or m == 0:
++    m_bins = query_positions.size
++    out = np.zeros(m_bins, dtype=source_vals.dtype)
++    if n_bins == 0 or m_bins == 0:
+         return out
+ 
+     left_idx = 0
+     right_idx = 0
+     acc = 0.0
+ 
+-    for i in range(m):
++    for i in range(m_bins):
+         pos = query_positions[i]
+-        left_bound = pos - R
+-        right_bound = pos + R
++        left_bound = pos - bin_radius
++        right_bound = pos + bin_radius
+ 
+         # expand right edge
+         while right_idx < n_bins and source_bins[right_idx] <= right_bound:
+@@ -160,7 +160,7 @@ def __init__(
+         self.dtype = np.dtype(dtype)
+         self.score_datatype = self.dtype
+ 
+-        self._R = max(0, int(np.floor(self.tolerance / self.bin_width)))
++        self._bin_radius = max(0, int(np.floor(self.tolerance / self.bin_width)))
+ 
+     # --------------------------- Public API ---------------------------
+ 
+@@ -182,10 +182,10 @@ def pair(self, spectrum_1: SpectrumType, spectrum_2: SpectrumType) -> tuple[floa
+ 
+         # Blur smaller side, evaluate at the other's bins
+         if qbins.size <= rbins.size:
+-            win = self._windowed_sum(qbins, qvals, rbins, self._R)
++            win = self._windowed_sum(qbins, qvals, rbins, self._bin_radius)
+             score = float(np.dot(win, rvals))
+         else:
+-            win = self._windowed_sum(rbins, rvals, qbins, self._R)
++            win = self._windowed_sum(rbins, rvals, qbins, self._bin_radius)
+             score = float(np.dot(win, qvals))
+ 
+         if self.clip_to_one:
+@@ -254,9 +254,9 @@ def matrix(
+         offset = -global_min
+ 
+         # Build reference intensity CSR once
+-        I_ref = self._build_intensity_csr(prepped_refs, n_rows, offset, self.dtype)
++        i_ref = self._build_intensity_csr(prepped_refs, n_rows, offset, self.dtype)
+ 
+-        S = np.zeros((n_ref, n_qry), dtype=self.dtype)
++        scores = np.zeros((n_ref, n_qry), dtype=self.dtype)
+ 
+         # Batch queries -> blur -> multiply
+         j = 0
+@@ -265,17 +265,17 @@ def matrix(
+             j1 = min(j + self.batch_size, n_qry)
+             batch = prepped_qrys[j0:j1]
+ 
+-            # scores_batch = I_ref.T @ IQ_blur  -> shape (n_ref, B)
+-            IQ_blur = self._build_blurred_csr(batch, n_rows, offset, self._R)
+-            scores_batch_sparse = I_ref.T @ IQ_blur
++            # scores_batch = i_ref.T @ iq_blur  -> shape (n_ref, B)
++            iq_blur = self._build_blurred_csr(batch, n_rows, offset, self._bin_radius)
++            scores_batch_sparse = i_ref.T @ iq_blur
+ 
+-            S[:, j0:j1] = scores_batch_sparse.toarray()
++            scores[:, j0:j1] = scores_batch_sparse.toarray()
+             j = j1
+ 
+         if self.clip_to_one:
+-            np.minimum(S, 1.0, out=S)
++            np.minimum(scores, 1.0, out=scores)
+ 
+-        return Scores({"score": S})
++        return Scores({"score": scores})
+ 
+     # --------------------------- Internal helpers ---------------------------
+ 
+@@ -381,7 +381,7 @@ def _prep_spectrum(self, spectrum: SpectrumType):
+         return uniq, intensity_sum, counts.astype(np.int32, copy=False)
+ 
+     def _windowed_sum(
+-        self, source_bins: np.ndarray, source_vals: np.ndarray, query_positions: np.ndarray, R: int
++        self, source_bins: np.ndarray, source_vals: np.ndarray, query_positions: np.ndarray, bin_radius: int
+     ) -> np.ndarray:
+         """
+         Windowed sum helper: numba-accelerated where available, else vectorized prefix sums.
+@@ -394,7 +394,7 @@ def _windowed_sum(
+             1D array of values aligned to `source_bins`.
+         query_positions : np.ndarray
+             1D array of integer bin positions at which to evaluate the windowed sum.
+-        R : int
++        bin_radius : int
+             Window radius in bins (inclusive on both sides).
+ 
+         Returns
+@@ -405,14 +405,14 @@ def _windowed_sum(
+         if source_bins.size == 0 or query_positions.size == 0:
+             return np.zeros(query_positions.size, dtype=self.dtype)
+         if self.use_numba:
+-            return _windowed_sum_numba(source_bins, source_vals, query_positions, int(R))
++            return _windowed_sum_numba(source_bins, source_vals, query_positions, int(bin_radius))
+         # Vectorized fallback via prefix sums + searchsorted
+-        c = np.empty(source_vals.size + 1, dtype=self.dtype)
+-        c[0] = 0.0
+-        c[1:] = np.cumsum(source_vals)
+-        left = np.searchsorted(source_bins, query_positions - R, side="left")
+-        right = np.searchsorted(source_bins, query_positions + R, side="right")
+-        return c[right] - c[left]
++        c_sums = np.empty(source_vals.size + 1, dtype=self.dtype)
++        c_sums[0] = 0.0
++        c_sums[1:] = np.cumsum(source_vals)
++        left = np.searchsorted(source_bins, query_positions - bin_radius, side="left")
++        right = np.searchsorted(source_bins, query_positions + bin_radius, side="right")
++        return c_sums[right] - c_sums[left]
+ 
+     # ---------- Sparse builders for matrix() ----------
+ 
+@@ -454,7 +454,7 @@ def _build_intensity_csr(prepped_list, n_rows: int, offset: int, dtype: np.dtype
+         return csr_array((dat, (rows, cols)), shape=(n_rows, len(prepped_list)), dtype=dtype)
+ 
+     @staticmethod
+-    def _expand_column_blur(rows: np.ndarray, vals: np.ndarray, R: int, n_rows: int):
++    def _expand_column_blur(rows: np.ndarray, vals: np.ndarray, bin_radius: int, n_rows: int):
+         """
+         Expand one column's nonzeros to ±R neighbors (box blur).
+ 
+@@ -464,7 +464,7 @@ def _expand_column_blur(rows: np.ndarray, vals: np.ndarray, R: int, n_rows: int)
+             Row indices (bins) of nonzero entries for a single column.
+         vals : np.ndarray
+             Values aligned with `rows`.
+-        R : int
++        bin_radius : int
+             Blur radius in bins. If 0, returns inputs unchanged.
+         n_rows : int
+             Total number of rows (for bounds checking).
+@@ -477,10 +477,10 @@ def _expand_column_blur(rows: np.ndarray, vals: np.ndarray, R: int, n_rows: int)
+         if rows.size == 0:
+             return rows, vals
+         # Neighbors offsets
+-        if R == 0:
++        if bin_radius == 0:
+             # no expansion
+             return rows, vals
+-        offs = np.arange(-R, R + 1, dtype=np.int32)  # length = 2R+1
++        offs = np.arange(-bin_radius, bin_radius + 1, dtype=np.int32)
+         # Broadcast-add and flatten
+         neigh = (rows[:, None] + offs[None, :]).ravel()
+         data = np.repeat(vals, offs.size)
+@@ -488,7 +488,7 @@ def _expand_column_blur(rows: np.ndarray, vals: np.ndarray, R: int, n_rows: int)
+         mask = (neigh >= 0) & (neigh < n_rows)
+         return neigh[mask], data[mask]
+ 
+-    def _build_blurred_csr(self, prepped_list, n_rows: int, offset: int, R: int):
++    def _build_blurred_csr(self, prepped_list, n_rows: int, offset: int, bin_radius: int):
+         """
+         Build CSR (rows=bins, cols=batch_size) of blurred, normalized query columns.
+ 
+@@ -500,7 +500,7 @@ def _build_blurred_csr(self, prepped_list, n_rows: int, offset: int, R: int):
+             Number of rows in the global bin axis.
+         offset : int
+             Offset applied to bins -> rows.
+-        R : int
++        bin_radius : int
+             Blur radius in bins.
+ 
+         Returns
+@@ -515,7 +515,7 @@ def _build_blurred_csr(self, prepped_list, n_rows: int, offset: int, R: int):
+             if bins.size == 0:
+                 continue
+             base_rows = bins + offset
+-            rows_exp, data_exp = self._expand_column_blur(base_rows, vals, R, n_rows)
++            rows_exp, data_exp = self._expand_column_blur(base_rows, vals, bin_radius, n_rows)
+             if rows_exp.size == 0:
+                 continue
+             rows_all.append(rows_exp)
+diff --git a/matchms/similarity/entropy_search.py b/matchms/similarity/entropy_search.py
+index c5e234e3f..af94d321b 100644
+--- a/matchms/similarity/entropy_search.py
++++ b/matchms/similarity/entropy_search.py
+@@ -602,14 +602,19 @@ def _minimum_gap(self) -> float:
+     def _precursors(values, n: int) -> np.ndarray:
+         if values is None:
+             return np.full(n, np.nan)
++
+         try:
+             precursor = np.asarray(values, dtype=np.float64).copy()
+         except (ValueError, TypeError):
+             import pandas as pd
+ 
+-            precursor = pd.to_numeric(pd.Series(values), errors="coerce").to_numpy(dtype=float)
++            precursor = pd.to_numeric(pd.Series(values), errors="coerce").to_numpy(
++                dtype=np.float64, na_value=np.nan, copy=True
++            )
++
+         if precursor.shape != (n,):
+             raise ValueError("precursor_mz must have one value per spectrum.")
++
+         precursor[~np.isfinite(precursor) | (precursor <= 0)] = np.nan
+         return precursor
+ 
+diff --git a/pyproject.toml b/pyproject.toml
+index c1867d82f..da4ad9c30 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -22,6 +22,7 @@ classifiers = [
+   "Programming Language :: Python :: 3.11",
+   "Programming Language :: Python :: 3.12",
+   "Programming Language :: Python :: 3.13",
++  "Programming Language :: Python :: 3.14",
+ ]
+ 
+ dependencies = [
+diff --git a/tests/filtering/test_require_precursor_mz.py b/tests/filtering/test_require_precursor_mz.py
+index 2ecc0f99a..c4c8f449c 100644
+--- a/tests/filtering/test_require_precursor_mz.py
++++ b/tests/filtering/test_require_precursor_mz.py
+@@ -1,7 +1,13 @@
++import importlib
++import logging
+ import numpy as np
++import pandas as pd
+ import pytest
+ from matchms import SpectraCollection
+-from matchms.filtering.metadata_processing.require_precursor_mz import require_precursor_mz
++from matchms.filtering.metadata_processing.require_precursor_mz import (
++    _require_precursor_mz,
++    require_precursor_mz,
++)
+ from ..builder_spectrum import SpectrumBuilder
+ 
+ 
+@@ -111,3 +117,267 @@ def test_require_precursor_mz_collection_clone_false_modifies_input():
+     assert filtered is collection
+     assert len(collection) == 1
+     assert collection.metadata.loc[0, "precursor_mz"] == 60.0
++
++
++# ---------------------------------------------------------------------------
++# Explicit collection storage fixtures
++# ---------------------------------------------------------------------------
++
++
++def _collection_with_precursors(values, *, dtype=object):
++    """Construct distinctive peak rows and force the requested metadata dtype.
++
++    SpectraCollection normally harmonizes precursor_mz to a numeric dtype.
++    Setting the column after construction is intentional: it lets us exercise
++    the mixed/object fast path without changing production normalization code.
++    """
++    spectra = [
++        SpectrumBuilder().with_mz(np.array([100.0 + i])).with_intensities(np.array([1.0])).build()
++        for i in range(len(values))
++    ]
++    collection = SpectraCollection(spectra)
++    collection._metadata["precursor_mz"] = pd.Series(values, dtype=dtype)
++    assert collection.metadata["precursor_mz"].dtype == pd.Series(values, dtype=dtype).dtype
++    return collection
++
++
++def _collection_without_precursor(n, *, pepmass=None):
++    collection = _collection_with_precursors([100.0] * n, dtype="float64")
++    collection._metadata.drop(columns=["precursor_mz"], inplace=True)
++    if pepmass is not None:
++        collection._metadata["pepmass"] = pd.Series(pepmass, dtype=object)
++    return collection
++
++
++def _assert_kept_rows(filtered, original_row_ids):
++    """Check peak-row alignment, not only the number of surviving rows."""
++    assert len(filtered) == len(original_row_ids)
++    for output_row, original_row in enumerate(original_row_ids):
++        mz, intensities = filtered.fragments.get_row(output_row)
++        np.testing.assert_allclose(mz, [100.0 + original_row], atol=1e-6)
++        np.testing.assert_allclose(intensities, [1.0])
++
++
++# ---------------------------------------------------------------------------
++# Scalar semantics and bounds
++# ---------------------------------------------------------------------------
++
++
++@pytest.mark.parametrize(
++    "precursor,minimum,maximum,expected",
++    [
++        (10.0, 10.0, 20.0, True),
++        (20.0, 10.0, 20.0, True),
++        (9.99, 10.0, 20.0, False),
++        (20.01, 10.0, 20.0, False),
++        (np.int64(15), 10.0, 20.0, True),
++        (np.float32(15), 10.0, 20.0, True),
++        (None, 10.0, 20.0, False),
++        (np.nan, 10.0, 20.0, False),
++        (-5.0, None, None, True),
++        (50.0, None, 20.0, False),
++        (-5.0, None, 20.0, True),
++        (10.0, 10.0, None, True),
++    ],
++)
++def test_scalar_precursor_requirement_boundaries(precursor, minimum, maximum, expected):
++    assert (
++        _require_precursor_mz(
++            {"precursor_mz": precursor},
++            minimum_accepted_mz=minimum,
++            maximum_mz=maximum,
++        )
++        is expected
++    )
++
++
++@pytest.mark.parametrize("value", ["15.0", "not-a-number", "invalid-mz"])
++def test_scalar_string_precursor_raises_value_error(value):
++    """Metadata conversion requires numeric scalars; it never parses strings."""
++    with pytest.raises(ValueError, match="Expected scalar numeric metadata value"):
++        _require_precursor_mz({"precursor_mz": value})
++
++
++def test_scalar_missing_precursor_with_pepmass_raises_helpful_assertion():
++    with pytest.raises(AssertionError, match="add_precursor_mz"):
++        _require_precursor_mz({"pepmass": (250.0, 100.0)})
++
++
++@pytest.mark.parametrize("pepmass", [None, [], "unknown", (None, None)])
++def test_scalar_missing_precursor_without_usable_pepmass_is_rejected(pepmass):
++    assert not _require_precursor_mz({"pepmass": pepmass})
++
++
++# ---------------------------------------------------------------------------
++# Vectorized fast path 1: genuinely numeric DataFrame columns
++# ---------------------------------------------------------------------------
++
++
++@pytest.mark.parametrize(
++    "dtype,values,kept",
++    [
++        ("float64", [np.nan, 9.0, 10.0, 15.0, 20.0, 21.0], [2, 3, 4]),
++        ("Float64", [pd.NA, 9.0, 10.0, 15.0, 20.0, 21.0], [2, 3, 4]),
++        ("Int64", [pd.NA, 9, 10, 15, 20, 21], [2, 3, 4]),
++    ],
++)
++def test_collection_numeric_fast_path_inclusive_bounds_and_missing(dtype, values, kept):
++    collection = _collection_with_precursors(values, dtype=dtype)
++    original_row_count = len(collection)
++    filtered = require_precursor_mz(collection, minimum_accepted_mz=10.0, maximum_mz=20.0)
++    _assert_kept_rows(filtered, kept)
++    assert filtered is not collection
++    assert len(collection) == original_row_count
++
++
++def test_collection_numeric_fast_path_without_bounds_keeps_negative_values():
++    collection = _collection_with_precursors([-5.0, 0.0, 15.0, np.nan], dtype="float64")
++    filtered = require_precursor_mz(collection, minimum_accepted_mz=None, maximum_mz=None)
++    _assert_kept_rows(filtered, [0, 1, 2])
++
++
++def test_collection_numeric_fast_path_reports_below_and_above_counts(caplog):
++    collection = _collection_with_precursors([5.0, 7.0, 10.0, 20.0, 21.0, 30.0], dtype="float64")
++    with caplog.at_level(logging.INFO, logger="matchms"):
++        filtered = require_precursor_mz(collection, minimum_accepted_mz=10, maximum_mz=20)
++    _assert_kept_rows(filtered, [2, 3])
++    assert "2 spectra removed because precursor m/z was below" in caplog.text
++    assert "2 spectra removed because precursor m/z was above" in caplog.text
++
++
++# ---------------------------------------------------------------------------
++# Vectorized fast path 2: object dtype, numeric scalars plus fallback records
++# ---------------------------------------------------------------------------
++
++
++def test_collection_object_fast_path_numeric_scalars_never_call_row_fallback(monkeypatch):
++    values = [np.int64(12), np.float32(10), 20.0, 9.9, 20.1, np.nan, np.uint64(17), np.float64(20)]
++    collection = _collection_with_precursors(values, dtype=object)
++    assert collection.metadata["precursor_mz"].dtype == object
++
++    module = importlib.import_module("matchms.filtering.metadata_processing.require_precursor_mz")
++
++    def forbidden_fallback(*args, **kwargs):
++        pytest.fail("Fast path 2 must not evaluate ordinary numeric precursor rows individually")
++
++    monkeypatch.setattr(module, "_require_precursor_mz", forbidden_fallback)
++    filtered = require_precursor_mz(collection, minimum_accepted_mz=10, maximum_mz=20)
++    _assert_kept_rows(filtered, [0, 1, 2, 6, 7])
++
++
++def test_collection_object_fast_path_falls_back_only_for_missing_values(monkeypatch):
++    """Object dtype must use vectorization for numbers and scalar logic for missing entries."""
++    values = [
++        np.int64(12),
++        np.float32(10),
++        19.0,
++        9.9,
++        21.0,
++        np.nan,
++        np.float64(20),
++        None,
++        pd.NA,
++    ]
++    collection = _collection_with_precursors(values, dtype=object)
++    module = importlib.import_module("matchms.filtering.metadata_processing.require_precursor_mz")
++    actual_scalar = module._require_precursor_mz
++    fallback_rows = []
++
++    def tracked_scalar(metadata, minimum_accepted_mz=10.0, maximum_mz=None):
++        fallback_rows.append(metadata.name)
++        return actual_scalar(metadata, minimum_accepted_mz, maximum_mz)
++
++    monkeypatch.setattr(module, "_require_precursor_mz", tracked_scalar)
++    filtered = require_precursor_mz(collection, minimum_accepted_mz=10, maximum_mz=20)
++    _assert_kept_rows(filtered, [0, 1, 2, 6])
++    assert fallback_rows == [7, 8]
++    assert len(collection) == len(values)  # default clone=True leaves source intact
++
++
++@pytest.mark.parametrize("string_value", ["15.0", "not-a-number"])
++def test_collection_object_fast_path_string_uses_scalar_fallback_and_raises(monkeypatch, string_value):
++    """A string is not a numeric scalar, even if it can be parsed as a float."""
++    collection = _collection_with_precursors([12, string_value, 20], dtype=object)
++    module = importlib.import_module("matchms.filtering.metadata_processing.require_precursor_mz")
++    actual_scalar = module._require_precursor_mz
++    fallback_rows = []
++
++    def tracked_scalar(metadata, minimum_accepted_mz=10.0, maximum_mz=None):
++        fallback_rows.append(metadata.name)
++        return actual_scalar(metadata, minimum_accepted_mz, maximum_mz)
++
++    monkeypatch.setattr(module, "_require_precursor_mz", tracked_scalar)
++    with pytest.raises(ValueError, match="Expected scalar numeric metadata value"):
++        require_precursor_mz(collection, minimum_accepted_mz=10, maximum_mz=20)
++    assert fallback_rows == [1]
++    assert len(collection) == 3
++
++
++def test_collection_object_fast_path_all_fallback_values():
++    collection = _collection_with_precursors([None, pd.NA], dtype=object)
++    filtered = require_precursor_mz(collection, minimum_accepted_mz=10, maximum_mz=20)
++    _assert_kept_rows(filtered, [])
++
++
++def test_collection_object_fast_path_with_no_bounds():
++    collection = _collection_with_precursors([-4, 0.0, np.float32(15.5), None, np.nan, pd.NA], dtype=object)
++    filtered = require_precursor_mz(collection, minimum_accepted_mz=None, maximum_mz=None)
++    _assert_kept_rows(filtered, [0, 1, 2])
++
++
++# ---------------------------------------------------------------------------
++# Missing-column fallbacks, empty collections and cloning
++# ---------------------------------------------------------------------------
++
++
++def test_collection_missing_precursor_column_discards_all_rows():
++    collection = _collection_without_precursor(3)
++    assert "precursor_mz" not in collection.metadata.columns
++    filtered = require_precursor_mz(collection)
++    assert len(filtered) == 0
++    assert len(collection) == 3
++
++
++def test_collection_missing_precursor_column_checks_pepmass():
++    collection = _collection_without_precursor(1, pepmass=[(250.0, 100.0)])
++    with pytest.raises(AssertionError, match="add_precursor_mz"):
++        require_precursor_mz(collection)
++
++
++def test_collection_object_fallback_missing_precursor_checks_pepmass():
++    collection = _collection_with_precursors([None, 20.0], dtype=object)
++    collection._metadata["pepmass"] = pd.Series([(250.0, 100.0), None], dtype=object)
++    with pytest.raises(AssertionError, match="add_precursor_mz"):
++        require_precursor_mz(collection)
++
++
++def test_collection_missing_precursor_column_with_unusable_pepmass_discards_rows():
++    collection = _collection_without_precursor(3, pepmass=[None, [], "unknown"])
++    filtered = require_precursor_mz(collection)
++    assert len(filtered) == 0
++
++
++@pytest.mark.parametrize("clone", [True, False, None])
++def test_collection_clone_semantics_with_mixed_precursor_column(clone):
++    collection = _collection_with_precursors([100, pd.NA, 200], dtype=object)
++    original_mz = [collection.fragments.get_row(i)[0].copy() for i in range(3)]
++    result = require_precursor_mz(collection, clone=clone)
++    _assert_kept_rows(result, [0, 2])
++    if clone:
++        assert result is not collection
++        assert len(collection) == 3
++        for row, mz in enumerate(original_mz):
++            np.testing.assert_array_equal(collection.fragments.get_row(row)[0], mz)
++    else:
++        assert result is collection
++        assert len(collection) == 2
++
++
++@pytest.mark.parametrize("clone", [True, False])
++def test_empty_collection_fast_return_preserves_clone_semantics(clone):
++    collection = _collection_with_precursors([0.0], dtype="float64")
++    empty = require_precursor_mz(collection)
++    assert len(empty) == 0
++    returned = require_precursor_mz(empty, clone=clone)
++    assert len(returned) == 0
++    assert (returned is empty) is not clone
+diff --git a/tests/similarity/test_entropy_search.py b/tests/similarity/test_entropy_search.py
+new file mode 100644
+index 000000000..a52aec196
+--- /dev/null
++++ b/tests/similarity/test_entropy_search.py
+@@ -0,0 +1,923 @@
++from __future__ import annotations
++import numpy as np
++import pytest
++from matchms.similarity._entropy_search_topk import (
++    _MAX_EPOCH,
++    _scatter_add_topk,
++    _TopKWorkspace,
++)
++from matchms.similarity._topk import (
++    select_topk_candidates,
++    select_topk_row,
++)
++from matchms.similarity.entropy_search import EntropySearch, _prepare_packed, _validate_separation
++from matchms.similarity.topk_results import TopKResults
++
++
++def _peaks(*pairs):
++    return np.asarray(pairs, dtype=np.float64).reshape((-1, 2))
++
++
++def _make_scorer(dtype=np.float32, *, index_step=0.01):
++    return EntropySearch(
++        tolerance=0.01,
++        max_tolerance=0.02,
++        peak_separation="raise",
++        noise_cutoff=0,
++        remove_precursor=False,
++        dtype=dtype,
++        index_step=index_step,
++    )
++
++
++def _library_and_queries():
++    references = [
++        _peaks((100, 3), (150, 1)),
++        _peaks((100, 3), (150, 1)),  # exact tie: ID 0 precedes ID 1
++        _peaks((100, 1)),
++        _peaks((105, 1), (250, 2)),
++        _peaks((800, 2)),
++        _peaks(),
++        _peaks((101, 2), (200, 1)),
++    ]
++    queries = [
++        _peaks((100, 3), (150, 1)),
++        _peaks((105, 1), (250, 2)),
++        _peaks((999, 1)),
++        _peaks(),
++        _peaks((100, 5)),
++        _peaks((800, 1)),
++        _peaks((101, 3), (200, 2)),
++    ]
++    return references, queries
++
++
++def _expected_from_dense(matrix, k, min_score):
++    expected_ids = np.full((matrix.shape[0], k), -1, dtype=np.int64)
++    expected_scores = np.zeros((matrix.shape[0], k), dtype=matrix.dtype)
++    counts = np.zeros(matrix.shape[0], dtype=np.int64)
++    for i, dense_row in enumerate(matrix):
++        candidate_ids = np.flatnonzero(dense_row > min_score)
++        order = np.lexsort((candidate_ids, -dense_row[candidate_ids]))
++        best_ids = candidate_ids[order[:k]]
++        counts[i] = len(best_ids)
++        expected_ids[i, : len(best_ids)] = best_ids
++        expected_scores[i, : len(best_ids)] = dense_row[best_ids]
++    return expected_ids, expected_scores, counts
++
++
++def _assert_matches_dense(results: TopKResults, matrix, k, min_score):
++    ids, scores, counts = _expected_from_dense(matrix, k, min_score)
++    assert results.shape == (matrix.shape[0], k)
++    assert results.n_references == matrix.shape[1]
++    assert results.n_queries == matrix.shape[0]
++    assert results.k == k
++    assert len(results) == matrix.shape[0]
++    assert results.scores.dtype == matrix.dtype
++    expected_id_dtype = np.int32 if matrix.shape[1] <= np.iinfo(np.int32).max else np.int64
++    assert results.indices.dtype == expected_id_dtype
++    np.testing.assert_array_equal(results.indices, ids)
++    np.testing.assert_array_equal(results.scores, scores)
++    np.testing.assert_array_equal(results.valid_counts, counts)
++    for row in range(results.n_queries):
++        n = int(counts[row])
++        hit_ids, hit_scores = results.get_hits(row)
++        np.testing.assert_array_equal(hit_ids, ids[row, :n])
++        np.testing.assert_array_equal(hit_scores, scores[row, :n])
++
++
++@pytest.mark.parametrize("dtype", [np.float32, np.float64])
++@pytest.mark.parametrize("k", [1, 2, 4, 12])
++@pytest.mark.parametrize("min_score", [0, 0.05, 0.8, 1.1])
++@pytest.mark.numba_coverage
++def test_topk_exactly_matches_dense_with_ties_padding_and_threshold(dtype, k, min_score):
++    scorer = _make_scorer(dtype)
++    references, queries = _library_and_queries()
++    index = scorer.build_index_prepared(scorer.prepare_peak_arrays(references))
++    prepared = scorer.prepare_peak_arrays(queries)
++    dense = scorer.search_prepared(prepared, index, progress_bar=False).to_array()
++    result = scorer.search_prepared_topk(
++        prepared,
++        index,
++        k=k,
++        min_score=min_score,
++        batch_size=3,
++        progress_bar=False,
++        n_jobs=2,
++    )
++    _assert_matches_dense(result, dense, k, min_score)
++
++
++@pytest.mark.numba_coverage
++def test_search_topk_prepares_queries_and_agrees_with_prepared_path():
++    scorer = _make_scorer()
++    references, queries = _library_and_queries()
++    index = scorer.build_index_prepared(scorer.prepare_peak_arrays(references))
++    # The public prepare_queries path accepts matchms Spectrum instances.
++    from matchms.spectrum import Spectrum
++
++    spectra = [Spectrum(mz=row[:, 0], intensities=row[:, 1], metadata_harmonization=False) for row in queries]
++    result = scorer.search_topk(spectra, index, k=4, batch_size=2, progress_bar=False)
++    prepared = scorer.prepare_peak_arrays(queries)
++    expected = scorer.search_prepared_topk(prepared, index, k=4, batch_size=2)
++    np.testing.assert_array_equal(result.indices, expected.indices)
++    np.testing.assert_array_equal(result.scores, expected.scores)
++    np.testing.assert_array_equal(result.valid_counts, expected.valid_counts)
++
++
++@pytest.mark.parametrize("dtype", [np.float32, np.float64])
++def test_large_matching_windows_use_existing_vector_kernel(dtype):
++    scorer = _make_scorer(dtype, index_step=0)
++    references = [_peaks((100, 1)) for _ in range(700)]
++    queries = [_peaks((100, 1)), _peaks((200, 1)), _peaks((100, 2))]
++    index = scorer.build_index_prepared(scorer.prepare_peak_arrays(references))
++    prepared = scorer.prepare_peak_arrays(queries)
++    dense = scorer.search_prepared(prepared, index, n_jobs=2).to_array()
++    result = scorer.search_prepared_topk(
++        prepared,
++        index,
++        k=15,
++        min_score=0.5,
++        batch_size=2,
++        n_jobs=2,
++    )
++    _assert_matches_dense(result, dense, 15, 0.5)
++    np.testing.assert_array_equal(result.indices[0], np.arange(15))
++    assert result.valid_counts[1] == 0
++
++
++def test_candidate_topk_never_calls_dense_scoring(monkeypatch):
++    scorer = _make_scorer()
++    references, queries = _library_and_queries()
++    queries = queries * 3
++    index = scorer.build_index_prepared(scorer.prepare_peak_arrays(references))
++    prepared = scorer.prepare_peak_arrays(queries)
++
++    def forbidden_dense_score(*args, **kwargs):
++        raise AssertionError("top-k called the dense scorer")
++
++    monkeypatch.setattr(scorer, "_score_into", forbidden_dense_score)
++    result = scorer.search_prepared_topk(prepared, index, k=2, batch_size=4, n_jobs=2)
++    assert result.shape == (21, 2)
++    assert result.valid_counts[0] == 2
++
++
++def test_batch_size_controls_scheduling_not_dense_buffer(monkeypatch):
++    import matchms.similarity.entropy_search as entropy_search_module
++
++    scorer = _make_scorer()
++    references, queries = _library_and_queries()
++    index = scorer.build_index_prepared(scorer.prepare_peak_arrays(references))
++    prepared = scorer.prepare_peak_arrays(queries * 4)
++    calls = []
++    score_block = entropy_search_module._score_topk_block
++
++    def wrapped_score_block(*args):
++        # Function signature: (..., first_row, last_row, k, min_score, ...)
++        first, last = args[7], args[8]
++        calls.append((first, last))
++        return score_block(*args)
++
++    monkeypatch.setattr(entropy_search_module, "_score_topk_block", wrapped_score_block)
++    result = scorer.search_prepared_topk(prepared, index, k=3, batch_size=3, n_jobs=2)
++    assert result.shape == (28, 3)
++    assert sum(b - a for a, b in calls) == 28
++    assert sorted(r for a, b in calls for r in range(a, b)) == list(range(28))
++    assert all(b - a <= 3 for a, b in calls)
++
++
++@pytest.mark.numba_coverage
++def test_empty_queries_empty_index_and_zero_hits():
++    scorer = _make_scorer()
++    empty = scorer.prepare_peak_arrays([])
++    reference = scorer.prepare_peak_arrays([_peaks(), _peaks()])
++    no_peak_index = scorer.build_index_prepared(reference)
++    result = scorer.search_prepared_topk(empty, no_peak_index, k=3)
++    assert result.shape == (0, 3)
++    assert result.valid_counts.shape == (0,)
++
++    query = scorer.prepare_peak_arrays([_peaks((100, 1)), _peaks()])
++    result = scorer.search_prepared_topk(query, no_peak_index, k=3)
++    np.testing.assert_array_equal(result.indices, -np.ones((2, 3), dtype=np.int32))
++    np.testing.assert_array_equal(result.scores, np.zeros((2, 3), dtype=scorer.dtype))
++    np.testing.assert_array_equal(result.valid_counts, [0, 0])
++
++
++def test_index_round_trip_without_format_change(tmp_path):
++    scorer = _make_scorer()
++    references, queries = _library_and_queries()
++    index = scorer.build_index_prepared(scorer.prepare_peak_arrays(references))
++    path = tmp_path / "entropy-search-index.npz"
++    scorer.save_index(index, path)
++    loaded = scorer.load_index(path)
++    prepared = scorer.prepare_peak_arrays(queries)
++    original = scorer.search_prepared_topk(prepared, index, k=5, batch_size=2)
++    restored = scorer.search_prepared_topk(prepared, loaded, k=5, batch_size=2)
++    np.testing.assert_array_equal(original.indices, restored.indices)
++    np.testing.assert_array_equal(original.scores, restored.scores)
++    np.testing.assert_array_equal(original.valid_counts, restored.valid_counts)
++
++
++@pytest.mark.parametrize(
++    "k, min_score, batch_size, exception",
++    [
++        (0, 0, None, ValueError),
++        (-1, 0, None, ValueError),
++        (True, 0, None, TypeError),
++        (1.5, 0, None, TypeError),
++        (1, -0.1, None, ValueError),
++        (1, float("nan"), None, ValueError),
++        (1, float("inf"), None, ValueError),
++        (1, True, None, TypeError),
++        (1, 0, 0, ValueError),
++        (1, 0, -2, ValueError),
++        (1, 0, 1.2, TypeError),
++        (1, 0, False, TypeError),
++    ],
++)
++def test_invalid_topk_parameters(k, min_score, batch_size, exception):
++    scorer = _make_scorer()
++    index = scorer.build_index_prepared(scorer.prepare_peak_arrays([_peaks((100, 1))]))
++    prepared = scorer.prepare_peak_arrays([_peaks((100, 1))])
++    with pytest.raises(exception):
++        scorer.search_prepared_topk(prepared, index, k=k, min_score=min_score, batch_size=batch_size)
++
++
++@pytest.mark.parametrize("n_jobs", [0, -2, True, 1.0, "2"])
++def test_invalid_worker_count_matches_dense_search(n_jobs):
++    scorer = _make_scorer()
++    index = scorer.build_index_prepared(scorer.prepare_peak_arrays([_peaks((100, 1))]))
++    prepared = scorer.prepare_peak_arrays([_peaks((100, 1))])
++    with pytest.raises(ValueError):
++        scorer.search_prepared_topk(prepared, index, n_jobs=n_jobs)
++    with pytest.raises(ValueError):
++        scorer.search_prepared(prepared, index, n_jobs=n_jobs)
++
++
++def test_selector_uses_deterministic_library_id_for_kth_score_ties():
++    row = np.array([0.8, 0.6, 0.6, 0.95, 0.6, 0.0, 0.6], dtype=np.float32)
++    for k, expected in [(1, [3]), (2, [3, 0]), (3, [3, 0, 1]), (5, [3, 0, 1, 2, 4])]:
++        indices, values = select_topk_row(row, k, 0.0)
++        np.testing.assert_array_equal(indices, expected)
++        np.testing.assert_array_equal(values, row[indices])
++
++
++def test_results_are_read_only_and_have_explicit_padding():
++    scorer = _make_scorer()
++    index = scorer.build_index_prepared(scorer.prepare_peak_arrays([_peaks((100, 1))]))
++    result = scorer.search_prepared_topk(
++        scorer.prepare_peak_arrays([_peaks((100, 1))]),
++        index,
++        k=4,
++    )
++    assert result.shape == (1, 4)
++    assert result.valid_counts[0] == 1
++    np.testing.assert_array_equal(result.indices[0], [0, -1, -1, -1])
++    np.testing.assert_array_equal(result.scores[0], [1.0, 0.0, 0.0, 0.0])
++    with pytest.raises(ValueError):
++        result.indices[0, 0] = 5
++    with pytest.raises(ValueError):
++        result.scores[0, 0] = 5
++    with pytest.raises(ValueError):
++        result.valid_counts[0] = 5
++
++
++def test_randomized_exact_ranking_regression():
++    rng = np.random.default_rng(1234)
++    scorer = _make_scorer(np.float32)
++    references = []
++    for _ in range(191):
++        # Distinct mass sites guarantee separation, while repeated sites across
++        # spectra produce realistic candidate overlap and score ties.
++        masses = np.sort(rng.choice(np.arange(80, 430, 7), size=3, replace=False)).astype(float)
++        references.append(np.column_stack((masses, rng.uniform(0.1, 5, 3))))
++    queries = []
++    for _ in range(29):
++        masses = np.sort(rng.choice(np.arange(80, 430, 7), size=4, replace=False)).astype(float)
++        queries.append(np.column_stack((masses, rng.uniform(0.1, 5, 4))))
++    index = scorer.build_index_prepared(scorer.prepare_peak_arrays(references))
++    prepared = scorer.prepare_peak_arrays(queries)
++    dense = scorer.search_prepared(prepared, index, n_jobs=2).to_array()
++    for k in (1, 3, 9, 23):
++        for threshold in (0.0, 0.05, 0.3):
++            result = scorer.search_prepared_topk(prepared, index, k=k, min_score=threshold, batch_size=7, n_jobs=2)
++            _assert_matches_dense(result, dense, k, threshold)
++
++
++@pytest.mark.parametrize("dtype", [np.float32, np.float64])
++def test_dynamic_touched_array_grows_past_chunk_size_and_matches_dense(dtype):
++    # More than one 65,536-posting vector chunk and >4096 unique candidates.
++    scorer = _make_scorer(dtype, index_step=0)
++    references = [_peaks((100, 1)) for _ in range(67_000)]
++    queries = [_peaks((100, 1)), _peaks((500, 1))]
++    index = scorer.build_index_prepared(scorer.prepare_peak_arrays(references))
++    prepared = scorer.prepare_peak_arrays(queries)
++    dense = scorer.search_prepared(prepared, index, n_jobs=1).to_array()
++    result = scorer.search_prepared_topk(prepared, index, k=13, n_jobs=2, batch_size=1)
++    _assert_matches_dense(result, dense, 13, 0)
++    np.testing.assert_array_equal(result.indices[0], np.arange(13))
++    assert result.valid_counts[1] == 0
++
++
++@pytest.mark.parametrize("dtype", [np.float32, np.float64])
++def test_mixed_short_long_windows_and_repeated_library_updates(dtype):
++    scorer = _make_scorer(dtype)
++    # Common peaks are long windows. Only a handful match the middle peak.
++    # One library ID receives contributions from both matching paths.
++    references = [_peaks((100, i % 7 + 1), (200 if i < 9 else 240, 1), (300, i % 5 + 1)) for i in range(641)]
++    queries = [
++        _peaks((100, 5), (200, 4), (300, 3)),
++        _peaks((100, 3), (300, 9)),
++        _peaks((200, 2)),
++    ]
++    index = scorer.build_index_prepared(scorer.prepare_peak_arrays(references))
++    prepared = scorer.prepare_peak_arrays(queries)
++    dense = scorer.search_prepared(prepared, index, n_jobs=2).to_array()
++    for k in (1, 7, 23, 100):
++        result = scorer.search_prepared_topk(prepared, index, k=k, n_jobs=3, batch_size=1)
++        _assert_matches_dense(result, dense, k, 0)
++
++
++@pytest.mark.numba_coverage
++def test_touched_candidate_selector_resolves_ties_independent_of_encounter_order():
++    scores = np.array([0.8, 0.6, 0.6, 0.95, 0.6, 0.0, 0.6], dtype=np.float32)
++    for ids in (
++        np.array([6, 2, 3, 1, 0, 4], dtype=np.int32),
++        np.array([4, 1, 6, 0, 2, 3], dtype=np.int32),
++    ):
++        for k in (1, 2, 3, 5, 9):
++            ids_found, values_found = select_topk_candidates(ids, scores, k, 0)
++            full_row = np.zeros_like(scores)
++            full_row[ids] = scores[ids]
++            expected_ids, expected_values = select_topk_row(full_row, k, 0)
++            np.testing.assert_array_equal(ids_found, expected_ids)
++            np.testing.assert_array_equal(values_found, expected_values)
++
++
++def test_scatter_updates_each_touched_candidate_once_with_bounded_growth():
++    workspace = _TopKWorkspace(20_000, np.float32)
++    assert workspace.touched_ids.size == 4096
++    ids = np.arange(19_000, dtype=np.int32)
++    ids = np.concatenate((ids, ids[::-1]))
++    contributions = np.ones(ids.size, dtype=np.float32)
++    epoch = workspace.next_epoch()
++    touched, count = _scatter_add_topk(
++        workspace.scores,
++        workspace.seen_epochs,
++        workspace.touched_ids,
++        0,
++        epoch,
++        ids,
++        contributions,
++    )
++    workspace.touched_ids = touched
++    assert count == 19_000
++    assert 19_000 <= touched.size <= 20_000
++    np.testing.assert_array_equal(touched[:count], np.arange(19_000))
++    np.testing.assert_array_equal(workspace.scores[:19_000], 2.0)
++    # Next query has only one touched reference; stale scores must be cleared.
++    epoch = workspace.next_epoch()
++    touched, count = _scatter_add_topk(
++        workspace.scores,
++        workspace.seen_epochs,
++        workspace.touched_ids,
++        0,
++        epoch,
++        np.array([14], dtype=np.uint32),
++        np.array([0.25], dtype=np.float32),
++    )
++    assert count == 1
++    assert touched[0] == 14
++    assert workspace.scores[14] == np.float32(0.25)
++
++
++@pytest.mark.numba_coverage
++def test_epoch_wraparound_does_not_allow_stale_score_reuse():
++    workspace = _TopKWorkspace(10, np.float32)
++    workspace.seen_epochs[:] = 1
++    workspace.scores[:] = 77.0
++    workspace.epoch = _MAX_EPOCH
++    assert workspace.next_epoch() == 1
++    np.testing.assert_array_equal(workspace.seen_epochs, np.zeros(10, dtype=np.uint32))
++    touched, count = _scatter_add_topk(
++        workspace.scores,
++        workspace.seen_epochs,
++        workspace.touched_ids,
++        0,
++        workspace.epoch,
++        np.array([3], dtype=np.uint32),
++        np.array([0.75], dtype=np.float32),
++    )
++    assert count == 1
++    assert touched[0] == 3
++    assert workspace.scores[3] == np.float32(0.75)
++
++
++@pytest.mark.parametrize("n_jobs", [1, 2, 4, -1])
++@pytest.mark.parametrize("batch_size", [None, 1, 3])
++def test_rankings_invariant_to_worker_count_and_scheduling(n_jobs, batch_size):
++    rng = np.random.default_rng(987)
++    scorer = _make_scorer(np.float32)
++    references = []
++    for _ in range(501):
++        masses = np.sort(rng.choice(np.arange(90, 470, 7), size=4, replace=False))
++        references.append(np.column_stack((masses, rng.uniform(0.1, 5, 4))))
++    queries = []
++    for _ in range(19):
++        masses = np.sort(rng.choice(np.arange(90, 470, 7), size=4, replace=False))
++        queries.append(np.column_stack((masses, rng.uniform(0.1, 5, 4))))
++    index = scorer.build_index_prepared(scorer.prepare_peak_arrays(references))
++    prepared = scorer.prepare_peak_arrays(queries)
++    dense = scorer.search_prepared(prepared, index, n_jobs=1).to_array()
++    found = scorer.search_prepared_topk(prepared, index, k=11, min_score=0.04, n_jobs=n_jobs, batch_size=batch_size)
++    _assert_matches_dense(found, dense, 11, 0.04)
++
++
++# ---------------------------------------------------------------------------
++# EntropySearch: configuration, preparation, indexing and dense search
++# ---------------------------------------------------------------------------
++
++
++@pytest.mark.numba_coverage
++class TestEntropySearchConfiguration:
++    @pytest.mark.parametrize(
++        "options, message",
++        [
++            ({"matching_mode": "hybrid"}, "fragment matching"),
++            ({"use_ppm": True}, "fragment matching"),
++            ({"tolerance": -0.01}, "finite"),
++            ({"tolerance": np.inf}, "finite"),
++            ({"tolerance": np.nan}, "finite"),
++            ({"tolerance": 0.1, "max_tolerance": 0.01}, "finite"),
++            ({"max_tolerance": np.inf}, "finite"),
++            ({"peak_separation": "ignore"}, "peak_separation"),
++            ({"noise_cutoff": -0.01}, "noise_cutoff"),
++            ({"noise_cutoff": 1.01}, "noise_cutoff"),
++            ({"noise_cutoff": np.nan}, "noise_cutoff"),
++            ({"offset_to_precursor": np.inf}, "offset_to_precursor"),
++            ({"dtype": np.float16}, "dtype"),
++            ({"index_step": -1.0}, "index_step"),
++            ({"index_step": np.nan}, "index_step"),
++        ],
++    )
++    def test_invalid_constructor_settings(self, options, message):
++        with pytest.raises(ValueError, match=message):
++            EntropySearch(**options)
++
++    @pytest.mark.parametrize("dtype", [np.float32, np.float64])
++    def test_settings_serialization_and_zero_tolerance(self, dtype):
++        scorer = EntropySearch(
++            tolerance=0,
++            max_tolerance=0,
++            peak_separation="raise",
++            noise_cutoff=None,
++            remove_precursor=False,
++            intensity_weighting=False,
++            index_step=0,
++            dtype=dtype,
++        )
++        settings = scorer.to_dict()
++        assert settings["__Similarity__"] == "EntropySearch"
++        assert settings["dtype"] == np.dtype(dtype).name
++        assert settings["max_tolerance"] == 0
++        assert settings["noise_cutoff"] == 0
++        assert scorer.score_datatype == np.dtype(dtype)
++        assert scorer._minimum_gap() == 0
++        assert dict(scorer._settings()) == scorer._config()
++        assert scorer._config()["normalize_to_half"] is True
++
++    def test_minimum_gap_uses_maximum_tolerance(self):
++        scorer = _make_scorer()
++        gap = scorer._minimum_gap()
++        assert gap > 2 * scorer.max_tolerance
++        assert gap < 2.001 * scorer.max_tolerance
++
++    def test_precursor_conversion_and_missing_values(self):
++        convert = EntropySearch._precursors
++        np.testing.assert_array_equal(np.isnan(convert(None, 3)), [True] * 3)
++        precursors = convert(["500.5", "missing", 0, -2, np.inf, np.nan], 6)
++        assert precursors[0] == pytest.approx(500.5)
++        assert np.all(np.isnan(precursors[1:]))
++        with pytest.raises(ValueError, match="one value per spectrum"):
++            convert([500.0], 2)
++        with pytest.raises(ValueError, match="one value per spectrum"):
++            convert([[500.0, 510.0]], 1)
++
++
++@pytest.mark.numba_coverage
++class TestEntropySearchPreparation:
++    @pytest.mark.parametrize("dtype", [np.float32, np.float64])
++    def test_pack_multiple_rows_normalizes_and_keeps_inputs_immutable(self, dtype):
++        scorer = _make_scorer(dtype)
++        rows = [_peaks((100, 2), (200, 2)), _peaks(), _peaks((150, 9))]
++        original = [r.copy() for r in rows]
++        packed = scorer.prepare_peak_arrays(rows, precursor_mz=[400, None, 450])
++        assert packed.n_specs == 3 and packed.n_peaks == 3 and len(packed) == 3
++        assert packed.n_input_peaks == 3
++        assert packed.n_filtered_peaks == packed.n_merged_peaks == 0
++        np.testing.assert_array_equal(packed.spec_offsets, [0, 2, 2, 3])
++        np.testing.assert_array_equal(packed.spec_mz, [100, 200, 150])
++        np.testing.assert_allclose(packed.spec_int, [0.25, 0.25, 0.5])
++        assert packed.spec_int.dtype == np.dtype(dtype)
++        assert np.isnan(packed.precursor_mz[1])
++        for array in (packed.spec_offsets, packed.spec_mz, packed.spec_int, packed.precursor_mz):
++            assert not array.flags.writeable
++            with pytest.raises(ValueError):
++                array.flat[0] = 123.0
++        for before, after in zip(original, rows, strict=True):
++            np.testing.assert_array_equal(before, after)
++
++    @pytest.mark.parametrize("bad", [np.empty(0), np.ones((2, 3)), np.ones((2, 1))])
++    def test_peak_arrays_require_two_columns(self, bad):
++        with pytest.raises(ValueError, match="shape"):
++            _make_scorer().prepare_peak_arrays([bad])
++
++    @pytest.mark.parametrize(
++        "offsets",
++        [
++            np.array([], dtype=np.int64),
++            np.array([1, 2]),
++            np.array([0, 2, 1]),
++            np.array([0.0, 2.0]),
++            np.array([[0, 2]]),
++        ],
++    )
++    def test_invalid_offsets(self, offsets):
++        with pytest.raises(ValueError, match="Peak offsets"):
++            _make_scorer()._prepare_arrays(offsets, [100, 200], [1, 1], [500])
++
++    @pytest.mark.parametrize(
++        "offsets, mz, intensity",
++        [
++            ([0, 2], [100], [1]),
++            ([0, 1], [100], [1, 2]),
++            ([0, 1], [[100]], [1]),
++        ],
++    )
++    def test_invalid_packed_shapes(self, offsets, mz, intensity):
++        with pytest.raises(ValueError, match="incompatible shapes"):
++            _make_scorer()._prepare_arrays(offsets, mz, intensity, [500])
++
++    def test_empty_input_and_empty_spectra(self):
++        scorer = _make_scorer()
++        empty = scorer.prepare_peak_arrays([])
++        assert empty.n_specs == 0 and empty.n_peaks == 0
++        np.testing.assert_array_equal(empty.spec_offsets, [0])
++        rows = scorer.prepare_peak_arrays([_peaks(), _peaks()])
++        assert rows.n_specs == 2 and rows.n_peaks == 0
++        np.testing.assert_array_equal(rows.spec_offsets, [0, 0, 0])
++
++    def test_preparation_filters_invalid_zero_noise_and_precursor_peaks(self):
++        scorer = EntropySearch(
++            tolerance=0.01,
++            max_tolerance=0.02,
++            peak_separation="raise",
++            noise_cutoff=0.2,
++            remove_precursor=True,
++            offset_to_precursor=-1.6,
++            intensity_weighting=False,
++            dtype=np.float64,
++        )
++        row = _peaks((100, 10), (120, 0), (150, 1), (198.4, 8), (199, 100))
++        packed = scorer.prepare_peak_arrays([row], precursor_mz=[200])
++        np.testing.assert_array_equal(packed.spec_mz, [100, 198.4])
++        np.testing.assert_allclose(packed.spec_int, [5 / 18, 4 / 18])
++        assert packed.n_input_peaks == 5
++        assert packed.n_filtered_peaks == 3
++        assert packed.n_merged_peaks == 0
++
++    def test_invalid_peaks_and_missing_precursor_do_not_poison_packed_arrays(self):
++        scorer = EntropySearch(tolerance=0.01, noise_cutoff=0, remove_precursor=True)
++        raw = _peaks((100, 3), (110, 0), (120, -1), (130, np.nan), (np.inf, 2), (np.nan, 1), (-1, 1))
++        packed = scorer.prepare_peak_arrays([raw])
++        np.testing.assert_array_equal(packed.spec_mz, [100])
++        np.testing.assert_allclose(packed.spec_int, [0.5])
++        assert packed.n_filtered_peaks == 6
++        no_precursor = scorer.prepare_peak_arrays([_peaks((100, 1), (900, 1))])
++        np.testing.assert_array_equal(no_precursor.spec_mz, [100, 900])
++
++    @pytest.mark.parametrize("policy", ["merge", "raise"])
++    def test_unsorted_peaks_are_rejected_even_when_merging(self, policy):
++        scorer = EntropySearch(tolerance=0.02, peak_separation=policy)
++        with pytest.raises(ValueError, match="row 0.*unsorted"):
++            scorer.prepare_peak_arrays([_peaks((200, 1), (100, 2))])
++
++    def test_close_peaks_raise_or_merge_around_strongest_peak(self):
++        raw = _peaks((100, 1), (100.015, 3), (100.03, 1), (200, 2))
++        with pytest.raises(ValueError, match="row 0.*separated"):
++            _make_scorer().prepare_peak_arrays([raw])
++        merged = EntropySearch(
++            tolerance=0.01,
++            max_tolerance=0.02,
++            peak_separation="merge",
++            intensity_weighting=False,
++        ).prepare_peak_arrays([raw])
++        np.testing.assert_allclose(merged.spec_mz, [100.015, 200], rtol=1e-7, atol=1e-6)
++        np.testing.assert_allclose(merged.spec_int, [5 / 7 * 0.5, 2 / 7 * 0.5])
++        assert merged.n_merged_peaks == 2
++
++    def test_merge_ties_prefer_lower_mz_and_inclusive_boundary_rejected(self):
++        scorer = EntropySearch(tolerance=0.0625, max_tolerance=0.0625, peak_separation="merge")
++        merged = scorer.prepare_peak_arrays([_peaks((100, 1), (100.125, 1))])
++        np.testing.assert_array_equal(merged.spec_mz, [100.0])
++        assert merged.n_merged_peaks == 1
++        with pytest.raises(ValueError, match="separated"):
++            EntropySearch(tolerance=0.0625, max_tolerance=0.0625, peak_separation="raise").prepare_peak_arrays(
++                [_peaks((100, 1), (100.125, 1))]
++            )
++
++    def test_weighted_and_unweighted_intensities(self):
++        raw = [_peaks((100, 9), (200, 1))]
++        plain = EntropySearch(tolerance=0.01, intensity_weighting=False).prepare_peak_arrays(raw)
++        weighted = EntropySearch(tolerance=0.01, intensity_weighting=True).prepare_peak_arrays(raw)
++        np.testing.assert_allclose(plain.spec_int, [0.45, 0.05])
++        np.testing.assert_allclose(weighted.spec_int.sum(), 0.5)
++        assert weighted.spec_int[1] > plain.spec_int[1]
++        assert weighted.spec_int[0] < plain.spec_int[0]
++
++    def test_intensity_rescaling_avoids_float64_overflow(self):
++        packed = EntropySearch(tolerance=0.01, dtype=np.float64).prepare_peak_arrays(
++            [_peaks((100, 1e308), (200, 1e308))]
++        )
++        np.testing.assert_allclose(packed.spec_int, [0.25, 0.25])
++        assert np.all(np.isfinite(packed.spec_int))
++
++    def test_underflowed_float32_intensities_are_removed(self):
++        smallest = float(np.nextafter(np.float32(0), np.float32(1)))
++        scorer = EntropySearch(
++            tolerance=0.01,
++            dtype=np.float32,
++            noise_cutoff=0,
++            intensity_weighting=False,
++        )
++        prepared = scorer.prepare_peak_arrays([_peaks((100, smallest), (200, 1.0))])
++        np.testing.assert_array_equal(prepared.spec_mz, [200])
++        np.testing.assert_allclose(prepared.spec_int, [0.5])
++        assert prepared.n_filtered_peaks == 1
++
++    def test_prepared_slices_rebase_offsets_share_peaks_and_check_bounds(self):
++        prepared = _make_scorer().prepare_peak_arrays([_peaks((100, 1), (200, 1)), _peaks(), _peaks((300, 2))])
++        selected = prepared.slice(1, 3)
++        np.testing.assert_array_equal(selected.spec_offsets, [0, 0, 1])
++        np.testing.assert_array_equal(selected.spec_mz, [300])
++        assert np.shares_memory(prepared.spec_mz, selected.spec_mz)
++        assert selected.n_input_peaks == 1
++        assert selected.n_filtered_peaks == selected.n_merged_peaks == 0
++        assert not selected.spec_mz.flags.writeable
++        for first, last in [(-1, 1), (2, 1), (0, 4)]:
++            with pytest.raises(ValueError, match="slice"):
++                prepared.slice(first, last)
++
++    def test_direct_packed_kernel_reports_specific_failure_codes(self):
++        scorer = _make_scorer()
++
++        def call(mz, intensity, merge):
++            return _prepare_packed(
++                np.array([0, len(mz)], np.int64),
++                np.asarray(mz, np.float64),
++                np.asarray(intensity, np.float64),
++                np.array([500.0]),
++                0.0,
++                False,
++                -1.6,
++                0.05,
++                scorer._minimum_gap(),
++                merge,
++                False,
++            )
++
++        offsets, _, intensity, filtered, merged, row, code = call([100, 200], [1, 2], False)
++        np.testing.assert_array_equal(offsets, [0, 2])
++        np.testing.assert_allclose(intensity, [1 / 6, 1 / 3])
++        assert (filtered, merged, row, code) == (0, 0, -1, 0)
++        assert call([200, 100], [1, 1], True)[-2:] == (0, 1)
++        assert call([100, 100.01], [1, 1], False)[-2:] == (0, 2)
++
++    @pytest.mark.parametrize(
++        "mass, intensity, expected_bad_row",
++        [
++            ([100, 200, 300], [0.25, 0.25, 0.25], 1),  # wrong sum in second row
++            ([100, 100.01, 300], [0.25, 0.25, 0.5], 0),  # close peaks
++            ([100, 200, 300], [0.0, 0.5, 0.5], 0),
++            ([100, 200, 300], [np.nan, 0.5, 0.5], 0),
++            ([100, 200, 300], [0.1, 0.1, 0.5], 0),
++        ],
++    )
++    def test_validate_stored_spectra_rejects_invalid_rows(self, mass, intensity, expected_bad_row):
++        offsets = np.array([0, 2, 3], np.int64)
++        assert _validate_separation(offsets, np.asarray(mass), np.asarray(intensity), 0.04) == expected_bad_row
++
++    def test_validate_stored_spectra_accepts_empty_rows(self):
++        offsets = np.array([0, 2, 2, 3], np.int64)
++        mz = np.array([100.0, 200.0, 300.0])
++        intensity = np.array([0.25, 0.25, 0.5])
++        assert _validate_separation(offsets, mz, intensity, 0.04) == -1
++
++
++@pytest.mark.numba_coverage
++class TestEntropySearchIndexAndDenseScoring:
++    @pytest.mark.parametrize("with_directory", [True, False])
++    def test_index_statistics_directory_cache_and_persistence(self, tmp_path, with_directory):
++        scorer = _make_scorer(np.float64, index_step=0.1 if with_directory else 0)
++        prepared = scorer.prepare_peak_arrays([_peaks((100, 1), (200, 3)), _peaks(), _peaks((300, 1))])
++        index = scorer.build_index_prepared(prepared)
++        first = scorer.prime_index(index)
++        assert scorer.prime_index(index) is first
++        assert not first.terms.flags.writeable
++        assert not first.starts.flags.writeable
++        assert bool(first.starts.size) is with_directory
++        stats = scorer.index_statistics(index)
++        assert stats["n_reference"] == 3
++        assert stats["n_peaks"] == 3
++        assert stats["dtype"] == "float64"
++        assert stats["directory_entries"] == first.starts.size
++        assert stats["directory_bytes"] == first.starts.nbytes
++        assert stats["cached_entropy_bytes"] == first.terms.nbytes
++        assert stats["prepared_statistics"]["input_peaks"] == 3
++        path = tmp_path / "entropy_index.npz"
++        scorer.save_index(index, path)
++        restored = scorer.load_index(path)
++        assert restored is not index
++        np.testing.assert_array_equal(restored.peaks_mz, index.peaks_mz)
++        original = scorer.search_prepared(prepared, index).to_array()
++        loaded = scorer.search_prepared(prepared, restored).to_array()
++        np.testing.assert_allclose(original, loaded, atol=1e-14)
++
++    def test_index_and_prepared_require_compatible_settings(self):
++        scorer = _make_scorer()
++        prepared = scorer.prepare_peak_arrays([_peaks((100, 1))])
++        index = scorer.build_index_prepared(prepared)
++        different = EntropySearch(
++            tolerance=0.01,
++            max_tolerance=0.02,
++            peak_separation="raise",
++            noise_cutoff=0,
++            remove_precursor=False,
++            intensity_weighting=False,
++        )
++        with pytest.raises(ValueError, match="prepare_queries"):
++            different.build_index_prepared(prepared)
++        with pytest.raises(ValueError, match="compatible"):
++            different.search_prepared(different.prepare_peak_arrays([_peaks((100, 1))]), index)
++        with pytest.raises(ValueError, match="prepare_queries"):
++            scorer.search_prepared(object(), index)
++        with pytest.raises(TypeError, match="FlashIndex"):
++            scorer.search_prepared(prepared, object())
++
++    def test_prepared_library_reused_with_smaller_query_tolerance(self):
++        broad = _make_scorer(np.float64)
++        narrow = EntropySearch(
++            tolerance=0.005,
++            max_tolerance=0.02,
++            peak_separation="raise",
++            noise_cutoff=0,
++            remove_precursor=False,
++            dtype=np.float64,
++        )
++        lib = broad.build_index_prepared(broad.prepare_peak_arrays([_peaks((100, 1))]))
++        queries = broad.prepare_peak_arrays([_peaks((100.007, 1))])
++        assert broad.search_prepared(queries, lib).to_array()[0, 0] == pytest.approx(1.0)
++        assert narrow.search_prepared(queries, lib).to_array()[0, 0] == 0.0
++
++    def test_binary_search_and_window_boundaries_without_directory(self):
++        from matchms.similarity.entropy_search import _bisect, _query_windows
++
++        library = np.array([99.875, 100.0, 100.125, 100.125, 150.0, 150.125])
++        values = [99.8, 99.875, 100, 100.125, 110, 150.125, 160]
++        # Deliberately invalid directory brackets must trigger full-search fallback.
++        broken_directory = np.zeros(12, dtype=np.int64)
++        for value in values:
++            for right in (False, True):
++                expected = int(np.searchsorted(library, value, side="right" if right else "left"))
++                assert _bisect(library, value, np.empty(0, np.int64), 0.0, 1.0, right) == expected
++                assert _bisect(library, value, broken_directory, 80.0, 5.0, right) == expected
++        query = np.array([100.0, 150.0, 180.0])
++        found = _query_windows(query, library, 0.125, np.empty(0, np.int64), 0.0, 1.0)
++        np.testing.assert_array_equal(found, [[0, 4], [4, 6], [6, 6]])
++
++    def test_query_windows_trim_adjacent_floating_point_endpoints(self):
++        from matchms.similarity.entropy_search import _query_windows
++
++        lower = np.nextafter(99.875, -np.inf)
++        upper = np.nextafter(100.125, np.inf)
++        library = np.array([lower, 99.875, 100.125, upper])
++        bounds = _query_windows(
++            np.array([100.0]),
++            library,
++            0.125,
++            np.empty(0, dtype=np.int64),
++            0.0,
++            1.0,
++        )
++        np.testing.assert_array_equal(bounds, [[1, 3]])
++
++    @pytest.mark.parametrize("dtype", [np.float32, np.float64])
++    @pytest.mark.parametrize("index_step", [0, 0.25])
++    def test_dense_search_matrix_pair_and_threading(self, dtype, index_step):
++        from matchms.spectrum import Spectrum
++
++        scorer = _make_scorer(dtype, index_step=index_step)
++
++        def spectrum(row):
++            return Spectrum(mz=row[:, 0], intensities=row[:, 1], metadata_harmonization=False)
++
++        references = [_peaks((100, 1), (200, 1)), _peaks((100, 1), (300, 1)), _peaks()]
++        queries = [_peaks((100, 1), (200, 1)), _peaks((900, 1)), _peaks()]
++        index = scorer.build_index([spectrum(r) for r in references])
++        prepared = scorer.prepare_peak_arrays(queries)
++        serial = scorer.search_prepared(prepared, index, n_jobs=1).to_array()
++        threaded = scorer.search_prepared(prepared, index, n_jobs=2).to_array()
++        assert serial.dtype == np.dtype(dtype)
++        assert serial.shape == (3, 3)
++        np.testing.assert_allclose(serial, threaded, atol=1e-7)
++        np.testing.assert_allclose(serial[0], [1.0, 0.5, 0.0], atol=1e-6)
++        np.testing.assert_array_equal(serial[1:], np.zeros((2, 3)))
++        matrix = scorer.matrix([spectrum(r) for r in queries], [spectrum(r) for r in references], progress_bar=False)
++        np.testing.assert_allclose(matrix.to_array(), serial, atol=1e-6)
++        assert scorer.pair(spectrum(queries[0]), spectrum(references[0])).dtype == np.dtype(dtype)
++        assert scorer.pair(spectrum(queries[0]), spectrum(references[0])) == pytest.approx(1.0, abs=1e-6)
++
++    def test_self_matrix_and_unprepared_search(self):
++        from matchms.spectrum import Spectrum
++
++        scorer = _make_scorer(np.float64)
++        one = Spectrum(mz=np.array([100.0, 200.0]), intensities=np.array([1.0, 1.0]), metadata_harmonization=False)
++        other = Spectrum(mz=np.array([100.0, 300.0]), intensities=np.array([1.0, 1.0]), metadata_harmonization=False)
++        matrix = scorer.matrix([one, other], progress_bar=False).to_array()
++        np.testing.assert_allclose(matrix, [[1, 0.5], [0.5, 1]], atol=1e-12)
++        index = scorer.build_index([one, other])
++        found = scorer.search([one, other], index, progress_bar=False).to_array()
++        np.testing.assert_allclose(found, matrix, atol=1e-12)
++
++    def test_prepare_queries_csr_and_non_csr_paths(self):
++        from types import SimpleNamespace
++        import pandas as pd
++
++        scorer = _make_scorer(np.float64)
++        # These two duck-typed collections exercise the packed CSR fast path and
++        # the generic get_row fallback without involving a full collection constructor.
++        csr = SimpleNamespace(
++            format="csr",
++            indptr=np.array([0, 2, 3], dtype=np.int64),
++            indices=np.array([100, 200, 150], dtype=np.int32),
++            data=np.array([1.0, 1.0, 3.0]),
++        )
++        fragments_csr = SimpleNamespace(array=csr, bin_to_mz=lambda indices: indices.astype(float))
++        metadata = pd.DataFrame({"precursor_mz": [500.0, 600.0]})
++        fake_csr = SimpleNamespace(fragments=fragments_csr, metadata=metadata)
++        direct = scorer.prepare_queries(fake_csr)
++        np.testing.assert_array_equal(direct.spec_offsets, [0, 2, 3])
++        np.testing.assert_array_equal(direct.spec_mz, [100, 200, 150])
++        np.testing.assert_allclose(direct.spec_int, [0.25, 0.25, 0.5])
++
++        class Unpacked:
++            array = SimpleNamespace(format="coo")
++
++            @staticmethod
++            def get_row(row):
++                if row == 0:
++                    return np.array([100.0, 200.0]), np.array([1.0, 1.0])
++                return np.array([150.0]), np.array([3.0])
++
++        fake_unpacked = SimpleNamespace(fragments=Unpacked(), metadata=metadata)
++
++        # The fallback implementation asks the collection for its row count.
++        class Collection:
++            fragments = fake_unpacked.fragments
++            metadata = fake_unpacked.metadata
++
++            def __len__(self):
++                return 2
++
++        unpacked = scorer.prepare_queries(Collection())
++        np.testing.assert_array_equal(unpacked.spec_mz, direct.spec_mz)
++        np.testing.assert_allclose(unpacked.spec_int, direct.spec_int)
++
++    def test_long_windows_use_small_vector_chunks(self, monkeypatch):
++        import matchms.similarity.entropy_search as search_module
++
++        # >512 hits forces the vector path. A small chunk size exercises its
++        # bounded-memory loop without allocating tens of thousands of references.
++        monkeypatch.setattr(search_module, "_VECTOR_CHUNK_SIZE", 19)
++        scorer = _make_scorer(np.float64, index_step=0)
++        reference = scorer.prepare_peak_arrays([_peaks((100, 1)) for _ in range(520)])
++        query = scorer.prepare_peak_arrays([_peaks((100, 1))])
++        index = scorer.build_index_prepared(reference)
++        values = scorer.search_prepared(query, index).to_array()
++        np.testing.assert_allclose(values, np.ones((1, 520)), atol=1e-12)
++
++    @pytest.mark.parametrize("n_jobs", [0, -2, True, 1.5, "2"])
++    def test_invalid_dense_worker_counts(self, n_jobs):
++        scorer = _make_scorer()
++        index = scorer.build_index_prepared(scorer.prepare_peak_arrays([_peaks((100, 1))]))
++        query = scorer.prepare_peak_arrays([_peaks((100, 1))])
++        with pytest.raises(ValueError, match="n_jobs"):
++            scorer.search_prepared(query, index, n_jobs=n_jobs)
++
++    def test_dense_empty_queries_and_all_empty_library(self):
++        scorer = _make_scorer()
++        library = scorer.build_index_prepared(scorer.prepare_peak_arrays([_peaks(), _peaks()]))
++        empty_query = scorer.prepare_peak_arrays([])
++        assert scorer.search_prepared(empty_query, library).to_array().shape == (0, 2)
++        nonempty_query = scorer.prepare_peak_arrays([_peaks((100, 1))])
++        np.testing.assert_array_equal(scorer.search_prepared(nonempty_query, library).to_array(), [[0, 0]])
+diff --git a/tests/similarity/test_entropy_search_topk.py b/tests/similarity/test_entropy_search_topk.py
+deleted file mode 100644
+index 29edb3769..000000000
+--- a/tests/similarity/test_entropy_search_topk.py
++++ /dev/null
+@@ -1,428 +0,0 @@
+-from __future__ import annotations
+-import numpy as np
+-import pytest
+-from matchms.similarity._entropy_search_topk import (
+-    _MAX_EPOCH,
+-    _scatter_add_topk,
+-    _TopKWorkspace,
+-)
+-from matchms.similarity._topk import (
+-    select_topk_candidates,
+-    select_topk_row,
+-)
+-from matchms.similarity.entropy_search import EntropySearch
+-from matchms.similarity.topk_results import TopKResults
+-
+-
+-def _peaks(*pairs):
+-    return np.asarray(pairs, dtype=np.float64).reshape((-1, 2))
+-
+-
+-def _make_scorer(dtype=np.float32, *, index_step=0.01):
+-    return EntropySearch(
+-        tolerance=0.01,
+-        max_tolerance=0.02,
+-        peak_separation="raise",
+-        noise_cutoff=0,
+-        remove_precursor=False,
+-        dtype=dtype,
+-        index_step=index_step,
+-    )
+-
+-
+-def _library_and_queries():
+-    references = [
+-        _peaks((100, 3), (150, 1)),
+-        _peaks((100, 3), (150, 1)),  # exact tie: ID 0 precedes ID 1
+-        _peaks((100, 1)),
+-        _peaks((105, 1), (250, 2)),
+-        _peaks((800, 2)),
+-        _peaks(),
+-        _peaks((101, 2), (200, 1)),
+-    ]
+-    queries = [
+-        _peaks((100, 3), (150, 1)),
+-        _peaks((105, 1), (250, 2)),
+-        _peaks((999, 1)),
+-        _peaks(),
+-        _peaks((100, 5)),
+-        _peaks((800, 1)),
+-        _peaks((101, 3), (200, 2)),
+-    ]
+-    return references, queries
+-
+-
+-def _expected_from_dense(matrix, k, min_score):
+-    expected_ids = np.full((matrix.shape[0], k), -1, dtype=np.int64)
+-    expected_scores = np.zeros((matrix.shape[0], k), dtype=matrix.dtype)
+-    counts = np.zeros(matrix.shape[0], dtype=np.int64)
+-    for i, dense_row in enumerate(matrix):
+-        candidate_ids = np.flatnonzero(dense_row > min_score)
+-        order = np.lexsort((candidate_ids, -dense_row[candidate_ids]))
+-        best_ids = candidate_ids[order[:k]]
+-        counts[i] = len(best_ids)
+-        expected_ids[i, : len(best_ids)] = best_ids
+-        expected_scores[i, : len(best_ids)] = dense_row[best_ids]
+-    return expected_ids, expected_scores, counts
+-
+-
+-def _assert_matches_dense(results: TopKResults, matrix, k, min_score):
+-    ids, scores, counts = _expected_from_dense(matrix, k, min_score)
+-    assert results.shape == (matrix.shape[0], k)
+-    assert results.n_references == matrix.shape[1]
+-    assert results.n_queries == matrix.shape[0]
+-    assert results.k == k
+-    assert len(results) == matrix.shape[0]
+-    assert results.scores.dtype == matrix.dtype
+-    expected_id_dtype = np.int32 if matrix.shape[1] <= np.iinfo(np.int32).max else np.int64
+-    assert results.indices.dtype == expected_id_dtype
+-    np.testing.assert_array_equal(results.indices, ids)
+-    np.testing.assert_array_equal(results.scores, scores)
+-    np.testing.assert_array_equal(results.valid_counts, counts)
+-    for row in range(results.n_queries):
+-        n = int(counts[row])
+-        hit_ids, hit_scores = results.get_hits(row)
+-        np.testing.assert_array_equal(hit_ids, ids[row, :n])
+-        np.testing.assert_array_equal(hit_scores, scores[row, :n])
+-
+-
+-@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+-@pytest.mark.parametrize("k", [1, 2, 4, 12])
+-@pytest.mark.parametrize("min_score", [0, 0.05, 0.8, 1.1])
+-def test_topk_exactly_matches_dense_with_ties_padding_and_threshold(dtype, k, min_score):
+-    scorer = _make_scorer(dtype)
+-    references, queries = _library_and_queries()
+-    index = scorer.build_index_prepared(scorer.prepare_peak_arrays(references))
+-    prepared = scorer.prepare_peak_arrays(queries)
+-    dense = scorer.search_prepared(prepared, index, progress_bar=False).to_array()
+-    result = scorer.search_prepared_topk(
+-        prepared,
+-        index,
+-        k=k,
+-        min_score=min_score,
+-        batch_size=3,
+-        progress_bar=False,
+-        n_jobs=2,
+-    )
+-    _assert_matches_dense(result, dense, k, min_score)
+-
+-
+-def test_search_topk_prepares_queries_and_agrees_with_prepared_path():
+-    scorer = _make_scorer()
+-    references, queries = _library_and_queries()
+-    index = scorer.build_index_prepared(scorer.prepare_peak_arrays(references))
+-    # The public prepare_queries path accepts matchms Spectrum instances.
+-    from matchms.spectrum import Spectrum
+-
+-    spectra = [Spectrum(mz=row[:, 0], intensities=row[:, 1], metadata_harmonization=False) for row in queries]
+-    result = scorer.search_topk(spectra, index, k=4, batch_size=2, progress_bar=False)
+-    prepared = scorer.prepare_peak_arrays(queries)
+-    expected = scorer.search_prepared_topk(prepared, index, k=4, batch_size=2)
+-    np.testing.assert_array_equal(result.indices, expected.indices)
+-    np.testing.assert_array_equal(result.scores, expected.scores)
+-    np.testing.assert_array_equal(result.valid_counts, expected.valid_counts)
+-
+-
+-@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+-def test_large_matching_windows_use_existing_vector_kernel(dtype):
+-    scorer = _make_scorer(dtype, index_step=0)
+-    references = [_peaks((100, 1)) for _ in range(700)]
+-    queries = [_peaks((100, 1)), _peaks((200, 1)), _peaks((100, 2))]
+-    index = scorer.build_index_prepared(scorer.prepare_peak_arrays(references))
+-    prepared = scorer.prepare_peak_arrays(queries)
+-    dense = scorer.search_prepared(prepared, index, n_jobs=2).to_array()
+-    result = scorer.search_prepared_topk(
+-        prepared,
+-        index,
+-        k=15,
+-        min_score=0.5,
+-        batch_size=2,
+-        n_jobs=2,
+-    )
+-    _assert_matches_dense(result, dense, 15, 0.5)
+-    np.testing.assert_array_equal(result.indices[0], np.arange(15))
+-    assert result.valid_counts[1] == 0
+-
+-
+-def test_candidate_topk_never_calls_dense_scoring(monkeypatch):
+-    scorer = _make_scorer()
+-    references, queries = _library_and_queries()
+-    queries = queries * 3
+-    index = scorer.build_index_prepared(scorer.prepare_peak_arrays(references))
+-    prepared = scorer.prepare_peak_arrays(queries)
+-
+-    def forbidden_dense_score(*args, **kwargs):
+-        raise AssertionError("top-k called the dense scorer")
+-
+-    monkeypatch.setattr(scorer, "_score_into", forbidden_dense_score)
+-    result = scorer.search_prepared_topk(prepared, index, k=2, batch_size=4, n_jobs=2)
+-    assert result.shape == (21, 2)
+-    assert result.valid_counts[0] == 2
+-
+-
+-def test_batch_size_controls_scheduling_not_dense_buffer(monkeypatch):
+-    import matchms.similarity.entropy_search as entropy_search_module
+-
+-    scorer = _make_scorer()
+-    references, queries = _library_and_queries()
+-    index = scorer.build_index_prepared(scorer.prepare_peak_arrays(references))
+-    prepared = scorer.prepare_peak_arrays(queries * 4)
+-    calls = []
+-    score_block = entropy_search_module._score_topk_block
+-
+-    def wrapped_score_block(*args):
+-        # Function signature: (..., first_row, last_row, k, min_score, ...)
+-        first, last = args[7], args[8]
+-        calls.append((first, last))
+-        return score_block(*args)
+-
+-    monkeypatch.setattr(entropy_search_module, "_score_topk_block", wrapped_score_block)
+-    result = scorer.search_prepared_topk(prepared, index, k=3, batch_size=3, n_jobs=2)
+-    assert result.shape == (28, 3)
+-    assert sum(b - a for a, b in calls) == 28
+-    assert sorted(r for a, b in calls for r in range(a, b)) == list(range(28))
+-    assert all(b - a <= 3 for a, b in calls)
+-
+-
+-def test_empty_queries_empty_index_and_zero_hits():
+-    scorer = _make_scorer()
+-    empty = scorer.prepare_peak_arrays([])
+-    reference = scorer.prepare_peak_arrays([_peaks(), _peaks()])
+-    no_peak_index = scorer.build_index_prepared(reference)
+-    result = scorer.search_prepared_topk(empty, no_peak_index, k=3)
+-    assert result.shape == (0, 3)
+-    assert result.valid_counts.shape == (0,)
+-
+-    query = scorer.prepare_peak_arrays([_peaks((100, 1)), _peaks()])
+-    result = scorer.search_prepared_topk(query, no_peak_index, k=3)
+-    np.testing.assert_array_equal(result.indices, -np.ones((2, 3), dtype=np.int32))
+-    np.testing.assert_array_equal(result.scores, np.zeros((2, 3), dtype=scorer.dtype))
+-    np.testing.assert_array_equal(result.valid_counts, [0, 0])
+-
+-
+-def test_index_round_trip_without_format_change(tmp_path):
+-    scorer = _make_scorer()
+-    references, queries = _library_and_queries()
+-    index = scorer.build_index_prepared(scorer.prepare_peak_arrays(references))
+-    path = tmp_path / "entropy-search-index.npz"
+-    scorer.save_index(index, path)
+-    loaded = scorer.load_index(path)
+-    prepared = scorer.prepare_peak_arrays(queries)
+-    original = scorer.search_prepared_topk(prepared, index, k=5, batch_size=2)
+-    restored = scorer.search_prepared_topk(prepared, loaded, k=5, batch_size=2)
+-    np.testing.assert_array_equal(original.indices, restored.indices)
+-    np.testing.assert_array_equal(original.scores, restored.scores)
+-    np.testing.assert_array_equal(original.valid_counts, restored.valid_counts)
+-
+-
+-@pytest.mark.parametrize(
+-    "k, min_score, batch_size, exception",
+-    [
+-        (0, 0, None, ValueError),
+-        (-1, 0, None, ValueError),
+-        (True, 0, None, TypeError),
+-        (1.5, 0, None, TypeError),
+-        (1, -0.1, None, ValueError),
+-        (1, float("nan"), None, ValueError),
+-        (1, float("inf"), None, ValueError),
+-        (1, True, None, TypeError),
+-        (1, 0, 0, ValueError),
+-        (1, 0, -2, ValueError),
+-        (1, 0, 1.2, TypeError),
+-        (1, 0, False, TypeError),
+-    ],
+-)
+-def test_invalid_topk_parameters(k, min_score, batch_size, exception):
+-    scorer = _make_scorer()
+-    index = scorer.build_index_prepared(scorer.prepare_peak_arrays([_peaks((100, 1))]))
+-    prepared = scorer.prepare_peak_arrays([_peaks((100, 1))])
+-    with pytest.raises(exception):
+-        scorer.search_prepared_topk(prepared, index, k=k, min_score=min_score, batch_size=batch_size)
+-
+-
+-@pytest.mark.parametrize("n_jobs", [0, -2, True, 1.0, "2"])
+-def test_invalid_worker_count_matches_dense_search(n_jobs):
+-    scorer = _make_scorer()
+-    index = scorer.build_index_prepared(scorer.prepare_peak_arrays([_peaks((100, 1))]))
+-    prepared = scorer.prepare_peak_arrays([_peaks((100, 1))])
+-    with pytest.raises(ValueError):
+-        scorer.search_prepared_topk(prepared, index, n_jobs=n_jobs)
+-    with pytest.raises(ValueError):
+-        scorer.search_prepared(prepared, index, n_jobs=n_jobs)
+-
+-
+-def test_selector_uses_deterministic_library_id_for_kth_score_ties():
+-    row = np.array([0.8, 0.6, 0.6, 0.95, 0.6, 0.0, 0.6], dtype=np.float32)
+-    for k, expected in [(1, [3]), (2, [3, 0]), (3, [3, 0, 1]), (5, [3, 0, 1, 2, 4])]:
+-        indices, values = select_topk_row(row, k, 0.0)
+-        np.testing.assert_array_equal(indices, expected)
+-        np.testing.assert_array_equal(values, row[indices])
+-
+-
+-def test_results_are_read_only_and_have_explicit_padding():
+-    scorer = _make_scorer()
+-    index = scorer.build_index_prepared(scorer.prepare_peak_arrays([_peaks((100, 1))]))
+-    result = scorer.search_prepared_topk(
+-        scorer.prepare_peak_arrays([_peaks((100, 1))]),
+-        index,
+-        k=4,
+-    )
+-    assert result.shape == (1, 4)
+-    assert result.valid_counts[0] == 1
+-    np.testing.assert_array_equal(result.indices[0], [0, -1, -1, -1])
+-    np.testing.assert_array_equal(result.scores[0], [1.0, 0.0, 0.0, 0.0])
+-    with pytest.raises(ValueError):
+-        result.indices[0, 0] = 5
+-    with pytest.raises(ValueError):
+-        result.scores[0, 0] = 5
+-    with pytest.raises(ValueError):
+-        result.valid_counts[0] = 5
+-
+-
+-def test_randomized_exact_ranking_regression():
+-    rng = np.random.default_rng(1234)
+-    scorer = _make_scorer(np.float32)
+-    references = []
+-    for _ in range(191):
+-        # Distinct mass sites guarantee separation, while repeated sites across
+-        # spectra produce realistic candidate overlap and score ties.
+-        masses = np.sort(rng.choice(np.arange(80, 430, 7), size=3, replace=False)).astype(float)
+-        references.append(np.column_stack((masses, rng.uniform(0.1, 5, 3))))
+-    queries = []
+-    for _ in range(29):
+-        masses = np.sort(rng.choice(np.arange(80, 430, 7), size=4, replace=False)).astype(float)
+-        queries.append(np.column_stack((masses, rng.uniform(0.1, 5, 4))))
+-    index = scorer.build_index_prepared(scorer.prepare_peak_arrays(references))
+-    prepared = scorer.prepare_peak_arrays(queries)
+-    dense = scorer.search_prepared(prepared, index, n_jobs=2).to_array()
+-    for k in (1, 3, 9, 23):
+-        for threshold in (0.0, 0.05, 0.3):
+-            result = scorer.search_prepared_topk(prepared, index, k=k, min_score=threshold, batch_size=7, n_jobs=2)
+-            _assert_matches_dense(result, dense, k, threshold)
+-
+-
+-@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+-def test_dynamic_touched_array_grows_past_chunk_size_and_matches_dense(dtype):
+-    # More than one 65,536-posting vector chunk and >4096 unique candidates.
+-    scorer = _make_scorer(dtype, index_step=0)
+-    references = [_peaks((100, 1)) for _ in range(67_000)]
+-    queries = [_peaks((100, 1)), _peaks((500, 1))]
+-    index = scorer.build_index_prepared(scorer.prepare_peak_arrays(references))
+-    prepared = scorer.prepare_peak_arrays(queries)
+-    dense = scorer.search_prepared(prepared, index, n_jobs=1).to_array()
+-    result = scorer.search_prepared_topk(prepared, index, k=13, n_jobs=2, batch_size=1)
+-    _assert_matches_dense(result, dense, 13, 0)
+-    np.testing.assert_array_equal(result.indices[0], np.arange(13))
+-    assert result.valid_counts[1] == 0
+-
+-
+-@pytest.mark.parametrize("dtype", [np.float32, np.float64])
+-def test_mixed_short_long_windows_and_repeated_library_updates(dtype):
+-    scorer = _make_scorer(dtype)
+-    # Common peaks are long windows. Only a handful match the middle peak.
+-    # One library ID receives contributions from both matching paths.
+-    references = [_peaks((100, i % 7 + 1), (200 if i < 9 else 240, 1), (300, i % 5 + 1)) for i in range(641)]
+-    queries = [
+-        _peaks((100, 5), (200, 4), (300, 3)),
+-        _peaks((100, 3), (300, 9)),
+-        _peaks((200, 2)),
+-    ]
+-    index = scorer.build_index_prepared(scorer.prepare_peak_arrays(references))
+-    prepared = scorer.prepare_peak_arrays(queries)
+-    dense = scorer.search_prepared(prepared, index, n_jobs=2).to_array()
+-    for k in (1, 7, 23, 100):
+-        result = scorer.search_prepared_topk(prepared, index, k=k, n_jobs=3, batch_size=1)
+-        _assert_matches_dense(result, dense, k, 0)
+-
+-
+-def test_touched_candidate_selector_resolves_ties_independent_of_encounter_order():
+-    scores = np.array([0.8, 0.6, 0.6, 0.95, 0.6, 0.0, 0.6], dtype=np.float32)
+-    for ids in (
+-        np.array([6, 2, 3, 1, 0, 4], dtype=np.int32),
+-        np.array([4, 1, 6, 0, 2, 3], dtype=np.int32),
+-    ):
+-        for k in (1, 2, 3, 5, 9):
+-            ids_found, values_found = select_topk_candidates(ids, scores, k, 0)
+-            full_row = np.zeros_like(scores)
+-            full_row[ids] = scores[ids]
+-            expected_ids, expected_values = select_topk_row(full_row, k, 0)
+-            np.testing.assert_array_equal(ids_found, expected_ids)
+-            np.testing.assert_array_equal(values_found, expected_values)
+-
+-
+-def test_scatter_updates_each_touched_candidate_once_with_bounded_growth():
+-    workspace = _TopKWorkspace(20_000, np.float32)
+-    assert workspace.touched_ids.size == 4096
+-    ids = np.arange(19_000, dtype=np.int32)
+-    ids = np.concatenate((ids, ids[::-1]))
+-    contributions = np.ones(ids.size, dtype=np.float32)
+-    epoch = workspace.next_epoch()
+-    touched, count = _scatter_add_topk(
+-        workspace.scores,
+-        workspace.seen_epochs,
+-        workspace.touched_ids,
+-        0,
+-        epoch,
+-        ids,
+-        contributions,
+-    )
+-    workspace.touched_ids = touched
+-    assert count == 19_000
+-    assert 19_000 <= touched.size <= 20_000
+-    np.testing.assert_array_equal(touched[:count], np.arange(19_000))
+-    np.testing.assert_array_equal(workspace.scores[:19_000], 2.0)
+-    # Next query has only one touched reference; stale scores must be cleared.
+-    epoch = workspace.next_epoch()
+-    touched, count = _scatter_add_topk(
+-        workspace.scores,
+-        workspace.seen_epochs,
+-        workspace.touched_ids,
+-        0,
+-        epoch,
+-        np.array([14], dtype=np.uint32),
+-        np.array([0.25], dtype=np.float32),
+-    )
+-    assert count == 1
+-    assert touched[0] == 14
+-    assert workspace.scores[14] == np.float32(0.25)
+-
+-
+-def test_epoch_wraparound_does_not_allow_stale_score_reuse():
+-    workspace = _TopKWorkspace(10, np.float32)
+-    workspace.seen_epochs[:] = 1
+-    workspace.scores[:] = 77.0
+-    workspace.epoch = _MAX_EPOCH
+-    assert workspace.next_epoch() == 1
+-    np.testing.assert_array_equal(workspace.seen_epochs, np.zeros(10, dtype=np.uint32))
+-    touched, count = _scatter_add_topk(
+-        workspace.scores,
+-        workspace.seen_epochs,
+-        workspace.touched_ids,
+-        0,
+-        workspace.epoch,
+-        np.array([3], dtype=np.uint32),
+-        np.array([0.75], dtype=np.float32),
+-    )
+-    assert count == 1
+-    assert touched[0] == 3
+-    assert workspace.scores[3] == np.float32(0.75)
+-
+-
+-@pytest.mark.parametrize("n_jobs", [1, 2, 4, -1])
+-@pytest.mark.parametrize("batch_size", [None, 1, 3])
+-def test_rankings_invariant_to_worker_count_and_scheduling(n_jobs, batch_size):
+-    rng = np.random.default_rng(987)
+-    scorer = _make_scorer(np.float32)
+-    references = []
+-    for _ in range(501):
+-        masses = np.sort(rng.choice(np.arange(90, 470, 7), size=4, replace=False))
+-        references.append(np.column_stack((masses, rng.uniform(0.1, 5, 4))))
+-    queries = []
+-    for _ in range(19):
+-        masses = np.sort(rng.choice(np.arange(90, 470, 7), size=4, replace=False))
+-        queries.append(np.column_stack((masses, rng.uniform(0.1, 5, 4))))
+-    index = scorer.build_index_prepared(scorer.prepare_peak_arrays(references))
+-    prepared = scorer.prepare_peak_arrays(queries)
+-    dense = scorer.search_prepared(prepared, index, n_jobs=1).to_array()
+-    found = scorer.search_prepared_topk(prepared, index, k=11, min_score=0.04, n_jobs=n_jobs, batch_size=batch_size)
+-    _assert_matches_dense(found, dense, 11, 0.04)
+diff --git a/tests/similarity/test_flash_utils.py b/tests/similarity/test_flash_utils.py
+index 1e72959e9..e7dc565b7 100644
+--- a/tests/similarity/test_flash_utils.py
++++ b/tests/similarity/test_flash_utils.py
+@@ -15,6 +15,8 @@
+ from ..builder_spectrum import SpectrumBuilder
+ 
+ 
++pytestmark = pytest.mark.numba_coverage
++
+ # -------------------------------------------------------------------------
+ # Helpers
+ # -------------------------------------------------------------------------
