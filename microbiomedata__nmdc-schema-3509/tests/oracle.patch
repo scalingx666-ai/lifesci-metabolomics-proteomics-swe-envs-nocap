@@ -1,0 +1,254 @@
+diff --git a/.gitattributes b/.gitattributes
+index 6c6f9e26d4..49cf98a89e 100644
+--- a/.gitattributes
++++ b/.gitattributes
+@@ -1,2 +1 @@
+ assets/units-sparql/*.ru linguist-language=SPARQL
+-assets/mongodb_queries/** linguist-detectable=false
+diff --git a/assets/mongodb_queries/data_qc/biosample_part_of_study.js b/assets/mongodb_queries/data_qc/biosample_part_of_study.js
+deleted file mode 100644
+index 18ca44f0be..0000000000
+--- a/assets/mongodb_queries/data_qc/biosample_part_of_study.js
++++ /dev/null
+@@ -1,15 +0,0 @@
+-db.biosample_set.aggregate([
+-  {
+-    $lookup: {
+-      from: "study_set",
+-      localField: "part_of",
+-      foreignField: "id",
+-      as: "studies"
+-    }
+-  },
+-  {
+-    $match: {
+-      studies: { $eq: [] }
+-    }
+-  }
+-])
+diff --git a/assets/mongodb_queries/data_qc/data_generation_has_input_biosample_or_processed_sample.js b/assets/mongodb_queries/data_qc/data_generation_has_input_biosample_or_processed_sample.js
+deleted file mode 100644
+index 1c1fe6cbf0..0000000000
+--- a/assets/mongodb_queries/data_qc/data_generation_has_input_biosample_or_processed_sample.js
++++ /dev/null
+@@ -1,26 +0,0 @@
+-db.data_generation_set.aggregate([
+-  {
+-    $lookup: {
+-      from: "biosample_set",
+-      localField: "has_input",
+-      foreignField: "id",
+-      as: "biosamples"
+-    }
+-  },
+-  {
+-    $lookup: {
+-      from: "processed_sample_set",
+-      localField: "has_input",
+-      foreignField: "id",
+-      as: "processed_samples"
+-    }
+-  },
+-  {
+-    $match: {
+-      $and: [
+-        { biosamples: { $eq: [] } },
+-        { processed_samples: { $eq: [] } }
+-      ]
+-    }
+-  }
+-])
+diff --git a/assets/mongodb_queries/data_qc/data_generation_has_output_data_objects.js b/assets/mongodb_queries/data_qc/data_generation_has_output_data_objects.js
+deleted file mode 100644
+index 49032f7979..0000000000
+--- a/assets/mongodb_queries/data_qc/data_generation_has_output_data_objects.js
++++ /dev/null
+@@ -1,15 +0,0 @@
+-db.data_generation_set.aggregate([
+-  {
+-    $lookup: {
+-      from: "study_set",
+-      localField: "associated_studies",
+-      foreignField: "id",
+-      as: "studies"
+-    }
+-  },
+-  {
+-    $match: {
+-      studies: { $eq: [] }
+-    }
+-  }
+-])
+diff --git a/assets/mongodb_queries/data_qc/data_object_was_generated_by_workflow_execution_or_data_generation.js b/assets/mongodb_queries/data_qc/data_object_was_generated_by_workflow_execution_or_data_generation.js
+deleted file mode 100644
+index a1be39c1c8..0000000000
+--- a/assets/mongodb_queries/data_qc/data_object_was_generated_by_workflow_execution_or_data_generation.js
++++ /dev/null
+@@ -1,47 +0,0 @@
+-var applicableClasses = ["data_object_set", ] // what other sets go here?
+-
+-var results = [];
+-
+-applicableClasses.forEach(function(applicableClass) {
+-    var pipeline = [
+-        {
+-            $unwind: "$was_generated_by"
+-        },
+-        {
+-            $lookup: {
+-                from: "workflow_execution_set",
+-                localField: "was_generated_by",
+-                foreignField: "id",
+-                as: "was_generated_by_docs"
+-            }
+-        },
+-        {
+-            $lookup: {
+-                from: "data_generation_set",
+-                localField: "was_generated_by",
+-                foreignField: "id",
+-                as: "generated_by_omics_processing_docs"
+-            }
+-        },
+-        {
+-            $match: {
+-                $and: [
+-                    {was_generated_by_docs: { $eq: [] }},
+-                    {generated_by_omics_processing_docs: { $eq: [] }}
+-                ]
+-            }
+-        },
+-        {
+-            $project: {
+-                id: 1,
+-                was_generated_by: 1
+-            }
+-        }
+-    ];
+-
+-    var applicableClassResults = db[applicableClass].aggregate(pipeline).toArray();
+-    results.push({applicableClass: applicableClass, applicableClassResults: applicableClassResults})
+-}
+-);
+-
+-printjson(results);
+diff --git a/assets/mongodb_queries/data_qc/functional_annotation_agg_metagenome_metatranscriptome_annotation_id.js b/assets/mongodb_queries/data_qc/functional_annotation_agg_metagenome_metatranscriptome_annotation_id.js
+deleted file mode 100644
+index 7666376401..0000000000
+--- a/assets/mongodb_queries/data_qc/functional_annotation_agg_metagenome_metatranscriptome_annotation_id.js
++++ /dev/null
+@@ -1,21 +0,0 @@
+-db.functional_annotation_agg.aggregate([
+- 
+- {
+-  {
+-    $match: {"type":{"$in":[ "nmdc:MetagenomeAnnotation","nmdc:MetatranscriptomeAnnotation"]}}
+-  },
+-  {
+-    $lookup: {
+-      from: "workflow_exeuction_set",
+-      localField: "metagenome_annotation_id",
+-      foreignField: "id",
+-      as: "metagenome_annotation_activities"
+-    }
+-  },
+-  {
+-    $match: {
+-        { metagenome_annotation_activities: { $eq: [] } }
+-    }
+-  }
+-])
+-
+diff --git a/assets/mongodb_queries/data_qc/material_processing_has_input_biosample_or_processed_sample.js b/assets/mongodb_queries/data_qc/material_processing_has_input_biosample_or_processed_sample.js
+deleted file mode 100644
+index 2959a2b0e5..0000000000
+--- a/assets/mongodb_queries/data_qc/material_processing_has_input_biosample_or_processed_sample.js
++++ /dev/null
+@@ -1,27 +0,0 @@
+-// Check referential integrity for material processing has_input biosample or processed sample
+-db.material_processing_set.aggregate([
+-    {
+-        $lookup: {
+-        from: "biosample_set",
+-        localField: "has_input",
+-        foreignField: "id",
+-        as: "biosamples"
+-        }
+-    },
+-    {
+-    $lookup: {
+-      from: "processed_sample_set",
+-      localField: "has_input",
+-      foreignField: "id",
+-      as: "processed_samples"
+-    }
+-  },
+-    {
+-        $match: {
+-        $and: [
+-            { biosamples: { $eq: [] } },
+-            { processed_samples: { $eq: [] } }
+-        ]
+-        }
+-    }
+-])
+diff --git a/assets/mongodb_queries/delete_bioscales_data_objects.js b/assets/mongodb_queries/delete_bioscales_data_objects.js
+deleted file mode 100644
+index dfb93a47d3..0000000000
+--- a/assets/mongodb_queries/delete_bioscales_data_objects.js
++++ /dev/null
+@@ -1,4 +0,0 @@
+-db.data_object_set.deleteMany(
+-{id: {$not: { $regex: '^nmdc:dobj*'}},'description':'Raw sequencer read data'}
+-)
+-
+diff --git a/assets/mongodb_queries/delete_data_generation_has_output_ref_integrity_exceptions.js b/assets/mongodb_queries/delete_data_generation_has_output_ref_integrity_exceptions.js
+deleted file mode 100644
+index 9276e2638a..0000000000
+--- a/assets/mongodb_queries/delete_data_generation_has_output_ref_integrity_exceptions.js
++++ /dev/null
+@@ -1,26 +0,0 @@
+-// Description: Delete data_generation_set documents that have invalid references in has_output field.
+-// This script will delete the omics_processing_set documents that have invalid references in has_output field.
+-
+-db.data_generation_set.aggregate([
+-  {
+-    $unwind: "$has_output"
+-  },
+-  {
+-    $lookup: {
+-      from: "data_object_set",
+-      localField: "has_output",
+-      foreignField: "id",
+-      as: "output_docs"
+-    }
+-  },
+-  {
+-    $match: {
+-      $or: [
+-        { output_docs: { $exists: false } },  // Check if output_docs doesn't exist
+-        { output_docs: { $size: 0 } }         // Check if output_docs is an empty array
+-      ]
+-    }
+-  }
+-]).forEach(function(doc) {
+-    db.data_generation_set.deleteMany({ _id: doc._id }); // Delete the matching documents
+-});
+diff --git a/assets/mongodb_queries/find_id_nonconforming_data_objects.js b/assets/mongodb_queries/find_id_nonconforming_data_objects.js
+deleted file mode 100644
+index 3868ded9fa..0000000000
+--- a/assets/mongodb_queries/find_id_nonconforming_data_objects.js
++++ /dev/null
+@@ -1,12 +0,0 @@
+-db.getCollection('data_object_set').aggregate(
+-  [
+-    {
+-      $match: {
+-        id: {
+-          $not: { $regex: RegExp('nmdc:dobj-') }
+-        }
+-      }
+-    }
+-  ],
+-  { maxTimeMS: 60000, allowDiskUse: true }
+-);

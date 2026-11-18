@@ -1,0 +1,459 @@
+diff --git a/Dockerfile b/Dockerfile
+index 07af3122..a784c5f1 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -1,4 +1,4 @@
+-#Download base image ubuntu 16.04
++#Download base image ubuntu
+ FROM ubuntu:latest
+ 
+ ENV DEBIAN_FRONTEND noninteractive
+@@ -13,17 +13,39 @@ USER root
+ RUN apt-get update && \
+     apt-get -yq dist-upgrade && \
+     apt-get install -yq --no-install-recommends && \
+-    apt-get install -yq apt-utils && \
++    apt-get install -yq apt-utils software-properties-common && \
+     apt-get install -yq locales && \
+     apt-get install -yq wget && \
+     apt-get install -yq unzip && \
+-    apt-get install -yq python3.6 python3-pip python3-setuptools python3-dev libxml2 libxml2-dev zlib1g-dev && \
+-    apt-get install -yq nginx uwsgi uwsgi-plugin-python3 && \
++    apt-get install -yq build-essential sqlite3 libsqlite3-dev libxml2 libxml2-dev zlib1g-dev libncurses5-dev libgdbm-dev libnss3-dev libssl-dev libreadline-dev libffi-dev libcurl4-openssl-dev && \
++    apt-get install -yq nginx && \
+     apt-get install -yq redis-server && \
+     apt-get install -yq git && \
+     apt-get -y install sudo && \
+     rm -rf /var/lib/apt/lists/*
+ 
++## User management
++RUN adduser --quiet --disabled-password --shell /bin/bash --home /home/adminhub --gecos "User" adminhub && \
++    echo "adminhub:adminhub" | chpasswd && \
++    adduser --quiet --disabled-password --shell /bin/bash --home /home/ckguser --gecos "User" ckguser && \
++    echo "ckguser:ckguser" | chpasswd && \
++    adduser --disabled-password --gecos '' --uid 1500 nginx
++
++# Python 3.6.8 installation
++RUN wget https://www.python.org/ftp/python/3.6.8/Python-3.6.8.tgz
++RUN tar -xzf Python-3.6.8.tgz
++WORKDIR Python-3.6.8
++RUN ./configure
++RUN make altinstall
++RUN make install
++## pip upgrade
++RUN wget https://bootstrap.pypa.io/get-pip.py
++RUN python3 get-pip.py
++RUN pip3 install --upgrade pip
++RUN pip3 install setuptools
++
++WORKDIR /
++
+ # Set the locale
+ RUN locale-gen en_US.UTF-8
+ 
+@@ -36,31 +58,31 @@ RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 51716619E084DAB9
+ 
+ RUN echo "deb https://cloud.r-project.org/bin/linux/ubuntu bionic-cran35/" > /etc/apt/sources.list.d/cran.list
+ 
+-# JAVA
+-RUN mkdir -p /usr/local/oracle-jre8-installer-local
++# Installation openJDK 8
++RUN add-apt-repository ppa:openjdk-r/ppa
++RUN apt-get update
++RUN apt-get install -yq openjdk-8-jdk
++RUN java -version
++RUN javac -version 
+ 
+-ADD /resources/jre-8u221-linux-x64.tar.gz /usr/local/oracle-jre8-installer-local
+-
+-RUN update-alternatives --install "/usr/bin/java" "java" "/usr/local/oracle-jre8-installer-local/jre1.8.0_221/bin/java" 1500 && \
+-    update-alternatives --install "/usr/bin/javac" "javac" "/usr/local/oracle-jre8-installer-local/jre1.8.0_221/bin/javaws" 1500 
+-
+-# NEO4J
++# NEO4J 3.5.14
+ RUN wget -O - http://debian.neo4j.org/neotechnology.gpg.key | apt-key add - && \
+     echo "deb [trusted=yes] https://debian.neo4j.org/repo stable/" > /etc/apt/sources.list.d/neo4j.list && \
+     apt-get update && \
+-    apt-get install -yq neo4j=1:3.5.8
++    apt-get install -yq neo4j=1:3.5.14
+ 
+ ## Setup initial user Neo4j
+ RUN rm -f /var/lib/neo4j/data/dbms/auth && \
+-    neo4j-admin set-initial-password "neo4j"
++    neo4j-admin set-initial-password "NeO4J"
+ 
+-## Install algorithms Neo4j
+-RUN wget -P /var/lib/neo4j/plugins https://s3-eu-west-1.amazonaws.com/com.neo4j.graphalgorithms.dist/neo4j-graph-algorithms-3.5.8.1-standalone.jar
+-RUN wget -P /var/lib/neo4j/plugins https://github.com/neo4j-contrib/neo4j-apoc-procedures/releases/download/3.5.0.5/apoc-3.5.0.5-all.jar
++## Install graph algorithms and APOC
++RUN wget -P /var/lib/neo4j/plugins https://s3-eu-west-1.amazonaws.com/com.neo4j.graphalgorithms.dist/neo4j-graph-algorithms-3.5.14.0-standalone.jar
++RUN wget -P /var/lib/neo4j/plugins https://github.com/neo4j-contrib/neo4j-apoc-procedures/releases/download/3.5.0.9/apoc-3.5.0.9-all.jar
+ 
+ RUN ls -lrth /var/lib/neo4j/plugins
+ 
+ ## Change configuration
++RUN cat /etc/neo4j/neo4j.conf
+ COPY /resources/neo4j_db/neo4j.conf  /etc/neo4j/.
+ 
+ ## Test the service Neo4j
+@@ -79,7 +101,7 @@ RUN sudo -u neo4j neo4j-admin load --from=/var/lib/neo4j/data/backup/ckg_080520.
+ RUN echo "Done with restoring backup, removing backup folder"
+ RUN rm -rf /var/lib/neo4j/data/backup
+ 
+-RUN ls -lrth  /var/lib/neo4j/data/databases
++#RUN ls -lrth  /var/lib/neo4j/data/databases
+ RUN [ -e  /var/lib/neo4j/data/databases/store_lock ] && rm /var/lib/neo4j/data/databases/store_lock
+ 
+ # R
+@@ -92,21 +114,20 @@ RUN apt-get update && \
+     r-recommended=${R_BASE_VERSION}* && \
+     echo 'options(repos = c(CRAN = "https://cloud.r-project.org/"), download.file.method = "libcurl")' >> /etc/R/Rprofile.site
+     
+-# Install packages
++## Install packages
+ ADD /resources/R_packages.R /R_packages.R
+ RUN Rscript R_packages.R
+ 
+ # Python
+ ## Copy Requirements
+-ADD ./requirements.txt /requirements.txt
++COPY ./requirements.txt /requirements.txt
+ 
+ ## Install Python libraries
+-RUN pip3 install --upgrade pip
+ RUN pip3 install --ignore-installed -r requirements.txt
+ RUN mkdir /CKG
+-RUN wget -O /CKG/data.tar.gz https://data.mendeley.com/datasets/mrcf7f4tc2/1/files/c0d058a2-adfa-4b96-97d9-c9ec7fc5adb9/data.tar.gz?dl=1
+-RUN tar -xzf data.tar.gz
+-ADD . /CKG/
++COPY --chown=nginx . /CKG
++RUN chown -R nginx /CKG
++RUN chmod +x /CKG/docker_entrypoint.sh
+ ENV PYTHONPATH "${PYTHONPATH}:/CKG/src"
+ 
+ # JupyterHub
+@@ -116,34 +137,42 @@ RUN apt-get -y install npm nodejs && \
+ RUN pip3 install jupyterhub && \
+     pip3 install --upgrade notebook
+ 
+-RUN apt-get remove -y python-pip curl && \
+-         rm -rf /var/lib/apt/lists/
+-
+-## Add a user without password in JupyterHub
+-RUN adduser --quiet --disabled-password --shell /bin/bash --home /home/adminhub --gecos "User" adminhub && \
+-    echo "adminhub:adminhub" | chpasswd
+-
+ RUN mkdir /etc/jupyterhub
+ COPY /resources/jupyterhub.py /etc/jupyterhub/.
++RUN cp -r /CKG/src/notebooks /home/adminhub/.
++RUN cp -r /CKG/src/notebooks /home/ckguser/.
++RUN chown -R adminhub /home/adminhub/notebooks
++RUN chown -R ckguser /home/ckguser/notebooks
+ 
+-# NGINX and UWSGI
++RUN ls -alrth /home/ckguser
++RUN ls -alrth /home/ckguser/notebooks
+ 
++# NGINX and UWSGI
+ ## Copy configuration file
+-COPY /resources/nginx.conf /etc/nginx/nginx.conf
++COPY /resources/nginx.conf /etc/nginx/.
+ 
+-RUN adduser --disabled-password --gecos '' nginx\
+-  && chown -R nginx:nginx /CKG \
+-  && chmod 777 /run/ -R \
+-  && chmod 777 /root/ -R
++RUN chmod 777 /run/ -R && \
++    chmod 777 /root/ -R
++
++## Install uWSGI
++RUN pip3 install uwsgi
+ 
+ ## Copy the base uWSGI ini file
+ COPY /resources/uwsgi.ini /etc/uwsgi/apps-available/uwsgi.ini
+-RUN ln -s /etc/uwsgi/apps-available/uwsgi.ini /etc/uwsgi/apps-enabled/uwsgi.ini
++COPY /resources/uwsgi.ini /etc/uwsgi/apps-enabled/uwsgi.ini
++
+ 
+ ## Create log directory
+ RUN mkdir -p /var/log/uwsgi
+ 
+-# Expose ports (HTTP Neo4j, Bolt Neo4j, jupyterHub, CKG, Redis)
+-EXPOSE 7474 7687 8090 8050 6379
++# Remove apt cache to make the image smaller
++RUN rm -rf /var/lib/apt/lists/*
++
++RUN ls -alrth /
++RUN ls -alrth /CKG
++RUN ls -alrth /CKG/src/notebooks
++
++# Expose ports (HTTP Neo4j, Bolt Neo4j, jupyterHub, CKG prod, CKG dev, Redis)
++EXPOSE 7474 7687 8090 8050 5000 6379
+ 
+ ENTRYPOINT [ "/bin/bash", "/CKG/docker_entrypoint.sh"]
+diff --git a/docker_entrypoint.sh b/docker_entrypoint.sh
+index 53e4c94f..f76f9c21 100644
+--- a/docker_entrypoint.sh
++++ b/docker_entrypoint.sh
+@@ -3,8 +3,20 @@ echo "Entry point to CKG Docker"
+ echo $DUMP_PATH
+ echo $EXEC_MODE
+ 
++cd /CKG
++
++echo "Starting Neo4j"
++service neo4j start
++service neo4j status
++
++echo "Running jupyterHub"
++jupyterhub -f /etc/jupyterhub/jupyterhub.py --no-ssl &
++
++echo "Running redis-server"
++service redis-server start
++
+ if [[ -e $EXEC_MODE ]]; then
+-  echo "Mode:: $EXEC_MODE"  
++  echo "Mode:: $EXEC_MODE"
+   if [ $EXEC_MODE == "load" ]; then
+     if [[ -z $DUMP_PATH ]]; then
+       echo "Loading database dump: $DUMP_PATH"
+@@ -12,49 +24,26 @@ if [[ -e $EXEC_MODE ]]; then
+     fi
+   elif [ $EXEC_MODE == "minimal" ]; then
+     echo "Setting up the config files"
+-    python3 /CKG/setup_CKG.py
+-    python3 /CKG/setup_config_files.py
++    python3 setup_CKG.py
++    python3 setup_config_files.py
+     echo "Building CKG graph database after loading database dump"
+-    cd /CKG/src/graphdb_builder/builder
++    cd src/graphdb_builder/builder
+     python3 builder.py -b minimal -u ckg
+-  fi
+   elif [ $EXEC_MODE == "build" ]; then
+     echo "Setting up the config files"
+-    python3 /CKG/setup_CKG.py
+-    python3 /CKG/setup_config_files.py
++    python3 setup_CKG.py
++    python3 setup_config_files.py
+     echo "Building CKG full graph database"
+-    cd /CKG/src/graphdb_builder/builder
++    cd src/graphdb_builder/builder
+     python3 builder.py -b full -u ckg
+   fi
+ fi
+ 
+-echo "Starting Neo4j"
+-service neo4j version
+-service neo4j start
+-cat /var/log/neo4j/neo4j.log
+-sleep 60
+-
+-echo "Changing user to CKG"
+-su - ckg_user
++echo "Initiating celery queues"
++cd src/report_manager
++celery -A worker worker --loglevel=DEBUG --concurrency=3 --uid=1500 --gid=nginx -E &
++celery -A worker worker --loglevel=DEBUG --concurrency=3 --uid=1500 --gid=nginx -E -Q compute &
+ 
+-echo "Running jupyterHub"
+-jupyterhub -f /etc/jupyterhub/jupyterhub.py --no-ssl &
+ 
+-echo "Running redis-server"
+-service redis-server start
+-
+-echo "Initiating queue celery"
+-cd /CKG/src/report_manager
+-celery -A worker worker --loglevel=DEBUG --concurrency=3 -E &
+-celery -A worker worker --loglevel=DEBUG --concurrency=3 -E -Q compute &
+-
+-
+-if [[ -e $SERVER_MODE ]]; then
+-  if [ $SERVER_MODE == "debug"]; then
+-    echo "Running app in debug mode!"
+-    python3 /CKG/src/report_manager/index.py
+-  fi
+-else
+-  echo "Running app in production mode!"
+-  nginx && uwsgi --ini /etc/uwsgi/apps-enabled/uwsgi.ini
+-fi
++echo "Initiating CKG app"
++nginx && uwsgi --ini /etc/uwsgi/apps-enabled/uwsgi.ini --uid nginx --gid nginx
+diff --git a/docs/source/intro/getting-started-with-docker.rst b/docs/source/intro/getting-started-with-docker.rst
+index 69421c7d..4cf3af9e 100644
+--- a/docs/source/intro/getting-started-with-docker.rst
++++ b/docs/source/intro/getting-started-with-docker.rst
+@@ -5,12 +5,14 @@ Getting started with Docker **(Testing)**
+ In this section we describe how to set up the Clinical Knowledge Graph from a Docker container.
+ This container will install all the requirements needed, download source databases and build the CKG graph database, and open 5 ports through which to interact with the CKG.
+ 
+-A requirement to run the Docker is **Java SE Runtime Environment**.
+-Please go to ``https://www.oracle.com/java/technologies/javase-jre8-downloads.html`` and download the ``jre-8u221-linux-x64.tar.gz`` file. Once downloaded, place it in ``CKG/resources/``.
+-
+ To run the Docker, simply:
+ 
+-1. Build the docker
++1. Allocate resources:
++
++The docker build requires more resources (memory and disk) than the ones set as default. Make sure to allocate at least 8Gb memory and at least 60Gb of Disk space. To change these settings: Docker Preferences -> Resources.
++
++
++2. Build the docker
+ 
+ .. code-block:: bash
+ 	
+@@ -18,11 +20,14 @@ To run the Docker, simply:
+ 	$ docker build -t docker-ckg:latest .
+ 
+ 
+-2. Run the docker
++3. Make sure to download manually the licensed databases (:ref:`Build Neo4j graph database`)
++
++
++4. Run the docker
+ 
+ .. code-block:: bash
+ 
+ 	$ docker run -d --name ckgapp -d -v log:/CKG/log -v data:/CKG/data -e EXEC_MODE="minimal" --restart=always -p 8050:8050 -p 7470:7474 -p 8090:8090 -p 7680:7687 -p 6379:6379 docker-ckg:latest
+ 
+ 
+-.. note:: Be aware, this requires Docker to be previously installed.
+\ No newline at end of file
++.. note:: Be aware, this requires Docker to be previously installed.
+diff --git a/requirements.txt b/requirements.txt
+index ab613a94..17929385 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -32,7 +32,6 @@ dash_cytoscape>=0.1.1
+ decorator==4.4.0
+ defusedxml==0.6.0
+ django>=2.2.10
+-django-class==2019.4.13
+ ecos==2.0.7.post1
+ entrypoints==0.3
+ fancyimpute==0.5.2
+@@ -112,7 +111,7 @@ percy==2.0.2
+ pexpect==4.7.0
+ pickleshare==0.7.5
+ pillow>=6.2.2
+-pingouin==0.2.9
++pingouin==0.3.5
+ plotly==4.5.0
+ pluggy==0.12.0
+ prometheus-client==0.7.1
+diff --git a/resources/R_packages.R b/resources/R_packages.R
+index eba5c2d5..4f75b668 100644
+--- a/resources/R_packages.R
++++ b/resources/R_packages.R
+@@ -1,4 +1,5 @@
+ install.packages('BiocManager')
+ BiocManager::install()
+ BiocManager::install(c('AnnotationDbi', 'GO.db', 'preprocessCore', 'impute'))
+-install.packages(c('flashClust','WGCNA', 'samr'), dependencies=TRUE, repos='http://cran.rstudio.com/')
++install.packages(c('devtools', 'tidyverse', 'flashClust', 'WGCNA', 'samr'), dependencies=TRUE, repos='http://cran.rstudio.com/')
++install.packages('IRkernel')
+diff --git a/resources/jupyterhub.py b/resources/jupyterhub.py
+index c2136611..0cd053b3 100644
+--- a/resources/jupyterhub.py
++++ b/resources/jupyterhub.py
+@@ -2,15 +2,20 @@
+ # Configuration file for jupyterhub.
+ #------------------------------------------------------------------------------
+ 
++import os
++os.umask(0o002)
++
+ # set of users who can administer the Hub itself 
+ c.Authenticator.admin_users = {'adminhub'}
++c.Authenticator.whitelist = {'ckguser'}
+ 
+ # set the Clinical Knowledge Graph logo
+ c.JupyterHub.logo_file = '/CKG/src/report_manager/assets/logo_small.jpg'
+ 
+ ## The public facing port of the proxy.
+ c.JupyterHub.port = 8090
+-c.Spawner.notebook_dir='/CKG/src/notebooks'
++c.Spawner.notebook_dir = '~/notebooks'
++c.Spawner.debug = True
+ 
+ #  Supports Linux and BSD variants only.
+ c.LocalAuthenticator.create_system_users = True
+diff --git a/resources/neo4j_db/neo4j.conf b/resources/neo4j_db/neo4j.conf
+index 28d497ee..9197722a 100644
+--- a/resources/neo4j_db/neo4j.conf
++++ b/resources/neo4j_db/neo4j.conf
+@@ -32,8 +32,8 @@ dbms.directories.run=/var/run/neo4j
+ # calculated based on available system resources.
+ # Uncomment these lines to set specific initial and maximum
+ # heap size.
+-dbms.memory.heap.initial_size=512m
+-dbms.memory.heap.max_size=4G
++#dbms.memory.heap.initial_size=512m
++#dbms.memory.heap.max_size=512m
+ 
+ # The amount of memory to use for mapping the store files, in bytes (or
+ # kilobytes with the 'k' suffix, megabytes with 'm' and gigabytes with 'g').
+@@ -43,7 +43,7 @@ dbms.memory.heap.max_size=4G
+ # rest for the page cache.
+ # The default page cache memory assumes the machine is dedicated to running
+ # Neo4j, and is heuristically set to 50% of RAM minus the max Java heap size.
+-dbms.memory.pagecache.size=1G
++#dbms.memory.pagecache.size=10g
+ 
+ #*****************************************************************
+ # Network connector configuration
+@@ -68,11 +68,11 @@ dbms.connectors.default_listen_address=0.0.0.0
+ # Bolt connector
+ dbms.connector.bolt.enabled=true
+ #dbms.connector.bolt.tls_level=OPTIONAL
+-dbms.connector.bolt.listen_address=:7687
++#dbms.connector.bolt.listen_address=:7687
+ 
+ # HTTP Connector. There can be zero or one HTTP connectors.
+ dbms.connector.http.enabled=true
+-dbms.connector.http.listen_address=:7474
++#dbms.connector.http.listen_address=:7474
+ 
+ # HTTPS Connector. There can be zero or one HTTPS connectors.
+ dbms.connector.https.enabled=true
+@@ -237,7 +237,7 @@ dbms.connector.https.enabled=true
+ #*****************************************************************
+ 
+ # Enable this to specify a parser other than the default one.
+-#cypher.default_language_version=3.0
++#cypher.default_language_version=2.3
+ 
+ # Determines if Cypher will allow using file URLs when loading data using
+ # `LOAD CSV`. Setting this value to `false` will cause Neo4j to fail `LOAD CSV`
+@@ -274,6 +274,7 @@ dbms.tx_log.rotation.retention_policy=1 days
+ 
+ # A comma separated list of procedures and user defined functions that are allowed
+ # full access to the database through unsupported/insecure internal APIs.
++#dbms.security.procedures.unrestricted=my.extensions.example,my.procedures.*
+ dbms.security.procedures.unrestricted=apoc.*,algo.*
+ 
+ # A comma separated list of procedures to be loaded by default.
+@@ -356,4 +357,4 @@ dbms.windows_service_name=neo4j
+ #********************************************************************
+ # Other Neo4j system properties
+ #********************************************************************
+-dbms.jvm.additional=-Dunsupported.dbms.udc.source=debian 
++dbms.jvm.additional=-Dunsupported.dbms.udc.source=debian
+diff --git a/resources/uwsgi.ini b/resources/uwsgi.ini
+index 2436e7b1..3d0dff9d 100644
+--- a/resources/uwsgi.ini
++++ b/resources/uwsgi.ini
+@@ -1,10 +1,12 @@
+ [uwsgi]
+-plugins = /usr/lib/uwsgi/plugins/python3
++plugins = /usr/lib/uwsgi/plugins/python36
++pythonpath = /usr/local/bin/python3 
+ chdir = /CKG/src/report_manager
+ module = index:application
+ uid = nginx
+ gid = nginx
+ logto = /var/log/uwsgi/%n.log
++chmod-socket = 664
+ socket = /run/uwsgi.sock
+ pidfile = /run/.pid
+ processes = 4

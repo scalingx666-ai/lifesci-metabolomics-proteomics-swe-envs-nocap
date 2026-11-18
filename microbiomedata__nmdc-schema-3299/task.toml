@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3299"
+description = "DO NOT MERGE until August: docs preview of the objectified-examples PR stack (3276/3277/3278/3292)"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "258b0aa796636a79e32f9ca266d1c0751623d33e"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3299"
+source_access = "auto"
+built_at = "2026-11-18T02:31:28.700220+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:81f463b42fdc428111f828edb44b84e1ec19c0e08bfb8f3001b4ac6af986ee39"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-07-28T21:35:12Z"
+diff_format = "unified"
+context_files = [
+    "CONTRIBUTING.md",
+    "assets/yq-for-mixs-customizations.txt",
+    "makefiles/mixs.Makefile",
+    "src/doc-templates/common_metadata.md.jinja2",
+    "src/docs/mixs-v6.3.0-customizations.md",
+    "src/schema/basic_classes.yaml",
+    "src/schema/core.yaml",
+    "src/schema/mixs.yaml",
+    "tests/test_asset_customization_lines.py",
+    "tests/test_example_objects.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 1986
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

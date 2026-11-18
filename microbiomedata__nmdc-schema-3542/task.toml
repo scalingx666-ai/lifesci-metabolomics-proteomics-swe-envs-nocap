@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3542"
+description = "Fix 16 spelling errors in schema descriptions and docs"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "2b0213377445f5d95646b148bd80107d65d1bc15"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3542"
+source_access = "auto"
+built_at = "2026-11-18T02:27:56.165471+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:50696abed6ee82a8bdb36f2bce1fa5bce25cfc8bacf3ea82c973d4064c2b3c30"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-15T14:00:09Z"
+diff_format = "unified"
+context_files = [
+    "src/docs/maintaining-the-schema.md",
+    "src/docs/v10-vs-v11-retrospective.md",
+    "src/schema/annotation.yaml",
+    "src/schema/basic_classes.yaml",
+    "src/schema/basic_slots.yaml",
+    "src/schema/deprecated.yaml",
+    "src/schema/nmdc.yaml",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 30
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

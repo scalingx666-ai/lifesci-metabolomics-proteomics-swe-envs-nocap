@@ -1,0 +1,71 @@
+diff --git a/nmdc_schema/migrators/migrator_from_11_20_0_to_11_20_1.py b/nmdc_schema/migrators/migrator_from_11_20_0_to_11_20_1.py
+new file mode 100644
+index 0000000000..6ea0138bd1
+--- /dev/null
++++ b/nmdc_schema/migrators/migrator_from_11_20_0_to_11_20_1.py
+@@ -0,0 +1,17 @@
++from nmdc_schema.migrators.migrator_base import MigratorBase
++
++
++class Migrator(MigratorBase):
++    r"""
++    Migrates a database between two schemas.
++
++    Note: Since this migrator was created retroactively, we can include a link to the release notes as evidence that
++          no migration is necessary. Release notes: https://github.com/microbiomedata/nmdc-schema/releases/tag/v11.20.1
++    """
++
++    _from_version = "11.20.0"
++    _to_version = "11.20.1"
++
++    def upgrade(self, commit_changes: bool = False) -> None:
++        r"""No upgrade needed."""
++        pass
+diff --git a/nmdc_schema/migrators/migrator_from_11_20_1_to_11_20_2.py b/nmdc_schema/migrators/migrator_from_11_20_1_to_11_20_2.py
+new file mode 100644
+index 0000000000..b6e3aef73f
+--- /dev/null
++++ b/nmdc_schema/migrators/migrator_from_11_20_1_to_11_20_2.py
+@@ -0,0 +1,17 @@
++from nmdc_schema.migrators.migrator_base import MigratorBase
++
++
++class Migrator(MigratorBase):
++    r"""
++    Migrates a database between two schemas.
++
++    Note: Since this migrator was created retroactively, we can include a link to the release notes as evidence that
++          no migration is necessary. Release notes: https://github.com/microbiomedata/nmdc-schema/releases/tag/v11.20.2
++    """
++
++    _from_version = "11.20.1"
++    _to_version = "11.20.2"
++
++    def upgrade(self, commit_changes: bool = False) -> None:
++        r"""No upgrade needed."""
++        pass
+diff --git a/nmdc_schema/migrators/migrator_from_11_20_2_to_11_20_3.py b/nmdc_schema/migrators/migrator_from_11_20_2_to_11_20_3.py
+new file mode 100644
+index 0000000000..befa697f2e
+--- /dev/null
++++ b/nmdc_schema/migrators/migrator_from_11_20_2_to_11_20_3.py
+@@ -0,0 +1,19 @@
++from nmdc_schema.migrators.migrator_base import MigratorBase
++
++
++class Migrator(MigratorBase):
++    r"""
++    Migrates a database between two schemas.
++
++    Note: No migration is necessary. The 11.20.2 to 11.20.3 schema changes are purely additive: new
++          library-preparation slots and enums, plus a DataObject rule whose precondition is a new
++          data_object_type value, so no data valid under 11.20.2 becomes invalid under 11.20.3.
++          Release notes: https://github.com/microbiomedata/nmdc-schema/releases/tag/v11.20.3
++    """
++
++    _from_version = "11.20.2"
++    _to_version = "11.20.3"
++
++    def upgrade(self, commit_changes: bool = False) -> None:
++        r"""No upgrade needed."""
++        pass

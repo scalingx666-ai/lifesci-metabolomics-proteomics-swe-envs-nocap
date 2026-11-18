@@ -1,0 +1,53 @@
+diff --git a/nmdc_schema/migrators/README.md b/nmdc_schema/migrators/README.md
+index fba9d73f92..a8aebfdb09 100644
+--- a/nmdc_schema/migrators/README.md
++++ b/nmdc_schema/migrators/README.md
+@@ -9,9 +9,26 @@ databases between schemas.
+ 
+ In this document, I'll refer to those Python classes as "migrators."
+ 
++## Released migrators are frozen
++
++A migrator that has shipped in a release is a permanent record of how the
++production database was actually transformed. Do not make functional changes to a
++released migrator, even to fix a real bug: re-running it would not recover history,
++and changing it would misrepresent what ran. New transformations belong in new
++migrators (see the "Released migrators" section of the repo `CLAUDE.md`).
++
++When you find bad code in a released migrator, resolve it with a comment that flags
++the discouraged pattern, not a code change. Example: #3259 found a missing comma in
++`partials/migrator_from_10_2_0_to_11_0_0/migrator_from_10_2_0_to_11_0_0_part_07.py`
++that joined two collection names and silently skipped both collections. Production
++was verified unaffected, so the resolution was a comment marking the
++implicit-string-concatenation pattern, with the original line kept as the historical
++record.
++
+ ## Table Of Contents
+ 
+ - [Contents](#contents)
++- [Released migrators are frozen](#released-migrators-are-frozen)
+ - [Creating a migrator](#creating-a-migrator)
+ - [Adding Migration Reporting](#adding-migration-reporting)
+ - [Adding Transaction Support](#adding-transaction-support)
+diff --git a/nmdc_schema/migrators/partials/migrator_from_10_2_0_to_11_0_0/migrator_from_10_2_0_to_11_0_0_part_07.py b/nmdc_schema/migrators/partials/migrator_from_10_2_0_to_11_0_0/migrator_from_10_2_0_to_11_0_0_part_07.py
+index e7b222ce67..dcb5d27ef1 100644
+--- a/nmdc_schema/migrators/partials/migrator_from_10_2_0_to_11_0_0/migrator_from_10_2_0_to_11_0_0_part_07.py
++++ b/nmdc_schema/migrators/partials/migrator_from_10_2_0_to_11_0_0/migrator_from_10_2_0_to_11_0_0_part_07.py
+@@ -25,8 +25,16 @@ def upgrade(self):
+             "nom_analysis_activity_set",
+             "omics_processing_set",
+             "read_based_taxonomy_analysis_activity_set",
++            # DISCOURAGED PATTERN (implicit string concatenation in a list literal):
++            # the next two entries lack a separating comma, so Python joins them into a
++            # single invalid collection name and both collections were silently skipped
++            # when this released migrator ran. Left unchanged on purpose: this file is a
++            # frozen record of a released migration, the skip had no production impact
++            # (verified 2026-07-13, see
++            # https://github.com/microbiomedata/nmdc-schema/issues/3259), and re-running
++            # would not recover history. Do not add the comma here.
+             "read_qc_analysis_activity_set"
+-            "metaproteomics_analysis_activity_set"   
++            "metaproteomics_analysis_activity_set"
+         ]
+         
+         for collection_name in workflow_execution_collection_names:

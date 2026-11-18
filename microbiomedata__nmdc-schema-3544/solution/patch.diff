@@ -1,0 +1,58 @@
+diff --git a/src/schema/basic_slots.yaml b/src/schema/basic_slots.yaml
+index 8f21270d2e..9c778b456f 100644
+--- a/src/schema/basic_slots.yaml
++++ b/src/schema/basic_slots.yaml
+@@ -567,9 +567,7 @@ slots:
+       - 'a minimum length of 3 characters is suggested for typecodes, but 1 or 2 characters will be accepted'
+       - 'typecodes must correspond 1:1 to a class in the NMDC schema. this will be checked via per-class id slot usage assertions'
+       - 'minting authority shoulders should probably be enumerated and checked in the pattern'
+-    examples:
+-      - value: nmdc:mgmag-00-x012.1_7_c1
+-        description: 'https://github.com/microbiomedata/nmdc-schema/pull/499#discussion_r1018499248'
++      - 'This slot has no examples on purpose. linkml 1.12 copies a slot''s examples into every class that uses it, and no single id matches every class id pattern (https://github.com/microbiomedata/nmdc-schema/issues/3540). Id examples belong in each class''s slot_usage.'
+     pattern: '^[a-zA-Z0-9][a-zA-Z0-9_\.]+:[a-zA-Z0-9_][a-zA-Z0-9_\-\/\.,]*$'
+ 
+   title:
+diff --git a/tests/test_id_examples_match_class_patterns.py b/tests/test_id_examples_match_class_patterns.py
+new file mode 100644
+index 0000000000..50fe9672d5
+--- /dev/null
++++ b/tests/test_id_examples_match_class_patterns.py
+@@ -0,0 +1,37 @@
++"""Every example on a class's id slot must match that class's id pattern.
++
++linkml 1.12 copies slot examples into the generated JSON Schema, so an example on the base
++id slot appears on every class. See https://github.com/microbiomedata/nmdc-schema/issues/3540.
++"""
++
++import re
++from pathlib import Path
++
++import pytest
++from linkml_runtime import SchemaView
++
++SCHEMA = Path(__file__).resolve().parent.parent / "src" / "schema" / "nmdc.yaml"
++
++
++def _id_examples():
++    sv = SchemaView(str(SCHEMA))
++    for class_name in sorted(sv.all_classes()):
++        if "id" not in sv.class_slots(class_name):
++            continue
++        slot = sv.induced_slot("id", class_name)
++        for example in slot.examples or []:
++            yield class_name, slot.pattern, example.value
++
++
++ID_EXAMPLES = list(_id_examples())
++
++
++def test_some_id_example_is_checked():
++    # Guards against the parametrized test below passing because it collected nothing.
++    assert ID_EXAMPLES
++
++
++@pytest.mark.parametrize("class_name,pattern,value", ID_EXAMPLES)
++def test_id_example_matches_class_pattern(class_name, pattern, value):
++    assert pattern, f"{class_name}.id has an example but no pattern"
++    assert re.search(pattern, value), f"{class_name}.id example {value!r} fails {pattern!r}"

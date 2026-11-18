@@ -1,0 +1,1003 @@
+diff --git a/mkdocs.yml b/mkdocs.yml
+index e01e771c66..8490077816 100644
+--- a/mkdocs.yml
++++ b/mkdocs.yml
+@@ -35,6 +35,7 @@ nav:
+   - Metadata Standards Documentation: Metadata_Documentation_Overview.md
+   - Maintaining the NMDC Schema: maintaining-the-schema.md
+   - Schema element deprecation guide: schema_element_deprecation_guide.md
++  - Retiring a file from assets/: asset-lifecycle.md
+   - NMDC Schema Validation: schema-validation.md
+   - Identifiers: identifiers.md
+   - Typecode to class map: typecode-to-class-map.md
+diff --git a/project.Makefile b/project.Makefile
+index 683bd5a5d8..fe286ec823 100644
+--- a/project.Makefile
++++ b/project.Makefile
+@@ -394,6 +394,14 @@ check-references:
+ 	$(RUN) python src/scripts/check_references.py \
+ 		--schema-file $(SOURCE_SCHEMA_PATH)
+ 
++# Files under assets/ that nothing in the repo names, and files that name an element
++# in deprecated.yaml. Prints to stdout on purpose: writing the report into assets/ is
++# how the stale committed reports this checks for got there in the first place.
++# Procedure: src/docs/asset-lifecycle.md. Gate: tests/test_no_new_unreferenced_assets.py.
++.PHONY: report-asset-usage
++report-asset-usage:
++	$(RUN) python src/scripts/report_asset_usage.py
++
+ assets/mentions-of-ids-analysis.txt: src/schema/nmdc.yaml
+ 	$(RUN) python src/scripts/analyze_mentions_of_ids.py \
+ 		--schema-file $< 1> $@ 2> $@.log
+diff --git a/src/docs/asset-lifecycle.md b/src/docs/asset-lifecycle.md
+new file mode 100644
+index 0000000000..5e23b8edbf
+--- /dev/null
++++ b/src/docs/asset-lifecycle.md
+@@ -0,0 +1,124 @@
++# Retiring a file from `assets/`
++
++`assets/` holds inputs to the build (for example `assets/import_mixs_slots_regardless.tsv`,
++which decides which MIxS slots are imported), a few committed reports, and reference data
++kept by hand. It is no longer the default place to write generated output; see the
++output-destination row in the policy table in
++[CONTRIBUTING.md](https://github.com/microbiomedata/nmdc-schema/blob/main/CONTRIBUTING.md).
++
++An asset without a maintained consumer or regeneration step can stay unchanged as the
++schema evolves. Searching for references helps identify files needing review, although
++the absence of a literal filename does not prove that a file is unused. Two examples of
++stale assets illustrate the problem:
++
++- `assets/schema_pattern_linting.txt` was last regenerated on 2025-12-03 (commit
++  `086cb897a`). On 2026-02-13, commit `11139a97a` moved `chemical_entity_set`, `inchi`,
++  `inchi_key`, and `smiles` into `src/schema/deprecated.yaml`. The committed report still
++  lists all four as slots with no class, which stopped being true that day.
++- `src/scripts/ncbi_nmdc_exact_term_matching.py` broke because it referenced the
++  `OmicsProcessing` class, removed in v11. Recorded in
++  [Test regeneration of assets after CLI alias removal](https://github.com/microbiomedata/nmdc-schema/issues/2762).
++  The script was fixed. Its committed output was not, and
++  `assets/ncbi_mappings/ncbi_attribute_mappings.tsv` still carries a 35-row
++  `OmicsProcessing` block.
++
++## The rule
++
++Every file tracked under `assets/` must be named by something outside `assets/`: a Makefile
++target that builds it, a script or test that reads it, or a document that explains what it
++is for. If none of those is true, it is a retirement candidate. A README inside `assets/`
++does not count, because it is an asset itself; name the file from `src/docs/` or from the
++code that uses it instead.
++
++`tests/test_no_new_unreferenced_assets.py` checks for literal references going forward. It
++runs in `make test` and so in CI. Files that predate the check are listed in its allowlist,
++grouped with the reason each is still there and the issue tracking its retirement. Audit
++prose and the detector's own fixtures do not count as consumers. An actual consumer using
++a constructed path may need a documentation reference or a reasoned allowlist entry.
++
++The test can fail on a branch that never touched `assets/`. When a deprecation lands on main, an unreferenced file that names the newly deprecated element joins the list of retirement candidates, and the test fails until that file is reviewed or added to `EXPECTED_UNREFERENCED_AND_DEPRECATED` with a reason. Run `make report-asset-usage` to see which file and which element.
++
++## Checking one file
++
++Run the report:
++
++```bash
++make report-asset-usage
++```
++
++It prints three lists: assets with no literal reference found in the searched repository
++files, assets naming an element defined in `src/schema/deprecated.yaml`, and the intersection.
++Files in the third list are priorities for retirement review. Check consumers before
++deciding to delete, regenerate, or retain them.
++
++!!! warning "Check other repositories before deleting an asset"
++    The report only sees this repository. Another repository can read an asset through a
++    raw GitHub URL, which leaves no reference here. A clean report is not enough to delete
++    a file.
++
++This preliminary search of the rest of the microbiomedata organization filters out this
++repository's own matches:
++
++```bash
++gh search code --owner microbiomedata "<filename without extension>" \
++  --limit 1000 --json repository,path,url \
++  --jq '.[] | select(.repository.nameWithOwner != "microbiomedata/nmdc-schema")'
++```
++
++Zero results are supporting evidence, not proof of non-use. The
++[GitHub CLI uses the legacy code-search index](https://cli.github.com/manual/gh_search_code),
++which has coverage restrictions, and results may reach the requested limit. Inspect likely
++consumer repositories directly, including scripts that construct paths or use globs.
++Record repository revisions, search terms, coverage gaps, and the retirement rationale in
++the pull request. A failed or incomplete search must not be reported as zero matches.
++
++Worked example: the metadata squad decided on 2026-08-26 to delete
++`assets/misc/neon_nmdc_term_mapping.tsv`. The investigation found no code-search hits and
++no filename references in the local clones of `nmdc-runtime`, `nmdc-server`,
++`nmdc-lakehouse`, and `external-metadata-awareness` that it checked.
++NEON (National Ecological Observatory Network) ingest, which might have used it, does its
++own term mapping in `nmdc_runtime/site/translation/neon_soil_translator.py` and siblings.
++
++Deleting it also moots
++[write tests about assets/misc/neon_nmdc_term_mapping.tsv divergence from schema](https://github.com/microbiomedata/nmdc-schema/issues/1703),
++open since 2024-01-23, which asked for a test that would detect the divergence. There is no
++divergence to detect once the file is gone, and the general version of what it asked for is
++the report and ratchet described above.
++
++## Retiring one
++
++1. Review local and external consumers, as above, and record the evidence supporting retirement.
++2. Delete it with `git rm`. Git history is the archive; there is no need to keep a copy in
++   the tree. This is the same disposition as
++   [Remove SPARQL query files and unreferenced OWL customization artifact](https://github.com/microbiomedata/nmdc-schema/pull/3132),
++   which removed `assets/sparql/*.rq`, and commit `bb2ba3f73`, which removed manually
++   regenerated outputs.
++3. Remove its entry from the allowlist in `tests/test_no_new_unreferenced_assets.py`. The
++   test fails if an allowlisted path stops being unreferenced or stops existing, so the list
++   cannot drift into fiction.
++4. Say in the pull request what you checked and why retirement is appropriate. A reader a
++   year from now cannot redo the search from a claim that the file was unused.
++
++If the file is referenced but stale, regenerate it instead of deleting it, and check whether
++its Makefile target is a prerequisite of anything. If it is not, nothing will regenerate it
++next time either, which is the actual defect.
++
++## Deprecation is the usual trigger
++
++Retiring a schema element is what most often exposes a stale asset, because the element name
++is what makes the staleness visible. The second release cycle of
++[the deprecation guide](schema_element_deprecation_guide.md) now includes a step for this.
++
++Limits worth knowing before trusting the check:
++
++- Reference detection searches selected text formats in tracked files. It excludes generated
++  trees, `assets/` itself, and audit prose; see `SEARCHABLE_SUFFIXES`, `ROOT_EXCLUDED_DIRS`,
++  and `AUDIT_FILES` in `src/scripts/report_asset_usage.py` for the exact scope. It does not
++  resolve dynamically constructed paths or establish that a textual mention is a live dependency.
++- It reads element names out of `src/schema/deprecated.yaml`, so it only sees elements that
++  have completed the second release cycle. An element marked deprecated but not yet moved is
++  invisible to it. So is a rename: `OmicsProcessing` became `DataGeneration` without passing
++  through `deprecated.yaml`, and the check does not flag the assets that still name it.
++- Permissible values cannot be moved into `deprecated.yaml` at all, so a retired permissible
++  value is never flagged. Deleting it and noting the removal in the release notes is the
++  current practice.
+diff --git a/src/docs/schema_element_deprecation_guide.md b/src/docs/schema_element_deprecation_guide.md
+index cea13aacb3..df0c99121f 100644
+--- a/src/docs/schema_element_deprecation_guide.md
++++ b/src/docs/schema_element_deprecation_guide.md
+@@ -30,4 +30,65 @@ main schema file nor participate in the validation of data.
+ \*\* note: For a deprecated class, references could be in the `is_a` or `mixin` elements of another class, 
+ or in the `domain` or `range` elements of an existing slot. For deprecated slots, check all classes that reference that slot, etc.  
+ 
+-#### TODO - section on updating the portal schema in the context of deprecation
+\ No newline at end of file
++- Check whether anything outside the schema source still names the element, and deal with it in the same 
++pull request or in a linked issue. Mapping files and committed reports under `assets/` are the usual place 
++this shows up.
++
++## Elements named outside the schema source
++
++The steps above cover the schema YAML. They do not cover the mapping files, committed reports, and example 
++changesheets under `assets/`, which keep naming an element long after the schema stops exposing it. Run:
++
++```bash
++make report-asset-usage
++```
++
++The report lists which assets name an element defined in `deprecated.yaml`. For each one there are three 
++outcomes, and all three are fine as long as the choice is recorded in the pull request:
++
++| Situation | What to do |
++|---|---|
++| Nothing in the repo or the organization reads the file | Delete it. See [Retiring a file from assets/](asset-lifecycle.md). |
++| A Makefile target regenerates it | Regenerate it, and check that the target is a prerequisite of something, so it does not go stale again. |
++| It is read by something that still needs the old name | Leave it, and say in the pull request why. |
++
++Worked example: [Finalize Deprecation of `collection_date_inc`](https://github.com/microbiomedata/nmdc-schema/pull/3370) 
++deprecated `collection_date_inc`, and an automated review flagged that `assets/misc/neon_nmdc_term_mapping.tsv` still 
++mapped `incubationLength` to it. Nothing read that file, so it was deleted separately rather than remapped. 
++That question, "remove or remap?", was taken to the 2026-08-26 NMDC Schema and Metadata meeting because the 
++guide had no answer for it. This section is the answer.
++
++## Consumer repositories
++
++The steps above cover this repository. Other repositories import specific elements by name and can 
++break the moment a named element disappears from here, whether or not they still use it.
++
++`submission-schema` is the known case. Its `config/nmdc_schema_import.yaml` and 
++`src/nmdc_submission_schema/schema/nmdc_submission_schema_base.yaml` list individual slots to pull in, 
++and its build (`make schema-build`) fails outright, with `ValueError: Slot '<name>' not found in source 
++schema`, the moment a listed slot is removed here. Before finalizing a deprecation (the second release 
++cycle), check whether the element is named in submission-schema's import config, and either:
++
++- get a submission-schema PR removing it merged first, or in the same release window, or
++- say so explicitly on the nmdc-schema PR, so submission-schema does not repin to a release containing 
++  the removal until its own PR is ready.
++
++Worked example: building submission-schema against 
++[Finalize Deprecation of `collection_date_inc`](https://github.com/microbiomedata/nmdc-schema/pull/3370)'s 
++branch reproduces `ValueError: Slot 'collection_date_inc' not found in source schema.` immediately, 
++because submission-schema still imports it (`config/nmdc_schema_import.yaml` lines 864 and 891, checked 
++2026-09-16).
++
++Other repositories may depend on an element too, without going through this import mechanism. 
++`report_asset_usage.py` above only sees this repository, so search the rest of the microbiomedata 
++organization for the element's name before finalizing a deprecation:
++
++```bash
++gh search code --owner microbiomedata "<element name>" --limit 100 \
++  --json repository,path \
++  --jq '.[] | select(.repository.nameWithOwner != "microbiomedata/nmdc-schema") | "\(.repository.nameWithOwner) \(.path)"'
++```
++
++For each hit, remove or update the reference in that repository, or open an issue there and link it 
++from the nmdc-schema pull request. GitHub code search only covers each repository's default branch 
++and does not index all code, so an empty result does not prove that nothing uses the element.
+diff --git a/src/scripts/report_asset_usage.py b/src/scripts/report_asset_usage.py
+new file mode 100644
+index 0000000000..2ca2cf61ce
+--- /dev/null
++++ b/src/scripts/report_asset_usage.py
+@@ -0,0 +1,330 @@
++"""Report tracked files under ``assets/`` that nothing in the repo refers to.
++
++Two findings, from one pass over the tracked asset list.
++
++**Unreferenced.** A file under ``assets/`` with no literal reference found in the
++searched tracked files. This is a retirement candidate, not proof that nothing uses
++it: constructed paths, excluded files, and external consumers need separate checks.
++``assets/`` is no longer the default output destination (see the policy table in
++``CONTRIBUTING.md``).
++
++**Names a deprecated element.** A file under ``assets/`` that mentions a class, slot,
++enum, type, or subset defined in ``src/schema/deprecated.yaml``. The two-release deprecation
++process in ``src/docs/schema_element_deprecation_guide.md`` strips references out of
++the schema source; until 2026-08 it said nothing about ``assets/``, so mapping files
++kept naming elements the schema no longer exposes.
++
++The two findings interact, which is the reason they share a script. An asset that is
++both unreferenced and names a deprecated element is a priority for retirement review.
++Verify its consumers before deciding to delete, regenerate, or retain it.
++
++Usage::
++
++    uv run python src/scripts/report_asset_usage.py
++    uv run python src/scripts/report_asset_usage.py --format tsv
++
++Report-only; the exit status is 0 unless the script itself fails. The gate is
++``tests/test_no_new_unreferenced_assets.py``, which ratchets the unreferenced set
++against a reviewed allowlist.
++
++Plain Python: ``pathlib``, ``re``, ``dataclasses``, ``subprocess`` (to shell out to
++``git ls-files``), plus ``click`` for the CLI and ``pyyaml`` to read
++``deprecated.yaml``. No network calls and no AI in the detection path; matching is
++literal substring and regex, not code-aware parsing, which is why the bare-filename
++fallback needs the distinctiveness checks below rather than trusting every match.
++"""
++
++import re
++import subprocess
++import sys
++from collections import Counter
++from dataclasses import dataclass
++from pathlib import Path
++
++import click
++import yaml
++
++ASSETS_DIR = "assets"
++DEPRECATED_SCHEMA = "src/schema/deprecated.yaml"
++
++# Top-level trees that are generated, vendored, or themselves the thing being audited.
++# Matched only as the first path component: `src/docs/` and `units/docs/` are authored
++# content and must stay searchable, even though the root `docs/` tree is generated.
++ROOT_EXCLUDED_DIRS = frozenset(
++    {
++        ASSETS_DIR,
++        "docs",  # generated by `make gendoc`
++        "project",  # generated by `make gen-project`, and gitignored
++        "local",  # gitignored scratch
++        "site",
++    }
++)
++
++# Vendor/build noise that is excluded no matter how deep it is nested.
++EXCLUDED_DIR_NAMES = frozenset({".git", ".venv", "__pycache__", "node_modules"})
++
++# Suffixes worth searching for a filename reference. Binary and generated payloads are
++# skipped: a match inside one is a data coincidence, not a consumer.
++SEARCHABLE_SUFFIXES = frozenset(
++    {
++        "",
++        ".cfg",
++        ".csv",
++        ".ini",
++        ".ipynb",
++        ".js",
++        ".json",
++        ".jsonld",
++        ".Makefile",
++        ".md",
++        ".py",
++        ".sh",
++        ".toml",
++        ".tsv",
++        ".txt",
++        ".yaml",
++        ".yml",
++        ".ru",
++        ".yq",
++    }
++)
++
++# This audit and its ratchet name assets only to account for them. Counting those
++# mentions as references would make every allowlisted file look consumed, which is how
++# the first draft of this script reported zero orphans.
++AUDIT_FILES = frozenset(
++    {
++        "src/scripts/report_asset_usage.py",
++        "tests/test_no_new_unreferenced_assets.py",
++        "tests/test_report_asset_usage.py",
++        "src/docs/asset-lifecycle.md",
++        "src/docs/schema_element_deprecation_guide.md",
++    }
++)
++
++# Basenames that are not distinctive enough to trust the bare-filename fallback for:
++# more than one tracked asset uses it, and/or the same name shows up incidentally
++# elsewhere for something unrelated (a Makefile target's own output path, this
++# repository's own top-level README.md). For these, only a full-path match counts.
++GENERIC_BASENAMES = frozenset({"README.md", ".gitkeep"})
++
++
++@dataclass(frozen=True, order=True)
++class AssetFinding:
++    """One tracked asset, with what refers to it and which deprecated elements it names."""
++
++    path: str
++    referenced_by: tuple
++    deprecated_elements: tuple
++
++    @property
++    def is_unreferenced(self):
++        return not self.referenced_by
++
++
++def _run_git(args, repo_root):
++    """Run a git command in ``repo_root`` and return its stdout."""
++    return subprocess.run(
++        ["git", *args],
++        cwd=repo_root,
++        check=True,
++        capture_output=True,
++        text=True,
++    ).stdout
++
++
++def tracked_assets(repo_root):
++    """Every file tracked by git under ``assets/``, as repo-relative POSIX paths."""
++    output = _run_git(["ls-files", "-z", ASSETS_DIR], repo_root)
++    return sorted(line for line in output.split("\0") if line)
++
++
++def deprecated_element_names(repo_root):
++    """Every element name defined in ``deprecated.yaml``.
++
++    Covers classes, slots, enums, types, and subsets. Permissible values are not
++    included: the schema has no way to retire a permissible value into
++    ``deprecated.yaml`` (see the deprecation guide), so there is nothing to read.
++    """
++    schema = yaml.safe_load((repo_root / DEPRECATED_SCHEMA).read_text())
++    names = set()
++    for section in ("classes", "slots", "enums", "types", "subsets"):
++        names.update(schema.get(section) or {})
++    return names
++
++
++def _searchable_files(repo_root):
++    """Committed files that could plausibly name an asset, excluding generated trees.
++
++    Enumerated from ``git ls-files``, not a filesystem walk: an untracked local file
++    (a stray note, a build artifact) must never be able to make a tracked orphan look
++    referenced, since the ratchet's whole premise is that only committed content
++    counts as a consumer.
++    """
++    output = _run_git(["ls-files", "-z"], repo_root)
++    for line in output.split("\0"):
++        if not line:
++            continue
++        relative = Path(line)
++        path = repo_root / relative
++        if not path.is_file():
++            continue
++        if relative.parts and relative.parts[0] in ROOT_EXCLUDED_DIRS:
++            continue
++        if EXCLUDED_DIR_NAMES.intersection(relative.parts):
++            continue
++        if relative.as_posix() in AUDIT_FILES:
++            continue
++        if path.suffix not in SEARCHABLE_SUFFIXES:
++            continue
++        yield path
++
++
++def _read_text(path):
++    """Read a file as text, tolerating stray bytes; empty string if unreadable."""
++    try:
++        return path.read_text(encoding="utf-8", errors="replace")
++    except OSError:
++        return ""
++
++
++def _file_name_pattern(name):
++    """Match ``name`` only where it is the whole file name or path, not part of a longer one.
++
++    A plain substring test would let ``pv_template.tsv`` count as referenced by a
++    mention of ``enum_pv_template.tsv``. A slash or a quote may come before the name,
++    and a sentence-ending period may follow it, but a further extension or a backup
++    suffix (``~``) may not. Markdown underscore emphasis (``_name_``) does not match;
++    write file names in backticks.
++
++    >>> bool(_file_name_pattern("pv_template.tsv").search("assets/enum_pv_template.tsv"))
++    False
++    >>> bool(_file_name_pattern("pv_template.tsv").search("cat $DIR/pv_template.tsv."))
++    True
++    >>> bool(_file_name_pattern("pv_template.tsv").search("pv_template.tsv.gz"))
++    False
++    """
++    return re.compile(rf"(?<![\w.-]){re.escape(name)}(?![\w~+-]|\.\w)")
++
++
++def find_asset_findings(repo_root):
++    """Build one :class:`AssetFinding` per tracked asset.
++
++    An asset counts as referenced if any searchable file outside ``assets/`` contains
++    its repo-relative path, or its bare filename, as a whole name (see
++    ``_file_name_pattern``), when that filename is distinctive
++    enough to trust: unique among tracked assets, and not a name known to collide
++    with something unrelated (see ``GENERIC_BASENAMES``). The bare-filename fallback
++    exists because Makefiles and scripts often build the path from a variable, so
++    requiring the full path would report false orphans.
++    """
++    repo_root = Path(repo_root)
++    assets = tracked_assets(repo_root)
++    deprecated = deprecated_element_names(repo_root)
++
++    corpus = {path: _read_text(path) for path in _searchable_files(repo_root)}
++
++    element_patterns = {
++        name: re.compile(rf"(?<![0-9A-Za-z_]){re.escape(name)}(?![0-9A-Za-z_])")
++        for name in deprecated
++    }
++
++    basename_counts = Counter(Path(asset).name for asset in assets)
++
++    findings = []
++    for asset in assets:
++        basename = Path(asset).name
++        trust_basename = (
++            basename_counts[basename] == 1 and basename not in GENERIC_BASENAMES
++        )
++        names = [asset, basename] if trust_basename else [asset]
++        patterns = [_file_name_pattern(name) for name in names]
++        referenced_by = sorted(
++            str(path.relative_to(repo_root))
++            for path, text in corpus.items()
++            if any(
++                name in text and pattern.search(text)
++                for name, pattern in zip(names, patterns)
++            )
++        )
++        asset_text = _read_text(repo_root / asset)
++        named = tuple(
++            sorted(
++                name
++                for name, pattern in element_patterns.items()
++                if pattern.search(asset_text)
++            )
++        )
++        findings.append(AssetFinding(asset, tuple(referenced_by), named))
++    return findings
++
++
++def _emit_text(findings):
++    unreferenced = [f for f in findings if f.is_unreferenced]
++    naming_deprecated = [f for f in findings if f.deprecated_elements]
++    both = [f for f in unreferenced if f.deprecated_elements]
++
++    click.echo(
++        f"{len(findings)} tracked files under {ASSETS_DIR}/; "
++        f"{len(unreferenced)} with no reference found in searched files; "
++        f"{len(naming_deprecated)} naming a deprecated element."
++    )
++
++    click.echo("\nNo reference found in searched repository files:")
++    for finding in unreferenced or ():
++        click.echo(f"  {finding.path}")
++    if not unreferenced:
++        click.echo("  (none)")
++
++    click.echo(f"\nNaming an element defined in {DEPRECATED_SCHEMA}:")
++    for finding in naming_deprecated or ():
++        click.echo(f"  {finding.path}: {', '.join(finding.deprecated_elements)}")
++    if not naming_deprecated:
++        click.echo("  (none)")
++
++    click.echo("\nBoth (retirement candidates; verify consumers before deleting):")
++    for finding in both or ():
++        click.echo(f"  {finding.path}")
++    if not both:
++        click.echo("  (none)")
++
++
++def _emit_tsv(findings):
++    click.echo("asset\treferenced_by\tdeprecated_elements_named")
++    for finding in findings:
++        click.echo(
++            "\t".join(
++                [
++                    finding.path,
++                    "|".join(finding.referenced_by),
++                    "|".join(finding.deprecated_elements),
++                ]
++            )
++        )
++
++
++@click.command()
++@click.option(
++    "--repo-root",
++    default=".",
++    type=click.Path(exists=True, file_okay=False, path_type=Path),
++    help="Repository root to audit.",
++)
++@click.option(
++    "--format",
++    "output_format",
++    type=click.Choice(["text", "tsv"]),
++    default="text",
++    help="text for a human-readable report, tsv for one row per asset.",
++)
++def report(repo_root, output_format):
++    """Report unreferenced assets and assets naming deprecated schema elements."""
++    findings = find_asset_findings(repo_root)
++    if output_format == "tsv":
++        _emit_tsv(findings)
++    else:
++        _emit_text(findings)
++
++
++if __name__ == "__main__":
++    sys.exit(report())
+diff --git a/tests/test_no_new_unreferenced_assets.py b/tests/test_no_new_unreferenced_assets.py
+new file mode 100644
+index 0000000000..54669391ff
+--- /dev/null
++++ b/tests/test_no_new_unreferenced_assets.py
+@@ -0,0 +1,138 @@
++"""Guard against adding an asset with no reference found in the searched files.
++
++A ratchet over the existing backlog, not a clean-room assertion. Every path in
++``EXPECTED_UNREFERENCED`` is a file that predates this check; each group below says
++why it is still there and where its retirement is tracked. A newly added asset with
++no detected reference fails here instead of joining the pile.
++
++The second assertion is the one that connects this to element deprecation: an asset
++that has no detected reference and names an element in ``src/schema/deprecated.yaml``
++is a priority for retirement review. Check its consumers before deciding its fate.
++These candidates are listed separately so the set shrinks visibly as they are retired.
++
++Report and rationale: ``src/scripts/report_asset_usage.py``.
++Procedure: ``src/docs/asset-lifecycle.md``.
++"""
++
++from pathlib import Path
++
++from src.scripts.report_asset_usage import find_asset_findings
++
++REPO_ROOT = Path(__file__).resolve().parent.parent
++
++# Inputs to the units subsystem and to one-off analyses, kept as reference data. They
++# have no generator and no consumer in this repo. Retirement or relocation is tracked in
++# https://github.com/microbiomedata/nmdc-schema/issues/2766 (reorganize assets/ into
++# inputs/, outputs/, and reference/).
++_REFERENCE_DATA = {
++    "assets/blanklines.txt",
++    "assets/from-sssom-dir/README.md",
++    "assets/from-sssom-dir/biosample_ebs_water_packages_unclassified_taxa_sssom.tsv",
++    "assets/from-sssom-dir/biosample_env_package_normalizastion.tsv",
++    "assets/from-sssom-dir/per_biosample_scoped_ebs_mapping_results.tsv",
++    "assets/misc/gold_seqMethod_to_nmdc_instrument_set.tsv",
++    "assets/misc/linter_config_default.yaml",
++    "assets/misc/neon_raw_data_file_mappings.tsv",
++    "assets/misc/neon_sequencingMethod_to_nmdc_instrument_set.tsv",
++    "assets/neon_mixs_env_triad_mappings/README.md",
++    "assets/neon_mixs_env_triad_mappings/neon-nlcd-local-broad-mappings.tsv",
++    "assets/neon_mixs_env_triad_mappings/neon-site-env_medium.tsv",
++    "assets/neon_table_types.tsv",
++    "assets/pref-unit-slots-claude-ucum-expanded-curated-with-has-problem.tsv",
++}
++
++# Git placeholder files. Their entire purpose is to keep an otherwise-empty directory
++# tracked; requiring something to name them by path would be a category error.
++_GIT_PLACEHOLDERS = {
++    "assets/jsons-for-mongodb/.gitkeep",
++    "assets/misc/.gitkeep",
++}
++
++# Outputs of code that has since been deleted, or examples superseded by a class rename.
++# Named for retirement in https://github.com/microbiomedata/nmdc-schema/issues/2968
++# (remove ncbi_postgres_nmdc_exact_term_matching.py and assets/ncbi_mappings/) and
++# https://github.com/microbiomedata/nmdc-schema/issues/3330 (consolidate stray markdown).
++_ORPHANED_OUTPUTS = {
++    "assets/changesheet_examples/data_generation_id_inst_changesheet.tsv",
++    "assets/changesheet_examples/omics_processing_id_inst_changesheet.tsv",
++    "assets/misc/README_cookiecutter.md",
++    "assets/misc/legacy_migration_notes.md",
++    "assets/ncbi_mappings/README.md",
++    "assets/ncbi_mappings/ncbi_pg_db_field_mappings.tsv",
++    "assets/ncbi_mappings/ncbi_pg_db_field_mappings_filled.tsv",
++    "assets/ncbi_mappings/ncbi_pg_db_fields.txt",
++}
++
++EXPECTED_UNREFERENCED = _REFERENCE_DATA | _ORPHANED_OUTPUTS | _GIT_PLACEHOLDERS
++
++# The subset of the above that also names an element in deprecated.yaml. These are
++# retirement candidates; the search does not establish that they have no consumers.
++# This set should only ever shrink.
++EXPECTED_UNREFERENCED_AND_DEPRECATED = {
++    "assets/ncbi_mappings/ncbi_pg_db_field_mappings.tsv",
++    "assets/ncbi_mappings/ncbi_pg_db_field_mappings_filled.tsv",
++    # False positives: these use the retired subset names environment, package and
++    # sequencing, or the retired type name unit, as ordinary words. Remove them when
++    # https://github.com/microbiomedata/nmdc-schema/issues/3514 stops the detector
++    # matching those names.
++    "assets/from-sssom-dir/biosample_ebs_water_packages_unclassified_taxa_sssom.tsv",
++    "assets/from-sssom-dir/biosample_env_package_normalizastion.tsv",
++    "assets/from-sssom-dir/per_biosample_scoped_ebs_mapping_results.tsv",
++    "assets/misc/neon_raw_data_file_mappings.tsv",
++    "assets/ncbi_mappings/README.md",
++    "assets/ncbi_mappings/ncbi_pg_db_fields.txt",
++    "assets/neon_table_types.tsv",
++    "assets/pref-unit-slots-claude-ucum-expanded-curated-with-has-problem.tsv",
++}
++
++
++def test_no_new_unreferenced_assets():
++    """No file may be added to assets/ without something in the repo naming it."""
++    findings = find_asset_findings(REPO_ROOT)
++    actual = {finding.path for finding in findings if finding.is_unreferenced}
++
++    unexpected = actual - EXPECTED_UNREFERENCED
++    assert not unexpected, (
++        f"{len(unexpected)} file(s) under assets/ have no literal reference in the "
++        f"searched repository files: {sorted(unexpected)}. Document the consumer, "
++        f"write it somewhere else (see the output-destination row in CONTRIBUTING.md), "
++        f"or add it to EXPECTED_UNREFERENCED with a reason. "
++        f"See src/docs/asset-lifecycle.md."
++    )
++
++    retired = EXPECTED_UNREFERENCED - actual
++    assert not retired, (
++        f"{len(retired)} allowlisted asset(s) are no longer unreferenced: "
++        f"{sorted(retired)}. Remove them from EXPECTED_UNREFERENCED so the list stays "
++        f"an accurate account of the backlog."
++    )
++
++
++def test_unreferenced_and_deprecated_set_only_shrinks():
++    """Track retirement candidates that also name a deprecated element."""
++    findings = find_asset_findings(REPO_ROOT)
++    actual = {
++        finding.path
++        for finding in findings
++        if finding.is_unreferenced and finding.deprecated_elements
++    }
++
++    unexpected = actual - EXPECTED_UNREFERENCED_AND_DEPRECATED
++    assert not unexpected, (
++        f"{len(unexpected)} unreferenced asset(s) name an element in "
++        f"src/schema/deprecated.yaml: {sorted(unexpected)}. Check local and external "
++        f"consumers before deciding to delete, regenerate, or retain them. If one must stay, "
++        f"add it to EXPECTED_UNREFERENCED_AND_DEPRECATED with a reason. "
++        f"See src/docs/schema_element_deprecation_guide.md. "
++        f"If your branch did not touch assets/, the likely cause is a deprecation that "
++        f"landed on main: an element moved into deprecated.yaml and one of these files "
++        f"names it. Run `make report-asset-usage` to see which."
++    )
++
++    retired = EXPECTED_UNREFERENCED_AND_DEPRECATED - actual
++    assert not retired, (
++        f"{len(retired)} allowlisted asset(s) no longer name a deprecated element while "
++        f"unreferenced: {sorted(retired)}. Remove them from "
++        f"EXPECTED_UNREFERENCED_AND_DEPRECATED so the list stays an accurate account of "
++        f"the remaining retirement candidates."
++    )
+diff --git a/tests/test_report_asset_usage.py b/tests/test_report_asset_usage.py
+new file mode 100644
+index 0000000000..07439a7f51
+--- /dev/null
++++ b/tests/test_report_asset_usage.py
+@@ -0,0 +1,284 @@
++"""Tests for src/scripts/report_asset_usage.py.
++
++Builds a small git repository under ``tmp_path`` (``git add``-ed, not committed;
++``git ls-files`` reads the index) so the detector's real path is exercised end to
++end, rather than mocking ``tracked_assets``.
++"""
++
++import json
++import subprocess
++
++import pytest
++
++from src.scripts.report_asset_usage import (
++    GENERIC_BASENAMES,
++    ROOT_EXCLUDED_DIRS,
++    _emit_text,
++    _emit_tsv,
++    find_asset_findings,
++)
++
++DEPRECATED_SCHEMA = """
++classes:
++  OldClass: {}
++slots:
++  old_slot: {}
++enums:
++  OldEnum: {}
++types:
++  old_type: {}
++subsets:
++  old_subset: {}
++"""
++
++
++def _write(path, text=""):
++    path.parent.mkdir(parents=True, exist_ok=True)
++    path.write_text(text)
++
++
++@pytest.fixture
++def repo(tmp_path):
++    """A minimal git repo with a handful of tracked assets and one consumer file."""
++    _write(tmp_path / "src/schema/deprecated.yaml", DEPRECATED_SCHEMA)
++
++    # Referenced by full path.
++    _write(tmp_path / "assets/misc/referenced.tsv", "data\n")
++    _write(tmp_path / "Makefile", "target: assets/misc/referenced.tsv\n\techo built\n")
++
++    # Referenced only by a distinctive bare filename (the Makefile-builds-a-path case).
++    _write(tmp_path / "assets/misc/distinctive_name.tsv", "data\n")
++    _write(tmp_path / "scripts/build.sh", "cat $DIR/distinctive_name.tsv\n")
++
++    # A generic basename that collides with something unrelated; must not count.
++    _write(tmp_path / "assets/one/README.md", "one\n")
++    _write(tmp_path / "assets/two/README.md", "two\n")
++    _write(tmp_path / "unrelated/README.md", "not about either asset\n")
++
++    # Names a deprecated element, and nothing references it.
++    _write(tmp_path / "assets/misc/old_mapping.tsv", "old_slot\tsomething\n")
++
++    # Authored docs under src/docs/ must stay searchable (the root-`docs/`-only fix).
++    _write(tmp_path / "assets/misc/documented.tsv", "data\n")
++    _write(
++        tmp_path / "src/docs/notes.md",
++        "See assets/misc/documented.tsv for details.\n",
++    )
++
++    # A generated root docs/ tree must stay excluded even though it mentions a path.
++    _write(
++        tmp_path / "docs/generated.md",
++        "See assets/misc/only_in_generated_docs.tsv.\n",
++    )
++    _write(tmp_path / "assets/misc/only_in_generated_docs.tsv", "data\n")
++
++    # A duplicate basename that isn't in GENERIC_BASENAMES: the dynamic uniqueness
++    # check, not the hardcoded denylist, must be what catches this.
++    _write(tmp_path / "assets/a/data.csv", "a\n")
++    _write(tmp_path / "assets/b/data.csv", "b\n")
++    _write(tmp_path / "scripts/loads_data.py", "open('data.csv')\n")
++
++    # An untracked asset naming another tracked asset by full path must not count:
++    # only committed content is a consumer.
++    _write(tmp_path / "assets/misc/only_named_untracked.tsv", "data\n")
++
++    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
++    subprocess.run(["git", "add", "-A"], cwd=tmp_path, check=True)
++
++    _write(
++        tmp_path / "untracked_notes.md",
++        "See assets/misc/only_named_untracked.tsv for context.\n",
++    )
++    return tmp_path
++
++
++def _find(findings, path):
++    matches = [f for f in findings if f.path == path]
++    assert len(matches) == 1, f"expected exactly one finding for {path}"
++    return matches[0]
++
++
++def test_full_path_reference_is_found(repo):
++    finding = _find(find_asset_findings(repo), "assets/misc/referenced.tsv")
++    assert not finding.is_unreferenced
++    assert "Makefile" in finding.referenced_by
++
++
++def test_distinctive_basename_fallback_is_found(repo):
++    finding = _find(find_asset_findings(repo), "assets/misc/distinctive_name.tsv")
++    assert not finding.is_unreferenced
++    assert "scripts/build.sh" in finding.referenced_by
++
++
++def test_generic_basename_does_not_count_as_a_reference(repo):
++    """A same-named unrelated file must not make README.md assets look consumed."""
++    findings = find_asset_findings(repo)
++    one = _find(findings, "assets/one/README.md")
++    two = _find(findings, "assets/two/README.md")
++    assert one.is_unreferenced
++    assert two.is_unreferenced
++
++
++def test_duplicate_basename_not_in_denylist_is_caught_dynamically(repo):
++    """Two tracked assets sharing a basename must not trust the bare-name fallback,
++    even though neither name is in GENERIC_BASENAMES."""
++    findings = find_asset_findings(repo)
++    a = _find(findings, "assets/a/data.csv")
++    b = _find(findings, "assets/b/data.csv")
++    assert a.is_unreferenced
++    assert b.is_unreferenced
++
++
++def test_untracked_file_is_not_a_consumer(repo):
++    """Only committed content counts; an untracked file naming an asset must not."""
++    finding = _find(find_asset_findings(repo), "assets/misc/only_named_untracked.tsv")
++    assert finding.is_unreferenced
++
++
++@pytest.mark.parametrize("suffix", [".ipynb", ".csv", ".tsv"])
++def test_notebooks_and_tables_can_reference_assets(repo, suffix):
++    asset = "assets/misc/input_data.txt"
++    consumer = f"consumers/input_manifest{suffix}"
++    _write(repo / asset, "data\n")
++    if suffix == ".ipynb":
++        content = json.dumps(
++            {"cells": [{"cell_type": "code", "source": [f"open('{asset}')"]}]}
++        )
++    else:
++        content = f"input_path\n{asset}\n"
++    _write(repo / consumer, content)
++    subprocess.run(["git", "add", asset, consumer], cwd=repo, check=True)
++
++    finding = _find(find_asset_findings(repo), asset)
++    assert finding.referenced_by == (consumer,)
++
++
++@pytest.mark.parametrize(
++    "audit_file",
++    [
++        "src/scripts/report_asset_usage.py",
++        "tests/test_no_new_unreferenced_assets.py",
++        "tests/test_report_asset_usage.py",
++        "src/docs/asset-lifecycle.md",
++        "src/docs/schema_element_deprecation_guide.md",
++    ],
++)
++def test_audit_examples_do_not_count_as_consumers(repo, audit_file):
++    asset = "assets/misc/audit_example.tsv"
++    _write(repo / asset, "old_slot\n")
++    _write(repo / audit_file, f"Example path: {asset}\n")
++    subprocess.run(["git", "add", asset, audit_file], cwd=repo, check=True)
++
++    finding = _find(find_asset_findings(repo), asset)
++    assert finding.is_unreferenced
++    assert finding.deprecated_elements == ("old_slot",)
++
++
++def test_deprecated_element_is_detected(repo):
++    finding = _find(find_asset_findings(repo), "assets/misc/old_mapping.tsv")
++    assert finding.is_unreferenced
++    assert finding.deprecated_elements == ("old_slot",)
++
++
++@pytest.mark.parametrize(
++    "element", ["OldClass", "old_slot", "OldEnum", "old_type", "old_subset"]
++)
++def test_each_deprecated_section_is_read(repo, element):
++    """Every section of deprecated.yaml must feed the check, not only slots."""
++    asset = "assets/misc/names_one_element.tsv"
++    _write(repo / asset, f"{element}\tsomething\n")
++    subprocess.run(["git", "add", asset], cwd=repo, check=True)
++
++    finding = _find(find_asset_findings(repo), asset)
++    assert finding.deprecated_elements == (element,)
++
++
++def test_generic_basename_fallback_is_refused_even_when_unique(repo):
++    """A GENERIC_BASENAMES name must need a full path even if only one asset has it.
++
++    The README.md fixtures above are also duplicates, so they cannot show that the
++    denylist itself does anything.
++    """
++    asset = "assets/solo/.gitkeep"
++    consumer = "scripts/make_dirs.sh"
++    _write(repo / asset)
++    _write(repo / consumer, "touch $DIR/.gitkeep\n")
++    subprocess.run(["git", "add", asset, consumer], cwd=repo, check=True)
++
++    finding = _find(find_asset_findings(repo), asset)
++    assert finding.is_unreferenced
++
++
++@pytest.mark.parametrize(
++    ("mention", "counts"),
++    [
++        ("cat $DIR/pv_template.tsv\n", True),
++        ("See pv_template.tsv.\n", True),
++        ("cat assets/enum_pv_template.tsv\n", False),
++        ("cat $DIR/pv_template.tsv.gz\n", False),
++        ("rm -f assets/misc/pv_template.tsv~\n", False),
++    ],
++)
++def test_file_name_must_match_as_a_whole_name(repo, mention, counts):
++    """A longer file name that contains the asset's name is not a reference to it."""
++    asset = "assets/misc/pv_template.tsv"
++    consumer = "scripts/uses_template.sh"
++    _write(repo / asset, "data\n")
++    _write(repo / consumer, mention)
++    subprocess.run(["git", "add", asset, consumer], cwd=repo, check=True)
++
++    finding = _find(find_asset_findings(repo), asset)
++    assert finding.is_unreferenced is not counts
++
++
++def test_non_ascii_file_names_are_read_unquoted(repo):
++    """git quotes non-ASCII paths unless -z is used; the quoted form matches nothing."""
++    asset = "assets/misc/café_mappings.tsv"
++    consumer = "scripts/load_cafe.py"
++    _write(repo / asset, "old_slot\n")
++    _write(repo / consumer, f"open('{asset}')\n")
++    subprocess.run(["git", "add", asset, consumer], cwd=repo, check=True)
++
++    finding = _find(find_asset_findings(repo), asset)
++    assert finding.referenced_by == (consumer,)
++    assert finding.deprecated_elements == ("old_slot",)
++
++
++def test_authored_docs_under_src_docs_are_searched(repo):
++    """src/docs/ is authored content, not the generated docs/ tree; must be searched."""
++    finding = _find(find_asset_findings(repo), "assets/misc/documented.tsv")
++    assert not finding.is_unreferenced
++    assert "src/docs/notes.md" in finding.referenced_by
++
++
++def test_generated_root_docs_tree_is_excluded(repo):
++    """The generated root docs/ tree must not count as a reference source."""
++    finding = _find(find_asset_findings(repo), "assets/misc/only_in_generated_docs.tsv")
++    assert finding.is_unreferenced
++
++
++def test_generic_basenames_are_a_real_collision_set(repo):
++    """Guards GENERIC_BASENAMES against silently going stale or empty."""
++    assert "README.md" in GENERIC_BASENAMES
++    assert "docs" in ROOT_EXCLUDED_DIRS
++
++
++def test_emit_text_lists_every_unreferenced_and_deprecated_asset(repo, capsys):
++    findings = find_asset_findings(repo)
++    _emit_text(findings)
++    out = capsys.readouterr().out
++    assert "assets/one/README.md" in out
++    assert "old_slot" in out
++    assert "verify consumers before deleting" in out
++    assert (
++        "assets/misc/referenced.tsv"
++        not in out.split("No reference found")[1].split("Naming an element")[0]
++    )
++
++
++def test_emit_tsv_has_one_row_per_asset_and_a_header(repo, capsys):
++    findings = find_asset_findings(repo)
++    _emit_tsv(findings)
++    lines = capsys.readouterr().out.strip().split("\n")
++    assert lines[0] == "asset\treferenced_by\tdeprecated_elements_named"
++    assert len(lines) == 1 + len(findings)

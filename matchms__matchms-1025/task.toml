@@ -43,7 +43,6 @@ context_files = [
     "tests/testdata/multiline_semicolon.msp",
     "tests/testdata/rcx_gc-ei_ms_20201028_perylene.msp",
 ]
-bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -62,15 +61,10 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "inline_dockerfile"
+mode = "local_only"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "public"
-pushed_at = "2026-11-16T15:51:53.109490+00:00"
-pushed_by = "scalingX"
-inline_recipe_sha256 = "sha256:f4e5fb4f6fcd5c5877721ccce2c46d49d35174095b26f2d48ed097dfad10eb2a"
-inline_recipe_lines = 37
-inline_recipe_source = "user_dockerfile"
+image_visibility = "private"
 
 [agent]
 timeout_sec = 1800.0

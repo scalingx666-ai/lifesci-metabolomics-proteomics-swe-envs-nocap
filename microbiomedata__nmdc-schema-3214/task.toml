@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3214"
+description = "3213 update LibraryPreparation modeling for insdc compatibility and example data for MicroFlora Danica"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "8f1dc97bd80d887ad6f85b72074d6ef16da4ce1f"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3214"
+source_access = "auto"
+built_at = "2026-11-18T02:32:52.404715+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e5a64141a99950937d14faffa3a2e1995af98870c2141bd3a78fb815fe78e9af"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-06-23T19:24:53Z"
+diff_format = "unified"
+context_files = [
+    "assets/import_mixs_slots_regardless.tsv",
+    "poetry.lock",
+    "src/data/valid/Database-SAMN39871635_example.yaml",
+    "src/schema/basic_classes.yaml",
+    "src/schema/basic_slots.yaml",
+    "src/schema/mixs.yaml",
+    "src/schema/nmdc.yaml",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 1389
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3265"
+description = "Potential fix for 1 code quality finding"
+
+[metadata]
+difficulty = "easy"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "1d78b432901c99013d88b2406c506970686e582c"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3265"
+source_access = "auto"
+built_at = "2026-11-18T02:32:09.757175+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:f84b57d0621ec171d02a731cc6b25511d30dd51c2c870b7aeb7517372c33b2eb"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-07-10T17:34:20Z"
+diff_format = "unified"
+context_files = [
+    "src/scripts/make_typecode_to_class_map.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 2
+difficulty = "trivial"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

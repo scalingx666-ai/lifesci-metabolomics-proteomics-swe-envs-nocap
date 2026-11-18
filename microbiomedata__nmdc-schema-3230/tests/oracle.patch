@@ -1,0 +1,1344 @@
+diff --git a/assets/yq-for-mixs-customizations.txt b/assets/yq-for-mixs-customizations.txt
+index 50443a1ef3..6432120268 100644
+--- a/assets/yq-for-mixs-customizations.txt
++++ b/assets/yq-for-mixs-customizations.txt
+@@ -507,6 +507,88 @@
+ 'del(.slots.add_recov_method.pattern)'
+ 'del(.subsets.[].name)'
+ 
++# Badge-topic subset membership (https://github.com/microbiomedata/nmdc-schema/issues/3228).
++# Upstream MIxS subset memberships are stripped above with 'del(.slots.[].in_subset)',
++# so these NMDC badge-subset assignments must come AFTER that strip or they would be
++# removed. The subsets themselves are declared in src/schema/basic_slots.yaml; here we
++# assert per-slot membership at the slot level, agnostic to which class uses the slot.
++# Only MIxS-sourced slots are assigned here. Badge slots defined in NMDC's own modules
++# carry in_subset in their own definitions, since this file only rewrites mixs.yaml.
++# Membership follows the metadata quality squad's Badge Subsets Scratchpad supersets.
++# --- biogeochemistry badge subset ---
++'.slots.alkalinity.in_subset = ["biogeochemistry"]'
++'.slots.ammonium.in_subset = ["biogeochemistry"]'
++'.slots.calcium.in_subset = ["biogeochemistry"]'
++'.slots.carb_dioxide.in_subset = ["biogeochemistry"]'
++'.slots.carb_nitro_ratio.in_subset = ["biogeochemistry"]'
++'.slots.chloride.in_subset = ["biogeochemistry"]'
++'.slots.chlorophyll.in_subset = ["biogeochemistry"]'
++'.slots.conduc.in_subset = ["biogeochemistry"]'
++'.slots.diss_inorg_carb.in_subset = ["biogeochemistry"]'
++'.slots.diss_inorg_nitro.in_subset = ["biogeochemistry"]'
++'.slots.diss_inorg_phosp.in_subset = ["biogeochemistry"]'
++'.slots.diss_iron.in_subset = ["biogeochemistry"]'
++'.slots.diss_org_carb.in_subset = ["biogeochemistry"]'
++'.slots.diss_oxygen.in_subset = ["biogeochemistry"]'
++'.slots.magnesium.in_subset = ["biogeochemistry"]'
++'.slots.methane.in_subset = ["biogeochemistry"]'
++'.slots.nitrate.in_subset = ["biogeochemistry"]'
++'.slots.nitrite.in_subset = ["biogeochemistry"]'
++'.slots.nitro.in_subset = ["biogeochemistry"]'
++'.slots.org_carb.in_subset = ["biogeochemistry"]'
++'.slots.ph.in_subset = ["biogeochemistry"]'
++'.slots.phosphate.in_subset = ["biogeochemistry"]'
++'.slots.potassium.in_subset = ["biogeochemistry"]'
++'.slots.redox_potential.in_subset = ["biogeochemistry"]'
++'.slots.salinity.in_subset = ["biogeochemistry"]'
++'.slots.silicate.in_subset = ["biogeochemistry"]'
++'.slots.sodium.in_subset = ["biogeochemistry"]'
++'.slots.soluble_react_phosp.in_subset = ["biogeochemistry"]'
++'.slots.sulfate.in_subset = ["biogeochemistry"]'
++'.slots.sulfide.in_subset = ["biogeochemistry"]'
++'.slots.tot_carb.in_subset = ["biogeochemistry"]'
++'.slots.tot_iron.in_subset = ["biogeochemistry"]'
++'.slots.tot_nitro.in_subset = ["biogeochemistry"]'
++'.slots.tot_nitro_content.in_subset = ["biogeochemistry"]'
++'.slots.tot_org_carb.in_subset = ["biogeochemistry"]'
++'.slots.tot_phosp.in_subset = ["biogeochemistry"]'
++'.slots.tot_sulfur.in_subset = ["biogeochemistry"]'
++# --- host_information badge subset ---
++'.slots.ances_data.in_subset = ["host_information"]'
++'.slots.biotic_relationship.in_subset = ["host_information"]'
++'.slots.gravidity.in_subset = ["host_information"]'
++'.slots.host_age.in_subset = ["host_information"]'
++'.slots.host_body_habitat.in_subset = ["host_information"]'
++'.slots.host_body_product.in_subset = ["host_information"]'
++'.slots.host_body_site.in_subset = ["host_information"]'
++'.slots.host_body_temp.in_subset = ["host_information"]'
++'.slots.host_color.in_subset = ["host_information"]'
++'.slots.host_common_name.in_subset = ["host_information"]'
++'.slots.host_diet.in_subset = ["host_information"]'
++'.slots.host_disease_stat.in_subset = ["host_information"]'
++'.slots.host_dry_mass.in_subset = ["host_information"]'
++'.slots.host_genotype.in_subset = ["host_information"]'
++'.slots.host_growth_cond.in_subset = ["host_information"]'
++'.slots.host_height.in_subset = ["host_information"]'
++'.slots.host_last_meal.in_subset = ["host_information"]'
++'.slots.host_length.in_subset = ["host_information"]'
++'.slots.host_life_stage.in_subset = ["host_information"]'
++'.slots.host_phenotype.in_subset = ["host_information"]'
++'.slots.host_sex.in_subset = ["host_information"]'
++'.slots.host_shape.in_subset = ["host_information"]'
++'.slots.host_subject_id.in_subset = ["host_information"]'
++'.slots.host_subspecf_genlin.in_subset = ["host_information"]'
++'.slots.host_substrate.in_subset = ["host_information"]'
++'.slots.host_symbiont.in_subset = ["host_information"]'
++# host_taxid is the one MIxS slot carrying a JGI Isolate v19 structured_alias, so the
++# jgi_isolate subset's own rule (membership is the alias) puts it in both subsets.
++'.slots.host_taxid.in_subset = ["host_information", "jgi_isolate"]'
++'.slots.host_tot_mass.in_subset = ["host_information"]'
++'.slots.host_wet_mass.in_subset = ["host_information"]'
++'.slots.plant_struc.in_subset = ["host_information"]'
++'.slots.plant_sex.in_subset = ["host_information"]'
++'.slots.plant_product.in_subset = ["host_information"]'
++
+ '.id |= "https://raw.githubusercontent.com/microbiomedata/nmdc-schema/main/src/schema/mixs.yaml"'
+ 
+ # update host_taxid and samp_taxon_id. may want to flatten to a string or URIORCURIE eventually
+diff --git a/src/data/valid/Biosample-badges.yaml b/src/data/valid/Biosample-badges.yaml
+new file mode 100644
+index 0000000000..506e8526c8
+--- /dev/null
++++ b/src/data/valid/Biosample-badges.yaml
+@@ -0,0 +1,64 @@
++# A Biosample carrying one awarded metadata-quality badge.
++#
++# Badges are asserted by a downstream service, not by a submitter.
++#
++# This is a soil sample characterized chemically. It populates 6 of the 44 slots
++# in the biogeochemistry subset (ph, nitrate, ammonium, tot_org_carb,
++# tot_nitro_content, diss_org_carb), which clears that subset's
++# badge_minimum_slots of 2, so it is awarded the biogeochemistry badge.
++#
++# It populates no host_information slots and earns no host badge. That is the
++# normal case rather than an omission: environmental samples characterized by
++# their chemistry generally have no host organism, and host-associated samples
++# are generally not the ones carrying a full analyte panel. The two badges are
++# not expected to co-occur, and the portal shows only badges a sample earns.
++#
++# expert_curation cannot be illustrated by slot values at all. It is awarded
++# from ProvenanceMetadata.source_system_of_record, so no combination of
++# populated slots earns it.
++id: nmdc:bsm-99-badge01
++type: nmdc:Biosample
++name: soil_with_biogeochemistry_badge
++associated_studies:
++  - nmdc:sty-00-abc123
++env_broad_scale:
++  type: nmdc:ControlledIdentifiedTermValue
++  has_raw_value: ENVO:00002030
++  term:
++    type: nmdc:OntologyClass
++    id: ENVO:00002030
++env_local_scale:
++  type: nmdc:ControlledIdentifiedTermValue
++  has_raw_value: ENVO:00002169
++  term:
++    type: nmdc:OntologyClass
++    id: ENVO:00002169
++env_medium:
++  type: nmdc:ControlledIdentifiedTermValue
++  has_raw_value: ENVO:00005792
++  term:
++    type: nmdc:OntologyClass
++    id: ENVO:00005792
++ph: 6.8
++nitrate:
++  type: nmdc:QuantityValue
++  has_numeric_value: 12.4
++  has_unit: mg/L
++ammonium:
++  type: nmdc:QuantityValue
++  has_numeric_value: 3.1
++  has_unit: mg/L
++tot_org_carb:
++  type: nmdc:QuantityValue
++  has_numeric_value: 14.2
++  has_unit: mg/L
++tot_nitro_content:
++  type: nmdc:QuantityValue
++  has_numeric_value: 0.24
++  has_unit: "%"
++diss_org_carb:
++  type: nmdc:QuantityValue
++  has_numeric_value: 18.5
++  has_unit: mg/L
++badges:
++  - biogeochemistry
+diff --git a/src/schema/basic_slots.yaml b/src/schema/basic_slots.yaml
+index 18075277a5..2dfd7fde60 100644
+--- a/src/schema/basic_slots.yaml
++++ b/src/schema/basic_slots.yaml
+@@ -51,8 +51,65 @@ subsets:
+         to the public JGI submission overview. To keep this subset exhaustive,
+         add in_subset jgi_isolate wherever a JGI Isolate v19 structured_alias is
+         added, at the same scope the alias lives (global slot or class slot_usage).
++  badge_topic:
++    description: >-
++      Group of subsets that each define a completeness-based metadata-quality
++      badge topic. A subset is a badge topic if its in_subset includes
++      badge_topic. Its members are the slots a record's completeness is measured
++      against when the badge for that topic is awarded, and its
++      badge_minimum_slots annotation is how many of them the record must
++      populate.
++    comments:
++      - Not every badge is completeness-based, so not every MetadataBadgeEnum
++        permissible value has a subset here. expert_curation is awarded from
++        ProvenanceMetadata.source_system_of_record rather than from slot
++        completeness, so it has no badge_topic subset.
++    see_also:
++      - https://github.com/microbiomedata/nmdc-schema/issues/3228
++  biogeochemistry:
++    description: >-
++      Biosample slots holding measured biogeochemical analytes: nitrogen,
++      phosphorus, carbon, sulfur, iron, core physicochemistry, and dissolved
++      gases. A Biosample populating at least badge_minimum_slots of these is
++      awarded the biogeochemistry badge.
++    annotations:
++      badge_minimum_slots: 2
++    see_also:
++      - https://github.com/microbiomedata/nmdc-schema/issues/3228
++      - https://github.com/microbiomedata/nmdc-schema/issues/3326
++    in_subset:
++      - badge_topic
++  host_information:
++    description: >-
++      Biosample slots describing the host organism a sample was taken from or
++      associated with: host taxonomy, anatomy, physiology, life stage, and
++      condition. A Biosample populating at least badge_minimum_slots of these is
++      awarded the host_information badge.
++    comments:
++      - Many NMDC biosamples have no host, so an absent host_information badge
++        means the slots are unpopulated, not that the sample is deficient. The
++        data portal shows only badges a sample has earned.
++    annotations:
++      badge_minimum_slots: 2
++    see_also:
++      - https://github.com/microbiomedata/nmdc-schema/issues/3228
++      - https://github.com/microbiomedata/nmdc-schema/issues/3326
++    in_subset:
++      - badge_topic
+ 
+ slots:
++  badges:
++    description: >-
++      Metadata-quality badges awarded to this record. Each value names one
++      badge, which is present or absent; there are no levels or tiers. Most
++      badges name a completeness subset, but not all do: expert_curation is
++      awarded from provenance instead. Awarded by a downstream service, not
++      asserted by submitters, and recalculated whenever the record's
++      ProvenanceMetadata.mod_date changes.
++    range: MetadataBadgeEnum
++    multivalued: true
++    see_also:
++      - https://github.com/microbiomedata/nmdc-schema/issues/3227
+   library_strategy:
+     description: Sequencing technique intended for this library
+     range: LibraryStrategyEnum
+@@ -217,6 +274,8 @@ slots:
+ 
+   host_name:
+     range: string
++    in_subset:
++      - host_information
+ 
+   community:
+     range: string
+@@ -685,6 +744,7 @@ slots:
+     description: Genus of the host organism that the sample was collected from.
+     in_subset:
+       - jgi_isolate
++      - host_information
+     structured_aliases:
+       - literal_form: Host Genus
+         predicate: EXACT_SYNONYM
+@@ -706,6 +766,7 @@ slots:
+     description: Species of the host organism that the sample was collected from.
+     in_subset:
+       - jgi_isolate
++      - host_information
+     structured_aliases:
+       - literal_form: Host Species
+         predicate: EXACT_SYNONYM
+@@ -727,6 +788,7 @@ slots:
+     description: Strain of the host organism that the sample was collected from.
+     in_subset:
+       - jgi_isolate
++      - host_information
+     structured_aliases:
+       - literal_form: Host Strain
+         predicate: EXACT_SYNONYM
+@@ -744,6 +806,38 @@ slots:
+ 
+ enums:
+ 
++  MetadataBadgeEnum:
++    description: >-
++      Metadata-quality badges a Biosample can be awarded. Each permissible value
++      names one badge topic and is present or absent; there are no levels or
++      tiers. Badges are awarded in two ways. A completeness badge names a badge
++      subset (a subset whose in_subset includes badge_topic) and is awarded when
++      the record populates at least that subset's badge_minimum_slots slots; a
++      test keeps those permissible values and subsets in sync. A provenance badge
++      is awarded from a recorded fact about where the metadata came from, has no
++      subset, and names its source in its own description.
++    see_also:
++      - https://github.com/microbiomedata/nmdc-schema/issues/3227
++    permissible_values:
++      biogeochemistry:
++        description: >-
++          Completeness badge. Awarded when the Biosample populates at least
++          badge_minimum_slots of the biogeochemistry subset.
++      host_information:
++        description: >-
++          Completeness badge. Awarded when the Biosample populates at least
++          badge_minimum_slots of the host_information subset.
++      expert_curation:
++        description: >-
++          Provenance badge. Awarded when the Biosample's
++          ProvenanceMetadata.source_system_of_record identifies the NMDC
++          submission portal, rather than an ETL process over an external
++          database. Not a completeness measure, so it has no badge subset and no
++          badge_minimum_slots.
++        comments:
++          - source_system_of_record is not yet backpopulated for existing
++            biosamples, so this badge cannot be awarded on historical records
++            until that backfill happens.
+   LibraryStrategyEnum:
+     description: Sequencing strategy used for library preparation
+     comments:
+diff --git a/src/schema/core.yaml b/src/schema/core.yaml
+index fd9f7cf589..73d7f59273 100644
+--- a/src/schema/core.yaml
++++ b/src/schema/core.yaml
+@@ -353,6 +353,7 @@ classes:
+         the samples. Samples are always associated with a taxon.
+     slots:
+       - associated_studies
++      - badges
+       - biosample_categories
+       - collected_from
+       - embargoed
+@@ -1576,6 +1577,8 @@ slots:
+       subtables and can be reported
+     range: TextValue
+   zinc:
++    in_subset:
++      - biogeochemistry
+     annotations:
+       Expected_value: measurement value
+       Preferred_unit: mg/kg (ppm)
+@@ -1593,6 +1596,8 @@ slots:
+     see_also:
+       - https://www.ornl.gov/content/bio-scales-0
+   manganese:
++    in_subset:
++      - biogeochemistry
+     annotations:
+       Expected_value: measurement value
+       Preferred_unit: mg/kg (ppm)
+@@ -1611,6 +1616,8 @@ slots:
+     range: QuantityValue
+ 
+   ammonium_nitrogen:
++    in_subset:
++      - biogeochemistry
+     aliases:
+       - NH4-N
+     annotations:
+@@ -1631,6 +1638,8 @@ slots:
+     range: QuantityValue
+ 
+   nitrate_nitrogen:
++    in_subset:
++      - biogeochemistry
+     aliases:
+       - NO3-N
+     comments:
+@@ -1653,6 +1662,8 @@ slots:
+     range: QuantityValue
+ 
+   nitrite_nitrogen:
++    in_subset:
++      - biogeochemistry
+     aliases:
+       - NO2-N
+     annotations:
+diff --git a/src/schema/mixs.yaml b/src/schema/mixs.yaml
+index bc1099ee73..a9c93cabfd 100644
+--- a/src/schema/mixs.yaml
++++ b/src/schema/mixs.yaml
+@@ -1220,6 +1220,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   alkalinity_method:
+     description: Method used for alkalinity measurement
+     title: alkalinity method
+@@ -1301,6 +1303,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   amount_light:
+     annotations:
+       Preferred_unit: lux, lumens per square meter
+@@ -1324,6 +1328,8 @@ slots:
+           has_raw_value: A/3*B
+     slot_uri: MIXS:0000247
+     range: TextValue
++    in_subset:
++      - host_information
+   annual_precpt:
+     annotations:
+       Preferred_unit: millimeter
+@@ -1696,6 +1702,8 @@ slots:
+       - relationship
+     slot_uri: MIXS:0000028
+     range: BioticRelationshipEnum
++    in_subset:
++      - host_information
+   bishomohopanol:
+     annotations:
+       Preferred_unit: microgram per liter, microgram per gram
+@@ -1843,6 +1851,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   carb_dioxide:
+     annotations:
+       Preferred_unit: micromole per liter, parts per million
+@@ -1863,6 +1873,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   carb_monoxide:
+     annotations:
+       Preferred_unit: micromole per liter, parts per million
+@@ -1903,6 +1915,8 @@ slots:
+     string_serialization: '{float}:{float}'
+     slot_uri: MIXS:0000310
+     range: QuantityValue
++    in_subset:
++      - biogeochemistry
+   ceil_area:
+     annotations:
+       Preferred_unit: square meter
+@@ -2101,6 +2115,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   chlorophyll:
+     annotations:
+       Preferred_unit: milligram per cubic meter, microgram per liter
+@@ -2120,6 +2136,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   climate_environment:
+     description: Treatment involving an exposure to a particular climate; treatment regimen including how many times the treatment was repeated, how long each treatment lasted, and the start and end time of the entire treatment; can include multiple climates
+     title: climate environment
+@@ -2163,6 +2181,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   cool_syst_id:
+     description: The cooling system identifier
+     title: cooling system identifier
+@@ -2401,6 +2421,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   diss_inorg_nitro:
+     annotations:
+       Preferred_unit: microgram per liter, micromole per liter
+@@ -2424,6 +2446,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   diss_inorg_phosp:
+     description: Concentration of dissolved inorganic phosphorus in the sample
+     title: dissolved inorganic phosphorus
+@@ -2445,6 +2469,8 @@ slots:
+       partial_match: true
+     annotations:
+       storage_units: '[ppm]|mg/L|ug/L|umol/L'
++    in_subset:
++      - biogeochemistry
+   diss_iron:
+     annotations:
+       Preferred_unit: milligram per liter
+@@ -2460,6 +2486,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   diss_org_carb:
+     annotations:
+       Preferred_unit: micromole per liter, milligram per liter
+@@ -2483,6 +2511,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   diss_org_nitro:
+     description: Dissolved organic nitrogen concentration measured as; total dissolved nitrogen - NH4 - NO3 - NO2
+     title: dissolved organic nitrogen
+@@ -2525,6 +2555,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   diss_oxygen_fluid:
+     annotations:
+       Preferred_unit: micromole per kilogram, milligram per liter
+@@ -3235,6 +3267,8 @@ slots:
+     string_serialization: '{boolean};{timestamp}'
+     slot_uri: MIXS:0000875
+     range: TextValue
++    in_subset:
++      - host_information
+   gravity:
+     annotations:
+       Expected_value: gravity factor value;treatment interval and duration
+@@ -3529,6 +3563,8 @@ slots:
+           has_raw_value: 10 d
+           has_numeric_value: 10
+           has_unit: d
++    in_subset:
++      - host_information
+   host_body_habitat:
+     description: Original body habitat where the sample was obtained from
+     title: host body habitat
+@@ -3539,6 +3575,8 @@ slots:
+       - host.
+     slot_uri: MIXS:0000866
+     range: TextValue
++    in_subset:
++      - host_information
+   host_body_product:
+     annotations:
+       Expected_value: FMA or UBERON
+@@ -3559,6 +3597,8 @@ slots:
+           term:
+             id: UBERON:0000912
+             type: nmdc:OntologyClass
++    in_subset:
++      - host_information
+   host_body_site:
+     annotations:
+       Expected_value: FMA or UBERON
+@@ -3571,6 +3611,8 @@ slots:
+     string_serialization: '{termLabel} [{termID}]'
+     slot_uri: MIXS:0000867
+     range: ControlledTermValue
++    in_subset:
++      - host_information
+   host_body_temp:
+     annotations:
+       Preferred_unit: degree Celsius
+@@ -3594,6 +3636,8 @@ slots:
+           has_raw_value: 15 Cel
+           has_numeric_value: 15
+           has_unit: Cel
++    in_subset:
++      - host_information
+   host_color:
+     description: The color of host
+     title: host color
+@@ -3602,6 +3646,8 @@ slots:
+       - host.
+     slot_uri: MIXS:0000260
+     range: TextValue
++    in_subset:
++      - host_information
+   host_common_name:
+     annotations:
+       Preferred_unit: ''
+@@ -3612,6 +3658,8 @@ slots:
+       - host.
+     slot_uri: MIXS:0000248
+     range: TextValue
++    in_subset:
++      - host_information
+   host_diet:
+     description: Type of diet depending on the host, for animals omnivore, herbivore etc., for humans high-fat, meditteranean etc.; can include multiple diet types
+     title: host diet
+@@ -3623,6 +3671,8 @@ slots:
+     range: TextValue
+     multivalued: true
+     inlined_as_list: true
++    in_subset:
++      - host_information
+   host_disease_stat:
+     annotations:
+       Expected_value: disease name or Disease Ontology term
+@@ -3635,6 +3685,8 @@ slots:
+       - status
+     string_serialization: '{termLabel} [{termID}]|{text}'
+     slot_uri: MIXS:0000031
++    in_subset:
++      - host_information
+   host_dry_mass:
+     annotations:
+       Preferred_unit: kilogram, gram
+@@ -3658,6 +3710,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - host_information
+   host_genotype:
+     description: Observed genotype
+     title: host genotype
+@@ -3666,6 +3720,8 @@ slots:
+       - host.
+     slot_uri: MIXS:0000365
+     range: TextValue
++    in_subset:
++      - host_information
+   host_growth_cond:
+     description: Literature reference giving growth conditions of the host
+     title: host growth conditions
+@@ -3684,6 +3740,8 @@ slots:
+       syntax: ^({PMID}|{DOI}|{URL}|{text})$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - host_information
+   host_height:
+     annotations:
+       Preferred_unit: centimeter, millimeter, meter
+@@ -3706,6 +3764,8 @@ slots:
+           has_raw_value: 56 cm
+           has_numeric_value: 56
+           has_unit: cm
++    in_subset:
++      - host_information
+   host_last_meal:
+     annotations:
+       Expected_value: content;duration
+@@ -3718,6 +3778,8 @@ slots:
+     slot_uri: MIXS:0000870
+     multivalued: true
+     inlined_as_list: true
++    in_subset:
++      - host_information
+   host_length:
+     annotations:
+       Preferred_unit: centimeter, millimeter, meter
+@@ -3740,6 +3802,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - host_information
+   host_life_stage:
+     annotations:
+       Expected_value: stage
+@@ -3751,6 +3815,8 @@ slots:
+       - life
+     slot_uri: MIXS:0000251
+     range: TextValue
++    in_subset:
++      - host_information
+   host_phenotype:
+     annotations:
+       Expected_value: PATO or HP
+@@ -3762,6 +3828,8 @@ slots:
+     string_serialization: '{termLabel} [{termID}]'
+     slot_uri: MIXS:0000874
+     range: ControlledTermValue
++    in_subset:
++      - host_information
+   host_sex:
+     annotations:
+       Expected_value: enumeration
+@@ -3774,6 +3842,8 @@ slots:
+       - host.
+     string_serialization: '[female|hermaphrodite|non-binary|male|transgender|transgender (female to male)|transgender (male to female) |undeclared]'
+     slot_uri: MIXS:0000811
++    in_subset:
++      - host_information
+   host_shape:
+     description: Morphological shape of host
+     title: host shape
+@@ -3786,6 +3856,8 @@ slots:
+       - host.
+     slot_uri: MIXS:0000261
+     range: TextValue
++    in_subset:
++      - host_information
+   host_subject_id:
+     description: A unique identifier by which each subject can be referred to, de-identified
+     title: host subject id
+@@ -3795,6 +3867,8 @@ slots:
+       - identifier
+     slot_uri: MIXS:0000861
+     range: TextValue
++    in_subset:
++      - host_information
+   host_subspecf_genlin:
+     annotations:
+       Expected_value: Genetic lineage below lowest rank of NCBI taxonomy, which is subspecies, e.g. serovar, biotype, ecotype, variety, cultivar
+@@ -3810,6 +3884,8 @@ slots:
+     slot_uri: MIXS:0001318
+     multivalued: true
+     range: string
++    in_subset:
++      - host_information
+   host_substrate:
+     description: The growth substrate of the host
+     title: host substrate
+@@ -3822,6 +3898,8 @@ slots:
+       - host.
+     slot_uri: MIXS:0000252
+     range: TextValue
++    in_subset:
++      - host_information
+   host_symbiont:
+     annotations:
+       Expected_value: species name or common name
+@@ -3835,6 +3913,8 @@ slots:
+     slot_uri: MIXS:0001298
+     range: string
+     multivalued: true
++    in_subset:
++      - host_information
+   host_taxid:
+     annotations:
+       Expected_value: NCBI taxon identifier
+@@ -3854,6 +3934,9 @@ slots:
+         source: https://jgi.doe.gov/user-programs/pmo-overview/project-materials-submission-overview/
+         notes:
+           - Exact JGI form template is access-restricted; source is the public submission overview.
++    in_subset:
++      - host_information
++      - jgi_isolate
+   host_tot_mass:
+     annotations:
+       Preferred_unit: kilogram, gram
+@@ -3877,6 +3960,8 @@ slots:
+           has_raw_value: 2500 g
+           has_numeric_value: 2500
+           has_unit: g
++    in_subset:
++      - host_information
+   host_wet_mass:
+     annotations:
+       Preferred_unit: kilogram, gram
+@@ -3900,6 +3985,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - host_information
+   humidity:
+     description: Amount of water vapour in the air, at the time of sampling
+     title: humidity
+@@ -4221,6 +4308,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   max_occup:
+     description: The maximum amount of people allowed in the indoor environment
+     title: maximum occupancy
+@@ -4313,6 +4402,8 @@ slots:
+           has_raw_value: 1800 [ppb]
+           has_numeric_value: 1800
+           has_unit: '[ppb]'
++    in_subset:
++      - biogeochemistry
+   micro_biomass_meth:
+     description: Reference or method used in determining microbial biomass
+     title: microbial biomass method
+@@ -4415,6 +4506,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   nitrite:
+     annotations:
+       Preferred_unit: micromole per liter, milligram per liter, parts per million
+@@ -4435,6 +4528,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   nitro:
+     annotations:
+       Preferred_unit: micromole per liter
+@@ -4456,6 +4551,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   non_min_nutr_regm:
+     annotations:
+       Preferred_unit: gram, mole per liter, milligram per liter
+@@ -4597,6 +4694,8 @@ slots:
+       partial_match: true
+     annotations:
+       storage_units: umol/L|%|mg/L
++    in_subset:
++      - biogeochemistry
+   org_count_qpcr_info:
+     annotations:
+       Expected_value: gene name;FWD:forward primer sequence;REV:reverse primer sequence;initial denaturation:degrees_minutes;denaturation:degrees_minutes;annealing:degrees_minutes;elongation:degrees_minutes;final elongation:degrees_minutes; total cycles
+@@ -4879,6 +4978,8 @@ slots:
+       - ph
+     slot_uri: MIXS:0001001
+     range: float
++    in_subset:
++      - biogeochemistry
+   ph_meth:
+     description: Reference or method used in determining pH
+     title: pH method
+@@ -4940,6 +5041,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   phosplipid_fatt_acid:
+     annotations:
+       Expected_value: phospholipid fatty acid name;measurement value
+@@ -4995,6 +5098,8 @@ slots:
+       - product
+     slot_uri: MIXS:0001058
+     range: TextValue
++    in_subset:
++      - host_information
+   plant_sex:
+     description: Sex of the reproductive parts on the whole plant, e.g. pistillate, staminate, monoecieous, hermaphrodite
+     title: plant sex
+@@ -5004,6 +5109,8 @@ slots:
+       - plant
+     slot_uri: MIXS:0001059
+     range: PlantSexEnum
++    in_subset:
++      - host_information
+   plant_struc:
+     description: Name of plant structure the sample was obtained from; for Plant Ontology (PO) terms, see http://obofoundry.org/ontology/po.html, e.g. petiole epidermis (PO:0000051). If an individual flower is sampled, the sex of it can be recorded here.
+     title: plant structure
+@@ -5022,6 +5129,8 @@ slots:
+       syntax: ^{termLabel} \[{termID}\]$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - host_information
+   pollutants:
+     annotations:
+       Expected_value: pollutant name;measurement value
+@@ -5078,6 +5187,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   pour_point:
+     annotations:
+       Preferred_unit: degree Celsius
+@@ -5294,6 +5405,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   rel_air_humidity:
+     annotations:
+       Preferred_unit: percentage
+@@ -5707,6 +5820,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   salt_regm:
+     annotations:
+       Preferred_unit: gram, microgram, mole per liter, gram per liter
+@@ -6281,6 +6396,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   size_frac:
+     annotations:
+       Expected_value: filter size value range
+@@ -6408,6 +6525,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   soil_horizon:
+     description: Specific layer in the land area which measures parallel to the soil surface and possesses physical characteristics which differ from the layers above and beneath
+     title: soil horizon
+@@ -6526,6 +6645,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   source_mat_id:
+     annotations:
+       Expected_value: 'for cultures of microorganisms: identifiers for two culture collections; for other material a unique arbitrary identifer'
+@@ -6673,6 +6794,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   sulfate_fw:
+     annotations:
+       Preferred_unit: milligram per liter
+@@ -6708,6 +6831,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   surf_air_cont:
+     description: Contaminant identified on surface
+     title: surface-air contaminant
+@@ -6997,6 +7122,8 @@ slots:
+           has_raw_value: 1 ug/L
+           has_numeric_value: 1
+           has_unit: ug/L
++    in_subset:
++      - biogeochemistry
+   tot_depth_water_col:
+     annotations:
+       Preferred_unit: meter
+@@ -7079,6 +7206,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   tot_nitro:
+     annotations:
+       Preferred_unit: microgram per liter, micromole per liter, milligram per liter
+@@ -7102,6 +7231,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   tot_nitro_cont_meth:
+     description: Reference or method used in determining the total nitrogen
+     title: total nitrogen content method
+@@ -7139,6 +7270,8 @@ slots:
+       partial_match: true
+     annotations:
+       storage_units: mg/L|ug/L|umol/L|%
++    in_subset:
++      - biogeochemistry
+   tot_org_c_meth:
+     description: Reference or method used in determining total organic carbon
+     title: total organic carbon method
+@@ -7177,6 +7310,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   tot_part_carb:
+     annotations:
+       Preferred_unit: microgram per liter, micromole per liter
+@@ -7221,6 +7356,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   tot_phosphate:
+     annotations:
+       Preferred_unit: microgram per liter, micromole per liter
+@@ -7252,6 +7389,8 @@ slots:
+       syntax: ^{scientific_float}( *- *{scientific_float})? *{text}$
+       interpolated: true
+       partial_match: true
++    in_subset:
++      - biogeochemistry
+   train_line:
+     description: The subway line name
+     title: train line
+diff --git a/src/schema/nmdc.yaml b/src/schema/nmdc.yaml
+index 9e8002ee9b..8dc28e1c96 100644
+--- a/src/schema/nmdc.yaml
++++ b/src/schema/nmdc.yaml
+@@ -1168,6 +1168,8 @@ slots:
+       - "Legacy MIxS slot removed from GSC MIxS v6.2.2. Retained for submission-schema compatibility."
+     range: string
+     multivalued: true
++    in_subset:
++      - host_information
+     examples:
+       - value: "offspring;Mussel25"
+     annotations:
+diff --git a/src/schema/portal_mixs_inspired.yaml b/src/schema/portal_mixs_inspired.yaml
+index edf4a59849..c8541d74a2 100644
+--- a/src/schema/portal_mixs_inspired.yaml
++++ b/src/schema/portal_mixs_inspired.yaml
+@@ -159,6 +159,8 @@ slots:
+     string_serialization: '{PMID}|{DOI}|{URL}'
+     slot_group: MIxS Inspired
+   microbial_biomass_c:
++    in_subset:
++      - biogeochemistry
+     description: The part of the organic matter in the soil that constitutes living
+       microorganisms smaller than 5-10 micrometer.
+     title: microbial biomass carbon
+@@ -173,6 +175,8 @@ slots:
+     string_serialization: '{float} {unit}'
+     slot_group: MIxS Inspired
+   microbial_biomass_n:
++    in_subset:
++      - biogeochemistry
+     description: The part of the organic matter in the soil that constitutes living
+       microorganisms smaller than 5-10 micrometer.
+     title: microbial biomass nitrogen
+diff --git a/src/schema/subsets.md b/src/schema/subsets.md
+new file mode 100644
+index 0000000000..2788b5d41e
+--- /dev/null
++++ b/src/schema/subsets.md
+@@ -0,0 +1,138 @@
++# Subsets in the NMDC schema
++
++LinkML subsets are named tags. A subset is declared once in a `subsets:` block,
++and any element (class, slot, permissible value) can claim membership with
++`in_subset`. Subsets do not change validation. They group elements for
++documentation, tooling, and metadata-quality scoring.
++
++Every subset in the merged schema is declared in `src/schema/basic_slots.yaml`.
++There were once two other populations, and both are gone; the sections below
++record what happened to them so the question does not get re-litigated.
++
++## Live subsets
++
++| subset | members | purpose |
++| --- | --- | --- |
++| `jgi_isolate` | 10 | slots that map to a field on the JGI Isolate (NA) v19 submission form |
++| `badge_topic` | 2 | group subset: its members are the completeness badge subsets |
++| `biogeochemistry` | 44 | completeness badge subset, bar 2 |
++| `host_information` | 37 | completeness badge subset, bar 2 |
++
++A slot may belong to more than one subset. `host_genus`, `host_species`,
++`host_strain` and `host_taxid` are in both `jgi_isolate` and `host_information`.
++
++`host_taxid` is the only MIxS slot carrying a JGI Isolate v19 structured_alias.
++The `jgi_isolate` rule is that membership is the alias, but the `mixs.yaml` build
++strips every `in_subset` and nothing re-added `jgi_isolate` for it, so it was
++absent from that subset until the badge customization lines started assigning it.
++It is now assigned both.
++
++## MIxS subsets are stripped during the `mixs.yaml` build
++
++Upstream GSC MIxS declares 5 subsets: `combination_classes`, `sequencing`,
++`environment`, `nucleic acid sequence source`, and `investigation`. MIxS tags
++its slots into these with `in_subset`.
++
++NMDC does not use the MIxS checklist and section machinery, so the `mixs.yaml`
++build strips both the declarations and the memberships. In
++`assets/yq-for-mixs-customizations.txt`:
++
++- `'del(.subsets)'` removes the declarations.
++- `'del(.slots.[].in_subset)'` removes the per-slot memberships.
++
++The same file then re-adds NMDC badge memberships. **The ordering matters**:
++anything added before the strip would be deleted by it.
++
++## The former `nmdc_subsets.yaml`
++
++`src/schema/nmdc_subsets.yaml` declared 9 subsets and was imported by nothing.
++None of them reached the merged schema and no element referenced any of them. It
++was deleted in
++https://github.com/microbiomedata/nmdc-schema/pull/3338; the reasoning, and where
++each subset's intent went, is in
++https://github.com/microbiomedata/nmdc-schema/issues/3337.
++
++Two of its entries are worth remembering, because they will come up again:
++
++- `data_portal_subset` was meant to mark elements the data portal depends on, so
++  schema authors would know whom to notify before changing them. Nothing was ever
++  labeled, so the obligation was never in force. The question is still open in
++  https://github.com/microbiomedata/nmdc-schema/issues/1342, and badges make it
++  concrete: they are a portal-facing schema feature.
++- `proteases` anticipated chemicals becoming classes that would need grouping.
++  They did not. `ChemicalEntity` is in `deprecated.yaml` and proteases are enum
++  permissible values in `core.yaml`.
++
++## Badge subsets
++
++A badge subset groups the slots whose completeness one metadata-quality badge
++measures. It is declared in `src/schema/basic_slots.yaml` and is itself a member
++of the `badge_topic` group subset (`in_subset: [badge_topic]`), which is how
++tooling and the sync test tell badge subsets apart from `jgi_isolate`. This uses
++the native subset mechanism rather than a custom annotation.
++
++### What belongs in `host_information`
++
++The test is whether a slot **describes the host organism**, not the sample or
++its environment. That is why the four MIxS plant slots split three to one:
++`plant_struc`, `plant_sex` and `plant_product` describe the plant itself (its
++structure, the sex of its reproductive parts, and what it produces), while
++`plant_growth_med` describes the medium the plant was grown in (soil,
++aeroponic, hydroponic) and is therefore a growth-condition slot rather than a
++host descriptor. `plant_sex` is the direct analogue of `host_sex`, which is
++already a member, so including one and not the other would be arbitrary.
++
++Two members are open questions rather than settled: `host_common_name` and
++`host_taxid` are `required: true` in submission-schema's
++`PlantAssociatedInterface`, so a plant-associated submission supplies exactly
++`badge_minimum_slots` host slots without any optional effort. Whether required
++slots belong in a completeness subset at all is
++https://github.com/microbiomedata/nmdc-schema/issues/3339.
++
++Membership follows the metadata quality squad's Badge Subsets Scratchpad. Most
++members are MIxS slots defined in the generated `mixs.yaml`, so their membership
++cannot be hand-edited on the slot and is asserted in
++`assets/yq-for-mixs-customizations.txt` after the strip described above. Twelve
++members are NMDC-native (7 biogeochemistry, 5 host) and carry `in_subset` in
++their own definitions.
++
++This page is deliberately not published to the documentation site. It lives in
++`src/schema/` rather than `src/docs/`, because `make gendoc` copies everything
++in `src/docs/` into the built site and this is maintainer-facing history rather
++than user-facing reference.
++
++### The qualifying bar
++
++Each badge subset carries a `badge_minimum_slots` annotation: how many of its
++slots a record must populate to earn the badge
++(https://github.com/microbiomedata/nmdc-schema/issues/3326).
++
++The bar is an **absolute count of populated slots, never a proportion of the
++subset's size**. This is what makes badges stable as the schema grows. Under an
++absolute bar, adding a slot to a subset can only ever make a badge easier to
++earn, so no record loses a badge it already displays because the schema changed
++around it. A proportional bar would revoke badges on any subset that grows, which
++users would experience as a badge disappearing for no reason.
++
++The bar lives in the schema so that raising it is a reviewable pull request with
++a visible diff, rather than an edit to a scoring service's configuration.
++
++### Badges that are not completeness measures
++
++Not every badge has a subset. `MetadataBadgeEnum` also carries `expert_curation`,
++which is awarded from `ProvenanceMetadata.source_system_of_record` (did this
++record come through the NMDC submission portal, or from an ETL process over an
++external database) rather than from how many slots are populated. It has no badge
++subset and no `badge_minimum_slots`, and its enum description says where it comes
++from. The sync test exempts it through an explicit `PROVENANCE_BADGES` list, so
++adding another such badge is a deliberate act rather than a silent gap.
++
++A badge is present or absent. There are no levels or tiers (metadata quality
++squad decision, 2026-08-05).
++
++The badge subsets correspond one-to-one with the completeness permissible values
++of `MetadataBadgeEnum`, the range of the `badges` slot on `Biosample`.
++
++See https://github.com/microbiomedata/nmdc-schema/issues/3227 (badges slot and
++enum), https://github.com/microbiomedata/nmdc-schema/issues/3228 (subsets) and
++https://github.com/microbiomedata/nmdc-schema/issues/3326 (qualifying bar).
+diff --git a/tests/test_annotations.py b/tests/test_annotations.py
+index 6c6cdfdd5e..06f2ec02ff 100644
+--- a/tests/test_annotations.py
++++ b/tests/test_annotations.py
+@@ -11,6 +11,7 @@
+ # Note: Expected_value and Preferred_unit use GSC MIxS v6.2.2 capitalization
+ ALLOWED_ANNOTATION_KEYS = {
+     "Expected_value",
++    "badge_minimum_slots",
+     "file_name_pattern",
+     "units_alignment_excuse",
+     "occurrence",
+diff --git a/tests/test_badge_subset_sync.py b/tests/test_badge_subset_sync.py
+new file mode 100644
+index 0000000000..b38e8d812b
+--- /dev/null
++++ b/tests/test_badge_subset_sync.py
+@@ -0,0 +1,159 @@
++"""Keep the badge enum and the badge-topic subsets in sync.
++
++Badges are awarded in two ways, so the enum has two kinds of permissible value:
++
++- A completeness badge is named for a subset whose ``in_subset`` includes
++  ``badge_topic``. It is awarded when a record populates at least that subset's
++  ``badge_minimum_slots`` slots. These must correspond one-to-one with the badge
++  subsets, which is what most of these tests check.
++- A provenance badge is awarded from a recorded fact about where the metadata
++  came from rather than from slot completeness, so it has no subset. There is
++  one today, ``expert_curation``, awarded from
++  ``ProvenanceMetadata.source_system_of_record``.
++
++There are no levels or tiers: a badge is present or absent (metadata quality
++squad decision, 2026-08-05).
++
++See https://github.com/microbiomedata/nmdc-schema/issues/3227 (badges slot and
++enum), https://github.com/microbiomedata/nmdc-schema/issues/3228 (subsets) and
++https://github.com/microbiomedata/nmdc-schema/issues/3326 (qualifying bar).
++"""
++
++import unittest
++
++from linkml_runtime import SchemaView
++
++from tests import SCHEMA_FILE
++
++BADGE_ENUM = "MetadataBadgeEnum"
++BADGE_TOPIC_SUBSET = "badge_topic"
++BADGE_BAR_ANNOTATION = "badge_minimum_slots"
++
++# Badges awarded from provenance rather than slot completeness. These have no
++# badge subset by design. Adding one here is a deliberate act: it exempts the
++# value from the subset correspondence the other badges must satisfy.
++PROVENANCE_BADGES = {"expert_curation"}
++
++
++def _badge_topic_subsets(schema_view):
++    """Names of subsets that belong to the badge_topic group (via in_subset).
++
++    The badge_topic group subset itself is not a member, so it is excluded.
++    """
++    return {
++        name
++        for name, subset in schema_view.all_subsets().items()
++        if BADGE_TOPIC_SUBSET in (subset.in_subset or [])
++    }
++
++
++def _badge_permissible_values(schema_view):
++    return set(schema_view.get_enum(BADGE_ENUM, strict=True).permissible_values.keys())
++
++
++def _completeness_badges(schema_view):
++    return _badge_permissible_values(schema_view) - PROVENANCE_BADGES
++
++
++class TestBadgeSubsetSync(unittest.TestCase):
++    """Validate the badge enum and badge-topic subsets stay aligned."""
++
++    @classmethod
++    def setUpClass(cls):
++        cls.schema_view = SchemaView(SCHEMA_FILE)
++
++    def test_badge_topic_subsets_exist(self):
++        self.assertTrue(
++            _badge_topic_subsets(self.schema_view),
++            "no subsets have in_subset including badge_topic",
++        )
++
++    def test_every_completeness_badge_has_a_subset(self):
++        subsets = _badge_topic_subsets(self.schema_view)
++        for permissible_value in _completeness_badges(self.schema_view):
++            self.assertIn(
++                permissible_value,
++                subsets,
++                f"badge permissible value '{permissible_value}' is not a "
++                f"badge_topic subset {sorted(subsets)}. If it is awarded from "
++                f"provenance rather than slot completeness, add it to "
++                f"PROVENANCE_BADGES and say so in its description.",
++            )
++
++    def test_every_badge_subset_has_a_permissible_value(self):
++        permissible_values = _badge_permissible_values(self.schema_view)
++        for subset in _badge_topic_subsets(self.schema_view):
++            self.assertIn(
++                subset,
++                permissible_values,
++                f"badge subset '{subset}' has no permissible value in {BADGE_ENUM}",
++            )
++
++    def test_provenance_badges_are_declared_in_the_enum(self):
++        """PROVENANCE_BADGES must not drift away from the enum it exempts."""
++        permissible_values = _badge_permissible_values(self.schema_view)
++        for badge in PROVENANCE_BADGES:
++            self.assertIn(
++                badge,
++                permissible_values,
++                f"'{badge}' is exempted as a provenance badge but is not a "
++                f"permissible value of {BADGE_ENUM}",
++            )
++
++    def test_provenance_badges_have_no_subset(self):
++        """No subset of that name at all, not merely no badge_topic subset.
++
++        Checking only badge_topic membership would let a same-named subset be
++        declared outside the group, which is the drift this guards against.
++        """
++        all_subsets = set(self.schema_view.all_subsets().keys())
++        for badge in PROVENANCE_BADGES:
++            self.assertNotIn(
++                badge,
++                all_subsets,
++                f"'{badge}' is exempted as a provenance badge but a subset of "
++                f"that name is declared; it is one or the other",
++            )
++
++    def test_every_badge_subset_declares_a_qualifying_bar(self):
++        """Each completeness badge records how many slots earn it (issue 3326).
++
++        The bar is an absolute count of populated slots, never a proportion of
++        the subset's size, so that adding a slot to a subset can never revoke a
++        badge a record has already earned.
++        """
++        for name in _badge_topic_subsets(self.schema_view):
++            subset = self.schema_view.get_subset(name)
++            annotation = (subset.annotations or {}).get(BADGE_BAR_ANNOTATION)
++            self.assertIsNotNone(
++                annotation,
++                f"badge subset '{name}' has no {BADGE_BAR_ANNOTATION} annotation",
++            )
++            try:
++                bar = int(annotation.value)
++            except (TypeError, ValueError):
++                self.fail(
++                    f"badge subset '{name}' has a non-integer "
++                    f"{BADGE_BAR_ANNOTATION}: {annotation.value!r}"
++                )
++            member_count = sum(
++                1
++                for slot in self.schema_view.all_slots().values()
++                if name in (slot.in_subset or [])
++            )
++            self.assertGreaterEqual(
++                bar,
++                1,
++                f"badge subset '{name}' has {BADGE_BAR_ANNOTATION} {bar}; a bar "
++                f"below 1 would award the badge to every record",
++            )
++            self.assertLessEqual(
++                bar,
++                member_count,
++                f"badge subset '{name}' has {BADGE_BAR_ANNOTATION} {bar} but only "
++                f"{member_count} member slots, so no record could ever earn it",
++            )
++
++
++if __name__ == "__main__":
++    unittest.main()

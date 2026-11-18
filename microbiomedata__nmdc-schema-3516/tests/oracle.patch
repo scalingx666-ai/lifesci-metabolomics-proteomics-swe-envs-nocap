@@ -1,0 +1,208 @@
+diff --git a/src/schema/attribute_values.yaml b/src/schema/attribute_values.yaml
+index 70e671f20d..30fbe698f8 100644
+--- a/src/schema/attribute_values.yaml
++++ b/src/schema/attribute_values.yaml
+@@ -225,8 +225,9 @@ slots:
+         rather than as a convention inherited from LinkML.
+     structured_aliases:
+       - literal_form: workflow_execution_class
+-        contexts:
+-          - https://bitbucket.org/berkeleylab/jgi-jat/macros/nmdc_metadata.yaml
++        source: https://github.com/microbiomedata/nmdc_automation/blob/main/data_management/README.md
++        notes:
++          - JGI Analysis Tracker (JAT) macro nmdc_metadata.yaml, in an access-restricted Bitbucket repository (https://bitbucket.org/berkeleylab/jgi-jat/macros/nmdc_metadata.yaml); source is the public NMDC page describing how JAT is used.
+         predicate: NARROW_SYNONYM
+     examples:
+       - value: nmdc:Biosample
+diff --git a/src/schema/basic_classes.yaml b/src/schema/basic_classes.yaml
+index d4fc57e17f..d8935f38ef 100644
+--- a/src/schema/basic_classes.yaml
++++ b/src/schema/basic_classes.yaml
+@@ -761,8 +761,9 @@ slots:
+       - prov:wasInformedBy
+     structured_aliases:
+       - literal_form: was_informed_by
+-        contexts:
+-          - https://bitbucket.org/berkeleylab/jgi-jat/macros/nmdc_metadata.yaml
++        source: https://github.com/microbiomedata/nmdc_automation/blob/main/data_management/README.md
++        notes:
++          - JGI Analysis Tracker (JAT) macro nmdc_metadata.yaml, in an access-restricted Bitbucket repository (https://bitbucket.org/berkeleylab/jgi-jat/macros/nmdc_metadata.yaml); source is the public NMDC page describing how JAT is used.
+         predicate: EXACT_SYNONYM
+   principal_investigator:
+     aliases:
+@@ -1182,16 +1183,13 @@ enums:
+          - https://www.illumina.com/systems/sequencing-platforms/novaseq/specifications.html
+         structured_aliases:
+           - literal_form: Illumina NovaSeq S2
+-            contexts:
+-              - https://gold.jgi.doe.gov/
++            source: https://gold.jgi.doe.gov/
+             predicate: NARROW_SYNONYM
+           - literal_form: Illumina NovaSeq S4
+-            contexts:
+-              - https://gold.jgi.doe.gov/
++            source: https://gold.jgi.doe.gov/
+             predicate: NARROW_SYNONYM
+           - literal_form: Illumina NovaSeq SP
+-            contexts:
+-              - https://gold.jgi.doe.gov/
++            source: https://gold.jgi.doe.gov/
+             predicate: NARROW_SYNONYM                
+ 
+       novaseq_x:
+@@ -1201,8 +1199,7 @@ enums:
+           - Illumina NovaSeq X Plus
+         structured_aliases:
+           - literal_form: Illumina NovaSeq X 25B
+-            contexts:
+-              - https://gold.jgi.doe.gov/
++            source: https://gold.jgi.doe.gov/
+             predicate: NARROW_SYNONYM
+         comments:
+           - Possible flowcell versions are 1.5B, 10B, 25B. Only difference between X and X Plus is 2 flowcells for X Plus versus 1 flowcell for X.
+@@ -1243,12 +1240,10 @@ enums:
+         meaning: OBI:0002002
+         structured_aliases:
+           - literal_form: Illumina HiSeq 2500-1TB
+-            contexts:
+-              - https://gold.jgi.doe.gov/
++            source: https://gold.jgi.doe.gov/
+             predicate: NARROW_SYNONYM
+           - literal_form: Illumina HiSeq 2500-Rapid
+-            contexts:
+-              - https://gold.jgi.doe.gov/
++            source: https://gold.jgi.doe.gov/
+             predicate: NARROW_SYNONYM    
+       
+       hiseq_3000:
+@@ -1281,8 +1276,7 @@ enums:
+         meaning: OBI:0002003
+         structured_aliases:
+           - literal_form: Illumina MiSeq
+-            contexts:
+-              - https://gold.jgi.doe.gov/
++            source: https://gold.jgi.doe.gov/
+             predicate: EXACT_SYNONYM
+         
+       nextseq_1000:
+@@ -1298,12 +1292,10 @@ enums:
+         meaning: OBI:0003684
+         structured_aliases:
+           - literal_form: Illumina NextSeq-HO
+-            contexts:
+-              - https://gold.jgi.doe.gov/
++            source: https://gold.jgi.doe.gov/
+             predicate: NARROW_SYNONYM
+           - literal_form: Illumina NextSeq-MO
+-            contexts:
+-              - https://gold.jgi.doe.gov/
++            source: https://gold.jgi.doe.gov/
+             predicate: NARROW_SYNONYM              
+       
+       nextseq_500:
+diff --git a/src/schema/basic_slots.yaml b/src/schema/basic_slots.yaml
+index 9c778b456f..d35b9ff12f 100644
+--- a/src/schema/basic_slots.yaml
++++ b/src/schema/basic_slots.yaml
+@@ -175,8 +175,9 @@ slots:
+       - value: GC-MS Metabolomics Results
+     structured_aliases:
+       - literal_form: data_object_type
+-        contexts:
+-          - https://bitbucket.org/berkeleylab/jgi-jat/macros/nmdc_metadata.yaml
++        source: https://github.com/microbiomedata/nmdc_automation/blob/main/data_management/README.md
++        notes:
++          - JGI Analysis Tracker (JAT) macro nmdc_metadata.yaml, in an access-restricted Bitbucket repository (https://bitbucket.org/berkeleylab/jgi-jat/macros/nmdc_metadata.yaml); source is the public NMDC page describing how JAT is used.
+         predicate: EXACT_SYNONYM
+   data_category:
+     range: DataCategoryEnum
+@@ -555,12 +556,14 @@ slots:
+       Must be either a CURIE shorthand for a URI or a complete URI
+     structured_aliases:
+       - literal_form: workflow_execution_id
+-        contexts:
+-          - https://bitbucket.org/berkeleylab/jgi-jat/macros/nmdc_metadata.yaml
++        source: https://github.com/microbiomedata/nmdc_automation/blob/main/data_management/README.md
++        notes:
++          - JGI Analysis Tracker (JAT) macro nmdc_metadata.yaml, in an access-restricted Bitbucket repository (https://bitbucket.org/berkeleylab/jgi-jat/macros/nmdc_metadata.yaml); source is the public NMDC page describing how JAT is used.
+         predicate: NARROW_SYNONYM
+       - literal_form: data_object_id
+-        contexts:
+-          - https://bitbucket.org/berkeleylab/jgi-jat/macros/nmdc_metadata.yaml
++        source: https://github.com/microbiomedata/nmdc_automation/blob/main/data_management/README.md
++        notes:
++          - JGI Analysis Tracker (JAT) macro nmdc_metadata.yaml, in an access-restricted Bitbucket repository (https://bitbucket.org/berkeleylab/jgi-jat/macros/nmdc_metadata.yaml); source is the public NMDC page describing how JAT is used.
+         predicate: NARROW_SYNONYM
+     notes:
+       - "abstracted pattern: prefix:typecode-authshoulder-blade(.version)?(_seqsuffix)?"
+diff --git a/tests/test_structured_alias_source.py b/tests/test_structured_alias_source.py
+new file mode 100644
+index 0000000000..90aa2d7128
+--- /dev/null
++++ b/tests/test_structured_alias_source.py
+@@ -0,0 +1,65 @@
++"""Require every hand-written structured alias to name its origin in ``source``.
++
++In the LinkML StructuredAlias metamodel, ``source`` is where an alias comes
++from and ``contexts`` is where it applies. This schema records origins, so
++each alias needs a ``source`` and none should use ``contexts`` for that.
++See CLAUDE.md ("structured_aliases") and
++https://github.com/microbiomedata/nmdc-schema/issues/3454
++
++Like tests/test_attribution_metaslots.py, this reads the src/schema/*.yaml
++source files rather than the generated artifact. That includes
++src/schema/mixs.yaml: it is generated, but its structured aliases are written
++by NMDC in assets/yq-for-mixs-customizations.txt, so fix them there and
++regenerate.
++"""
++
++from collections.abc import Iterator
++from pathlib import Path
++
++import yaml
++
++# (file, literal_form) pairs known to use contexts. Don't add to this set.
++GRANDFATHERED: set[tuple[str, str]] = set()
++
++
++def structured_aliases(node: object, path: str = "") -> Iterator[tuple[str, object]]:
++    """Yield (location, alias) for every structured alias at any depth."""
++    if isinstance(node, dict):
++        for key, value in node.items():
++            location = f"{path}/{key}"
++            if key == "structured_aliases" and isinstance(value, list):
++                for alias in value:
++                    yield location, alias
++            yield from structured_aliases(value, location)
++    elif isinstance(node, list):
++        for item in node:
++            yield from structured_aliases(item, path)
++
++
++def test_structured_aliases_name_their_source() -> None:
++    repository_root = Path(__file__).resolve().parents[1]
++    problems = []
++    still_grandfathered = set()
++    for schema_path in sorted((repository_root / "src" / "schema").glob("*.yaml")):
++        with schema_path.open(encoding="utf-8") as source_file:
++            schema = yaml.safe_load(source_file)
++        for location, alias in structured_aliases(schema):
++            label = alias.get("literal_form") if isinstance(alias, dict) else alias
++            where = f"{schema_path.relative_to(repository_root)}{location}: {label!r}"
++            found = []
++            if not isinstance(alias, dict) or not alias.get("source"):
++                found.append(f"{where} has no source")
++            if isinstance(alias, dict) and "contexts" in alias:
++                found.append(f"{where} uses contexts; put its origin in source")
++            if found and (schema_path.name, label) in GRANDFATHERED:
++                still_grandfathered.add((schema_path.name, label))
++            else:
++                problems.extend(found)
++
++    assert not problems, (
++        "Each structured alias needs a source (where it comes from), not contexts.\n"
++        + "\n".join(problems)
++    )
++    assert still_grandfathered == GRANDFATHERED, (
++        f"Remove fixed entries from GRANDFATHERED: {sorted(GRANDFATHERED - still_grandfathered)}"
++    )

@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3343"
+description = "Generate release artifacts for `nmdc-schema` version `11.23.0`"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "c9dd3e50bad399125178e0ffecc7ef90c155675d"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3343"
+source_access = "auto"
+built_at = "2026-11-18T02:30:42.210579+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:2e92a2feefd1de368a58cb740ea425b02f8651c0df3108e21391df63cf6b8ec6"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-13T21:40:05Z"
+diff_format = "unified"
+context_files = [
+    "nmdc_schema/migrators/migrator_from_11_22_0_to_11_23_0.py",
+    "nmdc_schema/nmdc.py",
+    "nmdc_schema/nmdc.schema.json",
+    "nmdc_schema/nmdc_materialized_patterns.json",
+    "nmdc_schema/nmdc_materialized_patterns.schema.json",
+    "nmdc_schema/nmdc_materialized_patterns.yaml",
+    "nmdc_schema/nmdc_pydantic.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 5220
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

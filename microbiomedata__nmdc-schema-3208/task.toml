@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3208"
+description = "Make yq download architechure-aware and version-pinned"
+
+[metadata]
+difficulty = "easy"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "8f1dc97bd80d887ad6f85b72074d6ef16da4ce1f"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3208"
+source_access = "auto"
+built_at = "2026-11-18T02:32:55.002726+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:cc02748d11b113d4ab3023315c240f450c1aaaa4ddcd00e20bd91be1d22e0387"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-07-01T18:08:54Z"
+diff_format = "unified"
+context_files = [
+    "Dockerfile",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 3
+difficulty = "trivial"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -41,7 +41,6 @@ context_files = [
     "skills/genomics-bioinformatics/spatial-transcriptomics/spatial-transcriptomics-deconvolution-cell2location/SKILL.md",
     "skills/genomics-bioinformatics/spatial-transcriptomics/trajectory-inference/SKILL.md",
 ]
-bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -60,15 +59,10 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "inline_dockerfile"
+mode = "local_only"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "public"
-pushed_at = "2026-11-16T15:51:53.099761+00:00"
-pushed_by = "scalingX"
-inline_recipe_sha256 = "sha256:4d127fa837924d2473bce3cf489acb05f85b52483b335d6f4bd98ac7f4c6f55d"
-inline_recipe_lines = 37
-inline_recipe_source = "user_dockerfile"
+image_visibility = "private"
 
 [agent]
 timeout_sec = 1800.0

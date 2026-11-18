@@ -1,0 +1,58 @@
+diff --git a/nmdc_schema/id_helpers.py b/nmdc_schema/id_helpers.py
+index 407ab88fce..c962d2b7f3 100644
+--- a/nmdc_schema/id_helpers.py
++++ b/nmdc_schema/id_helpers.py
+@@ -45,7 +45,8 @@ def get_compatible_typecodes(slot_pattern: str) -> List[str]:
+     #       consume all but the final hyphen in the slot pattern. By doing a lazy match, we prevent the capture
+     #       group from consuming any hyphens at all.
+     #
+-    id_pattern = re.compile(r"^\^\(nmdc\):(.+?)-")
++    # LinkML 1.12 wraps an already-anchored pattern as `^(?:...)$`.
++    id_pattern = re.compile(r"^\^(?:\(\?:)?\^?\(nmdc\):(.+?)-")
+ 
+     # Use the regular expression to extract the typecode portion of the specified slot pattern.
+     match_obj = id_pattern.match(slot_pattern)
+diff --git a/tests/test_id_helpers.py b/tests/test_id_helpers.py
+new file mode 100644
+index 0000000000..1b35e24b1e
+--- /dev/null
++++ b/tests/test_id_helpers.py
+@@ -0,0 +1,38 @@
++"""The Runtime minter calls get_typecode_for_future_ids on an induced id pattern."""
++
++import pytest
++from linkml_runtime import SchemaView
++
++from nmdc_schema.get_nmdc_view import ViewGetter
++from nmdc_schema.id_helpers import get_typecode_for_future_ids
++
++
++@pytest.fixture(scope="module")
++def nmdc_view() -> SchemaView:
++    return ViewGetter().get_view()
++
++
++def test_named_thing_classes_have_a_future_typecode(nmdc_view: SchemaView) -> None:
++    """Every concrete NamedThing descendant has a typecode for newly minted ids.
++
++    OntologyClass and its descendants, and any class that declares id_prefixes,
++    are identified by external ids rather than an NMDC typecode.
++    """
++    external_identifier_classes = set(nmdc_view.class_descendants("OntologyClass"))
++    missing: list[str] = []
++    checked = 0
++    for class_name in nmdc_view.class_descendants("NamedThing"):
++        class_definition = nmdc_view.get_class(class_name)
++        if class_definition is None or class_definition.abstract:
++            continue
++        if class_name in external_identifier_classes or class_definition.id_prefixes:
++            continue
++        induced = nmdc_view.induced_slot("id", class_name).pattern
++        assert isinstance(induced, str)
++        checked += 1
++        if get_typecode_for_future_ids(induced) is None:
++            missing.append(str(class_name))
++    assert checked > 0
++    assert missing == [], (
++        f"get_typecode_for_future_ids returned None for: {sorted(missing)}"
++    )

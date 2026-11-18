@@ -34,7 +34,6 @@ context_files = [
     "matchms/filtering/metadata_processing/repair_adduct_and_parent_mass_based_on_smiles.py",
     "tests/filtering/test_repair_adduct/test_repair_adduct_and_parent_mass_based_on_smiles.py",
 ]
-bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -53,15 +52,10 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "inline_dockerfile"
+mode = "local_only"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "public"
-pushed_at = "2026-11-16T15:51:53.117373+00:00"
-pushed_by = "scalingX"
-inline_recipe_sha256 = "sha256:7ab60fc6ec70ee75a183f8f5a38e1295d4a5055dcef22fc85bf1935aa1605ea4"
-inline_recipe_lines = 37
-inline_recipe_source = "user_dockerfile"
+image_visibility = "private"
 
 [agent]
 timeout_sec = 1800.0

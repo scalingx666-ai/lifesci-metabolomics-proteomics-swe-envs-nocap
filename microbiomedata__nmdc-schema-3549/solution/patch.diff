@@ -1,0 +1,1194 @@
+diff --git a/nmdc_schema/id_helpers.py b/nmdc_schema/id_helpers.py
+index af53164101..80d48ad058 100644
+--- a/nmdc_schema/id_helpers.py
++++ b/nmdc_schema/id_helpers.py
+@@ -33,7 +33,16 @@ def get_compatible_typecodes(slot_pattern: str) -> List[str]:
+     >>> get_compatible_typecodes("^(nmdc):(foo|bar|baz)-...")
+     ['foo', 'bar', 'baz']
+ 
+-    LinkML 1.12 wraps an already-anchored pattern as `^(?:...)$`:
++    LinkML 1.12 wraps a pattern as `^(?:...)$`. From nmdc-schema 11.25.0 our own patterns carry no
++    anchors, so the wrapped form has one `^` (see
++    https://github.com/microbiomedata/nmdc-schema/issues/3539):
++
++    >>> get_compatible_typecodes("^(?:(nmdc):foo-...)$")
++    ['foo']
++    >>> get_compatible_typecodes("^(?:(nmdc):(foo|bar)-...)$")
++    ['foo', 'bar']
++
++    The doubled form from 11.25.0rc2, where our own `^` sat inside the wrapper, is still read:
+ 
+     >>> get_compatible_typecodes("^(?:^(nmdc):foo-...)$")
+     ['foo']
+@@ -52,7 +61,8 @@ def get_compatible_typecodes(slot_pattern: str) -> List[str]:
+     #       consume all but the final hyphen in the slot pattern. By doing a lazy match, we prevent the capture
+     #       group from consuming any hyphens at all.
+     #
+-    # LinkML 1.12 wraps an already-anchored pattern as `^(?:...)$`.
++    # LinkML 1.12 wraps a pattern as `^(?:...)$`; the `^` inside the wrapper is optional so that the doubled
++    # form from 11.25.0rc2 still matches.
+     id_pattern = re.compile(r"^\^(?:\(\?:)?\^?\(nmdc\):(.+?)-")
+ 
+     # Use the regular expression to extract the typecode portion of the specified slot pattern.
+@@ -86,6 +96,8 @@ def get_typecode_for_future_ids(slot_pattern: str) -> Optional[str]:
+     'foo'
+     >>> get_typecode_for_future_ids("^(nmdc):(foo|bar|baz)-...")
+     'foo'
++    >>> get_typecode_for_future_ids("^(?:(nmdc):(foo|bar)-...)$")
++    'foo'
+     >>> get_typecode_for_future_ids("^(?:^(nmdc):(foo|bar)-...)$")
+     'foo'
+     """
+diff --git a/src/docs/maintaining-the-schema.md b/src/docs/maintaining-the-schema.md
+index bfb9aef9c5..c02d46e689 100644
+--- a/src/docs/maintaining-the-schema.md
++++ b/src/docs/maintaining-the-schema.md
+@@ -166,23 +166,30 @@ the values of slots to use a prefix that isn't declared, but no checks are autom
+ When a slot's range is a class that is not inlined, the value in the data is the `id` of an instance of that class.
+ Two different things could be checked about that value, and only one of them is enforced by the schema.
+ 
+-**The shape of the id is enforced by the schema.** A `structured_pattern` in the class's `slot_usage` constrains the
+-value to the id pattern of the intended class. For example, `Biosample.slot_usage.associated_studies`:
++**The shape of the id is enforced by the schema.** A `structured_pattern` on the slot, or in a class's `slot_usage`,
++constrains the value to the id pattern of the intended class. For example, the `associated_studies` slot in
++`src/schema/basic_classes.yaml`:
+ 
+ ```yaml
+ associated_studies:
+-  required: true
+   range: Study
++  multivalued: true
+   structured_pattern:
+-    syntax: "{id_nmdc_prefix}:sty-{id_shoulder}-{id_blade}$"
++    syntax: "{id_nmdc_prefix}:sty-{id_shoulder}-{id_blade}"
+     interpolated: true
+ ```
+ 
+-The pattern only takes effect after materialization, so validate against `nmdc_schema/nmdc_materialized_patterns.yaml`
+-rather than the source schema. In the materialized artifact the syntax above becomes
+-`^(nmdc):sty-([0-9][a-z]{0,6}[0-9])-([A-Za-z0-9]{1,})$`, so `associated_studies: [xyz]` fails. This is why so many
+-`slot_usage` blocks carry a `structured_pattern`: it is the only in-schema guard against pointing a slot at an id of
+-the wrong class.
++With linkml-runtime 1.12 or later, `SchemaView.induced_slot()` fills in the settings and turns this into
++`^(?:(nmdc):sty-([0-9][a-z]{0,6}[0-9])-([A-Za-z0-9]{1,}))$`, so `associated_studies: [xyz]` fails whether you
++validate against the source schema or against `nmdc_schema/nmdc_materialized_patterns.yaml`. linkml adds the `^(?:` and
++`)$` itself because `partial_match` is not set, so the `syntax` leaves out `^` and `$`
++(https://github.com/microbiomedata/nmdc-schema/issues/3539). With an older linkml-runtime, only the materialized
++artifact carries the pattern. This is why so many `slot_usage` blocks carry a `structured_pattern`: it is the only
++in-schema guard against pointing a slot at an id of the wrong class.
++
++linkml 1.12 deprecates the `--materialize-patterns` option. The Makefile still passes it when it builds
++`nmdc_schema/nmdc_materialized_patterns.yaml`. Without it that file holds 42 `pattern` values instead of 356, and tools
++that read the file with linkml-runtime older than 1.12, such as submission-schema's build, would not see the rest.
+ 
+ **The existence of the referent is not checked by the schema.** Schema validation is per-document: a value that
+ matches the pattern but names a record that does not exist will pass. Nothing in LinkML or the generated JSON Schema
+diff --git a/src/schema/annotation.yaml b/src/schema/annotation.yaml
+index 5aaac2fdc6..b451770e18 100644
+--- a/src/schema/annotation.yaml
++++ b/src/schema/annotation.yaml
+@@ -134,7 +134,7 @@ classes:
+           - To be consistent with the rest of the NMDC schema we use the PROV annotation model, rather than GPAD
+         range: MetagenomeAnnotation
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(wfmgan)-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:(wfmgan)-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+     narrow_mappings:
+       - biolink:GeneToGoTermAssociation
+@@ -218,6 +218,6 @@ slots:
+ # See https://github.com/microbiomedata/nmdc-schema/issues/3523
+ settings:
+   id_blade: ([A-Za-z0-9]{1,})
+-  id_nmdc_prefix: ^(nmdc)
++  id_nmdc_prefix: (nmdc)
+   id_shoulder: ([0-9][a-z]{0,6}[0-9])
+   id_version: (\.[1-9]{1}[0-9]{0,})
+diff --git a/src/schema/basic_classes.yaml b/src/schema/basic_classes.yaml
+index d4fc57e17f..c696fcb27c 100644
+--- a/src/schema/basic_classes.yaml
++++ b/src/schema/basic_classes.yaml
+@@ -186,7 +186,7 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:inst-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:inst-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:inst-11-075j3n79
+@@ -207,7 +207,7 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:orgn-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:orgn-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:orgn-99-6dwrrh
+@@ -411,7 +411,7 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:sty-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:sty-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:sty-11-076c9980
+@@ -457,7 +457,7 @@ classes:
+           - Value is the id of the umbrella study or consortium.
+         range: Study
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:sty-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:sty-{id_shoulder}-{id_blade}"
+           interpolated: true
+       protocol_link:
+         multivalued: true
+@@ -522,14 +522,14 @@ classes:
+         required: true
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:dobj-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:dobj-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:dobj-11-00017y47
+             description: a production DataObject
+       was_generated_by:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(wfmag|wfmb|wfmgan|wfmgas|wfmsa|wfmp|wfmt|wfmtan|wfmtas|wfmtex|wfnom|wfrbt|wfrqc)-{id_shoulder}-{id_blade}{id_version}$|{id_nmdc_prefix}:(omprc|dgms|dgns)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(wfmag|wfmb|wfmgan|wfmgas|wfmsa|wfmp|wfmt|wfmtan|wfmtas|wfmtex|wfnom|wfrbt|wfrqc)-{id_shoulder}-{id_blade}{id_version}|{id_nmdc_prefix}:(omprc|dgms|dgns)-{id_shoulder}-{id_blade}"
+           interpolated: true
+       data_object_type:
+         required: true
+@@ -583,17 +583,17 @@ classes:
+         required: true
+         range: Sample
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(bsm|osm|procsm)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(bsm|osm|procsm)-{id_shoulder}-{id_blade}"
+           interpolated: true
+       associated_studies:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(sty)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(sty)-{id_shoulder}-{id_blade}"
+           interpolated:
+             true
+       has_output:
+         range: DataObject
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(dobj)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(dobj)-{id_shoulder}-{id_blade}"
+           interpolated:
+             true
+       provenance_metadata:
+@@ -656,12 +656,12 @@ classes:
+       has_input:
+         required: true
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(dobj)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(dobj)-{id_shoulder}-{id_blade}"
+           interpolated: true
+         range: DataObject
+       has_output:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(dobj)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(dobj)-{id_shoulder}-{id_blade}"
+           interpolated: true
+         range: DataObject
+       processing_institution:
+@@ -739,7 +739,7 @@ slots:
+     range: Study
+     multivalued: true
+     structured_pattern:
+-      syntax: "{id_nmdc_prefix}:sty-{id_shoulder}-{id_blade}$"
++      syntax: "{id_nmdc_prefix}:sty-{id_shoulder}-{id_blade}"
+       interpolated: true
+     required: true
+   part_of:
+@@ -896,7 +896,7 @@ slots:
+     multivalued: true
+     description: What instrument was used during DataGeneration or MaterialProcessing.
+     structured_pattern:
+-      syntax: "{id_nmdc_prefix}:inst-{id_shoulder}-{id_blade}$"
++      syntax: "{id_nmdc_prefix}:inst-{id_shoulder}-{id_blade}"
+       interpolated: true
+ 
+   instrument_instance_specifier:
+@@ -910,7 +910,7 @@ slots:
+     comments:
+       - A DataObject can be part of multiple manifests, for example, a DataObject could be part of a manifest for a single run of an instrument and a manifest for technical replicates of a single sample.
+     structured_pattern:
+-      syntax: "{id_nmdc_prefix}:manif-{id_shoulder}-{id_blade}$"
++      syntax: "{id_nmdc_prefix}:manif-{id_shoulder}-{id_blade}"
+       interpolated: true  
+ 
+   manifest_category:
+@@ -1675,6 +1675,6 @@ enums:
+ # See https://github.com/microbiomedata/nmdc-schema/issues/3523
+ settings:
+   id_blade: ([A-Za-z0-9]{1,})
+-  id_nmdc_prefix: ^(nmdc)
++  id_nmdc_prefix: (nmdc)
+   id_shoulder: ([0-9][a-z]{0,6}[0-9])
+   id_version: (\.[1-9]{1}[0-9]{0,})
+diff --git a/src/schema/basic_slots.yaml b/src/schema/basic_slots.yaml
+index 9c778b456f..e4d22b824b 100644
+--- a/src/schema/basic_slots.yaml
++++ b/src/schema/basic_slots.yaml
+@@ -1665,6 +1665,6 @@ enums:
+ # See https://github.com/microbiomedata/nmdc-schema/issues/3523
+ settings:
+   id_blade: ([A-Za-z0-9]{1,})
+-  id_nmdc_prefix: ^(nmdc)
++  id_nmdc_prefix: (nmdc)
+   id_shoulder: ([0-9][a-z]{0,6}[0-9])
+   id_version: (\.[1-9]{1}[0-9]{0,})
+diff --git a/src/schema/core.yaml b/src/schema/core.yaml
+index d0e59314f9..b96a23a673 100644
+--- a/src/schema/core.yaml
++++ b/src/schema/core.yaml
+@@ -457,7 +457,7 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:chcpr-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:chcpr-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:chcpr-11-004nv334
+@@ -479,7 +479,7 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfmgan-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfmgan-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+         examples:
+           - value: nmdc:wfmgan-11-001c1246.1
+@@ -488,12 +488,12 @@ classes:
+         maximum_cardinality: 1
+       was_informed_by:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(omprc|dgns)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(omprc|dgns)-{id_shoulder}-{id_blade}"
+           interpolated: true
+         range: NucleotideSequencing
+       gold_analysis_project_identifiers:
+         structured_pattern:
+-          syntax: "^gold:Ga[0-9]+$"
++          syntax: "gold:Ga[0-9]+"
+           interpolated: true
+ 
+   FieldResearchSite:
+@@ -523,7 +523,7 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:frsite-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:frsite-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:frsite-11-0mqbhb55
+@@ -531,7 +531,7 @@ classes:
+       part_of:
+         range: FieldResearchSite
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:frsite-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:frsite-{id_shoulder}-{id_blade}"
+           interpolated: true
+ 
+   Sample:
+@@ -1135,7 +1135,7 @@ classes:
+ 
+       collected_from:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:frsite-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:frsite-{id_shoulder}-{id_blade}"
+           interpolated: true
+ 
+       elev:
+@@ -1150,7 +1150,7 @@ classes:
+       id:
+         description: An NMDC assigned unique identifier for a biosample submitted to NMDC.
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:bsm-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:bsm-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:bsm-11-001pmq31
+@@ -1453,12 +1453,12 @@ classes:
+       has_input:
+         range: Sample
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(bsm|procsm)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(bsm|procsm)-{id_shoulder}-{id_blade}"
+           interpolated: true
+       has_output:
+         range: ProcessedSample
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(procsm)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(procsm)-{id_shoulder}-{id_blade}"
+           interpolated: true
+     exact_mappings:
+       - OBI:0000094
+@@ -1497,7 +1497,7 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:procsm-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:procsm-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:procsm-11-0013mk17
+@@ -1529,14 +1529,14 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:osm-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:osm-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:osm-11-cult0001
+             description: an OrganismSample from the schema's example data; production has none
+       expected_organism:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:orgn-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:orgn-{id_shoulder}-{id_blade}"
+           interpolated: true
+       source_mat_id:
+         in_subset:
+@@ -2115,6 +2115,6 @@ slots:
+ # See https://github.com/microbiomedata/nmdc-schema/issues/3523
+ settings:
+   id_blade: ([A-Za-z0-9]{1,})
+-  id_nmdc_prefix: ^(nmdc)
++  id_nmdc_prefix: (nmdc)
+   id_shoulder: ([0-9][a-z]{0,6}[0-9])
+   id_version: (\.[1-9]{1}[0-9]{0,})
+diff --git a/src/schema/deprecated.yaml b/src/schema/deprecated.yaml
+index 6982f7d4fd..cc2f205583 100644
+--- a/src/schema/deprecated.yaml
++++ b/src/schema/deprecated.yaml
+@@ -73,20 +73,20 @@ classes:
+       id:
+         required: true
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:pex-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:pex-{id_shoulder}-{id_blade}"
+           interpolated: true
+       has_input:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(bsm|procsm)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(bsm|procsm)-{id_shoulder}-{id_blade}"
+           interpolated: true
+       has_output:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(procsm)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(procsm)-{id_shoulder}-{id_blade}"
+           interpolated: true
+       has_process_parts:
+         required: true
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(extrp|filtpr|dispro|poolp|libprp|subspr|mixpro|chcpr|cspro)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(extrp|filtpr|dispro|poolp|libprp|subspr|mixpro|chcpr|cspro)-{id_shoulder}-{id_blade}"
+           interpolated: true
+         description: The MaterialProcessing steps that are discrete parts of the ProtocolExecution.
+     deprecated: "not used, not fulfilling intended purpose https://github.com/microbiomedata/nmdc-schema/issues/2336"
+@@ -103,16 +103,16 @@ classes:
+       id:
+         required: true
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfmsa-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfmsa-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+       has_input:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(bsm|procsm)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(bsm|procsm)-{id_shoulder}-{id_blade}"
+           interpolated: true
+         range: Sample
+       was_informed_by:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(omprc|dgns)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(omprc|dgns)-{id_shoulder}-{id_blade}"
+           interpolated: true
+         range: NucleotideSequencing
+ 
+@@ -849,6 +849,6 @@ types:
+ # See https://github.com/microbiomedata/nmdc-schema/issues/3523
+ settings:
+   id_blade: ([A-Za-z0-9]{1,})
+-  id_nmdc_prefix: ^(nmdc)
++  id_nmdc_prefix: (nmdc)
+   id_shoulder: ([0-9][a-z]{0,6}[0-9])
+   id_version: (\.[1-9]{1}[0-9]{0,})
+diff --git a/src/schema/nmdc.yaml b/src/schema/nmdc.yaml
+index 6e6c61861f..13f4b64cfc 100644
+--- a/src/schema/nmdc.yaml
++++ b/src/schema/nmdc.yaml
+@@ -139,11 +139,11 @@ emit_prefixes:
+ 
+ settings:
+   # NMDC ID pattern components
+-  id_nmdc_prefix: "^(nmdc)"
++  id_nmdc_prefix: "(nmdc)"
+   id_shoulder: "([0-9][a-z]{0,6}[0-9])"
+   id_blade: "([A-Za-z0-9]{1,})"
+   id_version: "(\\.[1-9]{1}[0-9]{0,})"  # first digit must be > 0;  e.g. ".1", ".2", ".10"
+-  id_locus: "(_[A-Za-z0-9_\\.-]+)?$"
++  id_locus: "(_[A-Za-z0-9_\\.-]+)?"
+   # MIxS structured_pattern settings for pattern interpolation.
+   # These settings define regex patterns for placeholders like {scientific_float}, {text}, {URL}
+   # used in MIxS slot structured_pattern definitions.
+@@ -276,7 +276,7 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(dgns|omprc)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(dgns|omprc)-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:dgns-11-0002a657
+@@ -298,18 +298,18 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(dgms|omprc)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(dgms|omprc)-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:dgms-11-0056ry09
+             description: a production MassSpectrometry
+       has_chromatography_configuration:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:chrcon-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:chrcon-{id_shoulder}-{id_blade}"
+           interpolated: true
+       has_mass_spectrometry_configuration:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:mscon-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:mscon-{id_shoulder}-{id_blade}"
+           interpolated: true
+         required: true
+       analyte_category: 
+@@ -381,7 +381,7 @@ classes:
+         required: true
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:mscon-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:mscon-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:mscon-11-0ary3w56
+@@ -417,7 +417,7 @@ classes:
+         required: true
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:chrcon-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:chrcon-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:chrcon-11-0stw8m53
+@@ -438,7 +438,7 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:manif-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:manif-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:manif-11-06t11y76
+@@ -483,7 +483,7 @@ classes:
+           required: true
+         id:
+           structured_pattern:
+-            syntax: "{id_nmdc_prefix}:calib-{id_shoulder}-{id_blade}$"
++            syntax: "{id_nmdc_prefix}:calib-{id_shoulder}-{id_blade}"
+             interpolated: true
+           examples:
+             - value: nmdc:calib-11-015nyk25
+@@ -502,7 +502,7 @@ classes:
+     slot_usage:
+       was_generated_by:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(wfmgan|wfmp|wfmtan)-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:(wfmgan|wfmp|wfmtan)-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+         required: true
+         range: AnnotatingWorkflow
+@@ -559,11 +559,11 @@ classes:
+         minimum_cardinality: 1
+         maximum_cardinality: 1
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:procsm-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:procsm-{id_shoulder}-{id_blade}"
+           interpolated: true
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:poolp-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:poolp-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:poolp-11-00azgg46
+@@ -579,7 +579,7 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:isnp-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:isnp-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:isnp-99-mukr6y
+@@ -587,13 +587,13 @@ classes:
+       has_input:
+         required: true
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(bsm|osm|procsm)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(bsm|osm|procsm)-{id_shoulder}-{id_blade}"
+           interpolated: true
+       has_output:
+         required: true
+         range: OrganismSample
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(osm)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(osm)-{id_shoulder}-{id_blade}"
+           interpolated: true
+     close_mappings:
+       - OBI:0000512
+@@ -608,7 +608,7 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:cultp-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:cultp-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:cultp-11-inc00001
+@@ -617,13 +617,13 @@ classes:
+         required: true
+         range: OrganismSample
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(osm)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(osm)-{id_shoulder}-{id_blade}"
+           interpolated: true
+       has_output:
+         required: true
+         range: OrganismSample
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(osm)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(osm)-{id_shoulder}-{id_blade}"
+           interpolated: true
+     close_mappings:
+       - OBI:0001147
+@@ -644,13 +644,13 @@ classes:
+       has_input:
+         required: true
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(bsm|osm|procsm)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(bsm|osm|procsm)-{id_shoulder}-{id_blade}"
+           interpolated: true
+       has_output:
+         required: true
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:extrp-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:extrp-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:extrp-11-0051av38
+@@ -690,7 +690,7 @@ classes:
+         required: true
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:libprp-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:libprp-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:libprp-11-002djk98
+@@ -711,7 +711,7 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:isolp-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:isolp-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:isolp-99-inchip4
+@@ -719,7 +719,7 @@ classes:
+       has_input:
+         required: true
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(bsm|osm|procsm)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(bsm|osm|procsm)-{id_shoulder}-{id_blade}"
+           interpolated: true
+       has_output:
+         required: true
+@@ -794,7 +794,7 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:fracp-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:fracp-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:fracp-99-labeled
+@@ -802,7 +802,7 @@ classes:
+       has_input:
+         required: true
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(bsm|osm|procsm)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(bsm|osm|procsm)-{id_shoulder}-{id_blade}"
+           interpolated: true
+       has_output:
+         required: true
+@@ -820,17 +820,17 @@ classes:
+         range: Site
+         required: true
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(frsite|site)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(frsite|site)-{id_shoulder}-{id_blade}"
+           interpolated: true
+       has_output:
+         range: Biosample
+         required: true
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:bsm-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:bsm-{id_shoulder}-{id_blade}"
+           interpolated: true
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:clsite-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:clsite-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:clsite-99-Cq00d1
+@@ -864,7 +864,7 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:subspr-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:subspr-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:subspr-11-004wpx78
+@@ -894,7 +894,7 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:mixpro-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:mixpro-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:mixpro-11-A74
+@@ -902,7 +902,7 @@ classes:
+       has_output:
+         description: The mixed sample.
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:procsm-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:procsm-{id_shoulder}-{id_blade}"
+           interpolated: true
+ 
+   FiltrationProcess:
+@@ -929,7 +929,7 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:filtpr-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:filtpr-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:filtpr-11-00hdy977
+@@ -938,7 +938,7 @@ classes:
+         description: The volume of sample filtered.
+       has_output:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:procsm-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:procsm-{id_shoulder}-{id_blade}"
+           interpolated: true
+ 
+   StorageProcess:
+@@ -958,19 +958,19 @@ classes:
+         description: The substance(s) that a processed sample is stored in.
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:storpr-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:storpr-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:storpr-99-zUCd5N
+             description: a StorageProcess from the schema's example data; production has none
+       has_input:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(bsm|procsm)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(bsm|procsm)-{id_shoulder}-{id_blade}"
+           interpolated: true
+         range: Sample
+       has_output:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:procsm-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:procsm-{id_shoulder}-{id_blade}"
+           interpolated: true
+         range: ProcessedSample
+ 
+@@ -990,14 +990,14 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:cspro-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:cspro-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:cspro-11-00gba548
+             description: a production ChromatographicSeparationProcess
+       has_output:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:procsm-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:procsm-{id_shoulder}-{id_blade}"
+           interpolated: true
+ 
+   DissolvingProcess:
+@@ -1019,7 +1019,7 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:dispro-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:dispro-{id_shoulder}-{id_blade}"
+           interpolated: true
+         examples:
+           - value: nmdc:dispro-11-00wpzz21
+@@ -1480,7 +1480,7 @@ slots:
+     comments:
+       - A gas chromatography mass spectromery run generates data to calibrate the retention index
+     structured_pattern:
+-      syntax: "{id_nmdc_prefix}:calib-{id_shoulder}-{id_blade}$"
++      syntax: "{id_nmdc_prefix}:calib-{id_shoulder}-{id_blade}"
+       interpolated: true
+ 
+   uses_calibration:
+@@ -1490,14 +1490,14 @@ slots:
+     comments:
+       - Retenion index calibration data generated by a gas chromatography mass spectromery run is used when analyzing metabolomics data 
+     structured_pattern:
+-      syntax: "{id_nmdc_prefix}:calib-{id_shoulder}-{id_blade}$"
++      syntax: "{id_nmdc_prefix}:calib-{id_shoulder}-{id_blade}"
+       interpolated: true 
+ 
+   calibration_object:
+     range: DataObject
+     description: the file containing the calibration data object
+     structured_pattern:
+-      syntax: "{id_nmdc_prefix}:dobj-{id_shoulder}-{id_blade}$"
++      syntax: "{id_nmdc_prefix}:dobj-{id_shoulder}-{id_blade}"
+       interpolated: true
+ 
+   internal_calibration:
+diff --git a/src/schema/workflow_execution_activity.yaml b/src/schema/workflow_execution_activity.yaml
+index a175b497c7..045592d785 100644
+--- a/src/schema/workflow_execution_activity.yaml
++++ b/src/schema/workflow_execution_activity.yaml
+@@ -53,20 +53,20 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfmgas-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfmgas-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+         examples:
+           - value: nmdc:wfmgas-11-0080kf19.1
+             description: a production MetagenomeAssembly
+       was_informed_by:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(omprc|dgns)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(omprc|dgns)-{id_shoulder}-{id_blade}"
+           interpolated: true
+         range: NucleotideSequencing
+       superseded_by:
+         range: MetagenomeAssembly
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfmgas-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfmgas-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+ 
+   MetatranscriptomeAssembly:
+@@ -104,20 +104,20 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfmtas-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfmtas-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+         examples:
+           - value: nmdc:wfmtas-11-0mkm0r71.1
+             description: a production MetatranscriptomeAssembly
+       was_informed_by:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(omprc|dgns)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(omprc|dgns)-{id_shoulder}-{id_blade}"
+           interpolated: true
+         range: NucleotideSequencing
+       superseded_by:
+         range: MetatranscriptomeAssembly
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfmtas-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfmtas-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+ 
+   MetatranscriptomeAnnotation:
+@@ -129,7 +129,7 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfmtan-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfmtan-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+         examples:
+           - value: nmdc:wfmtan-11-0k6a3d73.1
+@@ -138,17 +138,17 @@ classes:
+         maximum_cardinality: 1
+       was_informed_by:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(omprc|dgns)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(omprc|dgns)-{id_shoulder}-{id_blade}"
+           interpolated: true
+         range: NucleotideSequencing
+       gold_analysis_project_identifiers:
+         structured_pattern:
+-          syntax: "^gold:Ga[0-9]+$"
++          syntax: "gold:Ga[0-9]+"
+           interpolated: true
+       superseded_by:
+         range: MetatranscriptomeAnnotation
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfmtan-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfmtan-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+ 
+   MetatranscriptomeExpressionAnalysis:
+@@ -160,7 +160,7 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfmtex-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfmtex-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+         examples:
+           - value: nmdc:wfmtex-11-0g2kt843.1
+@@ -169,13 +169,13 @@ classes:
+         maximum_cardinality: 1
+       was_informed_by:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(omprc|dgns)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(omprc|dgns)-{id_shoulder}-{id_blade}"
+           interpolated: true
+         range: NucleotideSequencing
+       superseded_by:
+         range: MetatranscriptomeExpressionAnalysis
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfmtex-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfmtex-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+         
+     class_uri: nmdc:MetatranscriptomeExpressionAnalysis
+@@ -197,7 +197,7 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfmag-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfmag-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+         examples:
+           - value: nmdc:wfmag-11-002wf438.1
+@@ -206,13 +206,13 @@ classes:
+         maximum_cardinality: 1
+       was_informed_by:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(omprc|dgns)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(omprc|dgns)-{id_shoulder}-{id_blade}"
+           interpolated: true
+         range: NucleotideSequencing
+       superseded_by:
+         range: MagsAnalysis
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfmag-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfmag-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+ 
+   ReadQcAnalysis:
+@@ -230,20 +230,20 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfrqc-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfrqc-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+         examples:
+           - value: nmdc:wfrqc-11-00qx5818.1
+             description: a production ReadQcAnalysis
+       was_informed_by:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(omprc|dgns)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(omprc|dgns)-{id_shoulder}-{id_blade}"
+           interpolated: true
+         range: NucleotideSequencing
+       superseded_by:
+         range: ReadQcAnalysis
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfrqc-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfrqc-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+ 
+   ReadBasedTaxonomyAnalysis:
+@@ -254,20 +254,20 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfrbt-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfrbt-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+         examples:
+           - value: nmdc:wfrbt-11-0083q358.1
+             description: a production ReadBasedTaxonomyAnalysis
+       was_informed_by:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(omprc|dgns)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(omprc|dgns)-{id_shoulder}-{id_blade}"
+           interpolated: true
+         range: NucleotideSequencing
+       superseded_by:
+         range: ReadBasedTaxonomyAnalysis
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfrbt-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfrbt-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+ 
+   MetabolomicsAnalysis:
+@@ -283,20 +283,20 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfmb-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfmb-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+         examples:
+           - value: nmdc:wfmb-11-00cysq13.1
+             description: a production MetabolomicsAnalysis
+       was_informed_by:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(omprc|dgms)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(omprc|dgms)-{id_shoulder}-{id_blade}"
+           interpolated: true
+         range: MassSpectrometry
+       superseded_by:
+         range: MetabolomicsAnalysis
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfmb-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfmb-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+       peak_count:
+         description: "The total number of two dimensional mass to charge (m/z) : retention time features detected in the metabolomics analysis."
+@@ -317,20 +317,20 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfmp-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfmp-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+         examples:
+           - value: nmdc:wfmp-11-08mtnm81.1
+             description: a production MetaproteomicsAnalysis
+       was_informed_by:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(omprc|dgms)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(omprc|dgms)-{id_shoulder}-{id_blade}"
+           interpolated: true
+         range: MassSpectrometry
+       superseded_by:
+         range: MetaproteomicsAnalysis
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfmp-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfmp-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+ 
+   NomAnalysis:
+@@ -343,20 +343,20 @@ classes:
+     slot_usage:
+       id:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfnom-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfnom-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+         examples:
+           - value: nmdc:wfnom-11-00db2d48.2
+             description: a production NomAnalysis
+       was_informed_by:
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:(omprc|dgms)-{id_shoulder}-{id_blade}$"
++          syntax: "{id_nmdc_prefix}:(omprc|dgms)-{id_shoulder}-{id_blade}"
+           interpolated: true
+         range: MassSpectrometry
+       superseded_by:
+         range: NomAnalysis
+         structured_pattern:
+-          syntax: "{id_nmdc_prefix}:wfnom-{id_shoulder}-{id_blade}{id_version}$"
++          syntax: "{id_nmdc_prefix}:wfnom-{id_shoulder}-{id_blade}{id_version}"
+           interpolated: true
+       peak_assignment_count:
+         description: "The number of m/z peaks with assigned molecular formulas in the analysis."
+@@ -695,6 +695,6 @@ enums:
+ # See https://github.com/microbiomedata/nmdc-schema/issues/3523
+ settings:
+   id_blade: ([A-Za-z0-9]{1,})
+-  id_nmdc_prefix: ^(nmdc)
++  id_nmdc_prefix: (nmdc)
+   id_shoulder: ([0-9][a-z]{0,6}[0-9])
+   id_version: (\.[1-9]{1}[0-9]{0,})
+diff --git a/tests/test_generated_python_patterns.py b/tests/test_generated_python_patterns.py
+index 1b7e80ddeb..a35eee4575 100644
+--- a/tests/test_generated_python_patterns.py
++++ b/tests/test_generated_python_patterns.py
+@@ -20,7 +20,7 @@ def test_unfilled_pattern_regex_finds_a_placeholder() -> None:
+         "pattern=re.compile(r'^(?:{id_nmdc_prefix}:bsm-{id_shoulder}$)$')"
+     )
+     assert not UNFILLED.search(
+-        "pattern=re.compile(r'^(?:^(nmdc):bsm-([0-9][a-z]{0,6}[0-9])$)$')"
++        "pattern=re.compile(r'^(?:(nmdc):bsm-([0-9][a-z]{0,6}[0-9]))$')"
+     )
+ 
+ 
+diff --git a/tests/test_structured_pattern_anchors.py b/tests/test_structured_pattern_anchors.py
+new file mode 100644
+index 0000000000..6f5f40d1e6
+--- /dev/null
++++ b/tests/test_structured_pattern_anchors.py
+@@ -0,0 +1,113 @@
++"""Our structured patterns leave anchoring to linkml.
++
++From linkml-runtime 1.12, a structured_pattern whose partial_match is not true is wrapped as
++^(?:...)$ when it is resolved. A syntax that also carries its own ^ and $ comes out doubled, for
++example ^(?:^(nmdc):sty-...$)$. So our syntax values carry no anchors, and linkml adds them.
++See https://github.com/microbiomedata/nmdc-schema/issues/3539.
++
++mixs.yaml is generated from MIxS and is not checked here.
++"""
++
++import re
++from importlib.metadata import version
++from pathlib import Path
++
++import pytest
++
++import yaml
++from linkml_runtime import SchemaView
++
++SCHEMA_DIR = Path(__file__).resolve().parent.parent / "src" / "schema"
++
++# Structured patterns that keep their own anchors, with the reason.
++KEEP_ANCHORS = {
++    # submission-schema imports this slot and re-resolves its structured pattern with
++    # linkml-runtime 1.9.5, which ignores partial_match and adds no anchors. Without its own
++    # anchors the slot would accept any text containing a PMID, DOI or URL. Drop it from this
++    # list once submission-schema builds with linkml 1.12.
++    ("nmdc.yaml", "/slots/salinity_meth"),
++}
++
++
++def _structured_patterns(node: object, path: str = ""):
++    """Yield (path, structured_pattern) for every structured_pattern in node."""
++    if isinstance(node, dict):
++        pattern = node.get("structured_pattern")
++        if isinstance(pattern, dict):
++            yield path, pattern
++        for key, value in node.items():
++            yield from _structured_patterns(value, f"{path}/{key}")
++    elif isinstance(node, list):
++        for index, value in enumerate(node):
++            yield from _structured_patterns(value, f"{path}[{index}]")
++
++
++def _anchored_syntaxes(schema_dir: Path) -> list[tuple[str, str, str]]:
++    found = []
++    for module in sorted(schema_dir.glob("*.yaml")):
++        if module.name == "mixs.yaml":
++            continue
++        with module.open(encoding="utf-8") as f:
++            document = yaml.safe_load(f)
++        for path, pattern in _structured_patterns(document):
++            if pattern.get("partial_match") is True:
++                continue
++            if (module.name, path) in KEEP_ANCHORS:
++                continue
++            syntax = pattern.get("syntax", "")
++            # An anchor at either end, or one on either side of a top-level `|`, is ours to
++            # drop: linkml's ^(?:...)$ wrapper already anchors every alternative.
++            if (
++                syntax.startswith("^")
++                or syntax.endswith("$")
++                or re.search(r"(?<!\\)\$\||\|\^", syntax)
++            ):
++                found.append((module.name, path, syntax))
++    return found
++
++
++def test_structured_pattern_syntax_has_no_anchors_of_its_own() -> None:
++    anchored = _anchored_syntaxes(SCHEMA_DIR)
++    assert not anchored, f"{len(anchored)} structured patterns carry their own ^ or $, e.g. {anchored[:3]}"
++
++
++def test_settings_used_in_patterns_have_no_anchors() -> None:
++    with (SCHEMA_DIR / "nmdc.yaml").open(encoding="utf-8") as f:
++        settings = yaml.safe_load(f)["settings"]
++    for key in ("id_nmdc_prefix", "id_locus"):
++        value = settings[key]
++        assert not value.startswith("^") and not value.endswith("$"), f"{key}: {value}"
++
++
++def test_anchor_check_finds_an_anchored_syntax(tmp_path: Path) -> None:
++    (tmp_path / "m.yaml").write_text(
++        "slots:\n"
++        "  s:\n"
++        "    structured_pattern:\n"
++        "      syntax: '^{id_nmdc_prefix}:x$'\n"
++        "      interpolated: true\n"
++        "  t:\n"
++        "    structured_pattern:\n"
++        "      syntax: '^y'\n"
++        "      partial_match: true\n",
++        encoding="utf-8",
++    )
++    assert _anchored_syntaxes(tmp_path) == [("m.yaml", "/slots/s", "^{id_nmdc_prefix}:x$")]
++
++
++@pytest.mark.skipif(
++    tuple(int(part) for part in version("linkml-runtime").split(".")[:2]) < (1, 12),
++    reason="linkml-runtime older than 1.12 does not wrap resolved patterns",
++)
++def test_nmdc_id_patterns_are_wrapped_once() -> None:
++    view = SchemaView(str(SCHEMA_DIR / "nmdc.yaml"))
++    checked = 0
++    for class_name in view.all_classes():
++        if "id" not in view.class_slots(class_name):
++            continue
++        pattern = view.induced_slot("id", class_name).pattern
++        if pattern is None or "(nmdc)" not in pattern:
++            continue
++        checked += 1
++        assert pattern.startswith("^(?:(nmdc):") and not pattern.endswith("$)$"), f"{class_name}: {pattern}"
++    assert checked > 0
+diff --git a/tests/test_structured_pattern_linkml_1_12.py b/tests/test_structured_pattern_linkml_1_12.py
+index 2a5afa23a4..7bddc5e372 100644
+--- a/tests/test_structured_pattern_linkml_1_12.py
++++ b/tests/test_structured_pattern_linkml_1_12.py
+@@ -250,7 +250,11 @@ def test_typecodes_are_the_same_for_wrapped_and_unwrapped_id_patterns(
+             continue
+         if pattern.startswith("^(?:") and pattern.endswith(")$"):
+             pattern = pattern[len("^(?:") : -len(")$")]
+-        unwrapped = get_compatible_typecodes(pattern)
++        # From 11.25.0 our own patterns carry no anchors, so the inner pattern may not start
++        # with ^ (https://github.com/microbiomedata/nmdc-schema/issues/3539). Compare the
++        # wrapped form with the plain anchored form 11.24.x shipped.
++        anchored = pattern if pattern.startswith("^") else f"^{pattern}"
++        unwrapped = get_compatible_typecodes(anchored)
+         if not unwrapped:
+             continue
+         checked += 1

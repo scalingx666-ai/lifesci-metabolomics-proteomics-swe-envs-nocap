@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3509"
+description = "Remove assets/mongodb_queries"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "d4bd09426685770e473e0059a052937c0c830e86"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3509"
+source_access = "auto"
+built_at = "2026-11-18T02:28:27.216034+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:a1b06568ef3f4c9bf253645729a30d4ac568f9815ae360d990ec2678e1b13537"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-12T17:44:58Z"
+diff_format = "unified"
+context_files = [
+    ".gitattributes",
+    "assets/mongodb_queries/data_qc/biosample_part_of_study.js",
+    "assets/mongodb_queries/data_qc/data_generation_has_input_biosample_or_processed_sample.js",
+    "assets/mongodb_queries/data_qc/data_generation_has_output_data_objects.js",
+    "assets/mongodb_queries/data_qc/data_object_was_generated_by_workflow_execution_or_data_generation.js",
+    "assets/mongodb_queries/data_qc/functional_annotation_agg_metagenome_metatranscriptome_annotation_id.js",
+    "assets/mongodb_queries/data_qc/material_processing_has_input_biosample_or_processed_sample.js",
+    "assets/mongodb_queries/delete_bioscales_data_objects.js",
+    "assets/mongodb_queries/delete_data_generation_has_output_ref_integrity_exceptions.js",
+    "assets/mongodb_queries/find_id_nonconforming_data_objects.js",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 194
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

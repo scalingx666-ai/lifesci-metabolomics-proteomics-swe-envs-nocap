@@ -1,0 +1,38 @@
+diff --git a/src/schema/basic_slots.yaml b/src/schema/basic_slots.yaml
+index ff48f0e4f8..aae0b8d0a5 100644
+--- a/src/schema/basic_slots.yaml
++++ b/src/schema/basic_slots.yaml
+@@ -102,8 +102,8 @@ slots:
+       badge, which is present or absent; there are no levels or tiers. Most
+       badges name a completeness subset, but not all do: expert_curation is
+       awarded from provenance instead. Awarded by a downstream service, not
+-      asserted by submitters, and recalculated whenever the record's
+-      ProvenanceMetadata.mod_date changes.
++      asserted by submitters. Awarding is additive: a badge, once awarded, is
++      not removed from the record.
+     range: MetadataBadgeEnum
+     multivalued: true
+     see_also:
+diff --git a/tests/test_badge_subset_sync.py b/tests/test_badge_subset_sync.py
+index 2dda386147..a55b697d3b 100644
+--- a/tests/test_badge_subset_sync.py
++++ b/tests/test_badge_subset_sync.py
+@@ -18,13 +18,11 @@
+ enum), https://github.com/microbiomedata/nmdc-schema/issues/3228 (subsets) and
+ https://github.com/microbiomedata/nmdc-schema/issues/3326 (qualifying bar).
+ 
+-Badge-topic subsets carry created_on, last_updated_on and modified_by so a
+-re-evaluation job can tell that a badge definition changed and score every
+-record against it again, instead of re-running badge logic over every
+-biosample on every release. See
+-https://github.com/microbiomedata/nmdc-schema/issues/3374, and
+-https://github.com/microbiomedata/issues/issues/1820 for the job that reads
+-them.
++Badge-topic subsets carry created_on, last_updated_on and modified_by as a
++record of when each badge definition was made and last changed. See
++https://github.com/microbiomedata/nmdc-schema/issues/3374. The job that awards
++badges (https://github.com/microbiomedata/issues/issues/1820) reads each
++subset's members and badge_minimum_slots, not these dates.
+ """
+ 
+ import unittest

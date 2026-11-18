@@ -1,0 +1,99 @@
+diff --git a/src/data/valid/Biosample-possibly-exhaustive.yaml b/src/data/valid/Biosample-possibly-exhaustive.yaml
+index 204394e234..84d9726a06 100644
+--- a/src/data/valid/Biosample-possibly-exhaustive.yaml
++++ b/src/data/valid/Biosample-possibly-exhaustive.yaml
+@@ -1517,7 +1517,6 @@ subsurface_depth:
+   type: nmdc:QuantityValue
+ dna_isolate_meth: DNA
+ collection_time: 05:42+0000
+-collection_time_inc: 13:42+0000
+ experimental_factor_other: unconstrained text, but presumably expects 'term label
+   [term id]'
+ filter_method: Basix PES, 13-100-106 FisherSci is an example value, but unconstrained
+diff --git a/src/schema/core.yaml b/src/schema/core.yaml
+index 5c7241e4c0..e1081bc2f9 100644
+--- a/src/schema/core.yaml
++++ b/src/schema/core.yaml
+@@ -876,7 +876,6 @@ classes:
+       
+       ## MIxS Inspired fields
+       - collection_time
+-      - collection_time_inc
+       - experimental_factor_other
+       - filter_method
+       - isotope_exposure
+diff --git a/src/schema/deprecated.yaml b/src/schema/deprecated.yaml
+index 8d31123a56..41184eae20 100644
+--- a/src/schema/deprecated.yaml
++++ b/src/schema/deprecated.yaml
+@@ -285,6 +285,33 @@ slots:
+     range: SampleStateEnum
+     deprecated: "not used https://github.com/microbiomedata/nmdc-schema/issues/2353"
+     last_updated_on: "2025-04-15T00:00:00Z"
++  collection_time_inc:
++    name: collection_time_inc
++    description: Time the incubation was harvested/collected/ended. Only relevant
++      for incubation samples.
++    title: incubation collection time, GMT
++    deprecated: This slot is directly replaced by collection_time. Any instances that
++      would use collection_time_inc should use collection_time instead.
++    notes:
++    - MIxS collection_date accepts (truncated) ISO8601. DH taking seconds optional
++      time only
++    comments:
++    - 'Time should be entered as HH:MM(:SS) in GMT. See here for a converter: https://www.worldtimebuddy.com/pst-to-gmt-converter'
++    examples:
++    - value: '13:33'
++    - value: '13:33:55'
++    from_schema: https://w3id.org/nmdc/nmdc
++    see_also:
++    - MIXS:0000011
++    deprecated_element_has_exact_replacement: collection_time
++    contributors:
++    - orcid:0009-0008-4013-7737
++    last_updated_on: '2026-09-04T00:00:00+00:00'
++    modified_by: orcid:0009-0008-4013-7737
++    rank: 3
++    string_serialization: '{time, seconds optional}'
++    slot_group: MIxS Inspired
++    recommended: true
+   collection_date_inc:
+     deprecated: >-
+       No longer needed. The harvest date is the harvested sample's own
+diff --git a/src/schema/portal_mixs_inspired.yaml b/src/schema/portal_mixs_inspired.yaml
+index 0025aae0fb..11eab74bad 100644
+--- a/src/schema/portal_mixs_inspired.yaml
++++ b/src/schema/portal_mixs_inspired.yaml
+@@ -31,32 +31,6 @@ slots:
+     string_serialization: '{time, seconds optional}'
+     slot_group: MIxS Inspired
+     recommended: true
+-  collection_time_inc:
+-    deprecated: >-
+-      This slot is directly replaced by collection_time. Any instances that would use collection_time_inc
+-      should use collection_time instead.
+-    deprecated_element_has_exact_replacement: collection_time
+-    last_updated_on: "2026-09-04T00:00:00Z"
+-    modified_by: orcid:0009-0008-4013-7737 #James Tessmer
+-    contributors:
+-      - orcid:0009-0008-4013-7737 #James Tessmer
+-    description: Time the incubation was harvested/collected/ended. Only relevant
+-      for incubation samples.
+-    title: incubation collection time, GMT
+-    notes:
+-      - MIxS collection_date accepts (truncated) ISO8601. DH taking seconds optional
+-        time only
+-    comments:
+-      - 'Time should be entered as HH:MM(:SS) in GMT. See here for a converter: https://www.worldtimebuddy.com/pst-to-gmt-converter'
+-    examples:
+-      - value: '13:33'
+-      - value: '13:33:55'
+-    see_also:
+-      - MIXS:0000011
+-    rank: 3
+-    string_serialization: '{time, seconds optional}'
+-    slot_group: MIxS Inspired
+-    recommended: true
+   experimental_factor_other:
+     description: Other details about your sample that you feel can't be accurately
+       represented in the available columns.

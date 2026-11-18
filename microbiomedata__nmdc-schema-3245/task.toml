@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3245"
+description = "Bump curies from 0.13.13 to 0.14.1 in the python-dependencies group"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "1e86e5b382f6fabf0c31bd4e01ebd50ab1030e48"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3245"
+source_access = "auto"
+built_at = "2026-11-18T02:32:35.860612+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:8af6b77068b97ff87b1ec2d584ba354a78034df7def0c93579a22c114ba08821"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-07-08T19:16:43Z"
+diff_format = "unified"
+context_files = [
+    "poetry.lock",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 6
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

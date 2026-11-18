@@ -1,0 +1,65 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3470"
+description = "Finalize deprecation of `collection_time_inc` "
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "647010882b233ff14cb1ba8339406437079ced88"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3470"
+source_access = "auto"
+built_at = "2026-11-18T02:28:52.512315+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:b87280ff0f92e7e24fd07b66d2f6b57e9a9275452fc71c202f7469c394ee3ccd"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-08T14:11:06Z"
+diff_format = "unified"
+context_files = [
+    "src/data/valid/Biosample-possibly-exhaustive.yaml",
+    "src/schema/core.yaml",
+    "src/schema/deprecated.yaml",
+    "src/schema/portal_mixs_inspired.yaml",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 55
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

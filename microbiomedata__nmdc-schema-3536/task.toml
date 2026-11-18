@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3536"
+description = "Remove the requests warning suppression from the Makefile"
+
+[metadata]
+difficulty = "easy"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "ba3f58f8ae8555cbdca0e95bc4f4d75135eb5814"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3536"
+source_access = "auto"
+built_at = "2026-11-18T02:28:00.320078+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:56d833bdea6a4fa4e3517a4d0c347c98a2a494a5536a59fcfb4ef2a8ae718bd5"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-15T02:03:19Z"
+diff_format = "unified"
+context_files = [
+    "Makefile",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 3
+difficulty = "trivial"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

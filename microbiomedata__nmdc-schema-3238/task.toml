@@ -1,0 +1,64 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3238"
+description = "Add MicroFlora Danica amplicon valid example data files"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "9bb3ae4f803cfa6eff01f02fdb8a30a8fd08543d"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3238"
+source_access = "auto"
+built_at = "2026-11-18T02:32:39.243997+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:42ddb5745e45f738e1be1ed49d93a451ba0a9bfa787699f5533e3a20fb164fa0"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-07-08T20:20:31Z"
+diff_format = "unified"
+context_files = [
+    "src/data/valid/Database-danica-16s.yaml",
+    "src/data/valid/Database-danica-bac-operon.yaml",
+    "src/data/valid/Database-danica-euk-operon.yaml",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 160
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

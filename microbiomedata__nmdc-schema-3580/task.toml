@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3580"
+description = "Update description for GTDBTK Summary JSON"
+
+[metadata]
+difficulty = "easy"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "64360acb2900e8b1cf0d475be9cc2dbc17097369"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3580"
+source_access = "auto"
+built_at = "2026-11-18T02:27:29.875002+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:67a3f036e9ea32f569a18a39ce6caae81d28fad47012cc8a256985b0a34e0916"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-29T13:12:57Z"
+diff_format = "unified"
+context_files = [
+    "src/schema/basic_slots.yaml",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 2
+difficulty = "trivial"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

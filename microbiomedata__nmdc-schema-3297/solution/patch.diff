@@ -1,0 +1,206 @@
+diff --git a/.github/workflows/check-links.yaml b/.github/workflows/check-links.yaml
+index 20d3630390..208fcd26a1 100644
+--- a/.github/workflows/check-links.yaml
++++ b/.github/workflows/check-links.yaml
+@@ -34,13 +34,13 @@ jobs:
+     steps:
+       - name: Check out commit
+         # Reference: https://github.com/actions/checkout
+-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
++        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+         with:
+           persist-credentials: false
+       - name: Install Poetry
+         run: pipx install poetry==2.4.1
+       - name: Set up Python
+-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
++        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+         with:
+           python-version: '3.12'
+           cache: 'poetry'
+diff --git a/.github/workflows/codeql.yaml b/.github/workflows/codeql.yaml
+index df9796c107..e124a78af5 100644
+--- a/.github/workflows/codeql.yaml
++++ b/.github/workflows/codeql.yaml
+@@ -47,18 +47,18 @@ jobs:
+         language: [ actions, python ]
+     steps:
+       - name: Check out repository
+-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
++        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+         with:
+           persist-credentials: false
+ 
+       - name: Initialize CodeQL
+-        uses: github/codeql-action/init@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
++        uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+         with:
+           languages: ${{ matrix.language }}
+           config-file: ./.github/codeql/codeql-config.yml
+           queries: security-and-quality
+ 
+       - name: Perform CodeQL analysis
+-        uses: github/codeql-action/analyze@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
++        uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+         with:
+           category: /language:${{ matrix.language }}
+diff --git a/.github/workflows/deploy-docs.yaml b/.github/workflows/deploy-docs.yaml
+index 24ec0197bd..21b2cf298a 100644
+--- a/.github/workflows/deploy-docs.yaml
++++ b/.github/workflows/deploy-docs.yaml
+@@ -23,7 +23,7 @@ jobs:
+         # `mkdocs gh-deploy --force`, which relies on the persisted checkout
+         # token. Proper hardening (push with an explicit scoped token, then set
+         # persist-credentials: false) is tracked in #3147.
+-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
++        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+         with:
+           fetch-depth: 0 # otherwise, you will failed to push refs to dest repo
+ 
+@@ -31,7 +31,7 @@ jobs:
+         run: pipx install poetry==2.4.1
+ 
+       - name: Set up Python 3.
+-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
++        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+         with:
+           python-version: '3.12'
+           cache: 'poetry'
+diff --git a/.github/workflows/lint.yaml b/.github/workflows/lint.yaml
+index 43929a1c0c..2d2cb5beab 100644
+--- a/.github/workflows/lint.yaml
++++ b/.github/workflows/lint.yaml
+@@ -25,7 +25,7 @@ jobs:
+       contents: read  # check out the repository to lint it
+     steps:
+       - name: Check out repository
+-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
++        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+         with:
+           persist-credentials: false
+ 
+@@ -33,7 +33,7 @@ jobs:
+         run: pipx install poetry==2.4.1
+ 
+       - name: Set up Python
+-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
++        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+         with:
+           python-version: '3.12'
+           cache: 'poetry'
+diff --git a/.github/workflows/main.yaml b/.github/workflows/main.yaml
+index 4df534f154..fdaa8aedec 100644
+--- a/.github/workflows/main.yaml
++++ b/.github/workflows/main.yaml
+@@ -27,7 +27,7 @@ jobs:
+       #       check-out repo and set-up python
+       #----------------------------------------------
+       - name: Check out repository
+-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
++        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+         with:
+           persist-credentials: false
+ 
+@@ -35,7 +35,7 @@ jobs:
+         run: pipx install poetry==2.4.1
+ 
+       - name: Set up Python ${{ matrix.python-version }}
+-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
++        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+         with:
+           python-version: ${{ matrix.python-version }}
+           cache: 'poetry'
+diff --git a/.github/workflows/pypi-publish.yaml b/.github/workflows/pypi-publish.yaml
+index 721bc90ef5..4546d21674 100644
+--- a/.github/workflows/pypi-publish.yaml
++++ b/.github/workflows/pypi-publish.yaml
+@@ -22,7 +22,7 @@ jobs:
+       id-token: write  # mandatory for OIDC trusted publishing (no other scope needed)
+ 
+     steps:
+-    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
++    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+       with:
+         # Do not persist the checkout token in .git/config. Publishing uses OIDC
+         # trusted publishing and version derivation reads only local git tags, so
+@@ -35,7 +35,7 @@ jobs:
+         pipx inject poetry "poetry-dynamic-versioning[plugin]"
+ 
+     - name: Set up Python
+-      uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
++      uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+       with:
+         python-version: '3.12'
+         # No dependency cache on the release trigger: a cache poisoned by a
+@@ -57,4 +57,4 @@ jobs:
+ 
+     - name: Publish distribution 📦 to PyPI
+       # No username or password because we're using trusted publishing
+-      uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # v1.14.0
++      uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # v1.14.1
+diff --git a/.github/workflows/schema-pattern-lint.yml b/.github/workflows/schema-pattern-lint.yml
+index 4e967f0df8..bcfd0b3b56 100644
+--- a/.github/workflows/schema-pattern-lint.yml
++++ b/.github/workflows/schema-pattern-lint.yml
+@@ -29,7 +29,7 @@ jobs:
+       contents: read  # check out the repository to lint it
+     steps:
+       - name: Check out repository
+-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
++        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+         with:
+           persist-credentials: false
+ 
+@@ -37,7 +37,7 @@ jobs:
+         run: pipx install poetry==2.4.1
+ 
+       - name: Set up Python
+-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
++        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+         with:
+           python-version: '3.12'
+           cache: 'poetry'
+diff --git a/.github/workflows/test-pages-build.yaml b/.github/workflows/test-pages-build.yaml
+index 1f6a07715a..66b79d4c2e 100644
+--- a/.github/workflows/test-pages-build.yaml
++++ b/.github/workflows/test-pages-build.yaml
+@@ -27,7 +27,7 @@ jobs:
+         # gh-pages branch via rossjrw/pr-preview-action, which relies on the
+         # persisted checkout token. Proper hardening (push with an explicit
+         # scoped token, then set persist-credentials: false) is tracked in #3147.
+-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
++        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+         with:
+           fetch-depth: 0
+ 
+@@ -35,7 +35,7 @@ jobs:
+         run: pipx install poetry==2.4.1
+ 
+       - name: Set up Python 3
+-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
++        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+         with:
+           python-version: '3.12'
+           cache: 'poetry'
+diff --git a/.github/workflows/zizmor.yml b/.github/workflows/zizmor.yml
+index 54d7a2c02c..cb3d5efefa 100644
+--- a/.github/workflows/zizmor.yml
++++ b/.github/workflows/zizmor.yml
+@@ -28,7 +28,7 @@ jobs:
+       contents: read
+     steps:
+       - name: Check out repository
+-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
++        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+         with:
+           persist-credentials: false
+ 
+@@ -45,7 +45,7 @@ jobs:
+         # Also non-blocking: if zizmor crashed before writing a valid SARIF,
+         # the upload may fail, but that must not fail the build either.
+         continue-on-error: true
+-        uses: github/codeql-action/upload-sarif@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
++        uses: github/codeql-action/upload-sarif@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+         with:
+           sarif_file: zizmor.sarif
+           category: zizmor

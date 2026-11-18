@@ -1,0 +1,98 @@
+diff --git a/src/schema/basic_classes.yaml b/src/schema/basic_classes.yaml
+index 77d3d1808a..c58beaf328 100644
+--- a/src/schema/basic_classes.yaml
++++ b/src/schema/basic_classes.yaml
+@@ -536,6 +536,18 @@ classes:
+         required: true
+       data_category:
+         required: true
++    rules:
++      - title: sra_toolkit_object_requires_run_identifier
++        description: >-
++          If data_object_type is "SRA toolkit-accessible sequence data", then insdc_run_identifiers is required, because such objects are retrieved by INSDC run accession through the SRA Toolkit rather than by a stable URL.
++        preconditions:
++          slot_conditions:
++            data_object_type:
++              equals_string: SRA toolkit-accessible sequence data
++        postconditions:
++          slot_conditions:
++            insdc_run_identifiers:
++              required: true
+ 
+   DataEmitterProcess:
+     class_uri: nmdc:DataEmitterProcess
+diff --git a/src/schema/basic_slots.yaml b/src/schema/basic_slots.yaml
+index ee59e1b541..b3603f70c9 100644
+--- a/src/schema/basic_slots.yaml
++++ b/src/schema/basic_slots.yaml
+@@ -57,19 +57,19 @@ slots:
+     description: Sequencing technique intended for this library
+     range: LibraryStrategyEnum
+     see_also:
+-      - https://github.com/enasequence/webin-xml/blob/master/src/main/resources/uk/ac/ebi/ena/sra/schema/SRA.experiment.xsd
++      - https://github.com/enasequence/webin-xml/blob/2.1.0/src/main/resources/uk/ac/ebi/ena/sra/schema/SRA.experiment.xsd
+ 
+   library_source:
+     description: The molecular source of the sequencing library
+     range: LibrarySourceEnum
+     see_also:
+-      - https://github.com/enasequence/webin-xml/blob/master/src/main/resources/uk/ac/ebi/ena/sra/schema/SRA.experiment.xsd
++      - https://github.com/enasequence/webin-xml/blob/2.1.0/src/main/resources/uk/ac/ebi/ena/sra/schema/SRA.experiment.xsd
+ 
+   library_selection:
+     description: Library selection or enrichment method used
+     range: LibrarySelectionEnum
+     see_also:
+-      - https://github.com/enasequence/webin-xml/blob/master/src/main/resources/uk/ac/ebi/ena/sra/schema/SRA.experiment.xsd
++      - https://github.com/enasequence/webin-xml/blob/2.1.0/src/main/resources/uk/ac/ebi/ena/sra/schema/SRA.experiment.xsd
+ 
+   processing_institution_workflow_metadata:
+     range: string
+@@ -746,8 +746,10 @@ enums:
+ 
+   LibraryStrategyEnum:
+     description: Sequencing strategy used for library preparation
++    comments:
++      - NMDC intentionally supports a curated subset of the INSDC library strategy vocabulary. The complete controlled vocabulary is defined in the referenced SRA.experiment.xsd; values can be added as needed.
+     see_also:
+-      - https://github.com/enasequence/webin-xml/blob/master/src/main/resources/uk/ac/ebi/ena/sra/schema/SRA.experiment.xsd
++      - https://github.com/enasequence/webin-xml/blob/2.1.0/src/main/resources/uk/ac/ebi/ena/sra/schema/SRA.experiment.xsd
+     permissible_values:
+       WGA:
+         title: Whole Genome Amplification
+@@ -770,12 +772,12 @@ enums:
+       AMPLICON:
+         description: Sequencing of overlapping or distinct PCR or RT-PCR products
+         comments:
+-          -  metagenomic community profiling using SSU rRN, for example
++          -  metagenomic community profiling using SSU rRNA, for example
+         
+   LibrarySourceEnum:
+     description: Molecular source of the sequencing library
+     see_also:
+-      - https://github.com/enasequence/webin-xml/blob/master/src/main/resources/uk/ac/ebi/ena/sra/schema/SRA.experiment.xsd
++      - https://github.com/enasequence/webin-xml/blob/2.1.0/src/main/resources/uk/ac/ebi/ena/sra/schema/SRA.experiment.xsd
+     permissible_values:
+       GENOMIC:
+         description: Genomic DNA (includes PCR products from genomic DNA)
+@@ -799,8 +801,10 @@ enums:
+         description: "Other, unspecified, or unknown library source material "
+   LibrarySelectionEnum:
+     description: Library selection or enrichment method
++    comments:
++      - NMDC intentionally supports a curated subset of the INSDC library selection vocabulary. The complete controlled vocabulary is defined in the referenced SRA.experiment.xsd; values can be added as needed.
+     see_also:
+-      - https://github.com/enasequence/webin-xml/blob/master/src/main/resources/uk/ac/ebi/ena/sra/schema/SRA.experiment.xsd
++      - https://github.com/enasequence/webin-xml/blob/2.1.0/src/main/resources/uk/ac/ebi/ena/sra/schema/SRA.experiment.xsd
+     permissible_values:
+       RANDOM:
+         description: Random selection by shearing or other method
+@@ -937,7 +941,7 @@ enums:
+           - https://github.com/ncbi/sra-tools/wiki/HowTo:-fasterq-dump
+ 
+       SRA toolkit-accessible sequence data:
+-        description: Files that are avaliable for download via SRA Toolkit by providing an INSDC accession
++        description: Files that are available for download via SRA Toolkit by providing an INSDC accession
+         comments:
+            - File format will depend on options specified to SRA Toolkit
+         see_also:

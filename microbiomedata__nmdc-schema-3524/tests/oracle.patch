@@ -1,0 +1,923 @@
+diff --git a/assets/yq-for-mixs-dematerialize.yq b/assets/yq-for-mixs-dematerialize.yq
+index 0d6a5289e7..44a06ada84 100644
+--- a/assets/yq-for-mixs-dematerialize.yq
++++ b/assets/yq-for-mixs-dematerialize.yq
+@@ -65,4 +65,7 @@ del(.classes) |
+ # syntax uses placeholders like {scientific_float}, {text}, {URL} that need
+ # settings for pattern interpolation. Those settings are defined in
+ # src/schema/nmdc.yaml instead, so they're available during materialization.
++# makefiles/mixs.Makefile then copies the keys mixs.yaml uses back in from
++# nmdc.yaml, because linkml 1.12 only interpolates a pattern with its own
++# module's settings (https://github.com/microbiomedata/nmdc-schema/issues/3523).
+ del(.settings)
+diff --git a/makefiles/mixs.Makefile b/makefiles/mixs.Makefile
+index 48be78e729..32c0659957 100644
+--- a/makefiles/mixs.Makefile
++++ b/makefiles/mixs.Makefile
+@@ -45,7 +45,12 @@ src/schema/mixs.yaml: shuttle-clean local/mixs_regen/mixs_minus_1.yaml
+ 	# that require settings for pattern interpolation. These settings are defined in
+ 	# src/schema/nmdc.yaml instead, so they're available during schema materialization.
+ 	# See: https://github.com/microbiomedata/nmdc-schema/issues/1368
++	# From linkml 1.12 a structured_pattern only sees the settings of its own module, so after
++	# the yq step sync_module_settings.py copies the keys mixs.yaml uses from nmdc.yaml into it.
++	# nmdc.yaml stays the one place to edit a value.
++	# See: https://github.com/microbiomedata/nmdc-schema/issues/3523
+ 	yq eval --from-file assets/yq-for-mixs-dematerialize.yq $(word 2,$^) > $@
++	$(RUN) python src/scripts/sync_module_settings.py $@
+ 	rm -rf local/mixs_regen/mixs_subset_modified.yaml.bak
+ 
+ local/mixs_regen/mixs_subset.yaml: assets/import_mixs_slots_regardless.tsv
+diff --git a/src/schema/annotation.yaml b/src/schema/annotation.yaml
+index 7e4b893587..78ad3ff631 100644
+--- a/src/schema/annotation.yaml
++++ b/src/schema/annotation.yaml
+@@ -202,3 +202,12 @@ slots:
+     description: The start of the feature in positive 1-based integer coordinates
+     close_mappings:
+       - biolink:start_interbase_coordinate
++
++# Settings below are copied from nmdc.yaml by src/scripts/sync_module_settings.py.
++# Do not edit them here; edit nmdc.yaml and rerun the script.
++# See https://github.com/microbiomedata/nmdc-schema/issues/3523
++settings:
++  id_blade: ([A-Za-z0-9]{1,})
++  id_nmdc_prefix: ^(nmdc)
++  id_shoulder: ([0-9][a-z]{0,6}[0-9])
++  id_version: (\.[1-9]{1}[0-9]{0,})
+diff --git a/src/schema/basic_classes.yaml b/src/schema/basic_classes.yaml
+index b10935b39a..c9c1dddaf1 100644
+--- a/src/schema/basic_classes.yaml
++++ b/src/schema/basic_classes.yaml
+@@ -1654,3 +1654,12 @@ enums:
+       aneuploid:
+         meaning: PATO:0001385
+         description: A chromosome number that is not an exact multiple of the haploid set (extra or missing chromosomes).
++
++# Settings below are copied from nmdc.yaml by src/scripts/sync_module_settings.py.
++# Do not edit them here; edit nmdc.yaml and rerun the script.
++# See https://github.com/microbiomedata/nmdc-schema/issues/3523
++settings:
++  id_blade: ([A-Za-z0-9]{1,})
++  id_nmdc_prefix: ^(nmdc)
++  id_shoulder: ([0-9][a-z]{0,6}[0-9])
++  id_version: (\.[1-9]{1}[0-9]{0,})
+diff --git a/src/schema/core.yaml b/src/schema/core.yaml
+index f90a7c5dbb..5d0269d32a 100644
+--- a/src/schema/core.yaml
++++ b/src/schema/core.yaml
+@@ -2086,3 +2086,12 @@ slots:
+   known_as:
+     range: ChemicalEntityEnum
+     description: The substance from which a portion was taken.
++
++# Settings below are copied from nmdc.yaml by src/scripts/sync_module_settings.py.
++# Do not edit them here; edit nmdc.yaml and rerun the script.
++# See https://github.com/microbiomedata/nmdc-schema/issues/3523
++settings:
++  id_blade: ([A-Za-z0-9]{1,})
++  id_nmdc_prefix: ^(nmdc)
++  id_shoulder: ([0-9][a-z]{0,6}[0-9])
++  id_version: (\.[1-9]{1}[0-9]{0,})
+diff --git a/src/schema/deprecated.yaml b/src/schema/deprecated.yaml
+index 717ce25ef4..ec62c28955 100644
+--- a/src/schema/deprecated.yaml
++++ b/src/schema/deprecated.yaml
+@@ -843,3 +843,12 @@ types:
+     deprecated_element_has_possible_replacement: UnitEnum
+     last_updated_on: '2026-10-07T00:00:00Z'
+     modified_by: orcid:0000-0001-9076-6066
++
++# Settings below are copied from nmdc.yaml by src/scripts/sync_module_settings.py.
++# Do not edit them here; edit nmdc.yaml and rerun the script.
++# See https://github.com/microbiomedata/nmdc-schema/issues/3523
++settings:
++  id_blade: ([A-Za-z0-9]{1,})
++  id_nmdc_prefix: ^(nmdc)
++  id_shoulder: ([0-9][a-z]{0,6}[0-9])
++  id_version: (\.[1-9]{1}[0-9]{0,})
+diff --git a/src/schema/mixs.yaml b/src/schema/mixs.yaml
+index 5904b84842..dd0ea301f0 100644
+--- a/src/schema/mixs.yaml
++++ b/src/schema/mixs.yaml
+@@ -8318,3 +8318,37 @@ slots:
+     contributors:
+       - orcid:0000-0001-9076-6066 # Mark Andrew Miller
+ default_range: string
++
++# Settings below are copied from nmdc.yaml by src/scripts/sync_module_settings.py.
++# Do not edit them here; edit nmdc.yaml and rerun the script.
++# See https://github.com/microbiomedata/nmdc-schema/issues/3523
++settings:
++  DOI: doi:10\.\d{2,9}/.*
++  NCBItaxon_id: NCBITaxon:\d+
++  PMID: PMID:\d+
++  URL: https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&\/=]*)
++  add_recov_methods: Water Injection|Dump Flood|Gas Injection|Wag Immiscible Injection|Polymer Addition|Surfactant Addition|Not Applicable|other
++  agrochemical_name: .*
++  amount: '[-+]?[0-9]*\.?[0-9]+'
++  country: ([^\s-]{1,2}|[^\s-]+.+[^\s-]+)
++  date_time_stamp: (\d{4})(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01])(T([01]\d|2[0-3]):([0-5]\d)(:([0-5]\d))?(\.\d+)?(Z|([+-][01]\d:[0-5]\d))?)?)?)?
++  duration: P(?:(?:\d+D|\d+M(?:\d+D)?|\d+Y(?:\d+M(?:\d+D)?)?)(?:T(?:\d+H(?:\d+M(?:\d+S)?)?|\d+M(?:\d+S)?|\d+S))?|T(?:\d+H(?:\d+M(?:\d+S)?)?|\d+M(?:\d+S)?|\d+S)|\d+W)
++  float: '[-+]?[0-9]*\.?[0-9]+'
++  integer: '[1-9][0-9]*'
++  lat: (-?((?:[0-8]?[0-9](?:\.\d{0,8})?)|90))
++  lon: -?[0-9]+(?:\.[0-9]{0,8})?$|^-?(1[0-7]{1,2})
++  name: .*
++  parameters: ([^\s-]{1,2}|[^\s-]+.+[^\s-]+)
++  particulate_matter_name: .*
++  primer_adapter_codes: '[ACGTRYSWKMBDHVNI]'
++  region: ([^\s-]{1,2}|[^\s-]+.+[^\s-]+)
++  room_name: ([^\s-]{1,2}|[^\s-]+.+[^\s-]+)
++  room_number: '[1-9][0-9]*'
++  scientific_float: '[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?'
++  software: ([^\s-]{1,2}|[^\s-]+.+[^\s-]+)
++  specific_location: ([^\s-]{1,2}|[^\s-]+.+[^\s-]+)
++  termID: '[a-zA-Z]{2,}:[a-zA-Z0-9]\d+'
++  termLabel: ([^\s-]{1,2}|[^\s-]+.+[^\s-]+)
++  text: .*
++  unit: ([^\s-]{1,2}|[^\s-]+.+[^\s-]+)
++  version: ([^\s-]{1,2}|[^\s-]+.+[^\s-]+)
+diff --git a/src/schema/nmdc.yaml b/src/schema/nmdc.yaml
+index f5a43c3801..180d60a864 100644
+--- a/src/schema/nmdc.yaml
++++ b/src/schema/nmdc.yaml
+@@ -153,6 +153,12 @@ settings:
+   # 2. The MIxS import pipeline explicitly deletes settings (see project.Makefile)
+   # When updating MIxS import, these settings must be manually synced if the source changes.
+   #
++  # Every module with an interpolated structured_pattern also carries a copy of the keys it
++  # uses, because linkml 1.12 interpolates a pattern only with its own module's settings.
++  # Edit values here, then run src/scripts/sync_module_settings.py on the modules
++  # (tests/test_module_settings.py fails if a copy is out of date).
++  # See https://github.com/microbiomedata/nmdc-schema/issues/3523
++  #
+   # Source: GSC MIxS v6.3.0 (commit fb3271909f5ab3277d4c869e816bc9e334cb816f)
+   add_recov_methods: 'Water Injection|Dump Flood|Gas Injection|Wag Immiscible Injection|Polymer Addition|Surfactant Addition|Not Applicable|other'
+   agrochemical_name: ".*"
+diff --git a/src/schema/workflow_execution_activity.yaml b/src/schema/workflow_execution_activity.yaml
+index 612a316afa..37a19b5769 100644
+--- a/src/schema/workflow_execution_activity.yaml
++++ b/src/schema/workflow_execution_activity.yaml
+@@ -659,3 +659,12 @@ enums:
+       lc_ms_metabolomics:
+         description: >-
+           A metabolomics analysis that is performed on liquid chromatography mass spectrometry data.
++
++# Settings below are copied from nmdc.yaml by src/scripts/sync_module_settings.py.
++# Do not edit them here; edit nmdc.yaml and rerun the script.
++# See https://github.com/microbiomedata/nmdc-schema/issues/3523
++settings:
++  id_blade: ([A-Za-z0-9]{1,})
++  id_nmdc_prefix: ^(nmdc)
++  id_shoulder: ([0-9][a-z]{0,6}[0-9])
++  id_version: (\.[1-9]{1}[0-9]{0,})
+diff --git a/src/scripts/sync_module_settings.py b/src/scripts/sync_module_settings.py
+new file mode 100644
+index 0000000000..30f848956e
+--- /dev/null
++++ b/src/scripts/sync_module_settings.py
+@@ -0,0 +1,151 @@
++"""Copy the settings each schema module needs from src/schema/nmdc.yaml into that module.
++
++From linkml-runtime 1.12, a structured_pattern is interpolated only with the settings of the
++module that defines it (https://github.com/linkml/linkml/issues/4135). Settings declared in
++nmdc.yaml no longer reach patterns in the modules it imports, so those patterns keep literal
++placeholders such as {id_nmdc_prefix}. This script gives each module a settings block holding
++exactly the keys its interpolated patterns use, with values copied from nmdc.yaml, which stays
++the single place to edit a value.
++
++The block is written at the end of the module, after a marker comment, and is replaced on each
++run. Run it after changing a setting in nmdc.yaml or a pattern in a module:
++
++    poetry run python src/scripts/sync_module_settings.py src/schema/core.yaml ...
++
++With --check, nothing is written and the exit status is 1 if any module is out of date.
++See https://github.com/microbiomedata/nmdc-schema/issues/3523.
++"""
++
++import re
++import sys
++from pathlib import Path
++
++import click
++import yaml
++
++SCHEMA_DIR = Path(__file__).resolve().parents[2] / "src" / "schema"
++SOURCE_SCHEMA = SCHEMA_DIR / "nmdc.yaml"
++
++# A named {setting} placeholder. Regex repetition such as {2} or {0,6} is not one.
++PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
++
++MARKER = (
++    "# Settings below are copied from nmdc.yaml by src/scripts/sync_module_settings.py.\n"
++    "# Do not edit them here; edit nmdc.yaml and rerun the script.\n"
++    "# See https://github.com/microbiomedata/nmdc-schema/issues/3523\n"
++)
++
++
++def used_setting_keys(node: object) -> set[str]:
++    """Return the placeholder names used by interpolated structured_patterns anywhere in node.
++
++    >>> sorted(used_setting_keys({"s": {"structured_pattern": {"syntax": "^{a}:{b}[0-9]{2}$", "interpolated": True}}}))
++    ['a', 'b']
++    >>> used_setting_keys({"s": {"structured_pattern": {"syntax": "^{a}$"}}})
++    set()
++    """
++    keys: set[str] = set()
++    if isinstance(node, dict):
++        structured_pattern = node.get("structured_pattern")
++        if (
++            isinstance(structured_pattern, dict)
++            and structured_pattern.get("interpolated") is True
++        ):
++            keys.update(PLACEHOLDER.findall(str(structured_pattern.get("syntax", ""))))
++        for value in node.values():
++            keys.update(used_setting_keys(value))
++    elif isinstance(node, list):
++        for value in node:
++            keys.update(used_setting_keys(value))
++    return keys
++
++
++def source_settings(source_schema: Path = SOURCE_SCHEMA) -> dict[str, str]:
++    """Return the settings declared in the source schema as plain strings."""
++    with source_schema.open(encoding="utf-8") as f:
++        settings = yaml.safe_load(f).get("settings") or {}
++    return {key: str(value) for key, value in settings.items()}
++
++
++def strip_settings_block(text: str) -> str:
++    """Remove a block previously written by this script, if present.
++
++    >>> strip_settings_block("a: 1\\n\\n" + MARKER + "settings:\\n  x: 'y'\\n")
++    'a: 1\\n'
++    >>> strip_settings_block("a: 1\\n")
++    'a: 1\\n'
++    """
++    index = text.find(MARKER)
++    if index == -1:
++        return text
++    return text[:index].rstrip("\n") + "\n"
++
++
++def settings_block(keys: set[str], settings: dict[str, str]) -> str:
++    """Return the marker and a settings block for keys, quoted so YAML reads the values back unchanged."""
++    missing = sorted(keys - settings.keys())
++    if missing:
++        raise KeyError(
++            f"placeholders with no value in the source schema's settings: {', '.join(missing)}"
++        )
++    body = yaml.safe_dump(
++        {"settings": {key: settings[key] for key in sorted(keys)}},
++        default_style=None,
++        sort_keys=False,
++        allow_unicode=True,
++        width=float("inf"),
++    )
++    return MARKER + body
++
++
++def synced_text(module: Path, settings: dict[str, str]) -> str:
++    """Return the module's text with its settings block brought up to date."""
++    text = module.read_text(encoding="utf-8")
++    base = strip_settings_block(text)
++    parsed = yaml.safe_load(base)
++    if "settings" in parsed:
++        raise ValueError(
++            f"{module} declares its own settings outside the generated block"
++        )
++    keys = used_setting_keys(parsed)
++    if not keys:
++        return base
++    return base + "\n" + settings_block(keys, settings)
++
++
++@click.command()
++@click.argument(
++    "modules",
++    nargs=-1,
++    required=True,
++    type=click.Path(exists=True, dir_okay=False, path_type=Path),
++)
++@click.option(
++    "--check", is_flag=True, help="Write nothing; exit 1 if any module is out of date."
++)
++@click.option(
++    "--source",
++    default=SOURCE_SCHEMA,
++    show_default=True,
++    type=click.Path(exists=True, dir_okay=False, path_type=Path),
++    help="Schema whose settings are copied.",
++)
++def main(modules: tuple[Path, ...], check: bool, source: Path) -> None:
++    """Copy the settings each MODULE's interpolated structured_patterns use from the source schema."""
++    settings = source_settings(source)
++    stale = []
++    for module in modules:
++        new_text = synced_text(module, settings)
++        if new_text == module.read_text(encoding="utf-8"):
++            continue
++        stale.append(module)
++        if not check:
++            module.write_text(new_text, encoding="utf-8")
++            click.echo(f"updated {module}")
++    if check and stale:
++        click.echo("out of date: " + ", ".join(str(m) for m in stale), err=True)
++        sys.exit(1)
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/tests/test_module_settings.py b/tests/test_module_settings.py
+new file mode 100644
+index 0000000000..14a00f750a
+--- /dev/null
++++ b/tests/test_module_settings.py
+@@ -0,0 +1,289 @@
++"""Each schema module must carry the settings its interpolated structured_patterns use.
++
++linkml-runtime 1.12 interpolates a structured_pattern only with the settings of the module that
++defines it (https://github.com/linkml/linkml/issues/4135), so settings declared only in nmdc.yaml
++leave literal placeholders such as {id_nmdc_prefix} in every other module's patterns. The copies
++are written by src/scripts/sync_module_settings.py; nmdc.yaml stays the one place to edit a value.
++See https://github.com/microbiomedata/nmdc-schema/issues/3523.
++
++The checks resolve each module with PatternResolver on that module alone, which reads only the
++module's own settings on linkml-runtime 1.11 and 1.12 alike, so they fail on the old layout even
++though the locked runtime still merges settings across imports.
++"""
++
++from pathlib import Path
++
++import pytest
++import yaml
++from click.testing import CliRunner
++from linkml_runtime import SchemaView
++from linkml_runtime.utils.pattern import PatternResolver
++
++from src.scripts.sync_module_settings import (
++    MARKER,
++    PLACEHOLDER,
++    main,
++    settings_block,
++    source_settings,
++    strip_settings_block,
++    synced_text,
++    used_setting_keys,
++)
++
++SCHEMA_DIR = Path(__file__).resolve().parent.parent / "src" / "schema"
++SOURCE_SCHEMA = SCHEMA_DIR / "nmdc.yaml"
++
++
++def _load(path: Path) -> dict:
++    with path.open(encoding="utf-8") as f:
++        return yaml.safe_load(f)
++
++
++def _interpolated_syntaxes(node: object) -> list[str]:
++    found = []
++    if isinstance(node, dict):
++        structured_pattern = node.get("structured_pattern")
++        if (
++            isinstance(structured_pattern, dict)
++            and structured_pattern.get("interpolated") is True
++        ):
++            found.append(str(structured_pattern["syntax"]))
++        for value in node.values():
++            found.extend(_interpolated_syntaxes(value))
++    elif isinstance(node, list):
++        for value in node:
++            found.extend(_interpolated_syntaxes(value))
++    return found
++
++
++MODULES_WITH_PATTERNS = sorted(
++    path.name
++    for path in SCHEMA_DIR.glob("*.yaml")
++    if path.name != SOURCE_SCHEMA.name and used_setting_keys(_load(path))
++)
++
++# Every module but nmdc.yaml, so a block left behind after a module's last placeholder is
++# removed is still found as stale.
++ALL_MODULES = sorted(
++    path.name for path in SCHEMA_DIR.glob("*.yaml") if path.name != SOURCE_SCHEMA.name
++)
++
++
++def test_modules_with_interpolated_patterns_are_found() -> None:
++    """Guard against the parametrized tests below silently checking nothing."""
++    assert {
++        "core.yaml",
++        "basic_classes.yaml",
++        "mixs.yaml",
++        "workflow_execution_activity.yaml",
++    } <= set(MODULES_WITH_PATTERNS)
++
++
++@pytest.mark.parametrize("module_name", MODULES_WITH_PATTERNS)
++def test_module_declares_every_setting_its_patterns_use(module_name: str) -> None:
++    module = _load(SCHEMA_DIR / module_name)
++    declared = set((module.get("settings") or {}).keys())
++    missing = sorted(used_setting_keys(module) - declared)
++    assert not missing, f"{module_name} uses settings it does not declare: {missing}"
++
++
++@pytest.mark.parametrize("module_name", ALL_MODULES)
++def test_module_declares_no_unused_settings(module_name: str) -> None:
++    module = _load(SCHEMA_DIR / module_name)
++    declared = set((module.get("settings") or {}).keys())
++    extra = sorted(declared - used_setting_keys(module))
++    assert not extra, (
++        f"{module_name} declares settings none of its patterns use: {extra}"
++    )
++
++
++@pytest.mark.parametrize("module_name", MODULES_WITH_PATTERNS)
++def test_module_setting_values_match_nmdc_yaml(module_name: str) -> None:
++    source = source_settings(SOURCE_SCHEMA)
++    declared = _load(SCHEMA_DIR / module_name).get("settings") or {}
++    drifted = sorted(
++        key for key, value in declared.items() if str(value) != source.get(key)
++    )
++    assert not drifted, (
++        f"{module_name} settings differ from nmdc.yaml for {drifted}; rerun sync_module_settings.py"
++    )
++
++
++@pytest.mark.parametrize("module_name", MODULES_WITH_PATTERNS)
++def test_module_patterns_resolve_with_only_its_own_settings(module_name: str) -> None:
++    """The linkml 1.12 rule: a pattern sees only its own module's settings."""
++    resolver = PatternResolver(SchemaView(str(SCHEMA_DIR / module_name)))
++    unresolved = [
++        syntax
++        for syntax in _interpolated_syntaxes(_load(SCHEMA_DIR / module_name))
++        if PLACEHOLDER.search(resolver.resolve(syntax))
++    ]
++    assert not unresolved, (
++        f"{module_name}: {len(unresolved)} patterns keep placeholders, e.g. {unresolved[:3]}"
++    )
++
++
++def test_nmdc_yaml_patterns_resolve_with_its_own_settings() -> None:
++    resolver = PatternResolver(SchemaView(str(SOURCE_SCHEMA)))
++    unresolved = [
++        syntax
++        for syntax in _interpolated_syntaxes(_load(SOURCE_SCHEMA))
++        if PLACEHOLDER.search(resolver.resolve(syntax))
++    ]
++    assert not unresolved
++
++
++def test_settings_copies_are_up_to_date() -> None:
++    """The same check as `sync_module_settings.py --check` over every module."""
++    result = CliRunner().invoke(
++        main, ["--check", *(str(SCHEMA_DIR / name) for name in ALL_MODULES)]
++    )
++    assert result.exit_code == 0, result.output
++
++
++def test_settings_block_is_the_last_thing_in_each_module() -> None:
++    """The script replaces everything after the marker, so nothing hand-written may follow it."""
++    for module_name in MODULES_WITH_PATTERNS:
++        text = (SCHEMA_DIR / module_name).read_text(encoding="utf-8")
++        assert text.count(MARKER) == 1, module_name
++        tail = text[text.index(MARKER) + len(MARKER) :]
++        assert set(yaml.safe_load(tail).keys()) == {"settings"}, module_name
++
++
++# Unit tests for src/scripts/sync_module_settings.py
++
++
++@pytest.fixture
++def module_file(tmp_path: Path) -> Path:
++    path = tmp_path / "module.yaml"
++    path.write_text(
++        "id: https://example.org/module\n"
++        "name: module\n"
++        "slots:\n"
++        "  id:\n"
++        "    structured_pattern:\n"
++        "      syntax: '{id_nmdc_prefix}:x-{id_shoulder}-[0-9]{2}$'\n"
++        "      interpolated: true\n"
++        "  code:\n"
++        "    structured_pattern:\n"
++        "      syntax: '^{not_interpolated}$'\n",
++        encoding="utf-8",
++    )
++    return path
++
++
++def test_used_setting_keys_ignores_quantifiers_and_uninterpolated_patterns(
++    module_file: Path,
++) -> None:
++    assert used_setting_keys(_load(module_file)) == {"id_nmdc_prefix", "id_shoulder"}
++
++
++def test_sync_adds_only_the_keys_used(module_file: Path) -> None:
++    settings = {"id_nmdc_prefix": "^(nmdc)", "id_shoulder": "([0-9])", "unused": "x"}
++    parsed = yaml.safe_load(synced_text(module_file, settings))
++    assert parsed["settings"] == {"id_nmdc_prefix": "^(nmdc)", "id_shoulder": "([0-9])"}
++
++
++def test_sync_keeps_the_rest_of_the_file_byte_for_byte(module_file: Path) -> None:
++    original = module_file.read_text(encoding="utf-8")
++    new_text = synced_text(module_file, {"id_nmdc_prefix": "a", "id_shoulder": "b"})
++    assert new_text.startswith(original)
++
++
++def test_sync_is_idempotent(module_file: Path) -> None:
++    settings = {"id_nmdc_prefix": "a", "id_shoulder": "b"}
++    module_file.write_text(synced_text(module_file, settings), encoding="utf-8")
++    assert synced_text(module_file, settings) == module_file.read_text(encoding="utf-8")
++
++
++def test_sync_replaces_a_stale_value(module_file: Path) -> None:
++    module_file.write_text(
++        synced_text(module_file, {"id_nmdc_prefix": "old", "id_shoulder": "b"}),
++        encoding="utf-8",
++    )
++    parsed = yaml.safe_load(
++        synced_text(module_file, {"id_nmdc_prefix": "new", "id_shoulder": "b"})
++    )
++    assert parsed["settings"]["id_nmdc_prefix"] == "new"
++
++
++def test_sync_removes_the_block_when_no_pattern_needs_it(tmp_path: Path) -> None:
++    path = tmp_path / "plain.yaml"
++    path.write_text(
++        "id: https://example.org/plain\nname: plain\n\n"
++        + MARKER
++        + "settings:\n  x: 'y'\n",
++        encoding="utf-8",
++    )
++    assert (
++        synced_text(path, {"x": "y"}) == "id: https://example.org/plain\nname: plain\n"
++    )
++
++
++def test_check_finds_a_block_left_after_the_last_placeholder_is_removed(
++    tmp_path: Path,
++) -> None:
++    path = tmp_path / "plain.yaml"
++    path.write_text(
++        "id: https://example.org/plain\nname: plain\n\n"
++        + MARKER
++        + "settings:\n  x: 'y'\n",
++        encoding="utf-8",
++    )
++    source = tmp_path / "source.yaml"
++    source.write_text(
++        "id: https://example.org/s\nname: s\nsettings:\n  x: 'y'\n", encoding="utf-8"
++    )
++    result = CliRunner().invoke(main, ["--check", "--source", str(source), str(path)])
++    assert result.exit_code == 1
++
++
++def test_sync_rejects_a_placeholder_with_no_value(module_file: Path) -> None:
++    with pytest.raises(KeyError, match="id_shoulder"):
++        synced_text(module_file, {"id_nmdc_prefix": "a"})
++
++
++def test_sync_refuses_hand_written_settings(tmp_path: Path) -> None:
++    path = tmp_path / "own.yaml"
++    path.write_text(
++        "id: https://example.org/own\nname: own\nsettings:\n  a: b\n"
++        "slots:\n  s:\n    structured_pattern:\n      syntax: '{a}'\n      interpolated: true\n",
++        encoding="utf-8",
++    )
++    with pytest.raises(ValueError, match="declares its own settings"):
++        synced_text(path, {"a": "b"})
++
++
++def test_every_nmdc_setting_value_survives_the_round_trip() -> None:
++    """Backslashes, quotes, colons and leading ^ in nmdc.yaml values must read back unchanged."""
++    settings = source_settings(SOURCE_SCHEMA)
++    block = settings_block(set(settings), settings)
++    assert yaml.safe_load(block.removeprefix(MARKER))["settings"] == settings
++
++
++def test_strip_settings_block_without_a_block_is_a_no_op(module_file: Path) -> None:
++    text = module_file.read_text(encoding="utf-8")
++    assert strip_settings_block(text) == text
++
++
++def test_cli_check_reports_and_writes_nothing(
++    module_file: Path, tmp_path: Path
++) -> None:
++    source = tmp_path / "source.yaml"
++    source.write_text(
++        "id: https://example.org/s\nname: s\nsettings:\n  id_nmdc_prefix: a\n  id_shoulder: b\n",
++        encoding="utf-8",
++    )
++    before = module_file.read_text(encoding="utf-8")
++    result = CliRunner().invoke(
++        main, ["--check", "--source", str(source), str(module_file)]
++    )
++    assert result.exit_code == 1
++    assert module_file.read_text(encoding="utf-8") == before
++
++    result = CliRunner().invoke(main, ["--source", str(source), str(module_file)])
++    assert result.exit_code == 0
++    result = CliRunner().invoke(
++        main, ["--check", "--source", str(source), str(module_file)]
++    )
++    assert result.exit_code == 0, result.output
+diff --git a/tests/test_structured_pattern_linkml_1_12.py b/tests/test_structured_pattern_linkml_1_12.py
+new file mode 100644
+index 0000000000..2a5afa23a4
+--- /dev/null
++++ b/tests/test_structured_pattern_linkml_1_12.py
+@@ -0,0 +1,292 @@
++"""Check the schema against how linkml-runtime 1.12 resolves structured patterns.
++
++linkml-runtime 1.12 (https://github.com/linkml/linkml/pull/3832) changed four things, and the
++repo still locks 1.11, so these tests compute the 1.12 result themselves instead of relying on
++whichever runtime is installed:
++
++1. A structured_pattern is interpolated with the settings of its own module only
++   (https://github.com/linkml/linkml/issues/4135). Covered in test_module_settings.py.
++2. Unless partial_match is true, the resolved pattern is wrapped as ^(?:...)$, so a value must
++   match the whole pattern (https://github.com/linkml/linkml/issues/4134).
++3. induced_slot rebuilds pattern from structured_pattern and ignores an asserted pattern.
++4. A placeholder in a structured_pattern without interpolated: true is escaped and kept as
++   literal text. Covered in test_structured_patterns_interpolated.py.
++"""
++
++import re
++from pathlib import Path
++
++import pytest
++import yaml
++from linkml_runtime import SchemaView
++from linkml_runtime.linkml_model.meta import SchemaDefinition, Setting, SlotDefinition
++from linkml_runtime.utils.pattern import PatternResolver
++
++from nmdc_schema.get_nmdc_view import ViewGetter
++from nmdc_schema.id_helpers import get_compatible_typecodes
++
++ROOT = Path(__file__).resolve().parent.parent
++SCHEMA_DIR = ROOT / "src" / "schema"
++VALID_DATA_DIR = ROOT / "src" / "data" / "valid"
++PLACEHOLDER = re.compile(r"\{[A-Za-z_][A-Za-z0-9_]*\}")
++
++
++def _load(path: Path) -> object:
++    with path.open(encoding="utf-8") as f:
++        return yaml.safe_load(f)
++
++
++def _walk(node: object, path: str = ""):
++    """Yield (path, dict) for every mapping in node."""
++    if isinstance(node, dict):
++        yield path, node
++        for key, value in node.items():
++            yield from _walk(value, f"{path}/{key}")
++    elif isinstance(node, list):
++        for index, value in enumerate(node):
++            yield from _walk(value, f"{path}[{index}]")
++
++
++@pytest.fixture(scope="module")
++def source_view() -> SchemaView:
++    return SchemaView(str(SCHEMA_DIR / "nmdc.yaml"))
++
++
++@pytest.fixture(scope="module")
++def resolvers(source_view: SchemaView) -> dict[str, PatternResolver]:
++    """One resolver per module, each seeing only that module's settings, as linkml 1.12 does."""
++    return {
++        str(schema.id): PatternResolver(SchemaView(schema))
++        for schema in source_view.all_schema()
++    }
++
++
++def _apply_1_12_rules(
++    definition: SlotDefinition, schema_id: str, resolvers: dict[str, PatternResolver]
++) -> str | None:
++    """Resolve one asserted definition the way linkml-runtime 1.12's SchemaView.resolve_pattern does (v1.12.1)."""
++    structured_pattern = definition.structured_pattern
++    if structured_pattern is None:
++        return definition.pattern
++    pattern = structured_pattern.syntax
++    if structured_pattern.interpolated:
++        pattern = resolvers[schema_id].resolve(pattern)
++    if not structured_pattern.partial_match:
++        pattern = f"^(?:{pattern})$"
++    return pattern
++
++
++def resolve_like_linkml_1_12(
++    view: SchemaView,
++    slot_name: str,
++    class_name: str,
++    resolvers: dict[str, PatternResolver],
++) -> str | None:
++    """Return the pattern linkml-runtime 1.12 would give the induced slot, without needing 1.12 installed.
++
++    The rule that matters here: a pattern is resolved with the settings of the module that asserted
++    it, so a slot_usage or attribute uses its class's module and a slot definition uses its own.
++    The nearest assertion wins: the class and then its ancestors (slot_usage or attributes), then the
++    slot and its ancestors. test_emulation_agrees_with_installed_runtime checks this against the
++    real induced_slot whenever linkml-runtime 1.12 or later is installed.
++    """
++    for ancestor in view.class_ancestors(class_name, reflexive=True, mixins=True):
++        owning_class = view.get_class(ancestor)
++        for asserted in (
++            owning_class.slot_usage.get(slot_name),
++            owning_class.attributes.get(slot_name),
++        ):
++            if asserted is not None and (
++                asserted.structured_pattern is not None or asserted.pattern
++            ):
++                return _apply_1_12_rules(
++                    asserted, str(owning_class.from_schema), resolvers
++                )
++    for ancestor in view.slot_ancestors(slot_name, reflexive=True):
++        slot = view.get_slot(ancestor, attributes=False)
++        if slot is not None and (slot.structured_pattern is not None or slot.pattern):
++            return _apply_1_12_rules(slot, str(slot.from_schema), resolvers)
++    return None
++
++
++def test_no_slot_asserts_both_pattern_and_structured_pattern() -> None:
++    """1.12's induced_slot replaces an asserted pattern with the resolved structured_pattern."""
++    both = [
++        f"{module.name}{path}"
++        for module in sorted(SCHEMA_DIR.glob("*.yaml"))
++        for path, node in _walk(_load(module))
++        if "pattern" in node and isinstance(node.get("structured_pattern"), dict)
++    ]
++    assert not both, (
++        "pattern and structured_pattern on the same element:\n" + "\n".join(both)
++    )
++
++
++def test_partial_match_is_only_ever_true() -> None:
++    """partial_match: false is the default; spelling it out hides which patterns are deliberately partial."""
++    values = {
++        node["structured_pattern"]["partial_match"]
++        for module in SCHEMA_DIR.glob("*.yaml")
++        for _, node in _walk(_load(module))
++        if isinstance(node.get("structured_pattern"), dict)
++        and "partial_match" in node["structured_pattern"]
++    }
++    assert values <= {True}
++
++
++def test_resolver_matches_the_documented_1_12_behavior() -> None:
++    """Pin the emulation itself, so a mistake in it cannot make every check below pass."""
++    schema = SchemaDefinition(
++        id="m", name="m", settings={"p": Setting(setting_key="p", setting_value="nmdc")}
++    )
++    resolvers = {"m": PatternResolver(SchemaView(schema))}
++    full = SlotDefinition(
++        "s", structured_pattern={"syntax": "^{p}:x$", "interpolated": True}
++    )
++    partial = SlotDefinition(
++        "s",
++        structured_pattern={
++            "syntax": "{p}",
++            "interpolated": True,
++            "partial_match": True,
++        },
++    )
++    asserted = SlotDefinition("s", pattern="^a$")
++    assert _apply_1_12_rules(full, "m", resolvers) == "^(?:^nmdc:x$)$"
++    assert _apply_1_12_rules(partial, "m", resolvers) == "nmdc"
++    assert _apply_1_12_rules(asserted, "m", resolvers) == "^a$"
++
++
++def _string_patterns_by_class(
++    view: SchemaView, resolvers: dict[str, PatternResolver]
++) -> dict[str, dict[str, re.Pattern]]:
++    """For each class, the 1.12 pattern of every slot whose range is a type (patterns on class ranges are ignored)."""
++    type_names = set(view.all_types())
++    result: dict[str, dict[str, re.Pattern]] = {}
++    for class_name in view.all_classes():
++        for slot_name in view.class_slots(class_name):
++            if view.induced_slot(slot_name, class_name).range not in type_names:
++                continue
++            pattern = resolve_like_linkml_1_12(view, slot_name, class_name, resolvers)
++            if pattern:
++                result.setdefault(class_name, {})[slot_name] = re.compile(pattern)
++    return result
++
++
++def test_no_resolved_pattern_keeps_a_placeholder(
++    source_view: SchemaView, resolvers: dict[str, PatternResolver]
++) -> None:
++    leftovers = sorted(
++        f"{class_name}.{slot_name}: {pattern.pattern}"
++        for class_name, slots in _string_patterns_by_class(
++            source_view, resolvers
++        ).items()
++        for slot_name, pattern in slots.items()
++        if PLACEHOLDER.search(pattern.pattern)
++    )
++    assert not leftovers, (
++        f"{len(leftovers)} patterns keep placeholders under linkml 1.12, e.g. {leftovers[:5]}"
++    )
++
++
++def test_every_class_id_pattern_resolves(
++    source_view: SchemaView, resolvers: dict[str, PatternResolver]
++) -> None:
++    """Report per class; the source schema has 57 classes with an id slot."""
++    unresolved = sorted(
++        class_name
++        for class_name, slots in _string_patterns_by_class(
++            source_view, resolvers
++        ).items()
++        if "id" in slots and PLACEHOLDER.search(slots["id"].pattern)
++    )
++    assert not unresolved, (
++        f"id pattern keeps placeholders under linkml 1.12 for {unresolved}"
++    )
++
++
++def test_valid_examples_match_the_anchored_1_12_patterns(
++    source_view: SchemaView, resolvers: dict[str, PatternResolver]
++) -> None:
++    """Valid example data must still match once patterns are anchored at both ends."""
++    patterns = _string_patterns_by_class(source_view, resolvers)
++    checked = 0
++    failures = []
++    for data_file in sorted(VALID_DATA_DIR.glob("*.yaml")):
++        for path, node in _walk(_load(data_file)):
++            class_name = str(node.get("type", "")).removeprefix("nmdc:")
++            for slot_name, pattern in patterns.get(class_name, {}).items():
++                values = node.get(slot_name)
++                for value in values if isinstance(values, list) else [values]:
++                    if not isinstance(value, str):
++                        continue
++                    checked += 1
++                    if not pattern.search(value):
++                        failures.append(
++                            f"{data_file.name}{path}.{slot_name} = {value!r} !~ {pattern.pattern}"
++                        )
++    assert checked > 500, f"only {checked} values checked; is the type lookup broken?"
++    assert not failures, (
++        f"{len(failures)} valid values fail under linkml 1.12:\n"
++        + "\n".join(failures[:20])
++    )
++
++
++@pytest.fixture(scope="module")
++def materialized_view() -> SchemaView:
++    return ViewGetter().get_view()
++
++
++def test_typecodes_are_the_same_for_wrapped_and_unwrapped_id_patterns(
++    materialized_view: SchemaView,
++) -> None:
++    """id_helpers must read every class's id pattern the same way before and after 1.12's wrapping."""
++    checked = 0
++    for class_name in materialized_view.all_classes():
++        if "id" not in materialized_view.class_slots(class_name):
++            continue
++        pattern = materialized_view.induced_slot("id", class_name).pattern
++        if not pattern:
++            continue
++        if pattern.startswith("^(?:") and pattern.endswith(")$"):
++            pattern = pattern[len("^(?:") : -len(")$")]
++        unwrapped = get_compatible_typecodes(pattern)
++        if not unwrapped:
++            continue
++        checked += 1
++        assert get_compatible_typecodes(f"^(?:{pattern})$") == unwrapped, class_name
++    assert checked > 30
++
++
++def test_materialized_artifact_patterns_have_no_placeholders() -> None:
++    materialized = _load(ROOT / "nmdc_schema" / "nmdc_materialized_patterns.yaml")
++    leftovers = [
++        path
++        for path, node in _walk(materialized)
++        if isinstance(node.get("pattern"), str) and PLACEHOLDER.search(node["pattern"])
++    ]
++    assert not leftovers, leftovers[:10]
++
++
++def test_emulation_agrees_with_installed_runtime(
++    source_view: SchemaView, resolvers: dict[str, PatternResolver]
++) -> None:
++    """With linkml-runtime 1.12 or later installed, the emulation must equal the real induced pattern."""
++    if not hasattr(SchemaView, "resolve_pattern"):
++        pytest.skip(
++            "installed linkml-runtime predates 1.12; nothing to compare against"
++        )
++    disagreements = []
++    for class_name in source_view.all_classes():
++        for slot_name in source_view.class_slots(class_name):
++            expected = source_view.induced_slot(slot_name, class_name).pattern
++            emulated = resolve_like_linkml_1_12(
++                source_view, slot_name, class_name, resolvers
++            )
++            if emulated != expected:
++                disagreements.append(
++                    f"{class_name}.{slot_name}: emulated {emulated!r}, runtime {expected!r}"
++                )
++    assert not disagreements, f"{len(disagreements)} disagreements:\n" + "\n".join(
++        disagreements[:20]
++    )

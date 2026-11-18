@@ -1,0 +1,35 @@
+diff --git a/.github/workflows/schema-pattern-lint.yml b/.github/workflows/schema-pattern-lint.yml
+index 2591643cf0..4e967f0df8 100644
+--- a/.github/workflows/schema-pattern-lint.yml
++++ b/.github/workflows/schema-pattern-lint.yml
+@@ -29,7 +29,7 @@ jobs:
+       contents: read  # check out the repository to lint it
+     steps:
+       - name: Check out repository
+-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
++        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+         with:
+           persist-credentials: false
+ 
+@@ -37,7 +37,7 @@ jobs:
+         run: pipx install poetry==2.4.1
+ 
+       - name: Set up Python
+-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
++        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+         with:
+           python-version: '3.12'
+           cache: 'poetry'
+diff --git a/.github/workflows/zizmor.yml b/.github/workflows/zizmor.yml
+index 3085311d53..bae74ebd87 100644
+--- a/.github/workflows/zizmor.yml
++++ b/.github/workflows/zizmor.yml
+@@ -45,7 +45,7 @@ jobs:
+         # Also non-blocking: if zizmor crashed before writing a valid SARIF,
+         # the upload may fail, but that must not fail the build either.
+         continue-on-error: true
+-        uses: github/codeql-action/upload-sarif@8aad20d150bbac5944a9f9d289da16a4b0d87c1e # v4.36.2
++        uses: github/codeql-action/upload-sarif@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4.36.3
+         with:
+           sarif_file: zizmor.sarif
+           category: zizmor

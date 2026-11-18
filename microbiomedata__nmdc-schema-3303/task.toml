@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3303"
+description = "Objectify the Biosample slot_usage examples in core.yaml"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "f2ef34d9ee6f703038eae41bdfa9c08e6489facc"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3303"
+source_access = "auto"
+built_at = "2026-11-18T02:31:21.593506+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:df65e9200e71583c8a8b1a0d40216449a201301d47aad252cc19605fd8eba7b5"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-07-24T21:59:12Z"
+diff_format = "unified"
+context_files = [
+    "src/schema/core.yaml",
+    "tests/test_example_objects.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 115
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

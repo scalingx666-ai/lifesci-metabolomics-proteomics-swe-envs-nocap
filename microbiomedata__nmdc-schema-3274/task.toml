@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3274"
+description = "Document intentional seen_patterns.add() placement in schema_pattern_linting"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "9fd926a7c6f13f6556a73422dbacb03eb2ba69c4"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3274"
+source_access = "auto"
+built_at = "2026-11-18T02:31:53.307728+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:82f1fc530029b94c1bf8c21b35d75d380f8190f9f035f7f3de9a76684f9f3723"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-07-13T18:33:41Z"
+diff_format = "unified"
+context_files = [
+    "src/scripts/schema_pattern_linting.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 9
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

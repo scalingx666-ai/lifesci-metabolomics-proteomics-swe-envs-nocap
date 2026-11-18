@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3584"
+description = "Create `pha4ge_wastewater` subset and add elements (slots, enums) to it"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "a7f2dfaec37c46f916e6245548974243541d29b3"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3584"
+source_access = "auto"
+built_at = "2026-11-18T02:27:24.234191+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:d629d072d1de868223961c9d5f035a5faac4483115b049abae9e76a6ca916c47"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-10T22:48:44Z"
+diff_format = "unified"
+context_files = [
+    "assets/yq-for-mixs-customizations.txt",
+    "src/schema/basic_classes.yaml",
+    "src/schema/basic_slots.yaml",
+    "src/schema/core.yaml",
+    "src/schema/external_identifiers.yaml",
+    "src/schema/mixs.yaml",
+    "src/schema/subsets.md",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 348
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

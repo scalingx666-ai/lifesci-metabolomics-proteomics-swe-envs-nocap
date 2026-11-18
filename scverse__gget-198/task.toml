@@ -41,7 +41,6 @@ context_files = [
     "tests/fixtures/test_8cube.json",
     "tests/test_8cube.py",
 ]
-bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -60,15 +59,10 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "inline_dockerfile"
+mode = "local_only"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "public"
-pushed_at = "2026-11-16T15:51:53.207861+00:00"
-pushed_by = "scalingX"
-inline_recipe_sha256 = "sha256:03ff925a87f4f8b4ea86439a7f1dc184e43bd54ec21dd9b1ea9b8b1711825424"
-inline_recipe_lines = 37
-inline_recipe_source = "user_dockerfile"
+image_visibility = "private"
 
 [agent]
 timeout_sec = 1800.0

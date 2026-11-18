@@ -1,0 +1,72 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3421"
+description = "Require a term on isotopolog and add hetero_isotopolog for labeled inputs with no PubChem compound"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "5eb1afce2d810fb4ab3cf35549bae682ebf6c361"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3421"
+source_access = "auto"
+built_at = "2026-11-18T02:29:33.052598+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:933c78d67fa3c14ba41da4f4fb38a31c30111e2eb2b6015970ff88660017d066"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-09-16T16:23:42Z"
+diff_format = "unified"
+context_files = [
+    "assets/yq-for-mixs-customizations.txt",
+    "src/data/invalid/IsotopeLabelingProcess-isotopolog-and-hetero-isotopolog-both-given.yaml",
+    "src/data/invalid/IsotopeLabelingProcess-isotopolog-and-hetero-isotopolog-neither-given.yaml",
+    "src/data/invalid/IsotopeLabelingProcess-isotopolog-cid-zero.yaml",
+    "src/data/invalid/IsotopeLabelingProcess-isotopolog-no-term.yaml",
+    "src/data/valid/IsotopeLabelingProcess-hetero-isotopolog-organism.yaml",
+    "src/data/valid/IsotopeLabelingProcess-hetero-isotopolog-undefined-mixture.yaml",
+    "src/data/valid/IsotopeLabelingProcess-isotopolog-multiple.yaml",
+    "src/data/valid/IsotopeLabelingProcess-isotopolog-undefined-mixture.yaml",
+    "src/schema/mixs.yaml",
+    "src/schema/nmdc.yaml",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 168
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

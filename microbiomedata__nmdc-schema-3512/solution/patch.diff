@@ -1,0 +1,27 @@
+diff --git a/nmdc_schema/id_helpers.py b/nmdc_schema/id_helpers.py
+index c962d2b7f3..af53164101 100644
+--- a/nmdc_schema/id_helpers.py
++++ b/nmdc_schema/id_helpers.py
+@@ -32,6 +32,13 @@ def get_compatible_typecodes(slot_pattern: str) -> List[str]:
+     ['foo', 'bar']
+     >>> get_compatible_typecodes("^(nmdc):(foo|bar|baz)-...")
+     ['foo', 'bar', 'baz']
++
++    LinkML 1.12 wraps an already-anchored pattern as `^(?:...)$`:
++
++    >>> get_compatible_typecodes("^(?:^(nmdc):foo-...)$")
++    ['foo']
++    >>> get_compatible_typecodes("^(?:^(nmdc):(foo|bar)-...)$")
++    ['foo', 'bar']
+     """
+     typecodes: List[str] = []
+ 
+@@ -79,6 +86,8 @@ def get_typecode_for_future_ids(slot_pattern: str) -> Optional[str]:
+     'foo'
+     >>> get_typecode_for_future_ids("^(nmdc):(foo|bar|baz)-...")
+     'foo'
++    >>> get_typecode_for_future_ids("^(?:^(nmdc):(foo|bar)-...)$")
++    'foo'
+     """
+     compatible_typecodes = get_compatible_typecodes(slot_pattern)
+     return compatible_typecodes[0] if len(compatible_typecodes) > 0 else None

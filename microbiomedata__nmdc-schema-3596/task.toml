@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3596"
+description = "Add no-op migrator from 11.25.0 to 11.26.0"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "618db429f611b48f0148b2afd1322ac0bedd6d8d"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3596"
+source_access = "auto"
+built_at = "2026-11-18T02:26:52.209067+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:10f0f7a3c43ec926f4dea44a2b05ec96decbccb97937fbb00651271e31f68ba0"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-05T17:18:29Z"
+diff_format = "unified"
+context_files = [
+    "nmdc_schema/migrators/migrator_from_11_25_0_to_11_26_0.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 15
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

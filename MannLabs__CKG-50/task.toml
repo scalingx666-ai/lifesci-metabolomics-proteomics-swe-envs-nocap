@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/MannLabs__CKG-50"
+description = "Update pip_revision"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "CKG",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "MannLabs/CKG"
+ref = "49f3bd7ad199961f4234dcb30c8bb30764c0a209"
+reference = "https://github.com/MannLabs/CKG/pull/50"
+source_access = "auto"
+built_at = "2026-11-18T03:48:56.864659+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:07630b241a0cf3424c724aeb6cb80c4a2fa4938a1b092774044887cc8c6d4424"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2021-02-12T15:04:50Z"
+diff_format = "unified"
+context_files = [
+    "Dockerfile",
+    "docker_entrypoint.sh",
+    "resources/neo4j_db/neo4j.conf",
+    "resources/uwsgi.ini",
+    "src/analytics_core/analytics/analytics.py",
+    "src/graphdb_builder/builder/create_user.py",
+    "src/graphdb_builder/builder_utils.py",
+    "src/graphdb_connector/connector.py",
+    "src/report_manager/apps/templates/files/ClinicalData__Pxxxxxxx.xlsx",
+    "src/report_manager/apps/templates/files/ExperimentalDesign_Pxxxxxxx.xlsx",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 568
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

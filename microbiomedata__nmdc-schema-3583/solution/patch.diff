@@ -1,0 +1,416 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 44952063fa..c8fcd75a16 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -106,21 +106,12 @@ Dependabot security updates and alerts are on; `.github/dependabot.yml` adds gro
+ - Write verbose, descriptive variable and function names
+ - Use None return values to indicate absence of a result
+ 
+-## LinkML Mapping Metaslots — Conventions
++## Mappings and structured aliases
+ 
+-Use typed subtypes (`exact_mappings`, `close_mappings`, `broad_mappings`,
+-`narrow_mappings`, `related_mappings`) in preference to generic `mappings`.
+-
+-**Exception — keep `mappings` (generic) for:** schema.org properties
+-(`schema:QuantityValue`, `schema:latitude`, etc.), QUDT (`qudt:unit`,
+-`qudt:quantityValue`), and `prov:wasGeneratedBy`. These are
+-*property-to-property* alignments where SKOS directional semantics
+-(broader/narrower) don't apply. Do not "fix" these to `exact_mappings`.
+-
+-**`see_also`** is for human-readable documentation pointers only: URLs,
+-GitHub issue links, specification documents. Ontology CURIEs belong in a
+-`*_mappings` slot. See #3031 for an open cleanup of MIXS CURIEs currently
+-in `see_also` in `portal_mixs_inspired.yaml`.
++The rules for `exact_mappings`, `close_mappings`, `related_mappings`, `broad_mappings`, `narrow_mappings`, generic
++`mappings`, `meaning`, `class_uri`, `slot_uri` and `see_also` are in one place, the "Mapping schema elements to
++external terms" section of `src/docs/maintaining-the-schema.md`. Read it before adding or changing a mapping, and
++change that section rather than restating the rules here.
+ 
+ **`structured_aliases`** requires `literal_form`, a SKOS predicate
+ (`EXACT_SYNONYM`, `NARROW_SYNONYM`, `BROAD_SYNONYM`, `RELATED_SYNONYM`),
+@@ -134,52 +125,6 @@ template), put the best public URL in `source` and a one-line caveat in
+ EXACT) also goes in `notes`, not in a YAML `#` comment. Plain `aliases` is
+ for unattributed synonym strings.
+ 
+-**Type compatibility.** A mapping relates elements of the same kind: a class
+-maps to a class, a slot maps to a property, and a permissible value maps to a
+-class (a PV names a kind, so it aligns with an ontology class, not a property).
+-Do not map a slot to a class or a PV to a property.
+-
+-**Predicate strength.** Use `exact_mappings` only for genuine identity; prefer
+-`close_mappings` or `related_mappings` when the aligned term is an assay, method,
+-or measurement adjacent to (not the same as) the schema element. A common trap:
+-mapping a gene or region value to a *sequencing-assay* term (e.g. an OBI assay
+-class) belongs in `related_mappings`, not `exact_mappings`, because the assay is
+-not the gene. Keep abstraction layers distinct (a process is not the assay that
+-runs it).
+-
+-**Finding candidates.** Prefer embeddings search (OLS4 `llm_search`) over lexical
+-matching, and treat a high similarity score as a candidate to verify, not a
+-confirmed mapping. Confirm the CURIE resolves to the intended term before
+-asserting it.
+-
+-**Predicate choice and directionality.** LinkML's mapping slots map one-to-one to
+-SKOS predicates ([`linkml-model` mappings.yaml](https://github.com/linkml/linkml-model/blob/main/linkml_model/model/schema/mappings.yaml),
+-[W3C SKOS Reference](https://www.w3.org/TR/skos-reference/)). `exact`/`close`/`related`
+-are symmetric; `broad`/`narrow` are directional inverses of each other:
+-
+-| Slot | SKOS predicate | Symmetric? | `X <slot> Y` means |
+-|---|---|---|---|
+-| `exact_mappings` | `skos:exactMatch` | yes (transitive) | X and Y denote the same concept |
+-| `close_mappings` | `skos:closeMatch` | yes (not transitive, by design) | close enough to treat as the same in some applications |
+-| `related_mappings` | `skos:relatedMatch` | yes | X is associatively related to Y (no subsumption) |
+-| `broad_mappings` | `skos:broadMatch` | no | **Y is broader than X** (X is the more specific) |
+-| `narrow_mappings` | `skos:narrowMatch` | no | **Y is narrower than X** (X is the more general) |
+-| `mappings` (generic) | `skos:mappingRelation` | n/a | untyped; reserve for property-to-property alignments |
+-
+-Directionality is the common trap. The SKOS Reference states "`A skos:broader B`
+-asserts that B, the object, is a broader concept than A," and `skos:broadMatch` is a
+-sub-property of `skos:broader` (S41), so `X broad_mappings Y` means **Y subsumes X**.
+-SKOS Primer example: `platypus skos:broadMatch eggLayingAnimals` (the specific concept
+-points up to the broader one). In this schema `bacterial_rRNA_operon broad_mappings
+-SO:0000178` (operon) reads correctly: operon is broader than that specific rRNA operon.
+-
+-**Current state (do not extend).** The schema still holds ~27 slot→class mappings
+-(e.g. GTDB-Tk ranks → TAXRANK, mass-spec slots → MS/OBI, `mass` → PATO, DOI slots →
+-OBI/NCIT) plus several `broad`/`narrow` mappings that are actually associative and
+-should be `related_mappings` (e.g. `num_16s broad_mappings` an rRNA molecule — a
+-count is not subsumed by the molecule). These are legacy: do not add new slot→class
+-mappings, and use `broad`/`narrow` only for genuine subsumption.
+-
+ ## Documenting modeling decisions, not debates
+ 
+ Element `description`, `comments`, and `notes` state the current modeling
+diff --git a/src/docs/maintaining-the-schema.md b/src/docs/maintaining-the-schema.md
+index c02d46e689..0d1f159f64 100644
+--- a/src/docs/maintaining-the-schema.md
++++ b/src/docs/maintaining-the-schema.md
+@@ -24,8 +24,8 @@ and especially those from the [OBO Foundry](https://obofoundry.org/).
+ Reuse of existing terminologies and knowledge can be found in several places in the NMDC schema, including the use of
+ the [MIxS](https://gensc.org/mixs/) schema, the [EnvO](https://environmentontology.org/) ontology, and the 
+ [CHEBI](https://www.ebi.ac.uk/chebi/) ontology.  In addition, the NMDC schema elements like slots and classes are
+-annotated with mappings ([exact, narrow, related scopes](https://linkml.io/linkml/schemas/uris-and-mappings.html)) 
+-to these external resources.
++annotated with mappings to these external resources, as described in
++[Mapping schema elements to external terms](#mapping-schema-elements-to-external-terms).
+ 
+ For example: 
+ ```yaml
+@@ -37,13 +37,12 @@ For example:
+       - DOI
+       - digital object identifier
+     range: uriorcurie
+-    pattern: '^doi:10.\d{2,9}/.*$'
++    pattern: '^doi:10\.\d{2,9}/.*$'
+     examples:
+       - value: doi:10.46936/10.25585/60000880
+         description: The DOI links to an electronic document.
+-    exact_mappings:
++    close_mappings:
+       - OBI:0002110
+-    narrow_mappings:
+       - edam.data:1188
+ ```
+ 
+@@ -62,26 +61,79 @@ Ideally, the expanded URI should be web resolvable, but that is not required.
+ The prefixes can be expanded to base URIs owned by a particular resource, or they can be
+ expanded to base URIs owned by some resolving service, like the bioregistry.
+ 
+-## Asserting mappings in the NMDC Schema
++## Mapping schema elements to external terms
+ 
+-As mentioned above, URIs are assigned to most elements of a LinkML schema, either explicitly by the schema authors,
+-or implicitly through the default prefix and the element's key. If an external prefix is used, that means the semantics 
+-of the element are identical to the external term, unless otherwise refined. Sometimes it is desirable to associate a 
+-LinkML schema element with a term from an external resource, without asserting that the semantics are identical. 
+-In this case, a variety of [mapping terms](https://linkml.io/linkml-model/latest/docs/mappings/) can be used.
++A mapping relates a schema element to a term in another vocabulary without making that term the element's
++identity. Mappings are one of the most compact ways to say what an element means, so contributors are encouraged
++to add them. This section is the NMDC Schema's single statement of how to use them.
+ 
+-Adding mappings to a schema element is one of the best and most compact ways to clarify the meaning of that element. 
++### Mappings and the other metaslots that hold external terms
+ 
+-Schema contributors are strongly encouraged to use mappings whose prefixes are already defined in the schema.
+-Schema contributors are always responsible for having a holistic understanding of an external term to be mapped
+-into the schema. This means gaining familiarity with the parent and child terms, as well as any other axioms 
+-applied to the term. The EBI Ontology Lookup Service is a good place to look for these details.
++Four other metaslots also hold external terms, and each does a different job:
+ 
+-When it appears necessary to use a mapping whose prefix isn't already defined in the schema, the contributor
+-is responsible for having a holistic understanding of the external namespace (not just the term to be mapped).
+-There are several ways to start assessing an ontology that is being considered as a source of mappings.
+-If the ontology is in the OBO Foundry, one can look at the 
+-[OBO Foundry Dashboard](http://dashboard.obofoundry.org/dashboard/index.html).
++- `class_uri` and `slot_uri` give the element its own identity in RDF and OWL. Use them only when the element and
++  the external term are the same thing.
++- `meaning` names the term that a permissible value stands for.
++- `see_also` links to pages for human readers, such as specifications and GitHub issues. An ontology CURIE
++  belongs in a mapping, not in `see_also`.
++
++### The mapping metaslots
++
++Each LinkML mapping metaslot becomes one SKOS predicate in the generated OWL
++([linkml-model mappings.yaml](https://github.com/linkml/linkml-model/blob/main/linkml_model/model/schema/mappings.yaml),
++[W3C SKOS Reference](https://www.w3.org/TR/skos-reference/)). In the table, X is the schema element and Y is the
++external term.
++
++| Metaslot | SKOS predicate | `X <metaslot> Y` means | How the NMDC Schema uses it |
++|---|---|---|---|
++| `exact_mappings` | `skos:exactMatch` | X and Y are the same concept. | For identity between elements of the same kind, such as `Biosample` and `OBI:0000747`, or `title` and `dcterms:title`. |
++| `close_mappings` | `skos:closeMatch` | X and Y are close enough to treat as the same in some applications. | For near-identity, such as `Organization` and `dcm:Organization`. |
++| `related_mappings` | `skos:relatedMatch` | X and Y are associated, and neither subsumes the other. | For adjacent terms, such as the assay that produces a value or the rank of a taxon name. |
++| `broad_mappings` | `skos:broadMatch` | Y is broader than X. | For subsumption between elements of the same kind, such as `Study` and `prov:Activity`. |
++| `narrow_mappings` | `skos:narrowMatch` | Y is narrower than X. | For subsumption between elements of the same kind, such as `FunctionalAnnotation` and `biolink:GeneToGoTermAssociation`. |
++| `mappings` | `skos:mappingRelation` | X and Y are related in an unstated way. | Only for the existing schema.org, QUDT and PROV alignments, such as `latitude` and `schema:latitude`. Use a typed metaslot for anything new. |
++
++The direction of `broad_mappings` and `narrow_mappings` is easy to get backwards. `skos:broadMatch` is a
++sub-property of `skos:broader`, and the SKOS Reference says "`A skos:broader B` asserts that B, the object, is a
++broader concept than A". So `X broad_mappings Y` says that Y subsumes X, the way "egg-laying animal" subsumes
++"platypus".
++
++### Which kinds of element can map to which
++
++A class maps to a class, and a permissible value maps to a class or to a value in another vocabulary. A slot maps
++to a property where the other vocabulary has one.
++
++Many ontologies model a data field only as a class, for example GENEPIO fields, OBI data items, PATO qualities,
++and MS and TAXRANK terms. When such a class is the best match for a slot, put it in `close_mappings` or
++`related_mappings`. `exact_mappings`, `broad_mappings` and `narrow_mappings` would assert identity or subsumption
++between a property and a class, which can't hold, and generic `mappings` is kept for the schema.org, QUDT and PROV
++alignments.
++
++To choose between the two, ask whether each value of the slot is an instance of what the class describes. If it
++is, use `close_mappings`. `number_of_contig` holds a count of contigs, and `GENEPIO:0000093` (contig count) describes
++exactly that. If it isn't, use `related_mappings`. `gtdbtk_species` holds a species name,
++while `TAXRANK:0000006` is the rank "species" itself.
++
++### Permissible values: `meaning` first
++
++Put the term a permissible value stands for in `meaning`, and use mapping metaslots only for further terms. For
++example, `acetic_acid` in `ChemicalEntityEnum` has `meaning: CHEBI:15366` (acetic acid) and
++`related_mappings: CHEBI:30089` (acetate). Some older values put their only term in `exact_mappings` and have no
++`meaning`, such as the values of `MassAnalyzerEnum`. New values should not follow that pattern.
++
++### Choosing and checking a term
++
++Use `exact_mappings` only when you are sure the two are the same. When the external term is an assay, method or
++measurement next to the element rather than the element itself, use `related_mappings`. For example, map a gene
++or a process to the sequencing assay that reads it or runs it with `related_mappings`.
++
++An embeddings search, such as the OLS4 `llm_search`, is a good way to find candidates, but a high score is only a
++lead. Confirm that the CURIE resolves to the intended term, and read the term's parents, children and axioms in
++the [EBI Ontology Lookup Service](https://www.ebi.ac.uk/ols4/) before using it.
++
++Prefer prefixes the schema already defines. Before adding a new prefix, assess the whole ontology, not only the
++term you want. For an OBO Foundry ontology, the
++[OBO Foundry Dashboard](http://dashboard.obofoundry.org/dashboard/index.html) is a good place to start.
+ 
+ ## Asserting identifiers in LinkML data
+ 
+diff --git a/src/docs/ontology-governance-current-state.md b/src/docs/ontology-governance-current-state.md
+index 44938c267b..c52d2b40e3 100644
+--- a/src/docs/ontology-governance-current-state.md
++++ b/src/docs/ontology-governance-current-state.md
+@@ -192,8 +192,7 @@ Different placement contexts have different implications:
+ |---|---|---|---|
+ | `meaning:` on permissible value | Canonical semantic identity of a PV | Yes — must resolve to an IRI | `meaning: OBI:0000366` |
+ | `class_uri:` / `slot_uri:` | Schema element identity in RDF/OWL | Yes | `class_uri: OBI:0000011` |
+-| `exact_mappings:` | This element IS that term | Yes (for OWL generation) | `exact_mappings: - TAXRANK:0000006` |
+-| `close_mappings:` / `related_mappings:` / `broad_mappings:` / `narrow_mappings:` | Looser alignment, informative | Yes (for OWL) | `close_mappings: - NCIT:C16551` |
++| `exact_mappings:`, `close_mappings:`, `related_mappings:`, `broad_mappings:`, `narrow_mappings:`, `mappings:` | Alignment to an external term without taking its identity. Usage rules: [Mapping schema elements to external terms](maintaining-the-schema.md#mapping-schema-elements-to-external-terms) | Yes (for OWL generation) | `exact_mappings: - OBI:0000747` (on `Biosample`) |
+ | `id_prefixes:` on a class | What CURIE prefixes valid instances may use | Advisory/conditional | `id_prefixes: - PR` |
+ | Value in a CURIE-typed slot (data) | Instance identifier | String pattern only | `type: ENVO:00002030` |
+ | Free-text description or annotation | Documentation only | No — just a string | `Expected_value: FMA or UBERON` |
+@@ -324,8 +323,10 @@ in a principled way.
+    respectively) but have different licensing and governance than OBO. Are they
+    acceptable for `meaning:` values? For `close_mappings:`? For data values?
+ 
+-4. **Mapping predicate standards.** When is a match `exact_mappings` vs
+-   `close_mappings` vs just `meaning:`? What level of review is required?
++4. **Mapping predicate standards.** Which predicate to use, and when to use
++   `meaning:` instead, is settled in
++   [Mapping schema elements to external terms](maintaining-the-schema.md#mapping-schema-elements-to-external-terms).
++   Still open: what level of review does a new mapping need?
+ 
+ 5. **Property-like slot alignment.** 302 of 851 NMDC slots have scalar ranges
+    and should arguably align to ontology *properties*, not classes. Is that
+diff --git a/src/schema/basic_slots.yaml b/src/schema/basic_slots.yaml
+index 5f8149dca7..40bde22be8 100644
+--- a/src/schema/basic_slots.yaml
++++ b/src/schema/basic_slots.yaml
+@@ -131,7 +131,7 @@ slots:
+     description: >- 
+       Information about how workflow results were generated when the processing is done by an external organization (e.g., JGI) such
+       as software tool name and version or pipeline name and version.
+-    mappings:
++    close_mappings:
+       - NCIT:C165211
+     examples:
+       - value: metaspades v. 3.15.2
+@@ -149,7 +149,7 @@ slots:
+     description: >-
+       The scientific objectives associated with the entity.
+       It SHOULD correspond to scientific norms for objectives field in a structured abstract.
+-    mappings:
++    close_mappings:
+       - SIO:000337
+ 
+   md5_checksum:
+@@ -333,9 +333,8 @@ slots:
+     examples:
+       - value: doi:10.46936/10.25585/60000880
+         description: The DOI links to an electronic document.
+-    exact_mappings:
++    close_mappings:
+       - OBI:0002110
+-    related_mappings:
+       - edam.data:1188
+ 
+   doi_provider:
+@@ -542,9 +541,9 @@ slots:
+     range: ExtractionTargetEnum
+     notes:
+       - todos, remove nucl_acid_ext from OmicsProcessing (DataGeneration)
+-    narrow_mappings:
+-      - NCIT:C177560
++    related_mappings:
+       - MIXS:0000037
++      - NCIT:C177560
+ 
+   id:
+     title: ID
+diff --git a/src/schema/core.yaml b/src/schema/core.yaml
+index b96a23a673..ffeefc78d9 100644
+--- a/src/schema/core.yaml
++++ b/src/schema/core.yaml
+@@ -1922,7 +1922,7 @@ slots:
+   mass:
+     title: mass
+     description: A physical quality that inheres in a bearer by virtue of the proportion of the bearer's amount of matter.
+-    exact_mappings:
++    related_mappings:
+       - PATO:0000125
+     range: QuantityValue
+     annotations:
+@@ -1991,7 +1991,7 @@ slots:
+     description: Name of the metagenome-assembled genome.
+   number_of_contig:
+     description: Number of contigs
+-    exact_mappings:
++    close_mappings:
+       - GENEPIO:0000093
+     range: integer
+     minimum_value: 0
+@@ -2039,49 +2039,49 @@ slots:
+     see_also: 
+       - doi:10.1093/bioinformatics/btz848
+     range: string
+-    exact_mappings:
++    related_mappings:
+       - TAXRANK:0000022
+   gtdbtk_phylum:
+     description: Taxonomic phylum assigned by GTDB-Tk.
+     see_also: 
+       - doi:10.1093/bioinformatics/btz848
+     range: string
+-    exact_mappings:
++    related_mappings:
+       - TAXRANK:0000001
+   gtdbtk_class:
+     description: Taxonomic class assigned by GTDB-Tk.
+     see_also: 
+       - doi:10.1093/bioinformatics/btz848
+     range: string
+-    exact_mappings:
++    related_mappings:
+       - TAXRANK:0000002
+   gtdbtk_order:
+     description: Taxonomic order assigned by GTDB-Tk.
+     see_also: 
+       - doi:10.1093/bioinformatics/btz848
+     range: string
+-    exact_mappings:
++    related_mappings:
+       - TAXRANK:0000003
+   gtdbtk_family:
+     description: Taxonomic family assigned by GTDB-Tk.
+     see_also: 
+       - doi:10.1093/bioinformatics/btz848
+     range: string
+-    exact_mappings:
++    related_mappings:
+       - TAXRANK:0000004
+   gtdbtk_genus:
+     range: string
+     description: Taxonomic genus assigned by GTDB-Tk.
+     see_also: 
+       - doi:10.1093/bioinformatics/btz848
+-    exact_mappings:
++    related_mappings:
+       - TAXRANK:0000005
+   gtdbtk_species:
+     description: Taxonomic genus assigned by GTDB-Tk.
+     see_also: 
+       - doi:10.1093/bioinformatics/btz848
+     range: string
+-    exact_mappings:
++    related_mappings:
+       - TAXRANK:0000006
+ 
+   highest_similarity_score:
+diff --git a/src/schema/nmdc.yaml b/src/schema/nmdc.yaml
+index 7c1406e6bc..5bef144212 100644
+--- a/src/schema/nmdc.yaml
++++ b/src/schema/nmdc.yaml
+@@ -1545,14 +1545,14 @@ slots:
+   ionization_source:
+     range: IonizationSourceEnum
+     description: The ionization source used to introduce processed samples into a mass spectrometer
+-    exact_mappings:
++    close_mappings:
+       - MS:1000008
+ 
+   mass_analyzers:
+     range: MassAnalyzerEnum
+     description: The kind of mass analyzer(s) used during the spectra collection.
+     multivalued: true
+-    exact_mappings:
++    close_mappings:
+       - MS:1000443
+ 
+   resolution_categories:
+@@ -1565,7 +1565,7 @@ slots:
+   mass_spectrometry_acquisition_strategy:
+     range: MassSpectrometryAcquisitionStrategyEnum
+     description: Mode of running a mass spectrometer method by which m/z ranges are selected and ions possibly fragment.
+-    exact_mappings:
++    close_mappings:
+       - MS:1003213
+ 
+   eluent_introduction_category:
+@@ -1607,12 +1607,12 @@ slots:
+ 
+   library_preparation_kit:
+     range: string
+-    exact_mappings:
++    close_mappings:
+       - GENEPIO:0001450
+ 
+   pcr_cycles:
+     range: integer
+-    exact_mappings:
++    close_mappings:
+       - OBI:0002475
+ 
+   is_stranded:
+@@ -1632,7 +1632,7 @@ slots:
+     aliases:
+       - sample mass
+       - sample weight
+-    exact_mappings:
++    close_mappings:
+       - MS:1000004
+     related_mappings:
+       - MIXS:0000111

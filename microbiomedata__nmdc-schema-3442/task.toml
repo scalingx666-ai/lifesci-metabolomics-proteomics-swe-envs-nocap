@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3442"
+description = "Drop the mod_date re-evaluation claim from the badges description"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "c2ee3fc2d472d05145ba5074bfc37ae81bb47787"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3442"
+source_access = "auto"
+built_at = "2026-11-18T02:29:09.376338+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:53779439c9b3650b8f8f952fdbe9c01c794d5b29af676665a0ccab71e642c99e"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-09-23T16:22:23Z"
+diff_format = "unified"
+context_files = [
+    "src/schema/basic_slots.yaml",
+    "tests/test_badge_subset_sync.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 16
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,44 @@
+diff --git a/.env.example b/.env.example
+index 7aa9607778..d5200a354a 100644
+--- a/.env.example
++++ b/.env.example
+@@ -17,6 +17,8 @@
+ BIOPORTAL_API_KEY=
+ 
+ # --- MongoDB data dump (nmdc_schema/dump_single_modality.py:277-278) ---
+-# For direct MongoDB access. Open an SSH tunnel to the source if needed.
++# For direct MongoDB access. Open an SSH tunnel to the source first.
++# Prod NMDC Mongo tunnel setup (prerequisites and steps, no secret values):
++# https://github.com/microbiomedata/nmdc-lakehouse/blob/main/docs/mongodb-connection.md
+ SOURCE_MONGO_USER=
+ SOURCE_MONGO_PASS=
+diff --git a/assets/misc/legacy_migration_notes.md b/assets/misc/legacy_migration_notes.md
+index ad3faeeb25..ac44a22a82 100644
+--- a/assets/misc/legacy_migration_notes.md
++++ b/assets/misc/legacy_migration_notes.md
+@@ -1,3 +1,10 @@
++> **Superseded.** These notes describe the retired NERSC/SPIN tunnel
++> (`dtn01.nersc.gov` to `mongo-loadbalancer.nmdc.production.svc.spin.nersc.org`),
++> which no longer exists. For current production Mongo access through the
++> `jump-dev.microbiomedata.org` gateway, see
++> https://github.com/microbiomedata/nmdc-lakehouse/blob/main/docs/mongodb-connection.md
++> Kept for historical reference.
++
+ 1. Learn about the NERSC sshproxy app, which generates 24-hour password-less keys:  https://www.nersc.gov/assets/Uploads/Using-sshproxy.pdf
+ 2. Download the NERSC's `sshproxy` app with the `scp` command on page 5 of the PDF. One caveat: the documentation recommends getting the app from `cori.nersc.gov`, which has been retired. So use `perlmutter.nersc.gov` or  `dtn01.nersc.gov`.
+ 3. Create a NERSC ssh key with the `sshproxy` command that was just downloaded. Use the `-u` option unless your NERSC username is identical to your local username. For examples, my local username is "XYZ" but my NERSC username is "xyz", so I enter `.sshproxy -u xyz`
+diff --git a/nmdc_schema/dump_single_modality.py b/nmdc_schema/dump_single_modality.py
+index 007100c36f..12bbae1920 100644
+--- a/nmdc_schema/dump_single_modality.py
++++ b/nmdc_schema/dump_single_modality.py
+@@ -259,7 +259,9 @@ def dump_from_api(ctx, client_base_url, endpoint_prefix, page_size):
+ @click.option('--mongo-db-name', default="nmdc", show_default=True, help='MongoDB database name')
+ @click.option('--mongo-host', default="localhost", show_default=True,
+               help='MongoDB host name/address.')
+-@click.option('--mongo-port', default=27777, type=int, show_default=True, help='MongoDB port')
++@click.option('--mongo-port', default=27124, type=int, show_default=True,
++              help='MongoDB port. 27124 matches the jump-dev tunnel doc: '
++                   'https://github.com/microbiomedata/nmdc-lakehouse/blob/main/docs/mongodb-connection.md')
+ @click.option('--admin-db', default=None, help='MongoDB authentication source. Leave blank to not specify.')
+ @click.option('--auth-mechanism', default=None, show_default=True,
+               help='Authentication mechanism for MongoDB connection. Leave blank to not specify.')

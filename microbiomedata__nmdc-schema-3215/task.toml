@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3215"
+description = "INSDC library modeling: pin SRA source, enforce + document the SRA DataObject pattern"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "7995a4d2de4224d7c379c89d84e6869c3efed87e"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3215"
+source_access = "auto"
+built_at = "2026-11-18T02:32:50.936960+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:247ca0e7032e5d0046306aeadfd6a2234d0c620ba81f0c564b0a3c287d74ab9a"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-06-23T19:17:22Z"
+diff_format = "unified"
+context_files = [
+    "src/schema/basic_classes.yaml",
+    "src/schema/basic_slots.yaml",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 32
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3483"
+description = "Add interpolated: true to three id structured patterns"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "5c5947fe487aa0face1d2eeabd5daebfa7f407da"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3483"
+source_access = "auto"
+built_at = "2026-11-18T02:28:42.410066+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e50fd93ecca259e7292108f2b4a1c33e702cc6fd5022fdd6d6f25d558062ba35"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-08T20:34:07Z"
+diff_format = "unified"
+context_files = [
+    "src/schema/nmdc.yaml",
+    "tests/test_structured_patterns_interpolated.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 49
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

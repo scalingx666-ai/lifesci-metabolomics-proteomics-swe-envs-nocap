@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3574"
+description = "Remove the chardet override now that pronto 2.7.4 allows chardet 7"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "1a20c2753395fd775fe16e8b7b5fba19ec8f54b7"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3574"
+source_access = "auto"
+built_at = "2026-11-18T02:27:37.616657+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:3ce019d1cd1094c651b36dd3c4954bb86044f169dacfb34142310d2b182be86d"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-20T17:03:37Z"
+diff_format = "unified"
+context_files = [
+    "pyproject.toml",
+    "uv.lock",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 15
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

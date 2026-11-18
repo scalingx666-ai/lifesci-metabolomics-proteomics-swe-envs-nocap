@@ -1,0 +1,64 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3587"
+description = "Set partial_match on the MIxS patterns that linkml-runtime 1.12 would anchor twice"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "3e992c458a46bdf4fc7884ad98c3e07fc400c429"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3587"
+source_access = "auto"
+built_at = "2026-11-18T02:27:12.444843+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:218b908dedb0c3450b1f1593fdf7fe7ba0487ede09eff09e882edfd6c96ff946"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-11T03:43:14Z"
+diff_format = "unified"
+context_files = [
+    "assets/yq-for-mixs-dematerialize.yq",
+    "src/schema/mixs.yaml",
+    "tests/test_structured_pattern_anchors.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 109
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

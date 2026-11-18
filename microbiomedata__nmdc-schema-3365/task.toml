@@ -1,0 +1,65 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3365"
+description = "Correct two documented facts about slot_usage cascading and readonly metaslots"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "2a6caf293471904c54594a84581c9e064b3a2240"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3365"
+source_access = "auto"
+built_at = "2026-11-18T02:30:32.878596+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:bcbc5d3c0849d2b604e2cad02879ff664f73ef6d3ebea3f673be0ef2a445411b"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-14T16:41:29Z"
+diff_format = "unified"
+context_files = [
+    "CLAUDE.md",
+    "src/docs/developer-docs.md",
+    "src/docs/maintaining-the-schema.md",
+    "src/scripts/report_redundant_slot_usage.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 53
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

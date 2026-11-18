@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3423"
+description = "Report files under assets/ that nothing uses, and fail CI on new ones"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "a1bcc01f9d1822b8cd8154a2772fef5c1a1b8bb3"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3423"
+source_access = "auto"
+built_at = "2026-11-18T02:29:31.200683+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:1d5a13547c079483e57f35ba1f5966593bb2e0ecf14bc4276586ae4ac00c9ec7"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-11T03:21:36Z"
+diff_format = "unified"
+context_files = [
+    "mkdocs.yml",
+    "project.Makefile",
+    "src/docs/asset-lifecycle.md",
+    "src/docs/schema_element_deprecation_guide.md",
+    "src/scripts/report_asset_usage.py",
+    "tests/test_no_new_unreferenced_assets.py",
+    "tests/test_report_asset_usage.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 948
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

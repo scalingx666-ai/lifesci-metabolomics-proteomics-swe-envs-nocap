@@ -1,0 +1,179 @@
+diff --git a/src/data/invalid/DataObject-invalid-insdc_experiment_identifiers-literal-dot.yaml b/src/data/invalid/DataObject-invalid-insdc_experiment_identifiers-literal-dot.yaml
+new file mode 100644
+index 0000000000..0f7902df2b
+--- /dev/null
++++ b/src/data/invalid/DataObject-invalid-insdc_experiment_identifiers-literal-dot.yaml
+@@ -0,0 +1,10 @@
++# invalid b/c insdc_experiment_identifiers requires the literal prefix "insdc.sra:";
++# "insdcXsra:" only matched when the regex dot was unescaped (.= any char)
++id: nmdc:dobj-11-dtTMNb
++name: insdc experiment literal-dot check
++description: raw reads whose insdc_experiment_identifiers value is the only invalid field
++data_category: instrument_data
++type: nmdc:DataObject
++data_object_type: Metagenome Raw Reads
++insdc_experiment_identifiers:
++  - insdcXsra:SRX0123456
+diff --git a/src/data/invalid/FunctionalAnnotation-invalid-has_function-kegg_reaction-literal-dot.yaml b/src/data/invalid/FunctionalAnnotation-invalid-has_function-kegg_reaction-literal-dot.yaml
+new file mode 100644
+index 0000000000..2b1d0c2083
+--- /dev/null
++++ b/src/data/invalid/FunctionalAnnotation-invalid-has_function-kegg_reaction-literal-dot.yaml
+@@ -0,0 +1,4 @@
++# invalid b/c has_function requires the literal prefix "KEGG.REACTION:";
++# "KEGGXREACTION:" only matched when the regex dot was unescaped (.= any char)
++has_function: KEGGXREACTION:R00100
++type: nmdc:FunctionalAnnotation
+diff --git a/src/data/invalid/FunctionalAnnotation-invalid-has_function-panther_family-literal-dot.yaml b/src/data/invalid/FunctionalAnnotation-invalid-has_function-panther_family-literal-dot.yaml
+new file mode 100644
+index 0000000000..31b794d9ee
+--- /dev/null
++++ b/src/data/invalid/FunctionalAnnotation-invalid-has_function-panther_family-literal-dot.yaml
+@@ -0,0 +1,4 @@
++# invalid b/c has_function requires the literal prefix "PANTHER.FAMILY:";
++# "PANTHERXFAMILY:" only matched when the regex dot was unescaped (.= any char)
++has_function: PANTHERXFAMILY:PTHR12345
++type: nmdc:FunctionalAnnotation
+diff --git a/src/data/invalid/FunctionalAnnotationAggMember-invalid-gene_function_id-literal-dot.yaml b/src/data/invalid/FunctionalAnnotationAggMember-invalid-gene_function_id-literal-dot.yaml
+new file mode 100644
+index 0000000000..09c31e9364
+--- /dev/null
++++ b/src/data/invalid/FunctionalAnnotationAggMember-invalid-gene_function_id-literal-dot.yaml
+@@ -0,0 +1,6 @@
++# invalid b/c gene_function_id requires the literal prefix "KEGG.ORTHOLOGY:";
++# "KEGGXORTHOLOGY:" only matched when the regex dot was unescaped (.= any char)
++was_generated_by: nmdc:wfmgan-99-123456.1
++gene_function_id: KEGGXORTHOLOGY:K00627
++count: 120
++type: nmdc:FunctionalAnnotationAggMember
+diff --git a/src/data/invalid/FunctionalAnnotationAggMember-invalid-gene_function_id-trailing-suffix.yaml b/src/data/invalid/FunctionalAnnotationAggMember-invalid-gene_function_id-trailing-suffix.yaml
+new file mode 100644
+index 0000000000..93439ceb5c
+--- /dev/null
++++ b/src/data/invalid/FunctionalAnnotationAggMember-invalid-gene_function_id-trailing-suffix.yaml
+@@ -0,0 +1,6 @@
++# invalid b/c gene_function_id must match the pattern exactly (anchored);
++# "KEGG.ORTHOLOGY:K00627EXTRA" only validated when the pattern was unanchored
++was_generated_by: nmdc:wfmgan-99-123456.1
++gene_function_id: KEGG.ORTHOLOGY:K00627EXTRA
++count: 120
++type: nmdc:FunctionalAnnotationAggMember
+diff --git a/src/data/invalid/Study-invalid-jgi_portal_study_identifiers-literal-dot.yaml b/src/data/invalid/Study-invalid-jgi_portal_study_identifiers-literal-dot.yaml
+new file mode 100644
+index 0000000000..96d7baab85
+--- /dev/null
++++ b/src/data/invalid/Study-invalid-jgi_portal_study_identifiers-literal-dot.yaml
+@@ -0,0 +1,7 @@
++# invalid b/c jgi_portal_study_identifiers requires the literal prefix "jgi.proposal:";
++# "jgiXproposal:" only matched when the regex dot was unescaped (.= any char)
++id: nmdc:sty-11-r2h77870
++type: nmdc:Study
++study_category: research_study
++jgi_portal_study_identifiers:
++  - jgiXproposal:507130
+diff --git a/src/data/invalid/Study-invalid-mgnify_project_identifiers-literal-dot.yaml b/src/data/invalid/Study-invalid-mgnify_project_identifiers-literal-dot.yaml
+new file mode 100644
+index 0000000000..fb52eb84f5
+--- /dev/null
++++ b/src/data/invalid/Study-invalid-mgnify_project_identifiers-literal-dot.yaml
+@@ -0,0 +1,7 @@
++# invalid b/c mgnify_project_identifiers requires the literal prefix "mgnify.proj:";
++# "mgnifyXproj:" only matched when the regex dot was unescaped (.= any char)
++id: nmdc:sty-11-ab
++type: nmdc:Study
++study_category: research_study
++mgnify_project_identifiers:
++  - mgnifyXproj:ABC123
+diff --git a/src/schema/annotation.yaml b/src/schema/annotation.yaml
+index 5b241f70cf..7e4b893587 100644
+--- a/src/schema/annotation.yaml
++++ b/src/schema/annotation.yaml
+@@ -144,7 +144,7 @@ slots:
+       - "the range for has_function was asserted as functional_annotation_term/FunctionalAnnotationTerm,"
+       - "but is actually taking string arguments in MongoDB,"
+       - "and those are frequently fulltext, not CURIEs. MAM 2021-06-23"
+-    pattern: "^(KEGG_PATHWAY:\\w{2,4}\\d{5}|KEGG.REACTION:R\\d+|RHEA:\\d{5}|MetaCyc:[A-Za-z0-9+_.%:\\-]+|EC:\\d{1,2}(\\.\\d{0,3}){0,3}|GO:\\d{7}|MetaNetX:(MNXR\\d+|EMPTY)|SEED:\\w+|KEGG\\.ORTHOLOGY:K\\d+|EGGNOG:\\w+|PFAM:PF\\d{5}|TIGRFAM:TIGR\\d+|SUPFAM:\\w+|CATH:[1-6]\\.[0-9]+\\.[0-9]+\\.[0-9]+|PANTHER.FAMILY:PTHR\\d{5}(\\:SF\\d{1,3})?)$"
++    pattern: "^(KEGG_PATHWAY:\\w{2,4}\\d{5}|KEGG\\.REACTION:R\\d+|RHEA:\\d{5}|MetaCyc:[A-Za-z0-9+_.%:\\-]+|EC:\\d{1,2}(\\.\\d{0,3}){0,3}|GO:\\d{7}|MetaNetX:(MNXR\\d+|EMPTY)|SEED:\\w+|KEGG\\.ORTHOLOGY:K\\d+|EGGNOG:\\w+|PFAM:PF\\d{5}|TIGRFAM:TIGR\\d+|SUPFAM:\\w+|CATH:[1-6]\\.[0-9]+\\.[0-9]+\\.[0-9]+|PANTHER\\.FAMILY:PTHR\\d{5}(\\:SF\\d{1,3})?)$"
+ 
+   gff_coordinate:
+     range: integer
+diff --git a/src/schema/external_identifiers.yaml b/src/schema/external_identifiers.yaml
+index d5beda8f1d..80750128b5 100644
+--- a/src/schema/external_identifiers.yaml
++++ b/src/schema/external_identifiers.yaml
+@@ -105,7 +105,7 @@ slots:
+       - jgi_portal_identifiers
+     id_prefixes:
+       - jgi.proposal
+-    pattern: '^jgi.proposal:\d+$'
++    pattern: '^jgi\.proposal:\d+$'
+     examples:
+       - value: jgi.proposal:507130
+     comments:
+@@ -131,7 +131,7 @@ slots:
+       - EBI ENA study identifiers
+       - NCBI SRA identifiers
+       - DDBJ SRA identifiers
+-    pattern: "^insdc.sra:(E|D|S)RP[0-9]{6,}$"
++    pattern: "^insdc\\.sra:(E|D|S)RP[0-9]{6,}$"
+     description: identifiers for corresponding project in INSDC SRA / ENA
+     examples:
+       - value: insdc.sra:SRP121659
+@@ -177,7 +177,7 @@ slots:
+     is_a: study_identifiers
+     mixins:
+       - mgnify_identifiers
+-    pattern: "^mgnify.proj:[A-Z]+[0-9]+$"
++    pattern: "^mgnify\\.proj:[A-Z]+[0-9]+$"
+     description: identifiers for corresponding project in MGnify
+     examples:
+       - value: mgnify.proj:MGYS00005757
+@@ -322,7 +322,7 @@ slots:
+ 
+   insdc_experiment_identifiers:
+     is_a: external_database_identifiers
+-    pattern: "^insdc.sra:(E|D|S)RX[0-9]{6,}$"
++    pattern: "^insdc\\.sra:(E|D|S)RX[0-9]{6,}$"
+     mixins:
+       - insdc_identifiers
+ 
+@@ -347,7 +347,7 @@ slots:
+       - jgi_portal_identifiers
+     id_prefixes:
+       - jgi.analysis
+-    pattern: '^jgi.analysis:[0-9]+$'
++    pattern: '^jgi\.analysis:[0-9]+$'
+     description: identifiers for corresponding analysis projects in JGI Portal
+     examples:
+       - value: jgi.analysis:1414320
+@@ -357,7 +357,7 @@ slots:
+     is_a: analysis_identifiers
+     comments:
+       - in INSDC this is a run but it corresponds to a GOLD analysis
+-    pattern: "^insdc.sra:(E|D|S)RR[0-9]{6,}$"
++    pattern: "^insdc\\.sra:(E|D|S)RR[0-9]{6,}$"
+     mixins:
+       - insdc_identifiers
+     examples:
+@@ -382,7 +382,7 @@ slots:
+ 
+   insdc_assembly_identifiers:
+     is_a: assembly_identifiers
+-    pattern: "^insdc.sra:[A-Z]+[0-9]+(\\.[0-9]+)?$"
++    pattern: "^insdc\\.sra:[A-Z]+[0-9]+(\\.[0-9]+)?$"
+     mixins:
+       - insdc_identifiers
+ 
+diff --git a/src/schema/nmdc.yaml b/src/schema/nmdc.yaml
+index f261b543de..e12d846cf5 100644
+--- a/src/schema/nmdc.yaml
++++ b/src/schema/nmdc.yaml
+@@ -425,7 +425,7 @@ classes:
+       count: 
+           description: The number of sequences (for a metagenome or metatranscriptome) or spectra (for metaproteomics) associated with the specified function.
+       gene_function_id:
+-        pattern: "(COG:COG\\d+|PFAM:PF\\d{5}|KEGG.ORTHOLOGY:K\\d+)"
++        pattern: "^(COG:COG\\d+|PFAM:PF\\d{5}|KEGG\\.ORTHOLOGY:K\\d+)$"
+       
+   Database:
+     class_uri: nmdc:Database

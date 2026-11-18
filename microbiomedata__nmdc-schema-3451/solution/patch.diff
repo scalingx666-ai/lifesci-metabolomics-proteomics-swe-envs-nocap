@@ -1,0 +1,309 @@
+diff --git a/src/schema/attribute_values.yaml b/src/schema/attribute_values.yaml
+index 64ba980fb8..06366ed77f 100644
+--- a/src/schema/attribute_values.yaml
++++ b/src/schema/attribute_values.yaml
+@@ -170,6 +170,7 @@ classes:
+ 
+ slots:
+   name:
++    title: Name
+     range: string
+     description: >-
+       A human readable label for an entity
+@@ -180,6 +181,7 @@ slots:
+     inlined: true
+ 
+   description:
++    title: Description
+     range: string
+     description: >-
+       a human-readable description of a thing
+@@ -207,6 +209,7 @@ slots:
+     range: string
+ 
+   type:
++    title: Type
+     required: true
+     range: uriorcurie
+     slot_uri: rdf:type
+diff --git a/src/schema/basic_classes.yaml b/src/schema/basic_classes.yaml
+index 76a3222c05..9cb9f6fae3 100644
+--- a/src/schema/basic_classes.yaml
++++ b/src/schema/basic_classes.yaml
+@@ -725,6 +725,7 @@ slots:
+       - value: c41dfeac-102e-43b2-adae-6a67f25791f0
+ 
+   associated_studies:
++    title: Associated Studies
+     description: The study associated with a resource.
+     range: Study
+     multivalued: true
+@@ -942,6 +943,7 @@ slots:
+       resultant DataObjects should be used in favor of this record.
+ 
+   provenance_metadata: 
++    title: Provenance Metadata
+     range: ProvenanceMetadata
+     description: Provides information about the provenance of a record.
+     
+diff --git a/src/schema/basic_slots.yaml b/src/schema/basic_slots.yaml
+index aae0b8d0a5..d11133c9ed 100644
+--- a/src/schema/basic_slots.yaml
++++ b/src/schema/basic_slots.yaml
+@@ -97,6 +97,7 @@ subsets:
+ 
+ slots:
+   badges:
++    title: Metadata Quality Badges
+     description: >-
+       Metadata-quality badges awarded to this record. Each value names one
+       badge, which is present or absent; there are no levels or tiers. Most
+@@ -233,6 +234,7 @@ slots:
+     range: boolean
+ 
+   infiltrations:
++    title: Infiltrations
+     description: The amount of time it takes to complete each infiltration activity
+     examples:
+       - value: '00:01:32'
+@@ -248,9 +250,11 @@ slots:
+       - https://www.protocols.io/view/field-sampling-protocol-kqdg3962pg25/v1
+ 
+   soluble_iron_micromol:
++    title: Soluble Iron (micromol)
+     range: string
+ 
+   sample_collection_site:
++    title: Sample Collection Site
+     description: >-
+       Free-text description of the place where the sample was collected: the
+       geographic or environmental site or named location.
+@@ -266,6 +270,7 @@ slots:
+     range: string
+ 
+   salinity_category:
++    title: Salinity Category
+     description:
+       "Categorical description of the sample's salinity. Examples: halophile,
+         halotolerant, hypersaline, euryhaline"
+@@ -274,20 +279,25 @@ slots:
+       - "maps to gold:salinity"
+ 
+   proport_woa_temperature:
++    title: Proport WOA Temperature
+     range: string
+ 
+   location:
++    title: Location
+     range: string
+ 
+   host_name:
++    title: Host Name
+     range: string
+     in_subset:
+       - host_information
+ 
+   community:
++    title: Community
+     range: string
+ 
+   embargoed:
++    title: Embargoed
+     description: >-
+       If true, the data are embargoed and not available for public access.
+     range: boolean
+@@ -299,6 +309,7 @@ slots:
+       - applying to a Study may not be granular enough
+ 
+   habitat:
++    title: Habitat
+     range: string
+ 
+   version:
+@@ -370,6 +381,7 @@ slots:
+       - NCIT:C39409
+ 
+   ecosystem_path_id:
++    title: GOLD Ecosystem Path ID
+     range: integer
+     description: A unique id representing the GOLD classifiers associated with a sample.
+     examples:
+@@ -390,6 +402,7 @@ slots:
+         annotations:
+           source: https://gold.jgi.doe.gov/ecosystem_classification
+   ecosystem:
++    title: Ecosystem
+     is_a: gold_path_field
+     description:
+       An ecosystem is a combination of a physical environment (abiotic
+@@ -406,6 +419,7 @@ slots:
+     see_also:
+       - https://gold.jgi.doe.gov/help
+   ecosystem_category:
++    title: Ecosystem Category
+     is_a: gold_path_field
+     description:
+       Ecosystem categories represent divisions within the ecosystem based
+@@ -419,6 +433,7 @@ slots:
+     see_also:
+       - https://gold.jgi.doe.gov/help
+   ecosystem_type:
++    title: Ecosystem Type
+     is_a: gold_path_field
+     description:
+       Ecosystem types represent things having common characteristics within
+@@ -434,6 +449,7 @@ slots:
+     see_also:
+       - https://gold.jgi.doe.gov/help
+   ecosystem_subtype:
++    title: Ecosystem Subtype
+     is_a: gold_path_field
+     description:
+       Ecosystem subtypes represent further subdivision of Ecosystem types
+@@ -446,6 +462,7 @@ slots:
+     see_also:
+       - https://gold.jgi.doe.gov/help
+   specific_ecosystem:
++    title: Specific Ecosystem
+     is_a: gold_path_field
+     description:
+       Specific ecosystems represent specific features of the environment
+@@ -467,6 +484,7 @@ slots:
+     description: The date on which information was last modified in a database.
+ 
+   ncbi_taxonomy_name:
++    title: NCBI Taxonomy Name
+     range: string
+   ncbi_project_name:
+     range: string
+@@ -529,6 +547,7 @@ slots:
+       - MIXS:0000037
+ 
+   id:
++    title: ID
+     required: true
+     identifier: true
+     range: uriorcurie
+@@ -571,6 +590,7 @@ slots:
+       - dcterms:alternative
+ 
+   alternative_names:
++    title: Alternative Names
+     range: string
+     multivalued: true
+     description: >-
+@@ -589,6 +609,7 @@ slots:
+       The distinction between description and alternative descriptions is application-specific.
+ 
+   alternative_identifiers:
++    title: Alternative Identifiers
+     range: uriorcurie
+     multivalued: true
+     description: >-
+@@ -748,6 +769,7 @@ slots:
+   # --- Host-of-sample slots (from JGI Isolate v19 form) ---
+ 
+   host_genus:
++    title: Host Genus
+     description: Genus of the host organism that the sample was collected from.
+     in_subset:
+       - jgi_isolate
+@@ -770,6 +792,7 @@ slots:
+       - GOLD organism_v2 host_name "Escherichia coli K-12" (Go0084483 Escherichia phage JSE, queried 2026-04-30)
+ 
+   host_species:
++    title: Host Species
+     description: Species of the host organism that the sample was collected from.
+     in_subset:
+       - jgi_isolate
+@@ -792,6 +815,7 @@ slots:
+       - GOLD organism_v2 host_name "Escherichia coli K-12" (Go0084483 Escherichia phage JSE, queried 2026-04-30)
+ 
+   host_strain:
++    title: Host Strain
+     description: Strain of the host organism that the sample was collected from.
+     in_subset:
+       - jgi_isolate
+diff --git a/src/schema/core.yaml b/src/schema/core.yaml
+index ed929717d5..5c7241e4c0 100644
+--- a/src/schema/core.yaml
++++ b/src/schema/core.yaml
+@@ -1469,6 +1469,7 @@ slots:
+     multivalued: true
+ 
+   collected_from:
++    title: Collected From
+     description: The Site from which a Biosample was collected
+     range: FieldResearchSite
+     comments:
+@@ -1495,11 +1496,13 @@ slots:
+       storage_units: mS/cm
+ 
+   subsurface_depth:
++    title: Subsurface Depth
+     range: QuantityValue
+     annotations:
+       storage_units: m
+ 
+   env_package:
++    title: Environmental Package
+     aliases:
+       - environmental package
+     notes:
+diff --git a/src/schema/external_identifiers.yaml b/src/schema/external_identifiers.yaml
+index f8652585ac..86b6f49472 100644
+--- a/src/schema/external_identifiers.yaml
++++ b/src/schema/external_identifiers.yaml
+@@ -221,11 +221,13 @@ slots:
+     is_a: external_database_identifiers
+ 
+   neon_biosample_identifiers:
++    title: NEON Biosample Identifiers
+     is_a: biosample_identifiers
+     mixins:
+       - neon_identifiers
+ 
+   gold_biosample_identifiers:
++    title: GOLD Biosample Identifiers
+     is_a: biosample_identifiers
+     mixins:
+       - gold_identifiers
+@@ -250,6 +252,7 @@ slots:
+ 
+ 
+   insdc_biosample_identifiers:
++    title: INSDC Biosample Identifiers
+     is_a: biosample_identifiers
+     mixins:
+       - insdc_identifiers
+diff --git a/tests/test_biosample_slots_have_titles.py b/tests/test_biosample_slots_have_titles.py
+new file mode 100644
+index 0000000000..a5b71604a3
+--- /dev/null
++++ b/tests/test_biosample_slots_have_titles.py
+@@ -0,0 +1,25 @@
++import unittest
++
++from linkml_runtime import SchemaView
++
++from tests import SCHEMA_FILE
++
++
++class TestBiosampleSlotsHaveTitles(unittest.TestCase):
++    """Every Biosample slot needs a title on its top-level definition.
++
++    The Data Portal (nmdc-server ``formatSlotLabel``) labels Biosample fields with
++    ``slots[<name>].title`` from the materialized schema and otherwise capitalizes
++    each word of the slot name, which turns acronyms like NCBI into "Ncbi". It does
++    not read titles from ``slot_usage``, so the title must be on the slot itself.
++    See https://github.com/microbiomedata/nmdc-schema/issues/3444
++    """
++
++    def test_biosample_slots_have_titles(self):
++        view = SchemaView(SCHEMA_FILE)
++        untitled = sorted(
++            slot.name
++            for slot in view.class_induced_slots("Biosample")
++            if not view.get_slot(slot.name).title
++        )
++        self.assertListEqual(untitled, [], "Biosample slots without a top-level title")

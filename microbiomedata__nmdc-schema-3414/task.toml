@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3414"
+description = "Mark the term-less isotopolog example provisional and fix typos in the SIP additions"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "cd907cc0c39e077b19d50c98dc6924ad6a93e006"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3414"
+source_access = "auto"
+built_at = "2026-11-18T02:29:42.388212+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:2b8df140bfdd2716424793aa4d641bb2664bd203ea26a991c3510949a26bcbd9"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-09-15T16:04:59Z"
+diff_format = "unified"
+context_files = [
+    "assets/yq-for-mixs-customizations.txt",
+    "src/data/invalid/IsotopeLabelingProcess-isotopolog-cid-zero.yaml",
+    "src/data/valid/Database-sip_example.yaml",
+    "src/data/valid/IsotopeLabelingProcess-isotope-multiple.yaml",
+    "src/data/valid/IsotopeLabelingProcess-isotopolog-multiple.yaml",
+    "src/data/valid/IsotopeLabelingProcess-isotopolog-undefined-mixture.yaml",
+    "src/data/valid/IsotopeMetadata.yaml",
+    "src/schema/core.yaml",
+    "src/schema/mixs.yaml",
+    "src/schema/nmdc.yaml",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 59
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

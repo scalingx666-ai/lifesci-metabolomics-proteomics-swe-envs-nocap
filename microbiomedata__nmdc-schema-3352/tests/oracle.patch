@@ -1,0 +1,164 @@
+diff --git a/src/schema/attribute_values.yaml b/src/schema/attribute_values.yaml
+index b460079b89..f0eb6539d6 100644
+--- a/src/schema/attribute_values.yaml
++++ b/src/schema/attribute_values.yaml
+@@ -259,10 +259,12 @@ slots:
+     notes:
+       - makes it easier to read example data files
+       - required for polymorphic MongoDB collections
+-    see_also:
+-      - https://github.com/microbiomedata/nmdc-schema/issues/1048
+-      - https://github.com/microbiomedata/nmdc-schema/issues/1233
+-      - https://github.com/microbiomedata/nmdc-schema/issues/248
++    comments:
++      - >-
++        Deprecating this slot was proposed and rejected: without it, a document
++        read back from a polymorphic MongoDB collection cannot be resolved to the
++        class it instantiates. It is required on every class for that reason,
++        rather than as a convention inherited from LinkML.
+     structured_aliases:
+       - literal_form: workflow_execution_class
+         contexts:
+diff --git a/src/schema/basic_classes.yaml b/src/schema/basic_classes.yaml
+index 97fdae290f..b89f11f866 100644
+--- a/src/schema/basic_classes.yaml
++++ b/src/schema/basic_classes.yaml
+@@ -105,9 +105,6 @@ classes:
+         with range OntologyClass. The intent is that these slots point to NcbiTaxon instances specifically,
+         but LinkML does not currently support constraining the term slot of a ControlledIdentifiedTermValue
+         to a particular OntologyClass subclass.
+-    see_also:
+-      - https://github.com/microbiomedata/nmdc-schema/issues/2959
+-      - https://github.com/microbiomedata/nmdc-schema/issues/2971
+     close_mappings:
+       - biolink:OrganismTaxon
+ 
+@@ -267,9 +264,7 @@ classes:
+     exact_mappings:
+       - COB:0000022
+     see_also:
+-      - https://github.com/microbiomedata/nmdc-schema/issues/2959
+       - https://github.com/microbiomedata/nmdc-schema/issues/2803
+-      - https://github.com/microbiomedata/nmdc-schema/issues/2971
+ 
+   PlannedProcess:
+     description: >-
+@@ -712,9 +707,6 @@ slots:
+         The global range stays OntologyClass. Organism is currently the only class that
+         narrows classified_as to NcbiTaxon, via slot_usage. Extending that narrowing to
+         other classes is tracked in https://github.com/microbiomedata/nmdc-schema/issues/3016.
+-    see_also:
+-      - https://github.com/microbiomedata/nmdc-schema/issues/2959
+-      - https://github.com/microbiomedata/nmdc-schema/issues/3016
+     narrow_mappings:
+       - biolink:in_taxon
+ 
+diff --git a/src/schema/basic_slots.yaml b/src/schema/basic_slots.yaml
+index 2dfd7fde60..ab3eab1ef0 100644
+--- a/src/schema/basic_slots.yaml
++++ b/src/schema/basic_slots.yaml
+@@ -64,8 +64,6 @@ subsets:
+         permissible value has a subset here. expert_curation is awarded from
+         ProvenanceMetadata.source_system_of_record rather than from slot
+         completeness, so it has no badge_topic subset.
+-    see_also:
+-      - https://github.com/microbiomedata/nmdc-schema/issues/3228
+   biogeochemistry:
+     description: >-
+       Biosample slots holding measured biogeochemical analytes: nitrogen,
+@@ -74,9 +72,6 @@ subsets:
+       awarded the biogeochemistry badge.
+     annotations:
+       badge_minimum_slots: 2
+-    see_also:
+-      - https://github.com/microbiomedata/nmdc-schema/issues/3228
+-      - https://github.com/microbiomedata/nmdc-schema/issues/3326
+     in_subset:
+       - badge_topic
+   host_information:
+@@ -91,9 +86,6 @@ subsets:
+         data portal shows only badges a sample has earned.
+     annotations:
+       badge_minimum_slots: 2
+-    see_also:
+-      - https://github.com/microbiomedata/nmdc-schema/issues/3228
+-      - https://github.com/microbiomedata/nmdc-schema/issues/3326
+     in_subset:
+       - badge_topic
+ 
+@@ -259,10 +251,8 @@ slots:
+   salinity_category:
+     description:
+       "Categorical description of the sample's salinity. Examples: halophile,
+-        halotolerant, hypersaline, huryhaline"
++        halotolerant, hypersaline, euryhaline"
+     range: string
+-    see_also:
+-      - https://github.com/microbiomedata/nmdc-metadata/pull/297
+     notes:
+       - "maps to gold:salinity"
+ 
+diff --git a/src/schema/core.yaml b/src/schema/core.yaml
+index 79d14592bc..30a42ecf8f 100644
+--- a/src/schema/core.yaml
++++ b/src/schema/core.yaml
+@@ -1397,7 +1397,6 @@ classes:
+         study, or a soil sample are Biosamples because they contain communities of organisms.
+     see_also:
+       - https://github.com/microbiomedata/nmdc-schema/issues/2803
+-      - https://github.com/microbiomedata/nmdc-schema/issues/2961
+ 
+   Site:
+     class_uri: nmdc:Site
+diff --git a/src/schema/external_identifiers.yaml b/src/schema/external_identifiers.yaml
+index a34929d3f6..f8652585ac 100644
+--- a/src/schema/external_identifiers.yaml
++++ b/src/schema/external_identifiers.yaml
+@@ -246,8 +246,6 @@ slots:
+         description: GOLD organism_v2 Campylobacter concisus 13826 (queried 2026-04-14)
+     range: uriorcurie
+     multivalued: true
+-    see_also:
+-      - https://github.com/microbiomedata/nmdc-schema/issues/2973
+ 
+ 
+ 
+diff --git a/src/schema/nmdc.yaml b/src/schema/nmdc.yaml
+index 192c0a80b5..a16bbbecda 100644
+--- a/src/schema/nmdc.yaml
++++ b/src/schema/nmdc.yaml
+@@ -509,8 +509,6 @@ classes:
+           interpolated: true
+     close_mappings:
+       - OBI:0000512
+-    see_also:
+-      - https://github.com/microbiomedata/nmdc-schema/issues/2978
+ 
+   Culturing:
+     class_uri: nmdc:Culturing
+@@ -538,8 +536,6 @@ classes:
+           interpolated: true
+     close_mappings:
+       - OBI:0001147
+-    see_also:
+-      - https://github.com/microbiomedata/nmdc-schema/issues/2978
+ 
+   Extraction:
+     class_uri: nmdc:Extraction
+diff --git a/src/schema/subsets.md b/src/schema/subsets.md
+index 2788b5d41e..e55cc92d00 100644
+--- a/src/schema/subsets.md
++++ b/src/schema/subsets.md
+@@ -66,7 +66,11 @@ Two of its entries are worth remembering, because they will come up again:
+ ## Badge subsets
+ 
+ A badge subset groups the slots whose completeness one metadata-quality badge
+-measures. It is declared in `src/schema/basic_slots.yaml` and is itself a member
++measures. Grouping slots into scoreable sets follows the Metadata
++Coverage Index (Liolios et al. 2012,
++https://pmc.ncbi.nlm.nih.gov/articles/PMC3558968/), which measures completeness
++against a defined field grouping rather than against every field a record could
++carry. It is declared in `src/schema/basic_slots.yaml` and is itself a member
+ of the `badge_topic` group subset (`in_subset: [badge_topic]`), which is how
+ tooling and the sync test tell badge subsets apart from `jgi_isolate`. This uses
+ the native subset mechanism rather than a custom annotation.

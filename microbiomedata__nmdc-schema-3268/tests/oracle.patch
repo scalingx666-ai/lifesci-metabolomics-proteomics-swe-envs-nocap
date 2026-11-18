@@ -1,0 +1,15 @@
+diff --git a/src/schema/attribute_values.yaml b/src/schema/attribute_values.yaml
+index 2d84c5fa18..5a319ca888 100644
+--- a/src/schema/attribute_values.yaml
++++ b/src/schema/attribute_values.yaml
+@@ -20,8 +20,8 @@ classes:
+     abstract: true
+     class_uri: nmdc:AttributeValue
+     description: >-
+-      The value for any value of a attribute for a sample. This object can hold both the un-normalized atomic
+-      value and the structured value
++      The value of an attribute of any NMDC entity. This object can hold both the unnormalized atomic value
++      and the structured value.
+     slots:
+       - has_raw_value
+       - type

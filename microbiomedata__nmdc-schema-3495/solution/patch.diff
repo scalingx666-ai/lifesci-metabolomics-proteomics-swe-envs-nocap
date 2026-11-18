@@ -1,0 +1,137 @@
+diff --git a/nmdc_schema/migrators/migrator_from_11_24_1_to_11_25_0.py b/nmdc_schema/migrators/migrator_from_11_24_1_to_11_25_0.py
+new file mode 100644
+index 0000000000..5fea17884d
+--- /dev/null
++++ b/nmdc_schema/migrators/migrator_from_11_24_1_to_11_25_0.py
+@@ -0,0 +1,38 @@
++from nmdc_schema.migrators.migrator_base import MigratorBase
++from nmdc_schema.migrators.partials.migrator_from_11_24_1_to_11_25_0 import (
++    get_migrator_classes,
++)
++
++
++class Migrator(MigratorBase):
++    r"""
++    Migrates a database between two schemas.
++
++    Partial 1 raises if any Biosample still has ``collection_time_inc``, which was removed in
++    nmdc-schema#3470. It changes nothing (nmdc-schema#3489).
++    """
++
++    _from_version = "11.24.1"
++    _to_version = "11.25.0"
++
++    def upgrade(self, commit_changes: bool = False) -> None:
++        r"""
++        Migrates the database from conforming to the original schema, to conforming to the new schema.
++
++        This migrator uses partial migrators. It runs them in the order in which they are returned by
++        the `get_migrator_classes` function.
++
++        Args:
++            commit_changes: If True, commits the changes. If False (default), performs a dry run or rollback.
++        """
++
++        migrator_classes = get_migrator_classes()
++        num_migrators = len(migrator_classes)
++        for idx, migrator_class in enumerate(migrator_classes):
++            self.logger.info(f"Running migrator {idx + 1} of {num_migrators}")
++            self.logger.debug(
++                f"Migrating from {migrator_class.get_origin_version()} "
++                f"to {migrator_class.get_destination_version()}"
++            )
++            migrator = migrator_class(adapter=self.adapter, logger=self.logger)
++            migrator.upgrade(commit_changes=commit_changes)
+diff --git a/nmdc_schema/migrators/partials/migrator_from_11_24_1_to_11_25_0/__init__.py b/nmdc_schema/migrators/partials/migrator_from_11_24_1_to_11_25_0/__init__.py
+new file mode 100644
+index 0000000000..e99b3578a8
+--- /dev/null
++++ b/nmdc_schema/migrators/partials/migrator_from_11_24_1_to_11_25_0/__init__.py
+@@ -0,0 +1,29 @@
++from typing import List, Type
++
++from nmdc_schema.migrators.migrator_base import MigratorBase
++from nmdc_schema.migrators.partials.migrator_from_11_24_1_to_11_25_0 import (
++    migrator_from_11_24_1_to_11_25_0_part_1,
++)
++
++
++def get_migrator_classes() -> List[Type[MigratorBase]]:
++    r"""
++    Returns a list of migrator classes in the order in which they (i.e. their `upgrade` methods)
++    were designed to be run.
++
++    Part 1 raises if any Biosample still has `collection_time_inc`, which was removed in
++    nmdc-schema#3470.
++
++    >>> migrator_classes = get_migrator_classes()
++    >>> type(migrator_classes) is list and len(migrator_classes) > 0  # the function returns a list
++    True
++    >>> from inspect import isclass
++    >>> all(isclass(c) for c in migrator_classes)  # each list item is a class
++    True
++    >>> all(callable(getattr(c, "upgrade")) for c in migrator_classes)  # each class has an `upgrade` method
++    True
++    """
++
++    return [
++        migrator_from_11_24_1_to_11_25_0_part_1.Migrator,
++    ]
+diff --git a/nmdc_schema/migrators/partials/migrator_from_11_24_1_to_11_25_0/migrator_from_11_24_1_to_11_25_0_part_1.py b/nmdc_schema/migrators/partials/migrator_from_11_24_1_to_11_25_0/migrator_from_11_24_1_to_11_25_0_part_1.py
+new file mode 100644
+index 0000000000..22b51562c6
+--- /dev/null
++++ b/nmdc_schema/migrators/partials/migrator_from_11_24_1_to_11_25_0/migrator_from_11_24_1_to_11_25_0_part_1.py
+@@ -0,0 +1,52 @@
++"""Check that no Biosample still uses the removed ``collection_time_inc`` slot.
++
++https://github.com/microbiomedata/nmdc-schema/pull/3470 removed the slot. Its replacement,
++``collection_time``, belongs to the harvested sample, and an incubation's own times belong to
++a processing step, so there is no transformation a migrator can apply on its own. If a record
++still has the slot, this partial raises so that a person can decide where the value goes.
++
++See https://github.com/microbiomedata/nmdc-schema/issues/3489.
++"""
++
++from nmdc_schema.migrators.migrator_base import MigratorBase
++
++REMOVED_BIOSAMPLE_SLOTS = ["collection_time_inc"]
++
++
++class Migrator(MigratorBase):
++    r"""Raise if any ``biosample_set`` document has a slot removed in this release."""
++
++    _from_version = "11.24.1"
++    _to_version = "11.25.0.part_1"
++
++    def upgrade(self, commit_changes: bool = False) -> None:
++        r"""
++        Check every ``biosample_set`` document. Nothing is changed.
++
++        >>> from nmdc_schema.migrators.adapters.dictionary_adapter import DictionaryAdapter
++        >>> db = {"biosample_set": [{"id": "nmdc:bsm-1", "type": "nmdc:Biosample", "collection_time": "05:42+0000"}]}
++        >>> Migrator(adapter=DictionaryAdapter(database=db)).upgrade()
++        >>> db["biosample_set"][0]
++        {'id': 'nmdc:bsm-1', 'type': 'nmdc:Biosample', 'collection_time': '05:42+0000'}
++        >>> db = {"biosample_set": [{"id": "nmdc:bsm-2", "type": "nmdc:Biosample", "collection_time_inc": "13:42+0000"}]}
++        >>> Migrator(adapter=DictionaryAdapter(database=db)).upgrade()
++        Traceback (most recent call last):
++        ...
++        Exception: Field `collection_time_inc` present in biosample nmdc:bsm-2.
++        """
++        self.adapter.do_for_each_document("biosample_set", self.check_for_fields)
++
++    def check_for_fields(self, biosample: dict) -> None:
++        r"""
++        Raise if the biosample has any of the removed slots, even with an empty value.
++
++        >>> m = Migrator()
++        >>> m.check_for_fields({"id": "nmdc:bsm-3", "type": "nmdc:Biosample", "collection_time_inc": ""})
++        Traceback (most recent call last):
++        ...
++        Exception: Field `collection_time_inc` present in biosample nmdc:bsm-3.
++        >>> m.check_for_fields({"id": "nmdc:bsm-4", "type": "nmdc:Biosample"})
++        """
++        for slot in REMOVED_BIOSAMPLE_SLOTS:
++            if slot in biosample:
++                raise Exception(f"Field `{slot}` present in biosample {biosample.get('id')}.")

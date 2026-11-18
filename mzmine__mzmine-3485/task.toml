@@ -36,7 +36,6 @@ context_files = [
     "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_massdetection/local_max/LocalMaxSmoothingOptions.java",
     "mzmine-community/src/main/java/io/github/mzmine/modules/dataprocessing/featdet_smoothing/gaussian/GaussianFilter.java",
 ]
-bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -55,15 +54,10 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "inline_dockerfile"
+mode = "local_only"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "public"
-pushed_at = "2026-11-16T15:51:53.174024+00:00"
-pushed_by = "scalingX"
-inline_recipe_sha256 = "sha256:042078a953e4c03a44b177e62e2ac7fd637a51aa4b04030a758b275362f9f02d"
-inline_recipe_lines = 37
-inline_recipe_source = "user_dockerfile"
+image_visibility = "private"
 
 [agent]
 timeout_sec = 1800.0

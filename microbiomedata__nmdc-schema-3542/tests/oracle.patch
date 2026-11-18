@@ -1,0 +1,158 @@
+diff --git a/src/docs/maintaining-the-schema.md b/src/docs/maintaining-the-schema.md
+index 28d5a8cce7..bfb9aef9c5 100644
+--- a/src/docs/maintaining-the-schema.md
++++ b/src/docs/maintaining-the-schema.md
+@@ -31,7 +31,7 @@ For example:
+ ```yaml
+   doi_value:
+     description: >-
+-      A digital object identifier, which is intended to persistantly identify some resource on the web.
++      A digital object identifier, which is intended to persistently identify some resource on the web.
+     required: true
+     aliases:
+       - DOI
+@@ -270,7 +270,7 @@ The text that comes immediately after the `nmdc` prefix and colon, and before th
+ Typecodes must correspond 1:1 to a class in the NMDC schema. The typecodes currently in use are available from the
+ nmdc-runtime API: https://api.microbiomedata.org/nmdcschema/typecodes
+ 
+-Please see [identifers](identifiers.md) for more information on the minting of identifiers in NMDC directly, and
++Please see [identifiers](identifiers.md) for more information on the minting of identifiers in NMDC directly, and
+ for more discussion on identifier resolution and harmonization in NMDC.
+ 
+ 
+diff --git a/src/docs/v10-vs-v11-retrospective.md b/src/docs/v10-vs-v11-retrospective.md
+index 661fc6808e..d7103781d2 100644
+--- a/src/docs/v10-vs-v11-retrospective.md
++++ b/src/docs/v10-vs-v11-retrospective.md
+@@ -348,7 +348,7 @@ The following slots have been added, specifically on `MassSpectrometryConfigurat
+ * `polarity_mode`
+ * `resolution_categories`
+ 
+-These new slots are examplars of the increased emphasis on enumeration ranges (and the avoidance of the word 'type' in
++These new slots are exemplars of the increased emphasis on enumeration ranges (and the avoidance of the word 'type' in
+ slot names other than `type`):
+ 
+ - `analyte_category`
+@@ -508,7 +508,7 @@ the [id](https://microbiomedata.github.io/nmdc-schema/id/#linkml-source) slot as
+ from [NamedThing](https://microbiomedata.github.io/nmdc-schema/NamedThing/). Therefore, the value of
+ an `associated_studies` slot in a data file must be the `id` of a `Study`.
+ 
+-**In the absense of any other data or constraints**, the nmdc-schema will consider the following assertion valid for
++**In the absence of any other data or constraints**, the nmdc-schema will consider the following assertion valid for
+ a `Biosample`, even if `xyz` isn't defined in the same data source:
+ 
+ ```yaml
+@@ -520,7 +520,7 @@ If `xyz` is defined in the data source **and** it does not pass validation as a
+ be considered invalid. Unfortunately, the definitions and mentions of nmdc-schema instances are frequently split across
+ different MongoDB collections, so validating that a referred instance is really of the right type is non-trivial.
+ 
+-As a very lightweight guard against referring to instances of the wrong type, `stuctured_pattern`s were added
++As a very lightweight guard against referring to instances of the wrong type, `structured_pattern`s were added
+ to `slot_usage`s in berkeley-schema-fy24, and also independently in nmdc-schema v10 during the development of
+ berkeley-schema-fy24/v11. In addition to being incomplete, this solution introduces some minor problems into the schema,
+ and it relies on some other advanced LinkML features. Still, it has been useful in debugging some schema/data problems
+@@ -621,7 +621,7 @@ That might be seen as asserting that `MaterialProcessing`'s `range` is **either*
+ but `has_input` has the global `range` of `NamedThing`, so the effective range for `has_input` in `MaterialProcessing`
+ is the union of `NamedThing`, `Biosample` and  `ProcessedSample`.
+ 
+-Note that the `slot_usage` `strucutred_pattern` essentially asserts two different `strucutured_pattern` `syntax`es, due
++Note that the `slot_usage` `structured_pattern` essentially asserts two different `structured_pattern` `syntax`es, due
+ to the use of the `|` character: "{id_nmdc_prefix}:bsm-{id_shoulder}-{id_blade}$" for `Biosample`s and
+ "{id_nmdc_prefix}:procsm-{id_shoulder}-{id_blade}$" for `ProcessedSample`s.
+ 
+diff --git a/src/schema/annotation.yaml b/src/schema/annotation.yaml
+index 78ad3ff631..ff516143c9 100644
+--- a/src/schema/annotation.yaml
++++ b/src/schema/annotation.yaml
+@@ -173,7 +173,7 @@ slots:
+     description: >-
+       The gene product encoded by this feature.
+       Typically this is used for a CDS feature or gene feature which will encode a protein.
+-      It can also be used by a nc transcript ot gene feature that encoded a ncRNA
++      It can also be used by a nc transcript or gene feature that encoded a ncRNA
+     todos:
+       - If we revert Reaction back into the schema, that would be a reasonable domain for this slot
+   end:
+diff --git a/src/schema/basic_classes.yaml b/src/schema/basic_classes.yaml
+index c9c1dddaf1..47803c2021 100644
+--- a/src/schema/basic_classes.yaml
++++ b/src/schema/basic_classes.yaml
+@@ -912,7 +912,7 @@ slots:
+   qc_failure_where:
+     range: FailureWhereEnum
+     description: >-
+-      Describes the nmdc schema class that corresonds to where the failure occurred.
++      Describes the nmdc schema class that corresponds to where the failure occurred.
+       Most commonly this would be the same as Class that generated the results.
+     comments:
+       - If the assembly size was too small to proceed to annotation failure_where would be MetagenomeAssembly.
+diff --git a/src/schema/basic_slots.yaml b/src/schema/basic_slots.yaml
+index fc364fc91c..8f21270d2e 100644
+--- a/src/schema/basic_slots.yaml
++++ b/src/schema/basic_slots.yaml
+@@ -129,7 +129,7 @@ slots:
+   processing_institution_workflow_metadata:
+     range: string
+     description: >- 
+-      Information about how workflow results were generated when the processing is done by an external organziation (e.g., JGI) such
++      Information about how workflow results were generated when the processing is done by an external organization (e.g., JGI) such
+       as software tool name and version or pipeline name and version.
+     mappings:
+       - NCIT:C165211
+@@ -322,7 +322,7 @@ slots:
+ 
+   doi_value:
+     description: >-
+-      A digital object identifier, which is intended to persistantly identify some resource on the web.
++      A digital object identifier, which is intended to persistently identify some resource on the web.
+     required: true
+     aliases:
+       - DOI
+@@ -595,7 +595,7 @@ slots:
+     description: >-
+       A list of alternative names used to refer to the entity.
+       The distinction between name and alternative names is application-specific. 
+-      This should not be used for identifers which have their own slots (e.g., bioproject:PRJNA406974)
++      This should not be used for identifiers which have their own slots (e.g., bioproject:PRJNA406974)
+     exact_mappings:
+       - dcterms:alternative
+       - skos:altLabel
+diff --git a/src/schema/deprecated.yaml b/src/schema/deprecated.yaml
+index ec62c28955..6982f7d4fd 100644
+--- a/src/schema/deprecated.yaml
++++ b/src/schema/deprecated.yaml
+@@ -65,7 +65,7 @@ classes:
+   ProtocolExecution:
+     class_uri: nmdc:ProtocolExecution
+     is_a: PlannedProcess
+-    description: A PlannedProces that has PlannedProcess parts. Can be used to represent the case of someone following a Protocol.
++    description: A PlannedProcess that has PlannedProcess parts. Can be used to represent the case of someone following a Protocol.
+     slots:
+       - has_process_parts
+       - protocol_execution_category
+diff --git a/src/schema/nmdc.yaml b/src/schema/nmdc.yaml
+index 180d60a864..1b1a416dc0 100644
+--- a/src/schema/nmdc.yaml
++++ b/src/schema/nmdc.yaml
+@@ -5,7 +5,7 @@ notes:
+   - not importing any MIxS terms where the relationship between the name (SCN) and the id isn't 1:1
+ description: >-
+   The NMDC Schema is a foundational framework designed to standardize metadata for the National Microbiome Data 
+-  Collaborative (NMDC) and collaborating data providors. By establishing a structured approach to metadata, the NMDC Schema enables researchers to organize, 
++  Collaborative (NMDC) and collaborating data providers. By establishing a structured approach to metadata, the NMDC Schema enables researchers to organize, 
+   share, and interpret complex datasets with consistency and clarity. The NMDC Schema is critical substrate used to facilitate 
+   interoperability and collaboration, as it provide a common language for data exchange across systems and disciplines. 
+   In the context of the NMDC, this schema supports the integration of microbiome data from medicine, agriculture, 
+@@ -1553,10 +1553,10 @@ slots:
+     description: Is the (RNA) library stranded or non-stranded (unstranded).
+     range: boolean
+     comments:
+-      - A value of true means the library is stranded, flase means non-stranded.
++      - A value of true means the library is stranded, false means non-stranded.
+   
+   stranded_orientation:
+-    description: Lists the strand orientiation for a stranded RNA library preparation.
++    description: Lists the strand orientation for a stranded RNA library preparation.
+     range: StrandedOrientationEnum
+ 
+ 

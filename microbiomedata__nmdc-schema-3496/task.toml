@@ -1,0 +1,64 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3496"
+description = "Let the OLS4 embeddings search run on named classes, slots or enums"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "1c70a442ac5bc667f6abfe5f265a4789eec33125"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3496"
+source_access = "auto"
+built_at = "2026-11-18T02:28:36.343631+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e9f752413926948c02de1e88ef75062c956d4692d825ac08aa6ea6d56972932d"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-08T20:50:19Z"
+diff_format = "unified"
+context_files = [
+    "src/docs/ontology-alignment-ols4.md",
+    "src/scripts/ols4_embeddings_search.py",
+    "tests/test_ols4_embeddings_search.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 176
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

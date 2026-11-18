@@ -7,7 +7,6 @@ mahmoodlab/UNI
 bioMate-AI/biomate-bioconductor-kb
 YinLiLin/CMplot
 OpenMS/OpenMS
-MannLabs/CKG
 mikeroyal/Neuromorphic-Computing-Guide
 maduc7/Histopathology-Datasets
 mahmoodlab/CONCH
@@ -82,7 +81,6 @@ BAMeScience/fiora
 mahmoodlab/3DCPath-datasets
 LiChenPU/NetID
 rusteomics/mzcore
-microbiomedata/nmdc-schema
 Functional-Metabolomics-Lab/FBMN-STATS
 CompOmics/ms2pip
 qcxms/QCxMS

@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3599"
+description = "Render subset membership on enum pages and fix the subset page's enum table"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "7f347637d3db093159ec09cd670da0bc281fce90"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3599"
+source_access = "auto"
+built_at = "2026-11-18T02:26:49.242318+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:c04d6e30d25d731e64188db409cabdaf83bca4fd4c66018e6fdfa731b5149338"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-10T19:41:58Z"
+diff_format = "unified"
+context_files = [
+    "src/doc-templates/enum.md.jinja2",
+    "src/doc-templates/subset.md.jinja2",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 6
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

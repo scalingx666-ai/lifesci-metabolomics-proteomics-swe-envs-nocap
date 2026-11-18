@@ -1,0 +1,253 @@
+diff --git a/src/docs/ontology-alignment-ols4.md b/src/docs/ontology-alignment-ols4.md
+index a7f898c495..5434c065ef 100644
+--- a/src/docs/ontology-alignment-ols4.md
++++ b/src/docs/ontology-alignment-ols4.md
+@@ -45,6 +45,7 @@ Key options:
+ | `--schema` | `src/schema/nmdc.yaml` | Schema to iterate |
+ | `--element-types` | `classes,slots,enums,pvs` | Which element types to search |
+ | `--ontology` | (all) | Restrict to one ontology (e.g. `obi`, `envo`) |
++| `--element` | (all) | Search only this class, slot or enum; repeatable. For an enum, `pvs` covers its permissible values |
+ | `--rows` | 5 | Results per query |
+ | `--delay` | 0.5 | Seconds between API requests |
+ | `--skip-mapped` | off | Skip elements that already have mappings |
+diff --git a/src/scripts/ols4_embeddings_search.py b/src/scripts/ols4_embeddings_search.py
+index ad1ca7f0d2..48b7fb9e1f 100644
+--- a/src/scripts/ols4_embeddings_search.py
++++ b/src/scripts/ols4_embeddings_search.py
+@@ -115,6 +115,37 @@ def extract_score(element: dict) -> str:
+     return ""
+ 
+ 
++def select_named(named_elements: dict, names: tuple[str, ...]) -> dict:
++    """Keep only the elements whose names are listed, or all of them when none are.
++
++    >>> select_named({"A": 1, "B": 2}, ("B",))
++    {'B': 2}
++    >>> select_named({"A": 1, "B": 2}, ())
++    {'A': 1, 'B': 2}
++    """
++    if not names:
++        return named_elements
++    return {name: element for name, element in named_elements.items() if name in names}
++
++
++def unmatched_element_names(
++    names: tuple[str, ...], sv: SchemaView, types: set[str]
++) -> list[str]:
++    """Return the names that no selected element type would search, in the given order.
++
++    An enum name matches when either 'enums' or 'pvs' is selected, since 'pvs'
++    searches that enum's permissible values.
++    """
++    searchable: set[str] = set()
++    if "classes" in types:
++        searchable |= set(sv.all_classes())
++    if "slots" in types:
++        searchable |= set(sv.all_slots())
++    if types & {"enums", "pvs"}:
++        searchable |= set(sv.all_enums())
++    return [name for name in names if name not in searchable]
++
++
+ def build_query(name: str, description: Optional[str]) -> str:
+     """Build a search query from element name and description."""
+     # Expand CamelCase
+@@ -217,6 +248,15 @@ def search_element(
+     show_default=True,
+     help="Comma-separated element types to search",
+ )
++@click.option(
++    "--element",
++    "elements",
++    multiple=True,
++    help=(
++        "Search only this class, slot or enum (repeatable). For an enum, its "
++        "permissible values are searched when 'pvs' is in --element-types"
++    ),
++)
+ @click.option(
+     "--skip-mapped/--include-mapped",
+     default=False,
+@@ -232,6 +272,7 @@ def main(
+     delay: float,
+     ontology: Optional[str],
+     element_types: str,
++    elements: tuple[str, ...],
+     skip_mapped: bool,
+     verbose: bool,
+ ):
+@@ -243,6 +284,13 @@ def main(
+ 
+     types = {t.strip().lower() for t in element_types.split(",")}
+     sv = SchemaView(schema)
++    if elements:
++        unmatched = unmatched_element_names(elements, sv, types)
++        if unmatched:
++            raise click.BadParameter(
++                f"not a class, slot or enum that --element-types {element_types} searches in {schema}: {', '.join(unmatched)}",
++                param_hint="--element",
++            )
+     all_rows: list[dict] = []
+     total_queries = 0
+     skipped = 0
+@@ -258,7 +306,7 @@ def has_mappings(element) -> bool:
+ 
+     # Classes
+     if "classes" in types:
+-        classes = sv.all_classes()
++        classes = select_named(sv.all_classes(), elements)
+         logger.info("Searching %d classes...", len(classes))
+         for name, cls in classes.items():
+             if skip_mapped and has_mappings(cls):
+@@ -275,7 +323,7 @@ def has_mappings(element) -> bool:
+ 
+     # Slots
+     if "slots" in types:
+-        all_slots = sv.all_slots()
++        all_slots = select_named(sv.all_slots(), elements)
+         logger.info("Searching %d slots...", len(all_slots))
+         for name, slot in all_slots.items():
+             if skip_mapped and has_mappings(slot):
+@@ -292,7 +340,7 @@ def has_mappings(element) -> bool:
+ 
+     # Enums
+     if "enums" in types:
+-        all_enums = sv.all_enums()
++        all_enums = select_named(sv.all_enums(), elements)
+         logger.info("Searching %d enums...", len(all_enums))
+         for name, enum in all_enums.items():
+             if skip_mapped and has_mappings(enum):
+@@ -309,7 +357,7 @@ def has_mappings(element) -> bool:
+ 
+     # Permissible values
+     if "pvs" in types:
+-        all_enums = sv.all_enums()
++        all_enums = select_named(sv.all_enums(), elements)
+         pv_count = sum(
+             len(e.permissible_values) for e in all_enums.values() if e.permissible_values
+         )
+diff --git a/tests/test_ols4_embeddings_search.py b/tests/test_ols4_embeddings_search.py
+new file mode 100644
+index 0000000000..8d4785044d
+--- /dev/null
++++ b/tests/test_ols4_embeddings_search.py
+@@ -0,0 +1,119 @@
++"""Tests for the --element option of src/scripts/ols4_embeddings_search.py.
++
++The OLS4 API is not called: search_element is replaced with a recorder.
++"""
++
++from pathlib import Path
++
++import pytest
++from click.testing import CliRunner
++
++from src.scripts import ols4_embeddings_search
++
++SCHEMA = """\
++id: https://example.org/test
++name: test
++prefixes:
++  linkml: https://w3id.org/linkml/
++imports:
++  - linkml:types
++default_range: string
++classes:
++  Sample:
++    slots:
++      - analysis_type
++slots:
++  analysis_type:
++    range: AnalysisTypeEnum
++enums:
++  AnalysisTypeEnum:
++    permissible_values:
++      metagenomics: {}
++      metabolomics: {}
++  OtherEnum:
++    permissible_values:
++      other_value: {}
++"""
++
++
++@pytest.fixture
++def run_search(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
++    schema_path = tmp_path / "schema.yaml"
++    schema_path.write_text(SCHEMA)
++    searched: list[tuple[str, str]] = []
++
++    def record(subject_id, name, category, *args):
++        searched.append((category, name))
++        return []
++
++    monkeypatch.setattr(ols4_embeddings_search, "search_element", record)
++
++    def run(*options: str):
++        result = CliRunner().invoke(
++            ols4_embeddings_search.main,
++            ["--schema", str(schema_path), "-o", str(tmp_path / "out.tsv"), *options],
++        )
++        return result, searched
++
++    return run
++
++
++def test_element_limits_search_to_one_enum_and_its_values(run_search):
++    result, searched = run_search("--element", "AnalysisTypeEnum")
++    assert result.exit_code == 0, result.output
++    assert sorted(searched) == [
++        ("enum", "AnalysisTypeEnum"),
++        ("permissible_value", "metabolomics"),
++        ("permissible_value", "metagenomics"),
++    ]
++
++
++def test_element_with_pvs_only_searches_just_the_values(run_search):
++    result, searched = run_search(
++        "--element", "AnalysisTypeEnum", "--element-types", "pvs"
++    )
++    assert result.exit_code == 0, result.output
++    assert sorted(searched) == [
++        ("permissible_value", "metabolomics"),
++        ("permissible_value", "metagenomics"),
++    ]
++
++
++def test_element_is_repeatable_across_element_types(run_search):
++    result, searched = run_search("--element", "Sample", "--element", "analysis_type")
++    assert result.exit_code == 0, result.output
++    assert sorted(searched) == [("class", "Sample"), ("slot", "analysis_type")]
++
++
++def test_without_element_everything_is_searched(run_search):
++    result, searched = run_search("--element-types", "enums")
++    assert result.exit_code == 0, result.output
++    assert sorted(searched) == [("enum", "AnalysisTypeEnum"), ("enum", "OtherEnum")]
++
++
++def test_unknown_element_is_an_error_not_an_empty_run(run_search):
++    result, searched = run_search(
++        "--element", "AnalysisTypeEnum", "--element", "NoSuchEnum"
++    )
++    assert result.exit_code != 0
++    assert "NoSuchEnum" in result.output
++    assert searched == []
++
++
++def test_element_outside_the_selected_types_is_an_error(run_search, tmp_path):
++    result, searched = run_search("--element", "Sample", "--element-types", "pvs")
++    assert result.exit_code != 0
++    assert "Sample" in result.output
++    assert searched == []
++    assert not (tmp_path / "out.tsv").exists()
++
++
++def test_one_unmatched_name_among_valid_ones_is_an_error(run_search, tmp_path):
++    result, searched = run_search(
++        "--element", "AnalysisTypeEnum", "--element", "Sample", "--element-types", "pvs"
++    )
++    assert result.exit_code != 0
++    assert "Sample" in result.output
++    assert "AnalysisTypeEnum" not in result.output.split("searches in")[-1]
++    assert searched == []
++    assert not (tmp_path / "out.tsv").exists()

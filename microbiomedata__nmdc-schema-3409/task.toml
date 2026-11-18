@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3409"
+description = "Quiet migration doctests by default and stop echoing MIxS customization lines"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "5307f144ff1f24db593038d15ea06543c7620ce5"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3409"
+source_access = "auto"
+built_at = "2026-11-18T02:29:49.291160+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:9b3950d7c15824aadc3571b754fd8cd6af64f2bdb37a5e039dc9a0b9856a5303"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-09-15T15:40:05Z"
+diff_format = "unified"
+context_files = [
+    "makefiles/migrators.Makefile",
+    "makefiles/mixs.Makefile",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 9
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

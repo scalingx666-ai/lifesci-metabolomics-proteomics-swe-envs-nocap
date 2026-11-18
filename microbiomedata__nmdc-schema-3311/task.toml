@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3311"
+description = "Drop the dimensionless placeholder unit from two has_raw_values"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "f1e24ec0b4b26112ef8e78ea24ad96f7039c9fab"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3311"
+source_access = "auto"
+built_at = "2026-11-18T02:31:14.745933+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:9a3a2506eb3672a536bc9f5119d245a2ee8d7454aa4d6716428968f36954f976"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-10T16:40:30Z"
+diff_format = "unified"
+context_files = [
+    "assets/yq-for-mixs-customizations.txt",
+    "src/schema/mixs.yaml",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 8
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

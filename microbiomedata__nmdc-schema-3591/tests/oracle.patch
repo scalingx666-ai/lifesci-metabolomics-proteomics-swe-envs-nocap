@@ -1,0 +1,13 @@
+diff --git a/src/schema/attribute_values.yaml b/src/schema/attribute_values.yaml
+index f3a15c42cc..3bff519734 100644
+--- a/src/schema/attribute_values.yaml
++++ b/src/schema/attribute_values.yaml
+@@ -47,7 +47,7 @@ classes:
+         description: The number part of the quantity
+     # range: double # MAM 2024-0405 I don't believe we have any data that requires this level of precision
+     mappings:
+-      - schema:QuantityValue
++      - schema:QuantitativeValue
+ 
+   ImageValue:
+     class_uri: nmdc:ImageValue

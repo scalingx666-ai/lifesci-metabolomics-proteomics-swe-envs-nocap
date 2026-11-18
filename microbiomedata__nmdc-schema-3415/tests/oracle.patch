@@ -1,0 +1,150 @@
+diff --git a/.github/workflows/check-links.yaml b/.github/workflows/check-links.yaml
+index 208fcd26a1..469b846b91 100644
+--- a/.github/workflows/check-links.yaml
++++ b/.github/workflows/check-links.yaml
+@@ -38,7 +38,7 @@ jobs:
+         with:
+           persist-credentials: false
+       - name: Install Poetry
+-        run: pipx install poetry==2.4.1
++        run: pipx install poetry==2.4.3
+       - name: Set up Python
+         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+         with:
+diff --git a/.github/workflows/deploy-docs.yaml b/.github/workflows/deploy-docs.yaml
+index 21b2cf298a..8f414bd48c 100644
+--- a/.github/workflows/deploy-docs.yaml
++++ b/.github/workflows/deploy-docs.yaml
+@@ -28,7 +28,7 @@ jobs:
+           fetch-depth: 0 # otherwise, you will failed to push refs to dest repo
+ 
+       - name: Install Poetry.
+-        run: pipx install poetry==2.4.1
++        run: pipx install poetry==2.4.3
+ 
+       - name: Set up Python 3.
+         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+diff --git a/.github/workflows/lint.yaml b/.github/workflows/lint.yaml
+index ef323b2f14..905640f71e 100644
+--- a/.github/workflows/lint.yaml
++++ b/.github/workflows/lint.yaml
+@@ -57,7 +57,7 @@ jobs:
+           persist-credentials: false
+ 
+       - name: Install Poetry
+-        run: pipx install poetry==2.4.1
++        run: pipx install poetry==2.4.3
+ 
+       - name: Set up Python
+         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+diff --git a/.github/workflows/main.yaml b/.github/workflows/main.yaml
+index fdaa8aedec..c6a769d7a1 100644
+--- a/.github/workflows/main.yaml
++++ b/.github/workflows/main.yaml
+@@ -32,7 +32,7 @@ jobs:
+           persist-credentials: false
+ 
+       - name: Install Poetry
+-        run: pipx install poetry==2.4.1
++        run: pipx install poetry==2.4.3
+ 
+       - name: Set up Python ${{ matrix.python-version }}
+         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+diff --git a/.github/workflows/pypi-publish.yaml b/.github/workflows/pypi-publish.yaml
+index d4dffc7614..7762b898fb 100644
+--- a/.github/workflows/pypi-publish.yaml
++++ b/.github/workflows/pypi-publish.yaml
+@@ -31,7 +31,7 @@ jobs:
+ 
+     - name: Install Poetry
+       run: |
+-        pipx install poetry==2.4.1
++        pipx install poetry==2.4.3
+         pipx inject poetry "poetry-dynamic-versioning[plugin]"
+ 
+     - name: Set up Python
+diff --git a/.github/workflows/schema-pattern-lint.yml b/.github/workflows/schema-pattern-lint.yml
+index bcfd0b3b56..d36eaa88a6 100644
+--- a/.github/workflows/schema-pattern-lint.yml
++++ b/.github/workflows/schema-pattern-lint.yml
+@@ -34,7 +34,7 @@ jobs:
+           persist-credentials: false
+ 
+       - name: Install Poetry
+-        run: pipx install poetry==2.4.1
++        run: pipx install poetry==2.4.3
+ 
+       - name: Set up Python
+         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+diff --git a/.github/workflows/test-pages-build.yaml b/.github/workflows/test-pages-build.yaml
+index 66b79d4c2e..65ef631fd5 100644
+--- a/.github/workflows/test-pages-build.yaml
++++ b/.github/workflows/test-pages-build.yaml
+@@ -32,7 +32,7 @@ jobs:
+           fetch-depth: 0
+ 
+       - name: Install Poetry
+-        run: pipx install poetry==2.4.1
++        run: pipx install poetry==2.4.3
+ 
+       - name: Set up Python 3
+         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 9f4db5bac6..251c90138a 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -43,7 +43,7 @@ Build prerequisites and gotchas:
+ 
+ This is a Poetry repo. Sibling `submission-schema` migrated to `uv`; do not confuse the two.
+ 
+-- **Use poetry 2.4.1 or 2.4.3.** CI pins 2.4.1 in every workflow (`pipx install poetry==2.4.1`). The `poetry.lock` content-hash is poetry-version-sensitive: a different poetry version can report the lock as "out of sync with pyproject.toml" even when the dependencies are unchanged. 2.4.3 was checked against `main` on 2026-09-15: `poetry check --lock` reports "All set!", and `poetry lock` leaves the committed lock byte-identical. For any other version, run `poetry check --lock` before trusting it, and align dev/container poetry to one of these two. CI runs `poetry check` (in `main.yaml`) to catch real pyproject/lock drift in PRs rather than on a teammate's fresh install. To sync after editing pyproject: `poetry lock` (no `--regenerate` unless you intend to bump versions).
++- **Use poetry 2.4.3.** CI pins it in every workflow (`pipx install poetry==2.4.3`). The `poetry.lock` content-hash is poetry-version-sensitive: a different poetry version can report the lock as "out of sync with pyproject.toml" even when the dependencies are unchanged. With 2.4.3 against `main` on 2026-09-15, `poetry check --lock` reports "All set!" and `poetry lock` leaves the committed lock byte-identical. For any other version, run `poetry check --lock` before trusting it, and align dev/container poetry to 2.4.3. CI runs `poetry check` (in `main.yaml`) to catch real pyproject/lock drift in PRs rather than on a teammate's fresh install. To sync after editing pyproject: `poetry lock` (no `--regenerate` unless you intend to bump versions).
+ 
+ - Never create a `uv.lock` here, and never run `uv add`, `uv sync`, or `uv lock`. If a stray `uv.lock` appears, delete it before committing.
+ - Before tightening any pin in `pyproject.toml` (especially `linkml`), check that `submission-schema` still resolves. nmdc-schema is a library, so a tighter pin propagates to consumers even when nmdc-schema itself does not exercise the feature. `linkml` and `linkml-runtime` versions must be paired (a runtime release can drop something the matching `linkml` references).
+diff --git a/DEVELOPMENT.md b/DEVELOPMENT.md
+index 86a17f5952..d4bdc885b3 100644
+--- a/DEVELOPMENT.md
++++ b/DEVELOPMENT.md
+@@ -2,15 +2,13 @@
+ 
+ ## Prerequisites
+ 
+-This project uses **Poetry 2.4.1 or 2.4.3**. CI installs `poetry==2.4.1` in every workflow.
+-2.4.3 was checked against `main` on 2026-09-15: `poetry check --lock` reports "All set!" and
+-`poetry lock` leaves the committed lock unchanged. The `pyproject.toml` uses
++This project uses **Poetry 2.4.3**, which CI installs in every workflow. The `pyproject.toml` uses
+ [PEP 735 dependency groups](https://peps.python.org/pep-0735/) (`[dependency-groups]`). The
+ `poetry.lock` content-hash only tracks dependency-group changes from **Poetry 2.3.0 onward**
+ ([poetry#10632](https://github.com/python-poetry/poetry/issues/10632)), so a poetry older than
+ that (or simply different from the version that wrote the lock) computes a different hash and
+ reports the lock as "out of sync with pyproject.toml" even when nothing changed. CI now runs
+-`poetry check`, so a local poetry outside those two versions can disagree with CI. Run
++`poetry check`, so a local poetry other than 2.4.3 can disagree with CI. Run
+ `poetry check --lock` before trusting any other version. After editing `pyproject.toml`, run `poetry lock` (not `--regenerate` unless you intend
+ to bump versions) and commit the lock.
+ 
+@@ -18,8 +16,8 @@ to bump versions) and commit the lock.
+ # Check your version
+ poetry --version
+ 
+-# Upgrade if needed
+-pipx upgrade poetry
++# Install the pinned version
++pipx install --force poetry==2.4.3
+ ```
+ 
+ > **Note:** This requirement only applies to developers working on the schema.
+diff --git a/Dockerfile b/Dockerfile
+index ff9a50c199..1e3ecd57c2 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -13,7 +13,7 @@ RUN ARCH="$(dpkg --print-architecture)" && \
+     chmod +x /usr/bin/yq
+ 
+ # Install Poetry, a package manager for Python (an alternative to pip).
+-RUN pip install "poetry==2.4.1"
++RUN pip install "poetry==2.4.3"
+ 
+ # Install the project's Python dependencies.
+ ADD ./poetry.lock    /nmdc-schema/poetry.lock

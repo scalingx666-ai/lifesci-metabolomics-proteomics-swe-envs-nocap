@@ -1,0 +1,33 @@
+diff --git a/makefiles/migrators.Makefile b/makefiles/migrators.Makefile
+index b0c727afda..79fd3da186 100644
+--- a/makefiles/migrators.Makefile
++++ b/makefiles/migrators.Makefile
+@@ -10,11 +10,11 @@
+ 
+ # Runs all doctests defined within the migrator modules, adapters, and CLI scripts.
+ #
+-# To run in non-verbose mode:
++# Quiet by default: doctest prints only failures. To print every example as it runs:
+ # ```
+-# $ make migration-doctests DOCTEST_OPT=''
++# $ make migration-doctests DOCTEST_OPT=-v
+ # ```
+-DOCTEST_OPT ?= -v
++DOCTEST_OPT ?=
+ migration-doctests: nmdc_schema/nmdc_materialized_patterns.yaml
+ 	$(RUN) python -m doctest $(DOCTEST_OPT) nmdc_schema/migrators/*.py
+ 	$(RUN) python -m doctest $(DOCTEST_OPT) nmdc_schema/migrators/partials/**/*.py
+diff --git a/makefiles/mixs.Makefile b/makefiles/mixs.Makefile
+index c7228e0eed..cf870d33a3 100644
+--- a/makefiles/mixs.Makefile
++++ b/makefiles/mixs.Makefile
+@@ -67,7 +67,8 @@ local/mixs_regen/mixs_subset_modified.yaml: local/mixs_regen/mixs_subset.yaml as
+ 	# interior apostrophe closing the single-quote wrapper) aborts the build
+ 	# loudly instead of being silently skipped (the pipeline's exit status is
+ 	# the last iteration's, so without this a mid-file failure is swallowed).
+-	grep "^'" $(word 2, $^) | while IFS= read -r line ; do echo $$line ; eval yq -i $$line $@ || exit 1 ; done
++	# Only the failing line is printed, so a normal build does not echo all of them.
++	grep "^'" $(word 2, $^) | while IFS= read -r line ; do eval yq -i $$line $@ || { echo "yq customization failed: $$line" >&2 ; exit 1 ; } ; done
+ 
+ 
+ local/mixs_regen/mixs_subset_modified_inj_land_use.yaml: local/mixs_regen/mixs_subset_modified.yaml \

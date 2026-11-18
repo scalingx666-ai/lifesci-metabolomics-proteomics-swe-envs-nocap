@@ -1,0 +1,22 @@
+diff --git a/nmdc_schema/migrators/migrator_from_11_21_0_to_11_22_0.py b/nmdc_schema/migrators/migrator_from_11_21_0_to_11_22_0.py
+new file mode 100644
+index 0000000000..c2260c9369
+--- /dev/null
++++ b/nmdc_schema/migrators/migrator_from_11_21_0_to_11_22_0.py
+@@ -0,0 +1,16 @@
++from nmdc_schema.migrators.migrator_base import MigratorBase
++
++
++class Migrator(MigratorBase):
++    r"""
++    Migrates a database between two schemas.
++
++    Note: No migration is necessary.
++    """
++
++    _from_version = "11.21.0"
++    _to_version = "11.22.0"
++
++    def upgrade(self, commit_changes: bool = False) -> None:
++        r"""No upgrade needed."""
++        pass

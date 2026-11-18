@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3324"
+description = "Bump the github-actions group with 3 updates"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "e29af4e63a0cccca570b3fb016828b8f3619f5d7"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3324"
+source_access = "auto"
+built_at = "2026-11-18T02:30:56.255137+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:0ee9b869a46d3af2bff11171d2b9db61ce366f58a3b23083166f76bdc2f5f059"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-12T12:52:46Z"
+diff_format = "unified"
+context_files = [
+    ".github/workflows/codeql.yaml",
+    ".github/workflows/zizmor.yml",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 6
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

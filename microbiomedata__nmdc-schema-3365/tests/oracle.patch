@@ -1,0 +1,97 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 1af5a8f946..21426b4e7d 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -212,10 +212,17 @@ hand-edited schema YAML files under `src/schema/`. If they appear in
+ generated files (like `mixs.yaml`), the build pipeline in
+ `makefiles/mixs.Makefile` strips them via `yq eval`.
+ 
+-The 12 readonly slots: `definition_uri`, `domain_of`, `from_schema`,
+-`generation_date`, `imported_from`, `is_usage_slot`, `metamodel_version`,
+-`owner`, `source_file`, `source_file_date`, `source_file_size`,
+-`usage_slot_name`.
++The 12 readonly slots split across two metamodel element types. Tooling that
++filters on them needs the distinction; a list of all 12 read as slot-level has
++already produced a false bug report.
++
++On `SlotDefinition` (7), so reachable on a slot or in `slot_usage`:
++`definition_uri`, `domain_of`, `from_schema`, `imported_from`, `is_usage_slot`,
++`owner`, `usage_slot_name`.
++
++On `SchemaDefinition` (5), never present on a slot even after induction:
++`generation_date`, `metamodel_version`, `source_file`, `source_file_date`,
++`source_file_size`.
+ 
+ Context: PR #2696 (dematerialize mixs.yaml), issue #2663.
+ 
+diff --git a/src/docs/developer-docs.md b/src/docs/developer-docs.md
+index 54994aedab..458c23906c 100644
+--- a/src/docs/developer-docs.md
++++ b/src/docs/developer-docs.md
+@@ -86,9 +86,16 @@ for details.
+ ### What are LinkML readonly metaslots and why shouldn't I assert them?
+ 
+ The LinkML metamodel defines 12 **readonly** slots that are automatically populated
+-by the schema loader or generators: `definition_uri`, `domain_of`, `from_schema`,
+-`generation_date`, `imported_from`, `is_usage_slot`, `metamodel_version`, `owner`,
+-`source_file`, `source_file_date`, `source_file_size`, `usage_slot_name`.
++by the schema loader or generators. They belong to two different metamodel element
++types, which matters when writing tooling that filters on them.
++
++Seven are on `SlotDefinition`, so they can appear on a slot or in a `slot_usage`
++block: `definition_uri`, `domain_of`, `from_schema`, `imported_from`,
++`is_usage_slot`, `owner`, `usage_slot_name`.
++
++Five are on `SchemaDefinition` and describe the file a schema was read from. They
++never appear on a slot, even after induction: `generation_date`, `metamodel_version`,
++`source_file`, `source_file_date`, `source_file_size`.
+ 
+ **Do not add these to hand-edited schema YAML files** under `src/schema/`. The
+ loader fills them in at runtime, so asserting them is redundant and can cause
+diff --git a/src/docs/maintaining-the-schema.md b/src/docs/maintaining-the-schema.md
+index 6a0e222d87..28d5a8cce7 100644
+--- a/src/docs/maintaining-the-schema.md
++++ b/src/docs/maintaining-the-schema.md
+@@ -140,9 +140,19 @@ these gold_biosample_identifiers would all be web-resolvable.
+ 
+ We can limit the values that go into any slot by using a `pattern` constraint. We can also use the `id_prefixes` constraint
+ to limit the prefixes that are used in whatever slot has been declared to be the identifier of a class.
+-(Attributes of a class are supposed to be cascaded to subclasses, via the `is_a` attribute.
+-This may not always be the case though. In the nmdc-schema we have been using a belt-and-suspenders approach of 
+-re-declaring the `uriorcurie` range )
++
++Constraints written in a class's `slot_usage` do cascade to subclasses through `is_a`, so there is no need to
++restate an inherited value defensively. An earlier version of this page described a belt-and-suspenders practice of
++re-declaring the `uriorcurie` range for that reason. No class does that, and restating an inherited value is now
++treated as something to remove: `src/scripts/report_redundant_slot_usage.py` finds them and
++`tests/test_no_redundant_slot_usage.py` fails CI when a new one appears.
++
++Restating costs something real. A class that repeats a value it already inherits stops tracking the parent, so a
++later edit upstream silently does not reach it.
++
++One inheritance path does drop values, and it is not this one: a *slot* that inherits from another slot through
++slot-level `is_a` loses a falsy value such as `minimum_value: 0`. That is [linkml issue 3845](https://github.com/linkml/linkml/issues/3845)
++and it does not affect class `slot_usage`.
+ 
+ All prefixes used in the `id_prefixes` constraint must be defined in the schema. 
+ We should have a standing practice of reflecting on the declared `id_prefixes`, and removing prefixes that haven't been used yet
+diff --git a/src/scripts/report_redundant_slot_usage.py b/src/scripts/report_redundant_slot_usage.py
+index d7fb01acd9..624bae8182 100644
+--- a/src/scripts/report_redundant_slot_usage.py
++++ b/src/scripts/report_redundant_slot_usage.py
+@@ -10,9 +10,12 @@
+ otherwise. That distinction matters: a `slot_usage` restoring the global value
+ after a parent narrowed it is a real refinement, not a redundancy.
+ 
+-This script reports them. It does not edit the schema, because some restatements
+-are deliberate (see the note on re-declaring `range: uriorcurie` in
+-`src/docs/maintaining-the-schema.md`), so a human decides what to remove.
++This script reports them. It does not edit the schema, because a restatement can
++be deliberate, so a human decides what to remove. `PropertyAssertion.has_unit`
++asserting `required: false` is the one currently kept: its baseline is unset
++rather than asserted, and it documents the conditional requirement its own
++description spells out. `tests/test_no_redundant_slot_usage.py` records it as the
++single expected exception.
+ 
+ Usage:
+ 

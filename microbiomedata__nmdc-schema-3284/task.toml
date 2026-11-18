@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3284"
+description = "Fix mixs.Makefile: add Step 12 comment, fix and reformat the MIxS dematerialization yq script"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "9a2e93e15fa74353825a2ba43944ad68b141661a"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3284"
+source_access = "auto"
+built_at = "2026-11-18T02:31:45.864066+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:956de9d9d900c976c0fbb8e49530613d035a32108ff5a5b89e67271d33517118"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-07-20T15:05:14Z"
+diff_format = "unified"
+context_files = [
+    "assets/yq-for-mixs-dematerialize.yq",
+    "makefiles/mixs.Makefile",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 71
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

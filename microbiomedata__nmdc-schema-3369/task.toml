@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3369"
+description = "Constrain md5_checksum to a 32-character hex digest"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "2a6caf293471904c54594a84581c9e064b3a2240"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3369"
+source_access = "auto"
+built_at = "2026-11-18T02:30:30.197439+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:651cf0eeb6241c53b8a290991deb246032d6378a43e3bef8c252634a5b7d1759"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-14T16:59:44Z"
+diff_format = "unified"
+context_files = [
+    "src/data/invalid/DataObject-invalid_md5_checksum.yaml",
+    "src/schema/basic_slots.yaml",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 22
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

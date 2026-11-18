@@ -1,0 +1,67 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3249"
+description = "Stop docgen truncating slot/class descriptions mid-word (#3242)"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "84b930399cb6d6a5127ac28b4eec856b7e60880d"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3249"
+source_access = "auto"
+built_at = "2026-11-18T02:32:27.521197+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e86eb8c1bd27c992500006095bac25f012fe3f0a9246b122c26de5a4ca6b8705"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-10T16:55:55Z"
+diff_format = "unified"
+context_files = [
+    "src/doc-templates/_macros.jinja2",
+    "src/doc-templates/class.md.jinja2",
+    "src/doc-templates/enum.md.jinja2",
+    "src/doc-templates/index.md.jinja2",
+    "src/doc-templates/slot.md.jinja2",
+    "src/doc-templates/subset.md.jinja2",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 46
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

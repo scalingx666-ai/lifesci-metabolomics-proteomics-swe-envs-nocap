@@ -1,0 +1,67 @@
+diff --git a/src/schema/basic_slots.yaml b/src/schema/basic_slots.yaml
+index b3603f70c9..be723699b8 100644
+--- a/src/schema/basic_slots.yaml
++++ b/src/schema/basic_slots.yaml
+@@ -258,7 +258,7 @@ slots:
+         description: The DOI links to an electronic document.
+     exact_mappings:
+       - OBI:0002110
+-    narrow_mappings:
++    related_mappings:
+       - edam.data:1188
+ 
+   doi_provider:
+diff --git a/src/schema/core.yaml b/src/schema/core.yaml
+index f33eab6aa5..5c70b790c1 100644
+--- a/src/schema/core.yaml
++++ b/src/schema/core.yaml
+@@ -1743,28 +1743,28 @@ slots:
+     description: The quality of the metagenome-assembled genome based on MIMAG standards (https://doi.org/10.1038/nbt.3893).
+     range: BinQualityEnum
+   num_16s:
+-    description: Number of 16s sequences detected, a subunit of prokaryotic ribosomes.
++    description: Number of 16S sequences detected, a subunit of prokaryotic ribosomes.
+     range: integer
+     minimum_value: 0
+-    broad_mappings:
++    related_mappings:
+       - OMIT:0013243
+   num_5s:
+-    description: Number of 5s seqeuences detected, a subunit of ribosomes.
++    description: Number of 5S sequences detected, a subunit of ribosomes.
+     range: integer
+     minimum_value: 0
+-    broad_mappings:
++    related_mappings:
+       - OMIT:0013248
+   num_23s:
+-    description: Number of 23 seqeuences detected, a subunit of ribosomes.
++    description: Number of 23S sequences detected, a subunit of ribosomes.
+     minimum_value: 0
+     range: integer
+-    broad_mappings:
++    related_mappings:
+       - OMIT:0013245
+   num_t_rna:
+-    description: Number of transfer transfer RNAs.
++    description: Number of transfer RNAs.
+     minimum_value: 0
+     range: integer
+-    broad_mappings:
++    related_mappings:
+       - OMIT:0013250
+   gtdbtk_domain:
+     description: Taxonomic domain assigned by GTDB-Tk.
+diff --git a/src/schema/nmdc.yaml b/src/schema/nmdc.yaml
+index 1b340aea47..ab5b625a14 100644
+--- a/src/schema/nmdc.yaml
++++ b/src/schema/nmdc.yaml
+@@ -1373,7 +1373,7 @@ slots:
+       - sample weight
+     exact_mappings:
+       - MS:1000004
+-    broad_mappings:
++    related_mappings:
+       - MIXS:0000111
+     range: QuantityValue
+     annotations:

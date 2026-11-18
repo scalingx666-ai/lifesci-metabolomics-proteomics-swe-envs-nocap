@@ -9,9 +9,9 @@ Repo2RLEnv pr_diff (v0.9.6), Harbor-format output. Domain: metabolomics-proteomi
 | Domain candidates (deduped) | 321 |
 | After active+star+noise filter | 113 |
 | Final target list (cap unlimited) | 113 |
-| Repos with >=1 task | 9 |
-| Repos with 0 tasks | 91 |
-| Total tasks (unlimited (no per-repo cap)) | 422 |
+| Repos with >=1 task | 11 |
+| Repos with 0 tasks | 89 |
+| Total tasks (unlimited (no per-repo cap)) | 587 |
 
 ## Generation
 
@@ -23,7 +23,7 @@ Repo2RLEnv pr_diff (v0.9.6), Harbor-format output. Domain: metabolomics-proteomi
 - Overlap with the 3 published cancer editions is allowed (user decision);
   domains are independent selections, not a partition of one repo set.
 
-## Zero-yield repos (informational, 91)
+## Zero-yield repos (informational, 89)
 
 - zhoushengisnoob/DeepClustering
 - 52CV/CV-Surveys
@@ -34,7 +34,6 @@ Repo2RLEnv pr_diff (v0.9.6), Harbor-format output. Domain: metabolomics-proteomi
 - bioMate-AI/biomate-bioconductor-kb
 - YinLiLin/CMplot
 - OpenMS/OpenMS
-- MannLabs/CKG
 - mikeroyal/Neuromorphic-Computing-Guide
 - maduc7/Histopathology-Datasets
 - mahmoodlab/CONCH
@@ -109,7 +108,6 @@ Repo2RLEnv pr_diff (v0.9.6), Harbor-format output. Domain: metabolomics-proteomi
 - mahmoodlab/3DCPath-datasets
 - LiChenPU/NetID
 - rusteomics/mzcore
-- microbiomedata/nmdc-schema
 - Functional-Metabolomics-Lab/FBMN-STATS
 - CompOmics/ms2pip
 - qcxms/QCxMS

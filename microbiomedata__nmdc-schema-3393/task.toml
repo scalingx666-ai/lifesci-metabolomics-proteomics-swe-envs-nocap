@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3393"
+description = "Auxiliary changes to support safe deprecation of `collection_date_inc`"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "acfef1b7ff7bcb213c7593031702fbad02337106"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3393"
+source_access = "auto"
+built_at = "2026-11-18T02:30:06.165973+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:9d866a59bc2e5ba8b8560f3287daba8befa5cda65f2808ebb62631367191c6bd"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-09-03T19:05:04Z"
+diff_format = "unified"
+context_files = [
+    "assets/misc/neon_nmdc_term_mapping.tsv",
+    "assets/ncbi_mappings/ncbi_attribute_mappings.tsv",
+    "assets/ncbi_mappings/ncbi_attribute_mappings_filled.tsv",
+    "assets/ncbi_mappings/ncbi_pg_db_field_mappings.tsv",
+    "assets/ncbi_mappings/ncbi_pg_db_field_mappings_filled.tsv",
+    "assets/ontology_alignment/ols4_embeddings_results.tsv",
+    "nmdc_schema/migrators/migrator_from_11_23_0_to_11_24_0.py",
+    "nmdc_schema/migrators/partials/migrator_from_11_23_0_to_11_24_0/__init__.py",
+    "nmdc_schema/migrators/partials/migrator_from_11_23_0_to_11_24_0/migrator_from_11_23_0_to_11_24_0_part_4.py",
+    "src/docs/ontology-alignment-ols4.md",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 691
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

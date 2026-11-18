@@ -1,0 +1,588 @@
+diff --git a/assets/import_mixs_slots_regardless.tsv b/assets/import_mixs_slots_regardless.tsv
+index 0a7a4779ed..770319ad49 100644
+--- a/assets/import_mixs_slots_regardless.tsv
++++ b/assets/import_mixs_slots_regardless.tsv
+@@ -489,18 +489,18 @@ MimsSoil	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v6.3
+ MimsSoil	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v6.3.0/src/mixs/schema/mixs.yaml	ploidy			placeholder_class
+ MimsSoil	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v6.3.0/src/mixs/schema/mixs.yaml	ref_biomaterial			placeholder_class
+ MimsSoil	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v6.3.0/src/mixs/schema/mixs.yaml	isol_growth_condt			placeholder_class
+-MimsSoil	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v6.3.0/src/mixs/schema/mixs.yaml	lib_layout		placeholder_class
+-MimsSoil	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v6.3.0/src/mixs/schema/mixs.yaml	adapters		placeholder_class
++MimsSoil	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v6.3.0/src/mixs/schema/mixs.yaml	lib_layout			placeholder_class
++MimsSoil	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v6.3.0/src/mixs/schema/mixs.yaml	adapters			placeholder_class
+ MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	isotope			placeholder_class
+-MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	isotopolog		placeholder_class
+-MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	isotopolog_label	placeholder_class
+-MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	isotopolog_approach	placeholder_class
+-MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	gradient_position	placeholder_class
+-MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	gradient_pos_density	placeholder_class
+-MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	gradient_pos_rel_am	placeholder_class
+-MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	isotopolog_atom_frac	placeholder_class
+-MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	isotopolog_atom_pos	placeholder_class
+-MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	isotopolog_dose		placeholder_class
+-MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	nucleobase_atom_frac	placeholder_class
+-MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	isotopolog_incu_time	placeholder_class
+-MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	internal_standard	placeholder_class
++MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	isotopolog			placeholder_class
++MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	isotopolog_label			placeholder_class
++MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	isotopolog_approach			placeholder_class
++MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	gradient_position			placeholder_class
++MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	gradient_pos_density			placeholder_class
++MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	gradient_pos_rel_am			placeholder_class
++MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	isotopolog_atom_frac			placeholder_class
++MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	isotopolog_atom_pos			placeholder_class
++MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	isotopolog_dose			placeholder_class
++MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	nucleobase_atom_frac			placeholder_class
++MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	isotopolog_incu_time			placeholder_class
++MimsMisip	https://raw.githubusercontent.com/GenomicsStandardsConsortium/mixs/v7.0.1/src/mixs/schema/mixs.yaml	internal_standard			placeholder_class
+diff --git a/assets/yq-for-mixs-customizations.txt b/assets/yq-for-mixs-customizations.txt
+index f2cc9c3889..b4d828943a 100644
+--- a/assets/yq-for-mixs-customizations.txt
++++ b/assets/yq-for-mixs-customizations.txt
+@@ -366,6 +366,7 @@
+ '.slots.salt_regm.range |= "TextValue"'
+ '.slots.isotopolog_incu_time.range |= "QuantityValue"'
+ '.slots.gradient_pos_density.range |= "QuantityValue"'
++'.slots.isotopolog_dose.range |= "QuantityValue"'
+ # Restore TextValue range for slots where NMDC MongoDB has TextValue data
+ # These slots have production data using {type: nmdc:TextValue, has_raw_value: ...} format
+ # Future migration to enums tracked in GitHub issue
+@@ -774,6 +775,7 @@
+ '.slots.silicate.annotations.storage_units = {"tag": "storage_units", "value": "umol/L"}'
+ '.slots.isotopolog_incu_time.annotations.storage_units = {"tag": "storage_units", "value": "h"}'
+ '.slots.gradient_pos_density.annotations.storage_units = {"tag": "storage_units", "value": "g/mL"}'
++'.slots.isotopolog_dose.annotations.storage_units = {"tag": "storage_units", "value": "[ppm]"}'
+ 
+ # Add storage_units annotations for slots with multiple UCUM-compatible preferred units
+ '.slots.abs_air_humidity.annotations.storage_units = {"tag": "storage_units", "value": "[lb_av]|g/g|kg|kg/kg"}'
+@@ -918,6 +920,9 @@
+ # Objectify wrapper-range example values so each example's structure matches the slot's
+ # asserted range. Units validated against UnitEnum; type designator included. Slots needing
+ # UCUM additions, value fixes, or non-UCUM/dimensionless handling are deferred to the units PR.
++# isotope is multivalued: one permissible value per example, not the pipe-joined MIxS form
++'.slots.isotope.examples = [{"value": "13C"}, {"value": "15N"}]'
++
+ '.slots.abs_air_humidity.examples = [{"object": {"type": "nmdc:QuantityValue", "has_raw_value": "9 g/g", "has_numeric_value": 9, "has_unit": "g/g"}}]'
+ '.slots.agrochem_addition.examples = [{"object": {"type": "nmdc:TextValue", "has_raw_value": "roundup;5 milligram per liter;2018-06-21"}}]'
+ '.slots.air_temp.examples = [{"object": {"type": "nmdc:QuantityValue", "has_raw_value": "20 Cel", "has_numeric_value": 20, "has_unit": "Cel"}}]'
+@@ -983,6 +988,7 @@
+ '.slots.gaseous_environment.examples = [{"object": {"type": "nmdc:TextValue", "has_raw_value": "nitric oxide;0.5 micromole per liter;R2/2018-05-11T14:30/2018-05-11T19:30/P1H30M"}}]'
+ '.slots.geo_loc_name.examples = [{"object": {"type": "nmdc:TextValue", "has_raw_value": "USA: Maryland, Bethesda"}}]'
+ '.slots.glucosidase_act.examples = [{"object": {"type": "nmdc:QuantityValue", "has_raw_value": "5 mol/L/h", "has_numeric_value": 5, "has_unit": "mol/L/h"}}]'
++'.slots.gradient_pos_density.examples = [{"object": {"type": "nmdc:QuantityValue", "has_raw_value": "1.725 g/mL", "has_numeric_value": 1.725, "has_unit": "g/mL"}}, {"object": {"type": "nmdc:QuantityValue", "has_raw_value": "1.725-1.735 g/mL", "has_minimum_numeric_value": 1.725, "has_maximum_numeric_value": 1.735, "has_unit": "g/mL"}}]'
+ '.slots.gravidity.examples = [{"object": {"type": "nmdc:TextValue", "has_raw_value": "yes;due date:2018-05-11"}}]'
+ '.slots.gravity.examples = [{"object": {"type": "nmdc:TextValue", "has_raw_value": "12 g;R2/2018-05-11T14:30/2018-05-11T19:30/P1H30M"}}]'
+ '.slots.growth_facil.examples = [{"object": {"type": "nmdc:ControlledTermValue", "has_raw_value": "Growth chamber [CO_715:0000189]", "term": {"id": "CO_715:0000189", "type": "nmdc:OntologyClass"}}}]'
+@@ -1001,6 +1007,14 @@
+ '.slots.host_tot_mass.examples = [{"object": {"type": "nmdc:QuantityValue", "has_raw_value": "2500 g", "has_numeric_value": 2500, "has_unit": "g"}}]'
+ '.slots.host_wet_mass.examples = [{"object": {"type": "nmdc:QuantityValue", "has_raw_value": "1500 g", "has_numeric_value": 1500, "has_unit": "g"}}]'
+ '.slots.humidity_regm.examples = [{"object": {"type": "nmdc:TextValue", "has_raw_value": "25 gram per cubic meter;R2/2018-05-11T14:30/2018-05-11T19:30/P1H30M"}}]'
++'.slots.internal_standard.examples = [{"object": {"type": "nmdc:TextValue", "has_raw_value": "https://doi.org/10.1101/2022.12.20.521340"}}]'
++'.slots.isotopolog.examples = [{"object": {"type": "nmdc:ControlledTermValue", "has_raw_value": "toluene [PUBCHEM.COMPOUND:1140]", "term": {"id": "PUBCHEM.COMPOUND:1140", "type": "nmdc:OntologyClass"}}}]'
++'.slots.isotopolog.comments = ["Give the PubChem compound as PUBCHEM.COMPOUND:<CID>, both in has_raw_value and in term.id. For an undefined mixture, describe it in has_raw_value and omit term; NMDC does not use a sentinel identifier for that case."]'
++'.slots.isotopolog.examples += [{"object": {"type": "nmdc:ControlledTermValue", "has_raw_value": "root exudates"}}]'
++'.slots.isotopolog_atom_frac.examples = [{"object": {"type": "nmdc:TextValue", "has_raw_value": "0.95"}}]'
++'.slots.isotopolog_atom_pos.examples = [{"object": {"type": "nmdc:TextValue", "has_raw_value": "1S/C7H8/c1-7-5-3-2-4-6-7/h2-6H,1H3/i1+1,2+1,3+1,4+1,5+1,6+1,7+1"}}]'
++'.slots.isotopolog_dose.examples = [{"object": {"type": "nmdc:QuantityValue", "has_raw_value": "10 [ppm]", "has_numeric_value": 10, "has_unit": "[ppm]"}}]'
++'.slots.isotopolog_incu_time.examples = [{"object": {"type": "nmdc:QuantityValue", "has_raw_value": "12 h", "has_numeric_value": 12, "has_unit": "h"}}]'
+ '.slots.iw_bt_date_well.examples = [{"object": {"type": "nmdc:TimestampValue", "has_raw_value": "2013-03-25T12:42:31+01:00"}}]'
+ '.slots.last_clean.examples = [{"object": {"type": "nmdc:TimestampValue", "has_raw_value": "2013-03-25T12:42:31+01:00"}}]'
+ '.slots.lat_lon.examples = [{"object": {"type": "nmdc:GeolocationValue", "latitude": 50.586825, "longitude": 6.408977, "has_raw_value": "50.586825 6.408977"}}]'
+diff --git a/src/data/invalid/LabelingProcess-isotopolog-cid-zero.yaml b/src/data/invalid/LabelingProcess-isotopolog-cid-zero.yaml
+new file mode 100644
+index 0000000000..892b121f8f
+--- /dev/null
++++ b/src/data/invalid/LabelingProcess-isotopolog-cid-zero.yaml
+@@ -0,0 +1,19 @@
++# Invalid for one reason: isotopolog.term.id is the sentinel PUBCHEM.COMPOUND:0, which is
++# not a real compound identifier. PubChem's API returns HTTP 400 for CID 0.
++id: nmdc:labp-99-abcdef7
++name: labeling of my awesome biosample
++type: nmdc:LabelingProcess
++has_input:
++  - nmdc:bsm-99-123456
++has_output:
++  - nmdc:procsm-99-987654
++isotope:
++  - 13C
++isotopolog_label: isotopically labeled
++isotopolog_approach: single
++isotopolog:
++  - type: nmdc:ControlledTermValue
++    has_raw_value: an undefined mixture [PUBCHEM.COMPOUND:0]
++    term:
++      id: PUBCHEM.COMPOUND:0
++      type: nmdc:OntologyClass
+diff --git a/src/data/invalid/LabelingProcess-isotopolog-lowercase-prefix.yaml b/src/data/invalid/LabelingProcess-isotopolog-lowercase-prefix.yaml
+new file mode 100644
+index 0000000000..47877e0f40
+--- /dev/null
++++ b/src/data/invalid/LabelingProcess-isotopolog-lowercase-prefix.yaml
+@@ -0,0 +1,19 @@
++# Invalid for one reason: isotopolog.term.id uses the lowercase bioregistry form of the
++# PubChem prefix rather than the PUBCHEM.COMPOUND prefix this schema declares.
++id: nmdc:labp-99-abcdef6
++name: labeling of my awesome biosample
++type: nmdc:LabelingProcess
++has_input:
++  - nmdc:bsm-99-123456
++has_output:
++  - nmdc:procsm-99-987654
++isotope:
++  - 13C
++isotopolog_label: isotopically labeled
++isotopolog_approach: single
++isotopolog:
++  - type: nmdc:ControlledTermValue
++    has_raw_value: toluene [pubchem.compound:1140]
++    term:
++      id: pubchem.compound:1140
++      type: nmdc:OntologyClass
+diff --git a/src/data/invalid/LabelingProcess-isotopolog-wrong-namespace.yaml b/src/data/invalid/LabelingProcess-isotopolog-wrong-namespace.yaml
+new file mode 100644
+index 0000000000..ec35dc62e5
+--- /dev/null
++++ b/src/data/invalid/LabelingProcess-isotopolog-wrong-namespace.yaml
+@@ -0,0 +1,18 @@
++# Invalid for one reason: isotopolog.term.id uses a namespace other than PUBCHEM.COMPOUND.
++id: nmdc:labp-99-abcdef5
++name: labeling of my awesome biosample
++type: nmdc:LabelingProcess
++has_input:
++  - nmdc:bsm-99-123456
++has_output:
++  - nmdc:procsm-99-987654
++isotope:
++  - 13C
++isotopolog_label: isotopically labeled
++isotopolog_approach: single
++isotopolog:
++  - type: nmdc:ControlledTermValue
++    has_raw_value: mixture [CHEBI:60004]
++    term:
++      id: CHEBI:60004
++      type: nmdc:OntologyClass
+diff --git a/src/data/valid/Database-sip_example.yaml b/src/data/valid/Database-sip_example.yaml
+index a59f68220a..65974cc7e0 100644
+--- a/src/data/valid/Database-sip_example.yaml
++++ b/src/data/valid/Database-sip_example.yaml
+@@ -1,29 +1,32 @@
+ #example data using new SIP material processing slots. In this example a sample is labeled with C13 for 12 hours, then DNA is extracted, and the sample is fractionated into three fractions.
+ material_processing_set:
+   - id: nmdc:labp-99-abcdef2
+-    name: labeling of my awesome biosample 
++    name: labeling of my awesome biosample
+     has_input:
+-      - nmdc:bsam-99-123456
++      - nmdc:bsm-99-123456
+     has_output:
+-      - nmdc:prcsam-99-987654
++      - nmdc:procsm-99-987654
+     isotopolog_label: isotopically labeled
+     isotopolog_approach: single
+-    isotope: 13C
+-    isotopolog: 
+-      type: nmdc:ControlledIdentifiedTermValue
+-      term:
+-        id: PUBCHEM.COMPOUND:1140]
+-        name: toluene
++    isotope:
++      - 13C
++    isotopolog:
++      - type: nmdc:ControlledIdentifiedTermValue
++        has_raw_value: toluene [PUBCHEM.COMPOUND:1140]
++        term:
++          id: PUBCHEM.COMPOUND:1140
++          name: toluene
++          type: nmdc:OntologyClass
+     isotopolog_incu_time:
+-      has_units: h
++      type: nmdc:QuantityValue
++      has_raw_value: 12 h
+       has_numeric_value: 12
+-      type: "nmdc:QuantityValue"
+-      has_raw_value: "12 hours"
++      has_unit: h
+     type: nmdc:LabelingProcess
+   - id: nmdc:extrp-99-abcdef2
+     name: DNA extraction of my awesome biosample
+     has_input:
+-      - nmdc:prcsam-99-987654
++      - nmdc:procsm-99-987654
+     #cardinality of outputs should be 1-many, may want to fractionate samples or keep supernatant
+     has_output:
+       - nmdc:procsm-99-9437ae
+@@ -37,23 +40,23 @@ material_processing_set:
+       - nmdc:procsm-99-9437a1
+       - nmdc:procsm-99-9437a2
+       - nmdc:procsm-99-9437a3
+-    type: nmdc:FractionationProcess  
++    type: nmdc:FractionationProcess
+ processed_sample_set:
+-  - id: nmdc:prcsam-99-987654
++  - id: nmdc:procsm-99-987654
+     name: my awesome biosample after isotopolog labeling
+-    type: nmdc:ProcessedSample    
+-  - id: nmdc:prcsam-99-987654
++    type: nmdc:ProcessedSample
++  - id: nmdc:procsm-99-9437ae
+     name: my awesome biosample after DNA extraction
+     type: nmdc:ProcessedSample
+-  - id: nmdc:procsm-99-9437a1    
++  - id: nmdc:procsm-99-9437a1
+     name: my awesome biosample after fractionation
+     gradient_position: 1
+     type: nmdc:ProcessedSample
+-  - id: nmdc:procsm-99-9437a2    
++  - id: nmdc:procsm-99-9437a2
+     name: my awesome biosample after fractionation
+     gradient_position: 2
+     type: nmdc:ProcessedSample
+-  - id: nmdc:procsm-99-9437a3    
++  - id: nmdc:procsm-99-9437a3
+     name: my awesome biosample after fractionation
+     gradient_position: 3
+     type: nmdc:ProcessedSample
+diff --git a/src/data/valid/LabelingProcess-isotopolog-multiple.yaml b/src/data/valid/LabelingProcess-isotopolog-multiple.yaml
+new file mode 100644
+index 0000000000..491d9cefa4
+--- /dev/null
++++ b/src/data/valid/LabelingProcess-isotopolog-multiple.yaml
+@@ -0,0 +1,23 @@
++# Valid. Two isotopologs were added to the same sample, each with its own PubChem compound.
++id: nmdc:labp-99-abcdef4
++name: labeling of my awesome biosample
++type: nmdc:LabelingProcess
++has_input:
++  - nmdc:bsm-99-123456
++has_output:
++  - nmdc:procsm-99-987654
++isotope:
++  - 13C
++isotopolog_label: isotopically labeled
++isotopolog_approach: single
++isotopolog:
++  - type: nmdc:ControlledTermValue
++    has_raw_value: toluene [PUBCHEM.COMPOUND:1140]
++    term:
++      id: PUBCHEM.COMPOUND:1140
++      type: nmdc:OntologyClass
++  - type: nmdc:ControlledTermValue
++    has_raw_value: water [PUBCHEM.COMPOUND:962]
++    term:
++      id: PUBCHEM.COMPOUND:962
++      type: nmdc:OntologyClass
+diff --git a/src/data/valid/LabelingProcess-isotopolog-undefined-mixture.yaml b/src/data/valid/LabelingProcess-isotopolog-undefined-mixture.yaml
+new file mode 100644
+index 0000000000..6c92d09242
+--- /dev/null
++++ b/src/data/valid/LabelingProcess-isotopolog-undefined-mixture.yaml
+@@ -0,0 +1,16 @@
++# Valid. An undefined mixture is described in has_raw_value with no term, rather than
++# with a sentinel identifier. This is the case MIxS documents as "enter 0".
++id: nmdc:labp-99-abcdef3
++name: labeling of my awesome biosample
++type: nmdc:LabelingProcess
++has_input:
++  - nmdc:bsm-99-123456
++has_output:
++  - nmdc:procsm-99-987654
++isotope:
++  - 13C
++isotopolog_label: isotopically labeled
++isotopolog_approach: single
++isotopolog:
++  - type: nmdc:ControlledTermValue
++    has_raw_value: root exudates
+diff --git a/src/schema/attribute_values.yaml b/src/schema/attribute_values.yaml
+index b1df5e6abf..2733c13382 100644
+--- a/src/schema/attribute_values.yaml
++++ b/src/schema/attribute_values.yaml
+@@ -930,6 +930,10 @@ enums:
+         aliases:
+           - grams per cubic centimeter
+         description: The Unified Code for Units of Measure (UCUM) representation of grams per cubic centimeter.
++      "g/mL":
++        aliases:
++          - grams per milliliter
++        description: The Unified Code for Units of Measure (UCUM) representation of grams per milliliter.
+       "g/L":
+         aliases:
+           - grams per liter
+diff --git a/src/schema/basic_classes.yaml b/src/schema/basic_classes.yaml
+index aa1b78557b..4b190031ca 100644
+--- a/src/schema/basic_classes.yaml
++++ b/src/schema/basic_classes.yaml
+@@ -292,8 +292,6 @@ classes:
+       - description
+       - protocol_for
+       - analysis_type
+-    narrow_mappings:
+-      - MIXS:0001345
+   CreditAssociation:
+     aliases:
+       - credit table
+diff --git a/src/schema/mixs.yaml b/src/schema/mixs.yaml
+index 6febe819c1..218f299ecf 100644
+--- a/src/schema/mixs.yaml
++++ b/src/schema/mixs.yaml
+@@ -406,6 +406,12 @@ enums:
+       vent cover: {}
+       wall: {}
+       window: {}
++  LibLayoutEnum:
++    permissible_values:
++      other: {}
++      paired: {}
++      single: {}
++      vector: {}
+   LightTypeEnum:
+     permissible_values:
+       desk lamp: {}
+@@ -829,12 +835,6 @@ enums:
+       low: {}
+       middle: {}
+       top: {}
+-  LibLayoutEnum:
+-    permissible_values:
+-      other: {}
+-      paired: {}
+-      single: {}
+-      vector: {}
+   IsotopeEnum:
+     permissible_values:
+       13C:
+@@ -8091,7 +8091,7 @@ slots:
+     title: isotope
+     examples:
+       - value: 13C
+-      - value: 13C | 15N
++      - value: 15N
+     slot_uri: MIXS:0001338
+     range: IsotopeEnum
+     required: true
+@@ -8100,10 +8100,17 @@ slots:
+     description: Isotopologue (isotope source/substrate/molecule) added to the biological sample.
+     title: isotopolog
+     comments:
+-      - List the PubChem Compound Identification (CID) number. If it's an undefined mixture, enter 0.
++      - Give the PubChem compound as PUBCHEM.COMPOUND:<CID>, both in has_raw_value and in term.id. For an undefined mixture, describe it in has_raw_value and omit term; NMDC does not use a sentinel identifier for that case.
+     examples:
+-      - value: toluene [pubchem.compound:1140]
+-      - value: '0'
++      - object:
++          type: nmdc:ControlledTermValue
++          has_raw_value: toluene [PUBCHEM.COMPOUND:1140]
++          term:
++            id: PUBCHEM.COMPOUND:1140
++            type: nmdc:OntologyClass
++      - object:
++          type: nmdc:ControlledTermValue
++          has_raw_value: root exudates
+     slot_uri: MIXS:0001339
+     range: ControlledTermValue
+     required: true
+@@ -8138,20 +8145,30 @@ slots:
+       - value: '-1'
+     slot_uri: MIXS:0001342
+     range: integer
+-    required: true
+   gradient_pos_density:
+     annotations:
+       Preferred_unit: g/mL
++      storage_units: g/mL
+     description: Buoyant density of this fraction
+     title: density of gradient position
+     examples:
+-      - value: 1.725 g/mL
+-      - value: 1.725-1.735 g/mL
++      - object:
++          type: nmdc:QuantityValue
++          has_raw_value: 1.725 g/mL
++          has_numeric_value: 1.725
++          has_unit: g/mL
++      - object:
++          type: nmdc:QuantityValue
++          has_raw_value: 1.725-1.735 g/mL
++          has_minimum_numeric_value: 1.725
++          has_maximum_numeric_value: 1.735
++          has_unit: g/mL
+     slot_uri: MIXS:0001343
+     recommended: true
+     structured_pattern:
+       syntax: ^({float}-{float} {unit}|{float} {unit})$
+       interpolated: true
++    range: QuantityValue
+   gradient_pos_rel_am:
+     description: The total nucleic acids loaded onto the column in this fraction as a decimal. If uploading 16S rRNA gene (or other amplicon) sequencing data, this value should be calculated from qPCR data. If uploading untargetted sequencing data, this value should be calculated from total DNA concentration.
+     title: relative amount of nucleic acids in the gradient position
+@@ -8168,8 +8185,9 @@ slots:
+     todos:
+       - This ordered slot provides how to write an example in a spreadsheet, but this will not provide a multivalued ordered slot in a database. As such, this slot also couldn't be marked as multivalued in the yaml.
+     examples:
+-      - value: '0.95'
+-      - value: 0.95 | 0.98
++      - object:
++          type: nmdc:TextValue
++          has_raw_value: "0.95"
+     slot_uri: MIXS:0001346
+     range: TextValue
+     recommended: true
+@@ -8177,9 +8195,9 @@ slots:
+     description: InChI label designating set of all isotopically enriched atoms in isotopologue. Multiple values allowed, separated by a | and should be orded the same as the isotopolog.
+     title: set of labeled atoms in isotopologue
+     examples:
+-      - value: 1S/C7H8/c1-7-5-3-2-4-6-7/h2-6H,1H3/i1+1,2+1,3+1,4+1,5+1,6+1,7+1
+-      - value: 1S/C7H8/c1-7-5-3-2-4-6-7/h2-6H,1H3/i1+1,2+1,3+1,4+1,5+1,6+1,7+1 | 1S/C6H12O6/c7-1-3(9)5(11)6(12)4(10)2-8/h1,3-6,8-12H,2H2/t3-,4+,5+,6+/m0/s1
+-      - value: undefined
++      - object:
++          type: nmdc:TextValue
++          has_raw_value: 1S/C7H8/c1-7-5-3-2-4-6-7/h2-6H,1H3/i1+1,2+1,3+1,4+1,5+1,6+1,7+1
+     slot_uri: MIXS:0001347
+     range: TextValue
+     recommended: true
+@@ -8188,14 +8206,19 @@ slots:
+   isotopolog_dose:
+     annotations:
+       Preferred_unit: ppm
++      storage_units: '[ppm]'
+     description: The concentration (in ppm) of isotopolog added to environmental matrix as a total mass per volume.
+     title: dose of isotopolog
+     comments:
+       - isotopolog mass / total volume soil; ppm of isotopologue in total container volume
+     examples:
+-      - value: 10 ppm
++      - object:
++          type: nmdc:QuantityValue
++          has_raw_value: 10 [ppm]
++          has_numeric_value: 10
++          has_unit: '[ppm]'
+     slot_uri: MIXS:0001348
+-    range: TextValue
++    range: QuantityValue
+     recommended: true
+     structured_pattern:
+       syntax: ^{float} {unit}$
+@@ -8216,7 +8239,11 @@ slots:
+     description: Total time of incubation after isotopologue addition in hours
+     title: isotopolog incubation time
+     examples:
+-      - value: 12 hour
++      - object:
++          type: nmdc:QuantityValue
++          has_raw_value: 12 h
++          has_numeric_value: 12
++          has_unit: h
+     slot_uri: MIXS:0001350
+     range: QuantityValue
+     recommended: true
+@@ -8226,7 +8253,9 @@ slots:
+     description: Method used for internal standard for SIP fractionation, if an internal standard was used (i.e., spiking in a heavy-labelled DNA sequence).
+     title: internal standard method
+     examples:
+-      - value: https://doi.org/10.1101/2022.12.20.521340
++      - object:
++          type: nmdc:TextValue
++          has_raw_value: https://doi.org/10.1101/2022.12.20.521340
+     slot_uri: MIXS:0001351
+     range: TextValue
+     recommended: true
+diff --git a/src/schema/nmdc.yaml b/src/schema/nmdc.yaml
+index c7e9850d6c..83e11df009 100644
+--- a/src/schema/nmdc.yaml
++++ b/src/schema/nmdc.yaml
+@@ -603,21 +603,21 @@ classes:
+         description: Description of reaction conditions and components of polymerase chain reaction performed during library preparation
+ 
+   LabelingProcess:
+-    class_uri: nmdc:Labeling
++    class_uri: nmdc:LabelingProcess
+     is_a: MaterialProcessing
+     description: >-
+       A material processing that adds a label to a sample, such as a fluorescent or radioactive tag.
+-    slots:  
+-    - labeling_method
+-    - isotope
+-    - isotopolog
+-    - isotopolog_label
+-    - isotopolog_approach
+-    - isotopolog_atom_frac
+-    - isotopolog_atom_pos
+-    - isotopolog_dose
+-    - isotopolog_incu_time
+-    - chem_administration
++    slots:
++      - labeling_method
++      - isotope
++      - isotopolog
++      - isotopolog_label
++      - isotopolog_approach
++      - isotopolog_atom_frac
++      - isotopolog_atom_pos
++      - isotopolog_dose
++      - isotopolog_incu_time
++      - chem_administration
+     slot_usage:
+       id:
+         structured_pattern:
+@@ -629,11 +629,18 @@ classes:
+           syntax: "{id_nmdc_prefix}:(bsm|osm|procsm)-{id_shoulder}-{id_blade}$"
+           interpolated: true
+       has_output:
+-        required: true 
+-
+-    #add linkml rule to require slots if labeling_method is isotopolog    
++        required: true
++      isotopolog:
++        range_expression:
++          slot_conditions:
++            term:
++              range_expression:
++                slot_conditions:
++                  id:
++                    pattern: '^PUBCHEM\.COMPOUND:[1-9]\d*$'
++    # TODO: add a linkml rule requiring the isotopolog slots when labeling_method is isotopolog
+   FractionationProcess:
+-    class_uri: nmdc:Fractionation
++    class_uri: nmdc:FractionationProcess
+     is_a: MaterialProcessing
+     description: >-
+       A material processing that separates a sample into multiple fractions based on a physical or chemical property.
+@@ -651,8 +658,8 @@ classes:
+           syntax: "{id_nmdc_prefix}:(bsm|osm|procsm)-{id_shoulder}-{id_blade}$"
+           interpolated: true
+       has_output:
+-        required: true  
+- #add linkml rule to require slots if fractionation_method is density gradient
++        required: true
++    # TODO: add a linkml rule requiring the gradient slots when fractionation_method is density_gradient
+   CollectingBiosamplesFromSite:
+     class_uri: nmdc:CollectingBiosamplesFromSite
+     is_a: PlannedProcess
+@@ -848,8 +855,6 @@ classes:
+           syntax: "{id_nmdc_prefix}:dispro-{id_shoulder}-{id_blade}$"
+           interpolated: true
+ 
+-
+-
+ enums:
+   LabelingMethodEnum:
+     permissible_values:
+@@ -876,7 +881,7 @@ enums:
+         description: A method of separating molecules based on their size by passing them through a porous matrix.
+         aliases:
+           - Size Exclusion
+-       
++
+   CalibrationTargetEnum:
+     permissible_values:
+       mass_charge_ratio:
+@@ -1134,7 +1139,7 @@ enums:
+       respiration_measurement:
+       texture_measurement:
+       dna_extraction:
+-      phenol_chloroform_extraction: 
++      phenol_chloroform_extraction: { }
+       stable_isotope_probe: { }
+ 
+   ChromatographicCategoryEnum:

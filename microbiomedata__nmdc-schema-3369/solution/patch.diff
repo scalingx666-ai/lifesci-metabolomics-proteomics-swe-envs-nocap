@@ -1,0 +1,39 @@
+diff --git a/src/data/invalid/DataObject-invalid_md5_checksum.yaml b/src/data/invalid/DataObject-invalid_md5_checksum.yaml
+new file mode 100644
+index 0000000000..09d94cddb6
+--- /dev/null
++++ b/src/data/invalid/DataObject-invalid_md5_checksum.yaml
+@@ -0,0 +1,11 @@
++#invalid b/c md5_checksum holds the file's URL instead of a 32-character MD5 digest
++data_object_type: Metagenome Raw Reads
++data_category: instrument_data
++description: "my awesome fastq file"
++file_size_bytes: 1382304
++id: "nmdc:dobj-11-dtTMNb"
++md5_checksum: "https://example.com/read2.fastq"
++name: "1237.14.3718.ATCG-ACTG.fastq.gz"
++type: "nmdc:DataObject"
++was_generated_by: "nmdc:omprc-99-123456"
++url: "https://example.com/read2.fastq"
+diff --git a/src/schema/basic_slots.yaml b/src/schema/basic_slots.yaml
+index ab3eab1ef0..fd0d7c7bb6 100644
+--- a/src/schema/basic_slots.yaml
++++ b/src/schema/basic_slots.yaml
+@@ -149,6 +149,17 @@ slots:
+   md5_checksum:
+     range: string
+     description: MD5 checksum of file (pre-compressed)
++    pattern: '^[a-fA-F0-9]{32}$'
++    examples:
++      - value: 0123456789abcdef0123456789abcdef
++    notes:
++      - The submission portal already constrains the slots that feed this one. submission-schema
++        patterns read_1_md5_checksum, read_2_md5_checksum, and interleaved_md5_checksum as
++        semicolon-separated lists of 32 hex characters; the submission portal translator splits
++        those and writes one value per DataObject, so the single-value form applies here. Case is
++        not normalized anywhere, so both cases are accepted.
++    see_also:
++      - https://github.com/microbiomedata/nmdc-schema/issues/3364
+ 
+   data_object_type:
+     range: FileTypeEnum

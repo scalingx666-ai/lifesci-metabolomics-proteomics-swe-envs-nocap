@@ -1,0 +1,33 @@
+diff --git a/.github/workflows/codeql.yaml b/.github/workflows/codeql.yaml
+index cd898a6705..c4ea4c4028 100644
+--- a/.github/workflows/codeql.yaml
++++ b/.github/workflows/codeql.yaml
+@@ -52,13 +52,13 @@ jobs:
+           persist-credentials: false
+ 
+       - name: Initialize CodeQL
+-        uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
++        uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+         with:
+           languages: ${{ matrix.language }}
+           config-file: ./.github/codeql/codeql-config.yml
+           queries: security-and-quality
+ 
+       - name: Perform CodeQL analysis
+-        uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
++        uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+         with:
+           category: /language:${{ matrix.language }}
+diff --git a/.github/workflows/zizmor.yml b/.github/workflows/zizmor.yml
+index ab59ceeb7c..b33e0588aa 100644
+--- a/.github/workflows/zizmor.yml
++++ b/.github/workflows/zizmor.yml
+@@ -45,7 +45,7 @@ jobs:
+         # Also non-blocking: if zizmor crashed before writing a valid SARIF,
+         # the upload may fail, but that must not fail the build either.
+         continue-on-error: true
+-        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
++        uses: github/codeql-action/upload-sarif@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+         with:
+           sarif_file: zizmor.sarif
+           category: zizmor

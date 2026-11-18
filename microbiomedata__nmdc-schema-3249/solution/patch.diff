@@ -1,0 +1,211 @@
+diff --git a/src/doc-templates/_macros.jinja2 b/src/doc-templates/_macros.jinja2
+new file mode 100644
+index 0000000000..a3cd16ea06
+--- /dev/null
++++ b/src/doc-templates/_macros.jinja2
+@@ -0,0 +1,9 @@
++{#- Shared macros for the NMDC doc templates. Not rendered as a page itself. -#}
++{#- shorten(): truncate a description for a table cell without splitting on
++    internal periods. Replaces linkml docgen's `enshorten` filter, which does
++    description.split(".")[0] and so truncates mid-word on abbreviations like
++    "i.e." / "e.g." (issue #3242, upstream linkml/linkml#3732). Collapse newlines
++    and escape pipes for table safety, then cap length at a word boundary. -#}
++{%- macro shorten(text) -%}
++{{ (text or '') | replace('\n', ' ') | replace('|', '\\|') | truncate(80, False, '...') }}
++{%- endmacro -%}
+diff --git a/src/doc-templates/class.md.jinja2 b/src/doc-templates/class.md.jinja2
+index 9a0566a92a..de96e78f2d 100644
+--- a/src/doc-templates/class.md.jinja2
++++ b/src/doc-templates/class.md.jinja2
+@@ -2,6 +2,7 @@
+ search:
+   boost: {% if element.deprecated %}0.5{% else %}10.0{% endif %}
+ ---
++{%- from "_macros.jinja2" import shorten -%}
+ 
+ {%- if element.title %}
+     {%- set title = element.title ~ ' (' ~ element.name ~ ')' -%}
+@@ -75,12 +76,12 @@ URI: {{ gen.uri_link(element) }}
+ | ---  | --- | --- | --- |
+ {% if gen.get_direct_slots(element)|length > 0 %}
+ {%- for slot in gen.get_direct_slots(element) -%}
+-| {{ gen.link(slot) }} | {{ gen.cardinality(slot) }} <br/> {{ compute_range(slot) }} | {{ slot.description|enshorten }} | direct |
++| {{ gen.link(slot) }} | {{ gen.cardinality(slot) }} <br/> {{ compute_range(slot) }} | {{ shorten(slot.description) }} | direct |
+ {% endfor -%}
+ {% endif -%}
+ {% if gen.get_indirect_slots(element)|length > 0 %}
+ {%- for slot in gen.get_indirect_slots(element) -%}
+-| {{ gen.link(slot) }} | {{ gen.cardinality(slot) }} <br/> {{ compute_range(slot) }} | {{ slot.description|enshorten }} | {{ gen.links(gen.get_slot_inherited_from(element.name, slot.name))|join(', ') }} |
++| {{ gen.link(slot) }} | {{ gen.cardinality(slot) }} <br/> {{ compute_range(slot) }} | {{ shorten(slot.description) }} | {{ gen.links(gen.get_slot_inherited_from(element.name, slot.name))|join(', ') }} |
+ {% endfor -%}
+ {% endif %}
+ 
+@@ -89,7 +90,7 @@ URI: {{ gen.uri_link(element) }}
+ | mixed into | description |
+ | --- | --- |
+ {% for c in schemaview.class_children(element.name, is_a=False) -%}
+-| {{ gen.link(c) }} | {{ schemaview.get_class(c).description|enshorten }} |
++| {{ gen.link(c) }} | {{ shorten(schemaview.get_class(c).description) }} |
+ {% endfor %}
+ {% endif %}
+ 
+diff --git a/src/doc-templates/enum.md.jinja2 b/src/doc-templates/enum.md.jinja2
+index bdeb5c385e..f2a4e15720 100644
+--- a/src/doc-templates/enum.md.jinja2
++++ b/src/doc-templates/enum.md.jinja2
+@@ -2,6 +2,7 @@
+ search:
+   boost: {% if element.deprecated %}0.5{% else %}2.0{% endif %}
+ ---
++{%- from "_macros.jinja2" import shorten -%}
+ 
+ # Enum: {{ gen.name(element) }} {% if element.deprecated %} <span style="color: red;"><strong> (DEPRECATED) </strong> {% endif %}
+ 
+@@ -21,7 +22,7 @@ URI: {{ gen.link(element) }}
+ | Value | Meaning | Description |
+ | --- | --- | --- |
+ {% for pv in element.permissible_values.values() -%}
+-| {{pv.text}} | {{pv.meaning}} | {{pv.description|enshorten}} |
++| {{pv.text}} | {{pv.meaning}} | {{ shorten(pv.description) }} |
+ {% endfor %}
+ {% else %}
+ _This is a dynamic enum_
+@@ -33,7 +34,7 @@ _This is a dynamic enum_
+ | Name | Description |
+ | ---  | --- |
+ {% for s in schemaview.get_slots_by_enum(element.name) -%}
+-| {{gen.link(s)}} | {{s.description|enshorten}} |
++| {{gen.link(s)}} | {{ shorten(s.description) }} |
+ {% endfor %}
+ {% endif %}
+ 
+diff --git a/src/doc-templates/index.md.jinja2 b/src/doc-templates/index.md.jinja2
+index cd9def858a..be6590902d 100644
+--- a/src/doc-templates/index.md.jinja2
++++ b/src/doc-templates/index.md.jinja2
+@@ -1,3 +1,4 @@
++{%- from "_macros.jinja2" import shorten -%}
+ # National Microbiome Data Collaborative Schema Documentation
+ ![NMDC_logo.png](images/NMDC_logo.png)
+ 
+@@ -20,7 +21,7 @@ URI: <a href={{ schema.id }}>{{ schema.id }}</a>
+ | Class | Description |
+ | --- | --- |
+ {% for u, v in gen.class_hierarchy_as_tuples() -%}
+-| {{ "&nbsp;"|safe*u*8 }}{{ gen.link(schemaview.get_class(v)) }} | {{ schemaview.get_class(v).description|enshorten }} |
++| {{ "&nbsp;"|safe*u*8 }}{{ gen.link(schemaview.get_class(v)) }} | {{ shorten(schemaview.get_class(v).description) }} |
+ {% endfor %}
+ 
+ ## Slots
+@@ -28,7 +29,7 @@ URI: <a href={{ schema.id }}>{{ schema.id }}</a>
+ | Slot | Description |
+ | --- | --- |
+ {% for s in gen.all_slot_objects()|sort(attribute=sort_by) -%}
+-| {{gen.link(s)}} | {{s.description|enshorten}} |
++| {{gen.link(s)}} | {{ shorten(s.description) }} |
+ {% endfor %}
+ 
+ ## Enumerations
+@@ -36,7 +37,7 @@ URI: <a href={{ schema.id }}>{{ schema.id }}</a>
+ | Enumeration | Description |
+ | --- | --- |
+ {% for e in gen.all_enum_objects()|sort(attribute=sort_by) -%}
+-| {{gen.link(e)}} | {{e.description|enshorten}} |
++| {{gen.link(e)}} | {{ shorten(e.description) }} |
+ {% endfor %}
+ 
+ ## Types
+@@ -44,7 +45,7 @@ URI: <a href={{ schema.id }}>{{ schema.id }}</a>
+ | Type | Description |
+ | --- | --- |
+ {% for t in gen.all_type_objects()|sort(attribute=sort_by) -%}
+-| {{gen.link(t)}} | {{t.description|enshorten}} |
++| {{gen.link(t)}} | {{ shorten(t.description) }} |
+ {% endfor %}
+ 
+ ## Subsets
+@@ -52,5 +53,5 @@ URI: <a href={{ schema.id }}>{{ schema.id }}</a>
+ | Subset | Description |
+ | --- | --- |
+ {% for ss in schemaview.all_subsets().values()|sort(attribute='name') -%}
+-| {{gen.link(ss)}} | {{ss.description|enshorten}} |
++| {{gen.link(ss)}} | {{ shorten(ss.description) }} |
+ {% endfor %}
+diff --git a/src/doc-templates/slot.md.jinja2 b/src/doc-templates/slot.md.jinja2
+index 8a64128f37..e6d0d6ae6e 100644
+--- a/src/doc-templates/slot.md.jinja2
++++ b/src/doc-templates/slot.md.jinja2
+@@ -2,6 +2,7 @@
+ search:
+   boost: {% if element.deprecated %}0.5{% else %}5.0{% endif %}
+ ---
++{%- from "_macros.jinja2" import shorten -%}
+ 
+ {%- if element.title %}
+     {%- set title = element.title ~ ' (' ~ element.name ~ ')' -%}
+@@ -64,7 +65,7 @@ URI: {{ gen.uri_link(element) }}
+ | Name | Description | Modifies Slot |
+ | --- | --- | --- |
+ {% for c in classes_by_slot -%}
+-| {{ gen.link(c) }} | {{ schemaview.get_class(c).description|enshorten }} | {% if c in schemaview.get_classes_modifying_slot(element) %} yes {% else %} no {% endif %} |
++| {{ gen.link(c) }} | {{ shorten(schemaview.get_class(c).description) }} | {% if c in schemaview.get_classes_modifying_slot(element) %} yes {% else %} no {% endif %} |
+ {% endfor %}
+ 
+ {% endif %}
+@@ -75,7 +76,7 @@ URI: {{ gen.uri_link(element) }}
+ | mixed into | description | range | domain |
+ | --- | --- | --- | --- |
+ {% for s in schemaview.slot_children(element.name, is_a=False) -%}
+-| {{ gen.link(s) }} | {{ schemaview.get_slot(s).description|enshorten }} | {{ schemaview.get_slot(s).range }} | {{ schemaview.get_classes_by_slot(schemaview.get_slot(s))|join(', ') }} |
++| {{ gen.link(s) }} | {{ shorten(schemaview.get_slot(s).description) }} | {{ schemaview.get_slot(s).range }} | {{ schemaview.get_classes_by_slot(schemaview.get_slot(s))|join(', ') }} |
+ {% endfor %}
+ {% endif %}
+ 
+diff --git a/src/doc-templates/subset.md.jinja2 b/src/doc-templates/subset.md.jinja2
+index cf5a8a65a4..b5788e8445 100644
+--- a/src/doc-templates/subset.md.jinja2
++++ b/src/doc-templates/subset.md.jinja2
+@@ -2,6 +2,7 @@
+ search:
+   boost: {% if element.deprecated %}0.5{% else %}1.0{% endif %}
+ ---
++{%- from "_macros.jinja2" import shorten -%}
+ 
+ # Subset: {{ gen.name(element) }}
+ 
+@@ -51,7 +52,7 @@ URI: {{ gen.link(element) }}
+ | --- | --- |
+ {% for c in classes_in_subset -%}
+ {%- if element.name in c.in_subset -%}
+-| {{gen.link(c)}} | {{c.description|enshorten}} |
++| {{gen.link(c)}} | {{ shorten(c.description) }} |
+ {% endif -%}
+ {% endfor %}
+ 
+@@ -73,7 +74,7 @@ URI: {{ gen.link(element) }}
+ | Name | Cardinality and Range | Description |
+ | ---  | ---  | --- |
+ {% for s in filtered_slots -%}
+-| {{gen.link(s)}} | {{ gen.cardinality(s) }} <br/> {{gen.link(s.range)}} | {{s.description|enshorten}} {% if s.identifier %}**identifier**{% endif %} |
++| {{gen.link(s)}} | {{ gen.cardinality(s) }} <br/> {{gen.link(s.range)}} | {{ shorten(s.description) }} {% if s.identifier %}**identifier**{% endif %} |
+ {% endfor %}
+ {%- endif %}
+ 
+@@ -90,7 +91,7 @@ URI: {{ gen.link(element) }}
+ | --- | --- |
+ {% for s in slots_in_subset|sort(attribute=sort_by) -%}
+ {%- if element.name in s.in_subset -%}
+-| {{ gen.link(s) }} | {{ s.description|enshorten }} |
++| {{ gen.link(s) }} | {{ shorten(s.description) }} |
+ {%- endif %}
+ {% endfor %}
+ 
+@@ -103,7 +104,7 @@ URI: {{ gen.link(element) }}
+ | --- | --- |
+ {% for e in enums_in_subset|sort(attribute='name') -%}
+ {%- if element.name in e.in_subset %}
+-| {{ gen.link(e) }} | {{ e.description|enshorten }} |
++| {{ gen.link(e) }} | {{ shorten(e.description) }} |
+ {%- endif %}
+ {% endfor %}
+ 

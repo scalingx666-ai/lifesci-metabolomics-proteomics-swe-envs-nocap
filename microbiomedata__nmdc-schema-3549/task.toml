@@ -1,0 +1,73 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3549"
+description = "Leave anchoring of structured patterns to linkml"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "ecfb8c72f3ab65b251ef6501ca5acbe81efa7ba4"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3549"
+source_access = "auto"
+built_at = "2026-11-18T02:27:52.962379+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:ebfc1d39541abc8fa664d4ae877b55edb0eddeaf2d2f9771ba3caf62388927fd"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-15T17:51:49Z"
+diff_format = "unified"
+context_files = [
+    "nmdc_schema/id_helpers.py",
+    "src/docs/maintaining-the-schema.md",
+    "src/schema/annotation.yaml",
+    "src/schema/basic_classes.yaml",
+    "src/schema/basic_slots.yaml",
+    "src/schema/core.yaml",
+    "src/schema/deprecated.yaml",
+    "src/schema/nmdc.yaml",
+    "src/schema/workflow_execution_activity.yaml",
+    "tests/test_generated_python_patterns.py",
+    "tests/test_structured_pattern_anchors.py",
+    "tests/test_structured_pattern_linkml_1_12.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 392
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

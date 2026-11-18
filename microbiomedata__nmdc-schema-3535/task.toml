@@ -1,0 +1,67 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3535"
+description = "Generate release artifacts for nmdc-schema 11.25.0rc1"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "bd88357cd17cd27c427ceea4edb771a2147439d4"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3535"
+source_access = "auto"
+built_at = "2026-11-18T02:28:02.096743+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:fb288e89ebf407cdfd256fedd7fbc0dd266b515cd0f2254023350953f712711c"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-15T01:22:45Z"
+diff_format = "unified"
+context_files = [
+    "nmdc_schema/nmdc.py",
+    "nmdc_schema/nmdc.schema.json",
+    "nmdc_schema/nmdc_materialized_patterns.json",
+    "nmdc_schema/nmdc_materialized_patterns.schema.json",
+    "nmdc_schema/nmdc_materialized_patterns.yaml",
+    "nmdc_schema/nmdc_pydantic.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 5068
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

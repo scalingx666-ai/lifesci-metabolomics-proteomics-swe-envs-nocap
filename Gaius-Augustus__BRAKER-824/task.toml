@@ -32,7 +32,6 @@ diff_format = "unified"
 context_files = [
     "scripts/compare_intervals_exact.pl",
 ]
-bootstrap_image = "python:3.12-slim"
 
 [metadata.repo2env.reward_calibration]
 baseline_reward = 0.0
@@ -51,15 +50,10 @@ provenance = "unknown"
 evidence = []
 
 [metadata.repo2env.reproducibility]
-mode = "inline_dockerfile"
+mode = "local_only"
 image_ref = "python:3.12-slim"
 image_tag = "python:3.12-slim"
-image_visibility = "public"
-pushed_at = "2026-11-16T15:51:53.087139+00:00"
-pushed_by = "scalingX"
-inline_recipe_sha256 = "sha256:9573eac8c32c362371affcfbc9211a08a03e08c3e88ad8e1f5c121d899a8d75c"
-inline_recipe_lines = 37
-inline_recipe_source = "user_dockerfile"
+image_visibility = "private"
 
 [agent]
 timeout_sec = 1800.0

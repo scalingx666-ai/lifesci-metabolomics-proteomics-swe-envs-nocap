@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3271"
+description = "Flag implicit-string-concatenation pattern in a frozen migrator (#3259)"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "9453089c17945d4df555a77b63a3fef0eb439955"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3271"
+source_access = "auto"
+built_at = "2026-11-18T02:32:00.114921+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:b40f13db9073ac23a2697f2677378156c95d96c6dbe993300176b29247c87398"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-07-13T16:14:35Z"
+diff_format = "unified"
+context_files = [
+    "nmdc_schema/migrators/README.md",
+    "nmdc_schema/migrators/partials/migrator_from_10_2_0_to_11_0_0/migrator_from_10_2_0_to_11_0_0_part_07.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 27
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

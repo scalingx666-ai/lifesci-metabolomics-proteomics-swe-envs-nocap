@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3336"
+description = "Add example isolate NucleotideSequencing and DataObject records"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "f90abb5346fc0441511a4462706e1504d6cb628b"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3336"
+source_access = "auto"
+built_at = "2026-11-18T02:30:44.964653+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:f4e7eddf58c55bf9073c6c8d0ffb18c093aa20c82a82cb1006d6125d1fea0d9a"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-08-14T15:10:07Z"
+diff_format = "unified"
+context_files = [
+    "src/data/valid/Database-isolate-sequencing.yaml",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 243
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

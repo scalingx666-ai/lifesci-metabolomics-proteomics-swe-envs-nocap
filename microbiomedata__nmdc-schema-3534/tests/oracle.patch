@@ -1,0 +1,104 @@
+diff --git a/.github/workflows/check-links.yaml b/.github/workflows/check-links.yaml
+index 1ca9aa28dd..d7af3ca1b0 100644
+--- a/.github/workflows/check-links.yaml
++++ b/.github/workflows/check-links.yaml
+@@ -38,7 +38,7 @@ jobs:
+         with:
+           persist-credentials: false
+       - name: Install uv
+-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
++        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+       - name: Set up Python
+         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+         with:
+diff --git a/.github/workflows/deploy-docs.yaml b/.github/workflows/deploy-docs.yaml
+index 44868b812c..baaa528389 100644
+--- a/.github/workflows/deploy-docs.yaml
++++ b/.github/workflows/deploy-docs.yaml
+@@ -28,7 +28,7 @@ jobs:
+           fetch-depth: 0 # otherwise, you will failed to push refs to dest repo
+ 
+       - name: Install uv
+-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
++        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+ 
+       - name: Set up Python 3.
+         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+diff --git a/.github/workflows/lint.yaml b/.github/workflows/lint.yaml
+index 7f3d497cc2..3cbf389577 100644
+--- a/.github/workflows/lint.yaml
++++ b/.github/workflows/lint.yaml
+@@ -56,7 +56,7 @@ jobs:
+           persist-credentials: false
+ 
+       - name: Install uv
+-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
++        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+ 
+       - name: Set up Python
+         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+diff --git a/.github/workflows/main.yaml b/.github/workflows/main.yaml
+index 17f58bdf6c..c7ad5b0ba3 100644
+--- a/.github/workflows/main.yaml
++++ b/.github/workflows/main.yaml
+@@ -32,7 +32,7 @@ jobs:
+           persist-credentials: false
+ 
+       - name: Install uv
+-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
++        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+ 
+       - name: Set up Python ${{ matrix.python-version }}
+         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+diff --git a/.github/workflows/pypi-publish.yaml b/.github/workflows/pypi-publish.yaml
+index 9d5680049c..51f31c3d04 100644
+--- a/.github/workflows/pypi-publish.yaml
++++ b/.github/workflows/pypi-publish.yaml
+@@ -30,7 +30,7 @@ jobs:
+         persist-credentials: false
+ 
+     - name: Install uv
+-      uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
++      uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+       with:
+         # No uv cache on the release trigger, for the same reason as below
+         # (zizmor cache-poisoning, #3148).
+diff --git a/.github/workflows/schema-pattern-lint.yml b/.github/workflows/schema-pattern-lint.yml
+index f949eb5224..b877cd5cb4 100644
+--- a/.github/workflows/schema-pattern-lint.yml
++++ b/.github/workflows/schema-pattern-lint.yml
+@@ -34,7 +34,7 @@ jobs:
+           persist-credentials: false
+ 
+       - name: Install uv
+-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
++        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+ 
+       - name: Set up Python
+         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+diff --git a/.github/workflows/test-newest-deps.yaml b/.github/workflows/test-newest-deps.yaml
+index 9ee1165ec6..0e93542e7c 100644
+--- a/.github/workflows/test-newest-deps.yaml
++++ b/.github/workflows/test-newest-deps.yaml
+@@ -45,7 +45,7 @@ jobs:
+           fetch-depth: 0  # uv-dynamic-versioning derives the version from git tags
+ 
+       - name: Install uv
+-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
++        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+ 
+       - name: Set up Python ${{ matrix.python-version }}
+         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+diff --git a/.github/workflows/test-pages-build.yaml b/.github/workflows/test-pages-build.yaml
+index e77eddce31..d7479fd2e4 100644
+--- a/.github/workflows/test-pages-build.yaml
++++ b/.github/workflows/test-pages-build.yaml
+@@ -32,7 +32,7 @@ jobs:
+           fetch-depth: 0
+ 
+       - name: Install uv
+-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
++        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+ 
+       - name: Set up Python 3
+         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0

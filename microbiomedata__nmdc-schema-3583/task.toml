@@ -1,0 +1,67 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3583"
+description = "Document the mapping metaslots in one place and correct the mappings on 19 slots"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "76fa030241c09f01d3db459b1fd5e19fba9a9c15"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3583"
+source_access = "auto"
+built_at = "2026-11-18T02:27:25.756358+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:f1d2ebb2ec48d91adbe214c88fdaed9e45f5f852b2bb3cf9997d937ab8683be7"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-29T13:12:03Z"
+diff_format = "unified"
+context_files = [
+    "CLAUDE.md",
+    "src/docs/maintaining-the-schema.md",
+    "src/docs/ontology-governance-current-state.md",
+    "src/schema/basic_slots.yaml",
+    "src/schema/core.yaml",
+    "src/schema/nmdc.yaml",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 209
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

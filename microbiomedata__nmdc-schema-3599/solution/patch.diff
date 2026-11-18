@@ -1,0 +1,28 @@
+diff --git a/src/doc-templates/enum.md.jinja2 b/src/doc-templates/enum.md.jinja2
+index 3c339bb074..36b28190da 100644
+--- a/src/doc-templates/enum.md.jinja2
++++ b/src/doc-templates/enum.md.jinja2
+@@ -18,6 +18,10 @@ _{{ element_description_line }}_
+ 
+ URI: {{ gen.link(element) }}
+ 
++{% if element.in_subset %}
++* In Subsets: {% for s in element.in_subset %}{{ gen.link(schemaview.get_subset(s)) }}{% if not loop.last %}, {% endif %}{% endfor %}
++{% endif -%}
++
+ {% if element.permissible_values -%}
+ ## Permissible Values
+ | Value | Meaning | Description |
+diff --git a/src/doc-templates/subset.md.jinja2 b/src/doc-templates/subset.md.jinja2
+index e23627e83b..e771e6572c 100644
+--- a/src/doc-templates/subset.md.jinja2
++++ b/src/doc-templates/subset.md.jinja2
+@@ -125,7 +125,7 @@ Member of: {% for s in element.in_subset %}{{ gen.link(schemaview.get_subset(s))
+ | Enumeration | Description |
+ | --- | --- |
+ {% for e in enums_in_subset|sort(attribute='name') -%}
+-{%- if element.name in e.in_subset %}
++{%- if element.name in e.in_subset -%}
+ | {{ gen.link(e) }} | {{ shorten(e.description) }} |
+ {%- endif %}
+ {% endfor %}

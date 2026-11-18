@@ -1,0 +1,65 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3488"
+description = "Allow Python 3.14 and test it in CI"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "b6926b73faa075923d739800c079846c761f7032"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3488"
+source_access = "auto"
+built_at = "2026-11-18T02:28:39.372234+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e546d996ce6cb921c94ca1fa6a9d5226255b1c706caea3cde6b4217b6ceead37"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-14T19:49:28Z"
+diff_format = "unified"
+context_files = [
+    ".github/workflows/main.yaml",
+    "CLAUDE.md",
+    "poetry.lock",
+    "pyproject.toml",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 37
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,63 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3511"
+description = "Prepare `get_typecode_for_future_ids` for LinkML v1.12 and add associated test"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "a1bcc01f9d1822b8cd8154a2772fef5c1a1b8bb3"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3511"
+source_access = "auto"
+built_at = "2026-11-18T02:28:25.389834+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:be4f74c56334f91260705530be49796e878bd1a0ef82e9072e449d68dc4ea2d4"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-13T14:58:15Z"
+diff_format = "unified"
+context_files = [
+    "nmdc_schema/id_helpers.py",
+    "tests/test_id_helpers.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 41
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

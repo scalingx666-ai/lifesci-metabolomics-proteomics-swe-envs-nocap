@@ -1,0 +1,62 @@
+version = "1.0"
+
+[task]
+name = "default/MannLabs__CKG-60"
+description = "FIX changed keyserver URL to avoid firewall bug"
+
+[metadata]
+difficulty = "easy"
+category = "bugfix"
+keywords = [
+    "CKG",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "MannLabs/CKG"
+ref = "f19ab91fd42e299b684f37f178a3dc570679b907"
+reference = "https://github.com/MannLabs/CKG/pull/60"
+source_access = "auto"
+built_at = "2026-11-18T03:48:53.132820+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:140fa5ff1b7178da611294a2ce8b5e0b72c245bd0e889e438db423cacff70214"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2021-07-05T09:05:02Z"
+diff_format = "unified"
+context_files = [
+    "Dockerfile",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 4
+difficulty = "trivial"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

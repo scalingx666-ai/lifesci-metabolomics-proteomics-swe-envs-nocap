@@ -1,0 +1,69 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3453"
+description = "Fail on repeated keys in example data, and fix the seven files that have them"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "6fea28e893a8fc50981f9e80ee2bfeb7d3b0afd9"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3453"
+source_access = "auto"
+built_at = "2026-11-18T02:29:02.371479+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:9ae3cdea7d96aea2dc3e025dd51a72d34dabc4582b9308a93a1b4f42913f8d4f"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-01T15:29:09Z"
+diff_format = "unified"
+context_files = [
+    "src/data/invalid/Database-metatranscriptome_workflow-invalidDatabase.yaml",
+    "src/data/invalid/MetaproteomicsAnalysis-failure-invalid_qc_failure_what.yaml",
+    "src/data/invalid/NucleotideSequencing-instrument_name-retired.yaml",
+    "src/data/valid/DataObject-Crisper-Terms-data_object_type.yaml",
+    "src/data/valid/Database-neon-story.yaml",
+    "src/data/valid/Database-neon_Biosample_to_DataObject_NEON.yaml",
+    "src/data/valid/MetatranscriptomeAnnotation-1.yaml",
+    "tests/test_example_data_duplicate_keys.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 191
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

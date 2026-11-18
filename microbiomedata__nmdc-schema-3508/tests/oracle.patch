@@ -1,0 +1,127 @@
+diff --git a/assets/yq-for-mixs-customizations.txt b/assets/yq-for-mixs-customizations.txt
+index 619357ac95..6d080a0162 100644
+--- a/assets/yq-for-mixs-customizations.txt
++++ b/assets/yq-for-mixs-customizations.txt
+@@ -215,7 +215,6 @@
+ '.slots.wind_speed.range |= "QuantityValue"'
+ '.slots.xylene.range |= "QuantityValue"'
+ '.slots.isotopolog_atom_pos.range |= "string"'
+-'.slots.internal_standard.range |= "Protocol"'
+ 
+ # Restore multivalued: false for slots that changed from microbiomedata/mixs tag pre-2024-05-15
+ # to GSC MIxS v6.3.0 (release tag v6.3.0, commit fb3271909f5ab3277d4c869e816bc9e334cb816f).
+@@ -264,7 +263,6 @@
+ 'del(.slots.gradient_position.required)'
+ 'del(.slots.isotopolog.required)'
+ 'del(.slots.isotopolog_approach.required)'
+-'del(.slots.internal_standard.structured_pattern)'
+ 'del(.slots.isotopolog.structured_pattern)'
+ 'del(.slots.gradient_pos_density.structured_pattern)'
+ 'del(.slots.gradient_pos_density.todos)'
+diff --git a/src/schema/mixs.yaml b/src/schema/mixs.yaml
+index a58f4f3091..5904b84842 100644
+--- a/src/schema/mixs.yaml
++++ b/src/schema/mixs.yaml
+@@ -8304,8 +8304,6 @@ slots:
+       - literal_form: samp_collect_method
+         contexts:
+           - https://github.com/GenomicsStandardsConsortium/mixs/releases/tag/v6.3.0
+-  internal_standard:
+-    range: Protocol
+   mixs_env_triad_field:
+     annotations:
+       tooltip: >-
+diff --git a/tests/test_method_for_annotations.py b/tests/test_method_for_annotations.py
+index c3f56db674..2e9b558b73 100644
+--- a/tests/test_method_for_annotations.py
++++ b/tests/test_method_for_annotations.py
+@@ -27,15 +27,16 @@
+     "samp_collec_method",
+     "samp_sort_meth",
+     "separation_method",
++    # NMDC's own internal-standard protocol for SIP fractionation (exact mapping MIXS:0001351).
++    # No internal_standard slot remains to pair it with (nmdc-schema#3500).
++    "internal_standard_method",
+     "seq_meth",
+ }
+ 
+ 
+ # Method slots that describe one other slot but can't be paired yet, each with the issue that
+ # blocks it. Remove an entry and add its method_for annotation once the issue is fixed.
+-PENDING_METHOD_SLOTS = {
+-    "internal_standard_method": "https://github.com/microbiomedata/nmdc-schema/issues/3500",
+-}
++PENDING_METHOD_SLOTS: dict[str, str] = {}
+ 
+ 
+ def method_for_pairs(view: SchemaView) -> dict[str, str]:
+diff --git a/tests/test_mixs_customization_targets.py b/tests/test_mixs_customization_targets.py
+new file mode 100644
+index 0000000000..8d54d82ee2
+--- /dev/null
++++ b/tests/test_mixs_customization_targets.py
+@@ -0,0 +1,64 @@
++"""Check that every MIxS customization changes a slot that exists.
++
++A yq update such as `.slots.foo.range |= "Protocol"` creates `foo` if no imported slot has
++that name, which leaves an empty stub slot in src/schema/mixs.yaml. That happened to
++`internal_standard` after it was dropped from the import list
++(https://github.com/microbiomedata/nmdc-schema/issues/3500).
++"""
++
++import csv
++import re
++
++from tests import ROOT
++
++IMPORT_LIST = ROOT / "assets" / "import_mixs_slots_regardless.tsv"
++CUSTOMIZATIONS = ROOT / "assets" / "yq-for-mixs-customizations.txt"
++
++SLOT_REFERENCE = re.compile(r"\.slots\.([A-Za-z0-9_]+)")
++RENAME = re.compile(r"^'\.slots\.([A-Za-z0-9_]+) = \.slots\.[A-Za-z0-9_]+")
++
++
++def active_lines() -> list[str]:
++    """Return the customization lines the MIxS pipeline runs: those starting with a single quote."""
++    return [
++        line.rstrip("\n")
++        for line in CUSTOMIZATIONS.read_text().splitlines()
++        if line.startswith("'")
++    ]
++
++
++def known_slots() -> set[str]:
++    """Return slots that exist when the customizations run: imported, or created by a rename.
++
++    Files in assets/other_mixs_yaml_files/ other than the mixs_template.yaml recipient model are
++    injected after the customizations run (makefiles/mixs.Makefile), so their slots don't count.
++    The recipient model defines no slots.
++    """
++    with IMPORT_LIST.open() as fh:
++        known = {row["slot"] for row in csv.DictReader(fh, delimiter="\t")}
++    for line in active_lines():
++        match = RENAME.match(line)
++        if match:
++            known.add(match.group(1))
++    return known
++
++
++def test_customizations_only_change_known_slots() -> None:
++    known = known_slots()
++    unknown = sorted(
++        {name for line in active_lines() for name in SLOT_REFERENCE.findall(line)}
++        - known
++    )
++    assert unknown == [], (
++        f"These customizations target slots nothing imports: {unknown}"
++    )
++
++
++def test_slot_reference_finds_update_and_delete_targets() -> None:
++    assert SLOT_REFERENCE.findall(
++        "'.slots.internal_standard.range |= \"Protocol\"'"
++    ) == ["internal_standard"]
++    assert SLOT_REFERENCE.findall("'del(.slots.ph.structured_pattern)'") == ["ph"]
++    assert RENAME.match(
++        "'.slots.samp_collec_device = .slots.samp_collect_device | del(.slots.samp_collect_device)'"
++    )

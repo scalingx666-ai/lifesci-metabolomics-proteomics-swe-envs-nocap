@@ -1,0 +1,98 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 97facd8257..d6b6b9d406 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -109,8 +109,8 @@ Use typed subtypes (`exact_mappings`, `close_mappings`, `broad_mappings`,
+ `narrow_mappings`, `related_mappings`) in preference to generic `mappings`.
+ 
+ **Exception — keep `mappings` (generic) for:** schema.org properties
+-(`schema:QuantityValue`, `schema:latitude`, etc.), QUDT (`qud:unit`,
+-`qud:quantityValue`), and `prov:wasGeneratedBy`. These are
++(`schema:QuantityValue`, `schema:latitude`, etc.), QUDT (`qudt:unit`,
++`qudt:quantityValue`), and `prov:wasGeneratedBy`. These are
+ *property-to-property* alignments where SKOS directional semantics
+ (broader/narrower) don't apply. Do not "fix" these to `exact_mappings`.
+ 
+diff --git a/src/schema/attribute_values.yaml b/src/schema/attribute_values.yaml
+index e483677961..2d84c5fa18 100644
+--- a/src/schema/attribute_values.yaml
++++ b/src/schema/attribute_values.yaml
+@@ -247,7 +247,7 @@ slots:
+     aliases:
+       - scale
+     mappings:
+-      - qud:unit
++      - qudt:unit
+       - schema:unitCode
+     range: string
+ 
+@@ -277,7 +277,7 @@ slots:
+     description: Links a quantity value to a number
+     range: decimal
+     mappings:
+-      - qud:quantityValue
++      - qudt:quantityValue
+       - schema:value
+ 
+   has_minimum_numeric_value:
+@@ -411,7 +411,7 @@ enums:
+         exact_mappings:
+           - UO:0000027
+           - wikidata:Q25267
+-          - qud:DEG_C
++          - qudt:DEG_C
+           - OM:degreeCelsius
+       cm:
+         description: The Unified Code for Units of Measure (UCUM) representation of centimeter.
+diff --git a/src/schema/basic_slots.yaml b/src/schema/basic_slots.yaml
+index be723699b8..5644bea1a1 100644
+--- a/src/schema/basic_slots.yaml
++++ b/src/schema/basic_slots.yaml
+@@ -19,7 +19,7 @@ prefixes:
+   linkml: "https://w3id.org/linkml/"
+   nmdc: "https://w3id.org/nmdc/"
+   prov: "http://www.w3.org/ns/prov#" # for startedAtTime, endedAtTime, Association, Activity, wasInformedBy, wasGeneratedBy, qualifiedAssociation
+-  qud: "http://qudt.org/1.1/schema/qudt#"
++  qudt: "http://qudt.org/1.1/schema/qudt#"
+   rdf: "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   ror: 'https://bioregistry.io/ror:' # https://ror.org/
+   schema: "http://schema.org/"
+diff --git a/src/schema/core.yaml b/src/schema/core.yaml
+index 5c70b790c1..8735437aa4 100644
+--- a/src/schema/core.yaml
++++ b/src/schema/core.yaml
+@@ -33,7 +33,7 @@ prefixes:
+   gtpo: "http://example.org/gtpo/"
+   linkml: "https://w3id.org/linkml/"
+   nmdc: "https://w3id.org/nmdc/"
+-  qud: "http://qudt.org/1.1/schema/qudt#"
++  qudt: "http://qudt.org/1.1/schema/qudt#"
+   rdf: "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   schema: "http://schema.org/"
+   wgs84: "http://www.w3.org/2003/01/geo/wgs84_pos#"
+diff --git a/src/schema/nmdc.yaml b/src/schema/nmdc.yaml
+index ab5b625a14..9e8002ee9b 100644
+--- a/src/schema/nmdc.yaml
++++ b/src/schema/nmdc.yaml
+@@ -104,7 +104,7 @@ prefixes:
+   nmdc: "https://w3id.org/nmdc/"
+   owl: "http://www.w3.org/2002/07/owl#"
+   prov: "http://www.w3.org/ns/prov#" # for startedAtTime, endedAtTime, Association, Activity, wasInformedBy, wasGeneratedBy, qualifiedAssociation
+-  qud: "http://qudt.org/1.1/schema/qudt#"
++  qudt: "http://qudt.org/1.1/schema/qudt#"
+   rdf: "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   rdfs: "http://www.w3.org/2000/01/rdf-schema#"
+   ror: 'https://bioregistry.io/ror:' # https://ror.org/
+diff --git a/src/schema/nmdc_types.yaml b/src/schema/nmdc_types.yaml
+index 167c523269..6bd3f802c0 100644
+--- a/src/schema/nmdc_types.yaml
++++ b/src/schema/nmdc_types.yaml
+@@ -8,7 +8,7 @@ license: https://creativecommons.org/publicdomain/zero/1.0/
+ prefixes:
+   UO: "http://purl.obolibrary.org/obo/UO_"
+   linkml: "https://w3id.org/linkml/"
+-  qud: "http://qudt.org/1.1/schema/qudt#"
++  qudt: "http://qudt.org/1.1/schema/qudt#"
+ 
+ 
+ imports:

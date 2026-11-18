@@ -1,0 +1,64 @@
+version = "1.0"
+
+[task]
+name = "default/microbiomedata__nmdc-schema-3479"
+description = "Scan for retired element names in files nothing checks"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "nmdc-schema",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "microbiomedata/nmdc-schema"
+ref = "37fa139dab6c5e6c21dc7541cb00678a3f8322c2"
+reference = "https://github.com/microbiomedata/nmdc-schema/pull/3479"
+source_access = "auto"
+built_at = "2026-11-18T02:28:43.913167+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:c3b8ed46874281e4c5d33f1c112f1ddce3bf889ea237987e96836e67f841c60f"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-08T20:33:10Z"
+diff_format = "unified"
+context_files = [
+    "project.Makefile",
+    "src/scripts/find_retired_element_mentions.py",
+    "tests/test_find_retired_element_mentions.py",
+]
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 386
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "local_only"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "private"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

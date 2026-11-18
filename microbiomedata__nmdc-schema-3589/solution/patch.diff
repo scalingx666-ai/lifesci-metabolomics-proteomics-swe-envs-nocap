@@ -1,0 +1,28 @@
+diff --git a/src/schema/nmdc.yaml b/src/schema/nmdc.yaml
+index 1f268ff245..81744cd70c 100644
+--- a/src/schema/nmdc.yaml
++++ b/src/schema/nmdc.yaml
+@@ -147,7 +147,6 @@ settings:
+   id_shoulder: "([0-9][a-z]{0,6}[0-9])"
+   id_blade: "([A-Za-z0-9]{1,})"
+   id_version: "(\\.[1-9]{1}[0-9]{0,})"  # first digit must be > 0;  e.g. ".1", ".2", ".10"
+-  id_locus: "(_[A-Za-z0-9_\\.-]+)?"
+   # MIxS structured_pattern settings for pattern interpolation.
+   # These settings define regex patterns for placeholders like {scientific_float}, {text}, {URL}
+   # used in MIxS slot structured_pattern definitions.
+diff --git a/tests/test_structured_pattern_anchors.py b/tests/test_structured_pattern_anchors.py
+index 6f5f40d1e6..f3cbee4d00 100644
+--- a/tests/test_structured_pattern_anchors.py
++++ b/tests/test_structured_pattern_anchors.py
+@@ -74,8 +74,9 @@ def test_structured_pattern_syntax_has_no_anchors_of_its_own() -> None:
+ def test_settings_used_in_patterns_have_no_anchors() -> None:
+     with (SCHEMA_DIR / "nmdc.yaml").open(encoding="utf-8") as f:
+         settings = yaml.safe_load(f)["settings"]
+-    for key in ("id_nmdc_prefix", "id_locus"):
+-        value = settings[key]
++    for key, value in settings.items():
++        if not key.startswith("id_"):
++            continue
+         assert not value.startswith("^") and not value.endswith("$"), f"{key}: {value}"
+ 
+ 

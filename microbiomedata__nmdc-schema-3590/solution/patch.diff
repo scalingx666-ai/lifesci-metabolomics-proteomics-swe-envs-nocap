@@ -1,0 +1,92 @@
+diff --git a/src/schema/attribute_values.yaml b/src/schema/attribute_values.yaml
+index f3a15c42cc..3d81f99d46 100644
+--- a/src/schema/attribute_values.yaml
++++ b/src/schema/attribute_values.yaml
+@@ -205,7 +205,7 @@ slots:
+     aliases:
+       - scale
+     mappings:
+-      - qudt:unit
++      - qudt:hasUnit
+       - schema:unitCode
+     range: string
+ 
+@@ -329,8 +329,8 @@ slots:
+         Using quantity kind identifiers from QUDT or similar vocabularies improves data integration
+         and enables automated unit conversion.
+     examples:
+-      - value: qudt:MassConcentration
+-      - value: qudt:Temperature
++      - value: quantitykind:MassConcentration
++      - value: quantitykind:Temperature
+ 
+   has_value_term_id:
+     range: uriorcurie
+@@ -387,7 +387,7 @@ enums:
+         exact_mappings:
+           - UO:0000027
+           - wikidata:Q25267
+-          - qudt:DEG_C
++          - unit:DEG_C
+           - OM:degreeCelsius
+       cm:
+         description: The Unified Code for Units of Measure (UCUM) representation of centimeter.
+diff --git a/src/schema/basic_slots.yaml b/src/schema/basic_slots.yaml
+index 67ab8e0a42..54b1fb9abc 100644
+--- a/src/schema/basic_slots.yaml
++++ b/src/schema/basic_slots.yaml
+@@ -19,7 +19,7 @@ prefixes:
+   linkml: "https://w3id.org/linkml/"
+   nmdc: "https://w3id.org/nmdc/"
+   prov: "http://www.w3.org/ns/prov#" # for startedAtTime, endedAtTime, Association, Activity, wasInformedBy, wasGeneratedBy, qualifiedAssociation
+-  qudt: "http://qudt.org/1.1/schema/qudt#"
++  qudt: "http://qudt.org/schema/qudt/"
+   rdf: "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   ror: 'https://bioregistry.io/ror:' # https://ror.org/
+   schema: "http://schema.org/"
+diff --git a/src/schema/core.yaml b/src/schema/core.yaml
+index 7c464e2cfe..eba6693da8 100644
+--- a/src/schema/core.yaml
++++ b/src/schema/core.yaml
+@@ -37,7 +37,7 @@ prefixes:
+   gtpo: "http://example.org/gtpo/"
+   linkml: "https://w3id.org/linkml/"
+   nmdc: "https://w3id.org/nmdc/"
+-  qudt: "http://qudt.org/1.1/schema/qudt#"
++  qudt: "http://qudt.org/schema/qudt/"
+   rdf: "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   schema: "http://schema.org/"
+   wgs84: "http://www.w3.org/2003/01/geo/wgs84_pos#"
+diff --git a/src/schema/nmdc.yaml b/src/schema/nmdc.yaml
+index 5d86cad922..1f268ff245 100644
+--- a/src/schema/nmdc.yaml
++++ b/src/schema/nmdc.yaml
+@@ -107,12 +107,14 @@ prefixes:
+   orcid: "https://orcid.org/"
+   owl: "http://www.w3.org/2002/07/owl#"
+   prov: "http://www.w3.org/ns/prov#" # for startedAtTime, endedAtTime, Association, Activity, wasInformedBy, wasGeneratedBy, qualifiedAssociation
+-  qudt: "http://qudt.org/1.1/schema/qudt#"
++  quantitykind: "http://qudt.org/vocab/quantitykind/" # QUDT quantity kinds, for has_quantity_kind_id examples
++  qudt: "http://qudt.org/schema/qudt/"
+   rdf: "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   rdfs: "http://www.w3.org/2000/01/rdf-schema#"
+   ror: 'https://bioregistry.io/ror:' # https://ror.org/
+   schema: "http://schema.org/"
+   skos: "http://www.w3.org/2004/02/skos/core#"
++  unit: "http://qudt.org/vocab/unit/" # QUDT units, for UnitEnum mappings
+   wgs84: "http://www.w3.org/2003/01/geo/wgs84_pos#"
+   wikidata: "http://www.wikidata.org/entity/"
+   xsd: "http://www.w3.org/2001/XMLSchema#"
+diff --git a/src/schema/nmdc_types.yaml b/src/schema/nmdc_types.yaml
+index 6bd3f802c0..c897b15da3 100644
+--- a/src/schema/nmdc_types.yaml
++++ b/src/schema/nmdc_types.yaml
+@@ -8,7 +8,7 @@ license: https://creativecommons.org/publicdomain/zero/1.0/
+ prefixes:
+   UO: "http://purl.obolibrary.org/obo/UO_"
+   linkml: "https://w3id.org/linkml/"
+-  qudt: "http://qudt.org/1.1/schema/qudt#"
++  qudt: "http://qudt.org/schema/qudt/"
+ 
+ 
+ imports:

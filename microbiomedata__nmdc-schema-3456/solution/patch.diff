@@ -1,0 +1,45 @@
+diff --git a/src/schema/basic_slots.yaml b/src/schema/basic_slots.yaml
+index aae0b8d0a5..6127cb984e 100644
+--- a/src/schema/basic_slots.yaml
++++ b/src/schema/basic_slots.yaml
+@@ -827,18 +827,21 @@ enums:
+       - https://github.com/microbiomedata/nmdc-schema/issues/3227
+     permissible_values:
+       biogeochemistry:
++        title: Biogeochemistry
+         description: >-
+           Completeness badge. Awarded when the Biosample populates at least
+           badge_minimum_slots of the biogeochemistry subset.
+         see_also:
+           - https://microbiomedata.github.io/nmdc-schema/Biogeochemistry/
+       host_information:
++        title: Host Information
+         description: >-
+           Completeness badge. Awarded when the Biosample populates at least
+           badge_minimum_slots of the host_information subset.
+         see_also:
+           - https://microbiomedata.github.io/nmdc-schema/HostInformation/
+       expert_curation:
++        title: Expert Curation
+         description: >-
+           Provenance badge. Awarded when the Biosample's
+           ProvenanceMetadata.source_system_of_record identifies the NMDC
+diff --git a/tests/test_badge_subset_sync.py b/tests/test_badge_subset_sync.py
+index a55b697d3b..94f2213e45 100644
+--- a/tests/test_badge_subset_sync.py
++++ b/tests/test_badge_subset_sync.py
+@@ -176,6 +176,14 @@ def test_every_badge_subset_declares_a_qualifying_bar(self):
+                 f"{member_count} member slots, so no record could ever earn it",
+             )
+ 
++    def test_every_badge_has_a_title(self):
++        # The Data Portal displays badge names; a title keeps it from
++        # deriving them from the snake_case value. See
++        # https://github.com/microbiomedata/nmdc-server/issues/2390
++        enum = self.schema_view.get_enum(BADGE_ENUM, strict=True)
++        untitled = sorted(name for name, pv in enum.permissible_values.items() if not pv.title)
++        self.assertListEqual(untitled, [], "MetadataBadgeEnum values without a title")
++
+ 
+ if __name__ == "__main__":
+     unittest.main()
